@@ -14,7 +14,6 @@ The repository is split into multiple branches, each with a different purpose. E
 TODO:
 
 
-
 ## Code Design
 
 
