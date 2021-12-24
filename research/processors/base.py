@@ -21,6 +21,10 @@ class Processor(object):
     def unprocess(self, batch):
         raise NotImplementedError
 
+    @property
+    def supports_gpu(self):
+        return True
+
 class Empty(Processor):
     '''
     This processor just performs the identity operation

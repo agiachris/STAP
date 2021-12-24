@@ -84,7 +84,7 @@ class Algorithm(ABC):
             self.processor = processor_class(self.env.observation_space, self.env.action_space, **processor_kwargs)
 
     def setup_network(self, network_class, network_kwargs):
-        self.network = network_class(**network_kwargs).to(self.device)
+        self.network = network_class(self.env.observation_space, self.env.action_space, **network_kwargs).to(self.device)
 
     def setup_optimizers(self, optim_class, optim_kwargs):
         # Default optimizer initialization
@@ -92,7 +92,7 @@ class Algorithm(ABC):
 
     def setup_datasets(self):
         '''
-        Setup the datasets. Note that this is called only during the learn method and thus doesn't take any arugments.
+        Setup the datasets. Note that this is called only during the learn method and thus doesn't take any arguments.
         Everything must be saved apriori. This is done to ensure that we don't need to load all of the data to load the model.
         '''
         self.dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.dataset_kwargs)
@@ -142,30 +142,13 @@ class Algorithm(ABC):
             batch = utils.to_device(batch)
         return batch
 
-    def setup_datasets(self, workers):
-        self.dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.dataset_kwargs)
-        dataloader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
-                                                 shuffle=(not issubclass(self.dataset_class, torch.utils.data.IterableDataset)), 
-                                                 num_workers=workers, pin_memory=(self.device.type == "cuda"), 
-                                                 collate_fn=self.collate_fn)
-        if not self.validation_dataset_kwargs is None:
-            print("Creating validation dataset.")
-            self.validation_dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.validation_dataset_kwargs)
-            validation_dataloader = torch.utils.data.DataLoader(self.validation_dataset, batch_size=self.batch_size, 
-                                                                shuffle=(not issubclass(self.dataset_class, torch.utils.data.IterableDataset)), 
-                                                                num_workers=workers, pin_memory=(self.device.type == "cuda"),
-                                                                collate_fn=self.collate_fn)
-        else:
-            validation_dataloader = None
-        return dataloader, validation_dataloader
-        
     def train(self, path, total_steps, log_freq=100, eval_freq=1000, max_eval_steps=-1, workers=4, loss_metric="loss", eval_ep=-1, schedule_kwargs={}):
         logger = Logger(path=path)
         print("[research] Model Directory:", path)
         print("[research] Training a model with", sum(p.numel() for p in self.network.parameters() if p.requires_grad), "trainable parameters.")
         
-
         # Construct the dataloaders.
+        self.setup_datasets()
         dataloader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
                                                  shuffle=(not issubclass(self.dataset_class, torch.utils.data.IterableDataset)), 
                                                  num_workers=workers, pin_memory=(self.device.type == "cuda"), 

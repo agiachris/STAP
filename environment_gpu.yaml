@@ -4,8 +4,9 @@ channels:
   - nvidia
   - default
 dependencies:
-  # pytorch
   - python=3.8
+  
+  # pytorch
   - pytorch
   - cudatoolkit=11.1
   - torchvision

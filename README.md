@@ -11,13 +11,11 @@ I would suggest reading through all the documentation. If you use this package, 
 ## Getting Started
 The repository is split into multiple branches, each with a different purpose. Each branch contains implementations of standard algorithms and datasets. There are currently three main branches: main, image, and rl. 
 
+TODO:
 
 
 
 ## Code Design
-
-
-A lightweight research framework
 
 
 ## Usage
