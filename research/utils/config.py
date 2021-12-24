@@ -18,9 +18,7 @@ class Config(object):
         # Algorithm Args
         self.config['alg'] = None
         self.config['alg_kwargs'] = {}
-        self.config['train_kwargs'] = {}
-        self.config['seed'] = None # Does nothing right now.
-
+        
         # Dataset args
         self.config['dataset'] = None
         self.config['dataset_kwargs'] = {}
@@ -30,17 +28,24 @@ class Config(object):
         self.config['collate_fn'] = None
         self.config['batch_size'] = None
 
+        # Processor arguments
+        self.config['processor'] = None
+        self.config['processor_kwargs'] = {}
+
         # Optimizer Args
         self.config['optim'] = None
         self.config['optim_kwargs'] = {}
         self.config['scheduler'] = None
 
-        # General arguments
-        self.config['checkpoint'] = None
-
         # network Args
         self.config['network'] = None
         self.config['network_kwargs'] = {}
+
+        # General arguments
+        self.config['checkpoint'] = None
+        self.config['seed'] = None # Does nothing right now.
+        self.config['train_kwargs'] = {}
+
 
     def parse(self):
         self.parsed = True
@@ -71,7 +76,7 @@ class Config(object):
         if os.path.isdir(path):
             path = os.path.join(path, "config.yaml")
         with open(path, 'r') as f:
-            data = yaml.load(f)
+            data = yaml.load(f, Loader=yaml.Loader)
         config = cls()
         config.update(data)
         return config

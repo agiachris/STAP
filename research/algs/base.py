@@ -2,6 +2,7 @@ import os
 import time
 import torch
 import numpy as np
+import copy
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -79,7 +80,7 @@ class Algorithm(ABC):
 
     def setup_processor(self, processor_class, processor_kwargs):
         if processor_class is None:
-            self.processor = research.processors.base.Empty()
+            self.processor = research.processors.base.Empty(self.env.observation_space, self.env.action_space)
         else:
             self.processor = processor_class(self.env.observation_space, self.env.action_space, **processor_kwargs)
 
@@ -97,7 +98,9 @@ class Algorithm(ABC):
         '''
         self.dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.dataset_kwargs)
         if not self.validation_dataset_kwargs is None:
-            self.validation_dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.validation_dataset_kwargs)
+            validation_dataset_kwargs = copy.deepcopy(self.dataset_kwargs)
+            validation_dataset_kwargs.update(self.validation_dataset_kwargs)
+            self.validation_dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **validation_dataset_kwargs)
 
     def save(self, path, extension):
         '''
@@ -235,12 +238,12 @@ class Algorithm(ABC):
                     if loss_metric in MAX_VALID_METRICS and current_validation_metric > best_validation_metric:
                         self.save(path, "best_model")
                         best_validation_metric = current_validation_metric
-                    elif loss_metric < best_validation_metric:
+                    elif current_validation_metric < best_validation_metric:
                         self.save(path, "best_model")
                         best_validation_metric = current_validation_metric
 
                     # Eval Logger Dump to CSV
-                    logger.dump(step=self._steps, csv=True) # Dump the eval metrics to CSV.
+                    logger.dump(step=self._steps, dump_csv=True) # Dump the eval metrics to CSV.
                     self.save(path, "final_model") # Also save the final model every eval period.
                     self.network.train()
 

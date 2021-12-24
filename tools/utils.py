@@ -107,7 +107,7 @@ class Config(object):
         if os.path.isdir(path):
             path = os.path.join(path, "config.yaml")
         with open(path, 'r') as f:
-            data = yaml.load(f)
+            data = yaml.load(f, Loader=yaml.Loader)
         config = cls()
         config.update(data)
         return config

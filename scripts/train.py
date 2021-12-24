@@ -10,4 +10,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config = Config.load(args.config)
-    train(config, args.save_path, device=args.device)
+    train(config, args.path, device=args.device)

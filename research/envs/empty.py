@@ -20,10 +20,9 @@ def _get_space(low=None, high=None, shape=None, dtype=None):
         # Construct the gym dict space
         return gym.spaces.Dict(**spaces)
 
-    if shape == 0 and dtype is np.integer:
-        if low is None:
-            low = 0
-        return gym.spaces.Discrete(high - low, start=low)
+    if shape == None and isinstance(high, int):
+        assert low is None, "Tried to specify a discrete space with both high and low."
+        return gym.spaces.Discrete(high)
     
     # Otherwise assume its a box.        
     if low is None:
