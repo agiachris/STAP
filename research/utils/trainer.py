@@ -34,7 +34,6 @@ def get_model(config, device="auto"):
     network_class = None if config['network'] is None else vars(research.networks)[config['network']]
     optim_class = None if config['optim'] is None else vars(torch.optim)[config['optim']]
     processor_class = None if config['processor'] is None else vars(research.processors)[config['processor']]
-    scheduler = None if config['scheduler'] is None else vars(schedules)[config['scheduler']]
     env = None if config['env'] is None else get_env_from_config(config)
     eval_env = None if config['env'] is None else get_env_from_config(config)
 
@@ -49,7 +48,6 @@ def get_model(config, device="auto"):
                      optim_kwargs=config['optim_kwargs'],
                      collate_fn=config['collate_fn'],
                      batch_size=config['batch_size'],
-                     scheduler=scheduler,
                      checkpoint=config['checkpoint'],
                      eval_env=eval_env,
                      **config['alg_kwargs'],)
@@ -71,7 +69,8 @@ def train(config, path, device="auto"):
     
     model = get_model(config, device=device)
     assert issubclass(type(model), research.algs.base.Algorithm)
-    model.train(path, **config['train_kwargs'])
+    schedule = None if config['scheduler'] is None else vars(schedules)[config['scheduler']]
+    model.train(path,  schedule=schedule, schedule_kwargs=config['schedule_kwargs'], **config['train_kwargs'])
     return model
 
 def load(config, model_path, device="auto", strict=True):

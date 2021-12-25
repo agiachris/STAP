@@ -32,6 +32,8 @@ After setting up the repo, there are a few steps before you can get started:
 3. Install the research package via `pip install -e research`.
 4. Modify the `setup_shell.sh` script by updated the appropriate values as needed. The `setup_shell.sh` script should load the environment, move the shell to the repository directory, and additionally setup any external dependencies. You can add any extra code here.
 
+Other default configuration values for the sweepers, particularly slurm, can be modified at the header of `tools/run_slurm.py`.
+
 ## Usage
 You should be able to activate the development enviornment by running `. path/to/setup_shell.sh`.
 

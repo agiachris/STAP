@@ -41,6 +41,10 @@ class Config(object):
         self.config['network'] = None
         self.config['network_kwargs'] = {}
 
+        # Schedule args
+        self.config['schedule'] = None
+        self.config['schedule_kwargs'] = {}
+
         # General arguments
         self.config['checkpoint'] = None
         self.config['seed'] = None # Does nothing right now.

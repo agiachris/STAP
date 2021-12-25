@@ -37,7 +37,6 @@ class Algorithm(ABC):
                        },
                        processor_class=None,
                        processor_kwargs={},
-                       scheduler=None,
                        checkpoint=None,
                        validation_dataset_kwargs=None,
                        collate_fn=None,
@@ -69,10 +68,6 @@ class Algorithm(ABC):
         # Create the optimizers
         self.optim = {}
         self.setup_optimizers(optim_class, optim_kwargs)
-
-        # save the schedulers
-        self.schedulers = {}
-        self.schedule_fn = scheduler
 
         # Load a check point if we have one
         if checkpoint:
@@ -145,7 +140,7 @@ class Algorithm(ABC):
             batch = utils.to_device(batch)
         return batch
 
-    def train(self, path, total_steps, log_freq=100, eval_freq=1000, max_eval_steps=-1, workers=4, loss_metric="loss", eval_ep=-1, schedule_kwargs={}):
+    def train(self, path, total_steps, schedule=None, schedule_kwargs={}, log_freq=100, eval_freq=1000, max_eval_steps=-1, workers=4, loss_metric="loss", eval_ep=-1):
         logger = Logger(path=path)
         print("[research] Model Directory:", path)
         print("[research] Training a model with", sum(p.numel() for p in self.network.parameters() if p.requires_grad), "trainable parameters.")
@@ -162,10 +157,11 @@ class Algorithm(ABC):
                                                             num_workers=workers, pin_memory=(self.device.type == "cuda"),
                                                             collate_fn=self.collate_fn)
 
-        # Apply the schedulers to the optimizers
-        if not self.schedule_fn is None:
+        # Create schedulers for the optimizers
+        schedulers = {}
+        if schedule is not None:
             for name, opt in self.optim.items():
-                self.schedulers[name] = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=self.schedule_fn(total_steps, **schedule_kwargs))
+                schedulers[name] = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=self.schedule_fn(total_steps, **schedule_kwargs))
 
         # Setup model metrics.
         self._steps = 0
@@ -188,7 +184,7 @@ class Algorithm(ABC):
                 self._steps += 1
 
                 # Update the schedulers
-                for scheduler in self.schedulers.values():
+                for scheduler in schedulers.values():
                     scheduler.step()
 
                 # Run the logger
@@ -197,7 +193,7 @@ class Algorithm(ABC):
                     log_from_dict(logger, loss_lists, "train")
                     logger.record("time/epochs", epochs)
                     logger.record("time/steps_per_second", log_freq / (current_time - start_time))
-                    for name, scheduler in self.schedulers.items():
+                    for name, scheduler in schedulers.items():
                         logger.record("lr/" + name, scheduler.get_last_lr()[0])
                     start_time = current_time
                     logger.dump(step=self._steps)
