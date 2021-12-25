@@ -30,10 +30,9 @@ After setting up the repo, there are a few steps before you can get started:
 1. Edit `environment_cpu.yaml` and `environment_gpu.yaml` as desired to include any additional dependencies via conda or pip, you can also change the name if desired.
 2. Create the conda environment using `conda env create -f environment_<cpu or gpu>.yaml`.
 3. Install the research package via `pip install -e research`.
-4. Modify the `setup_shell.sh` script as desired. The `setup_shell.sh` script should load the environment, move the shell to the repository directory, and additionally setup any external dependencies.
+4. Modify the `setup_shell.sh` script by updated the appropriate values as needed. The `setup_shell.sh` script should load the environment, move the shell to the repository directory, and additionally setup any external dependencies. You can add any extra code here.
 
 ## Usage
-
 You should be able to activate the development enviornment by running `. path/to/setup_shell.sh`.
 
 ## Code Design
