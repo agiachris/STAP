@@ -13,7 +13,7 @@ if __name__ == "__main__":
     
     # Add Taskset and GPU arguments
     args = parser.parse_args()
-    assert args.jobs_per_instance == 0, "Jobs Per Instance does not apply to local sweeps!"
+    assert args.jobs_per_instance == 1, "Jobs Per Instance does not apply to local sweeps!"
     assert isinstance(args.gpus, list) or args.gpus is None, "GPUs must be a list of ints or None."
     assert isinstance(args.cpus, list) or args.cpus is None, "CPUs must be a list"
     
@@ -37,26 +37,28 @@ if __name__ == "__main__":
     
     processes = []
     for i, job in enumerate(jobs):
+        job_cpus = ','.join([str(c) for c in cpu_list[i*cores_per_job:(i+1)*cores_per_job]])
         command_list = [
-            'taskset', '-c', ','.join([str(c) for c in cpu_list[i*cores_per_job:(i+1)*cores_per_job]]),
+            'taskset', '-c', job_cpus,
             'python', args.entry_point
         ]
         for arg_name, arg_value in job.items():
             command_list.append("--" + arg_name)
             command_list.append(str(arg_value))
         
-        if gpus is not None:
+        job_gpus = str(gpus[i % len(gpus)]) if gpus is not None else None
+        if job_gpus is not None:
             env = os.environ
-            env["CUDA_VISIBLE_DEVICES"] = str(gpus[i % len(gpus)]) # TODO: this doesn't support multi-gpu
+            env["CUDA_VISIBLE_DEVICES"] = job_gpus # TODO: this doesn't support multi-gpu
         else:
             env = None
-
+        print("[Local Sweeper] Starting job on gpu:", job_gpus, "and cpus:", job_cpus)
         proc = subprocess.Popen(command_list, env=env)
         processes.append(proc)
         
     try:
         exit_codes = [p.wait() for p in processes]
-        print("[GRID SWEEPER] Waiting for completion.")
+        print("[Local Sweeper] Waiting for completion.")
     except KeyboardInterrupt:
         for p in processes:
             try:
