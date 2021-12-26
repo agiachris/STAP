@@ -12,7 +12,7 @@ def eval_policy(env, model, num_ep):
         obs = env.reset()
         while not done:
             with torch.no_grad():
-                action = model.predict(obs, deterministic=True)
+                action = model.predict(obs)
             obs, reward, done, info = env.step(action)
             ep_reward += reward
             ep_length += 1
@@ -24,5 +24,4 @@ def eval_policy(env, model, num_ep):
     metrics = dict(reward=np.mean(ep_rewards), stddev=np.std(ep_rewards), length=np.mean(ep_lengths))
     if 'is_success' in info:
         metrics['success_rate'] = num_successes/num_ep
-    
     return metrics

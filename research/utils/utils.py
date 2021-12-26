@@ -19,6 +19,15 @@ def to_tensor(batch):
         batch = torch.from_numpy(batch)
     return batch
 
+def to_np(batch):
+    if isinstance(batch, dict):
+        batch = {k: to_np(v) for k, v in batch.items()}
+    elif isinstance(batch, list) or isinstance(batch, tuple):
+        batch = [to_np(v) for v in batch]
+    elif isinstance(batch, torch.Tensor):
+        batch = batch.detach().cpu().numpy()
+    return batch
+
 def unsqueeze(batch, dim):
     if isinstance(batch, dict):
         batch = {k: unsqueeze(v, dim) for k, v in batch.items()}

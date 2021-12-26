@@ -2,15 +2,18 @@ import os
 import time
 import torch
 import numpy as np
+import random
 import copy
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
 import research
+from research.processors.base import IdentityProcessor
 from research.utils.logger import Logger
 from research.utils import utils
 from research.utils.evaluate import eval_policy
+
 
 def log_from_dict(logger, loss_lists, prefix):
     keys_to_remove = []
@@ -23,6 +26,11 @@ def log_from_dict(logger, loss_lists, prefix):
             keys_to_remove.append(loss_name)
     for key in keys_to_remove:
         del loss_lists[key]
+
+def _worker_init_fn(worker_id):
+    seed = np.random.get_state()[1][0] + worker_id
+    np.random.seed(seed)
+    random.seed(seed)
 
 MAX_VALID_METRICS = {"reward",}
 
@@ -75,7 +83,7 @@ class Algorithm(ABC):
 
     def setup_processor(self, processor_class, processor_kwargs):
         if processor_class is None:
-            self.processor = research.processors.base.Empty(self.env.observation_space, self.env.action_space)
+            self.processor = IdentityProcessor(self.env.observation_space, self.env.action_space)
         else:
             self.processor = processor_class(self.env.observation_space, self.env.action_space, **processor_kwargs)
 
@@ -96,6 +104,8 @@ class Algorithm(ABC):
             validation_dataset_kwargs = copy.deepcopy(self.dataset_kwargs)
             validation_dataset_kwargs.update(self.validation_dataset_kwargs)
             self.validation_dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **validation_dataset_kwargs)
+        else:
+            self.validation_dataset = None
 
     def save(self, path, extension):
         '''
@@ -147,15 +157,22 @@ class Algorithm(ABC):
         
         # Construct the dataloaders.
         self.setup_datasets()
+        shuffle = not issubclass(self.dataset_class, torch.utils.data.IterableDataset)
+        pin_memory = self.device.type == "cuda"
+        worker_init_fn = _worker_init_fn if workers > 0 else None
         dataloader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
-                                                 shuffle=(not issubclass(self.dataset_class, torch.utils.data.IterableDataset)), 
-                                                 num_workers=workers, pin_memory=(self.device.type == "cuda"), 
+                                                 shuffle=shuffle, 
+                                                 num_workers=workers, worker_init_fn=worker_init_fn,
+                                                 pin_memory=pin_memory, 
                                                  collate_fn=self.collate_fn)
         if self.validation_dataset is not None:
             validation_dataloader = torch.utils.data.DataLoader(self.validation_dataset, batch_size=self.batch_size, 
-                                                            shuffle=(not issubclass(self.dataset_class, torch.utils.data.IterableDataset)), 
-                                                            num_workers=workers, pin_memory=(self.device.type == "cuda"),
+                                                            shuffle=shuffle, 
+                                                            num_workers=workers, 
+                                                            pin_memory=pin_memory,
                                                             collate_fn=self.collate_fn)
+        else:
+            validation_dataloader = None
 
         # Create schedulers for the optimizers
         schedulers = {}
@@ -269,6 +286,7 @@ class Algorithm(ABC):
         return {}
 
     def predict(self, batch, is_batched=False):
+        is_np = not utils.contains_tensors(batch)
         if not is_batched:
             # Unsqeeuze everything
             batch = utils.unsqueeze(batch, 0)
@@ -279,4 +297,6 @@ class Algorithm(ABC):
             pred = self.network(batch)
         if not is_batched:
             pred = utils.get_from_batch(pred, 0)
+        if is_np:
+            pred = utils.to_np(pred)
         return pred
