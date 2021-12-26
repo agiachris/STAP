@@ -41,3 +41,5 @@ dependencies:
   - pip
   - pip:
       - gym>=0.12
+      - dm_control
+      - mujoco_py

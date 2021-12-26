@@ -1,0 +1,47 @@
+# Example Config that uses almost all values
+
+alg: TD3
+alg_kwargs:
+  tau: 0.005
+  policy_noise: 0.1
+  target_noise: 0.2
+  noise_clip: 0.5
+  critic_freq: 1
+  actor_freq: 2
+  init_steps: 10000
+
+optim: Adam
+optim_kwargs:
+  lr: 0.001
+
+network: ContinuousActorCriticMLP
+network_kwargs:
+  actor_hidden_layers: [256, 256]
+  critic_hidden_layers: [256, 256]
+  actor_output_act: ["import", "torch.nn", "Tanh"]
+  num_q_fns: 2
+
+batch_size: 256
+collate_fn: null # The collate function passed to the dataloader. None uses pytorch default.
+checkpoint: null # A checkpoint to initialize the network from.
+
+# If you are running supervised learning, the env is likely Empty and can just be used to specify input/output spaces.
+env: CheetahRun-v0
+
+dataset: ReplayBuffer
+dataset_kwargs:
+  discount: 0.99
+  nstep: 1
+  capacity: 1000000
+  fetch_every: 1000
+
+processor: null
+
+train_kwargs: # Arguments given to Algorithm.train
+  total_steps: 1000000 # The total number of steps to train
+  log_freq: 100 # How often to log values
+  eval_freq: 10000 # How often to run evals
+  max_eval_steps: 100 # Maximum number of steps from the validatoin dataset, if included
+  eval_ep: 10 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
+  loss_metric: reward # The validation metric that determines when to save the "best_checkpoint"
+  workers: 4 # Number of dataloader workers.
