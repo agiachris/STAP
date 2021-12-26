@@ -1,4 +1,3 @@
-from numpy.lib.arraysetops import isin
 import torch
 import numpy as np
 import collections
@@ -6,7 +5,6 @@ import random
 import datetime
 import io
 import os
-import glob
 import tempfile
 
 class ReplayBuffer(torch.utils.data.IterableDataset):
@@ -16,7 +14,6 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
     All variables starting with an underscore ie _variable are used only by the child processes
     All other variables are used by the parent process.
     '''
-
     def __init__(self, observation_space, action_space, discount=0.99, nstep=1, preload_path=None, capacity=100000, fetch_every=1000, cleanup=True):
         # To avoid multiprocessing conflicts, the only values stored here will be constants.
         self.observation_space = observation_space
@@ -33,27 +30,27 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self.num_episodes = 0
         print("Replay Buffer Storage Path", self.storage_path)
 
+    def add_item(self, key, value):
+        if value is None:
+            return
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                self.add_item(key + '_' + k, v)
+        elif isinstance(value, list):
+            self.current_ep[key].extend(value)
+        else:
+            self.current_ep[key].append(value)
+
     def add(self, obs, action=None, reward=None, done=None):
         # First check to see if we have created storage buffers.
         # This should only ever execute in the parent and none of the workers
         if not hasattr(self, "current_ep"):
             self.current_ep = collections.defaultdict(list)
-
-        def add(key, value):
-            if value is None:
-                return
-            elif isinstance(value, dict):
-                for k, v in value.items():
-                    add(key + '_' + k, v)
-            elif isinstance(value, list):
-                self.current_ep[key].extend(value)
-            else:
-                self.current_ep[key].append(value)
-        
-        add("obs", obs)
-        add("action", action)
-        add("reward", reward)
-        add("done", done)
+     
+        self.add_item("obs", obs)
+        self.add_item("action", action)
+        self.add_item("reward", reward)
+        self.add_item("done", done)
 
         # Check to see if we are done, and if so commit the episode to disk
         if isinstance(done, list):
@@ -87,12 +84,18 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 with open(os.path.join(self.storage_path, ep_filename), 'wb') as f:
                     f.write(bs.read())
 
-    def save(self, path, delete_original=True):
+    def save(self, path):
         '''
         Save the replay buffer to the specified path. This is literally just copying the files
         from the storage path to the desired path. By default, we will also delete the original files.
         '''
-        raise NotImplementedError
+        if self.cleanup:
+            print("[research] Warning, attempting to save a cleaned up replay buffer. There are likely no files")
+        os.makedirs(path, exist_ok=True)
+        srcs = os.listdir(self.storage_path)
+        for src in srcs:
+            os.rename(os.path.join(self.storage_path, src), os.path.join(path, src))
+        print("Successfully saved", len(srcs), "episodes.")
 
     def __del__(self):
         if not self.cleanup:
