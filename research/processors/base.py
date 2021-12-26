@@ -4,6 +4,7 @@ Examples are as follows:
 1. Normalization
 2. Image Augmentations applied on the entire batch at once.
 '''
+import research
 
 class Processor(object):
     '''
@@ -33,4 +34,21 @@ class IdentityProcessor(Processor):
         return batch
 
     def unprocess(self, batch):
+        return batch
+
+class ComposeProcessor(Processor):
+    '''
+    This Processor Composes multiple processors
+    '''
+    def __init__(self, observation_space, action_space, processors=[("IdentityProcessor"), {}]):
+        super().__init__(observation_space, action_space)
+        self.processors = []
+        for processor_class, processor_kwargs in processors:
+            processor_class = vars(research.processors)[processor_class]
+            processor = processor_class(self.observation_space, self.action_space, **processor_kwargs)
+            self.processors.append(processor)
+
+    def __call__(self, batch):
+        for processor in self.processors:
+            batch = processor(batch)
         return batch
