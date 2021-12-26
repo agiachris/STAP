@@ -25,7 +25,7 @@ class Processor(object):
     def supports_gpu(self):
         return True
 
-class Empty(Processor):
+class IdentityProcessor(Processor):
     '''
     This processor just performs the identity operation
     '''
