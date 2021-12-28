@@ -8,7 +8,7 @@ alg_kwargs:
   noise_clip: 0.5
   critic_freq: 1
   actor_freq: 2
-  init_steps: 10000
+  init_steps: 25000
 
 optim: Adam
 optim_kwargs:
@@ -32,16 +32,16 @@ dataset: ReplayBuffer
 dataset_kwargs:
   discount: 0.99
   nstep: 1
-  capacity: 1000000
+  capacity: 2000000
   fetch_every: 1000
 
 processor: null
 
 train_kwargs: # Arguments given to Algorithm.train
-  total_steps: 1000000 # The total number of steps to train
-  log_freq: 100 # How often to log values
+  total_steps: 2000000 # The total number of steps to train
+  log_freq: 250 # How often to log values
   eval_freq: 10000 # How often to run evals
-  max_eval_steps: 100 # Maximum number of steps from the validatoin dataset, if included
+  max_eval_steps: 50 # Maximum number of steps from the validatoin dataset, if included
   eval_ep: 10 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
   loss_metric: reward # The validation metric that determines when to save the "best_checkpoint"
   workers: 4 # Number of dataloader workers.
