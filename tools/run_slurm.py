@@ -86,7 +86,7 @@ if __name__ == "__main__":
         print("Launching job with slurm configuration:", slurm_file)
 
         with open(slurm_file, 'w+') as f:
-            utils.write_slurm_header(f, args)
+            write_slurm_header(f, args)
             # Now that we have written the header we can launch the jobs.
             for job in current_jobs:
                 command_str = ['python', args.entry_point]
