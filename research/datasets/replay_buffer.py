@@ -5,6 +5,7 @@ import random
 import datetime
 import io
 import os
+import shutil
 import tempfile
 
 class ReplayBuffer(torch.utils.data.IterableDataset):
@@ -94,7 +95,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         os.makedirs(path, exist_ok=True)
         srcs = os.listdir(self.storage_path)
         for src in srcs:
-            os.rename(os.path.join(self.storage_path, src), os.path.join(path, src))
+            shutil.move(os.path.join(self.storage_path, src), os.path.join(path, src))
         print("Successfully saved", len(srcs), "episodes.")
 
     def __del__(self):
