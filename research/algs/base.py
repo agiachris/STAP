@@ -291,7 +291,7 @@ class Algorithm(ABC):
             pred = self.network.predict(batch)
         else:
             pred = self.network(batch)
-        return batch
+        return pred
 
     def predict(self, batch, is_batched=False):
         is_np = not utils.contains_tensors(batch)
