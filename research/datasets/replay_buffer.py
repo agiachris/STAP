@@ -66,16 +66,16 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             assert len(action_keys) > 0, "No action key"
             assert len(self.current_ep[obs_keys[0]]) == len(self.current_ep['reward']) + 1
             # Commit to disk.
-            # NOTE: Here DRQ-V2 does a cast to the dtype from the observation space.
+            ep_idx = self.num_episodes
+            ep_len = len(self.current_ep['reward'])
             episode = {}
+            # NOTE: Here DRQ-V2 does a cast to the dtype from the observation space.
             for k, v in self.current_ep.items():
                 dtype = v[0].dtype if isinstance(v, np.ndarray) else np.float32
                 episode[k] = np.array(v, dtype=dtype)
             # Delete the current_ep reference
             self.current_ep = collections.defaultdict(list)
             # Store the ep
-            ep_idx = self.num_episodes
-            ep_len = len(self.current_ep['reward'])
             self.num_episodes += 1
             ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
             ep_filename = f'{ts}_{ep_idx}_{ep_len}.npz'
