@@ -285,16 +285,21 @@ class Algorithm(ABC):
         '''
         return {}
 
+    def _predict(self, batch):
+        '''Internal prediction function, can be overridden'''
+        if hasattr(self.network, "predict"):
+            pred = self.network.predict(batch)
+        else:
+            pred = self.network(batch)
+        return pred
+
     def predict(self, batch, is_batched=False):
         is_np = not utils.contains_tensors(batch)
         if not is_batched:
             # Unsqeeuze everything
             batch = utils.unsqueeze(batch, 0)
         batch = self._format_batch(batch)
-        if hasattr(self.network, "predict"):
-            pred = self.network.predict(batch)
-        else:
-            pred = self.network(batch)
+        pred = self._predict(batch)
         if not is_batched:
             pred = utils.get_from_batch(pred, 0)
         if is_np:
