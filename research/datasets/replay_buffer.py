@@ -5,6 +5,7 @@ import random
 import datetime
 import io
 import os
+import shutil
 import tempfile
 
 class ReplayBuffer(torch.utils.data.IterableDataset):
@@ -65,16 +66,16 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             assert len(action_keys) > 0, "No action key"
             assert len(self.current_ep[obs_keys[0]]) == len(self.current_ep['reward']) + 1
             # Commit to disk.
-            # NOTE: Here DRQ-V2 does a cast to the dtype from the observation space.
+            ep_idx = self.num_episodes
+            ep_len = len(self.current_ep['reward'])
             episode = {}
+            # NOTE: Here DRQ-V2 does a cast to the dtype from the observation space.
             for k, v in self.current_ep.items():
                 dtype = v[0].dtype if isinstance(v, np.ndarray) else np.float32
                 episode[k] = np.array(v, dtype=dtype)
             # Delete the current_ep reference
             self.current_ep = collections.defaultdict(list)
             # Store the ep
-            ep_idx = self.num_episodes
-            ep_len = len(self.current_ep['reward'])
             self.num_episodes += 1
             ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
             ep_filename = f'{ts}_{ep_idx}_{ep_len}.npz'
@@ -94,7 +95,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         os.makedirs(path, exist_ok=True)
         srcs = os.listdir(self.storage_path)
         for src in srcs:
-            os.rename(os.path.join(self.storage_path, src), os.path.join(path, src))
+            shutil.move(os.path.join(self.storage_path, src), os.path.join(path, src))
         print("Successfully saved", len(srcs), "episodes.")
 
     def __del__(self):
@@ -122,10 +123,12 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 break # We found something we have already loaded
             if fetched_size + ep_len > self.capacity:
                 break # Cannot fetch more than the size of the replay buffer
-            fetched_size += ep_len
             # load the episode from disk
             with open(ep_filename, 'rb') as f:
-                raw_episode = np.load(f)
+                try:
+                    raw_episode = np.load(f)
+                except:
+                    continue # episode failed to move on to the next one.
                 episode = {}
                 obs_keys = [key for key in raw_episode.keys() if "obs" in key]
                 action_keys = [key for key in raw_episode.keys() if "action" in key]
@@ -133,8 +136,10 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 episode["action"] = {k[len("action_"):]: raw_episode[k] for k in action_keys} if len(action_keys) > 1 else raw_episode[action_keys[0]]
                 episode["reward"] = raw_episode["reward"]
                 episode["discount"] = 1 - raw_episode["done"]
+            # Add the length to the fetched size
+            fetched_size += ep_len
             # After the episode has been loaded, remove the old episodes
-            ep_len = len(episode["reward"])
+            assert len(episode["reward"]) == ep_len
             while ep_len + self._size > (self.capacity // self._num_workers):
                 early_ep_filename = self._episode_filenames.pop(0)
                 self._size -= len(self._episodes[early_ep_filename]["reward"])
