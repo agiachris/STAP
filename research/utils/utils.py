@@ -39,13 +39,16 @@ def unsqueeze(batch, dim):
         batch = batch.unsqueeze(dim)
     return batch
 
-def get_from_batch(batch, index):
+def get_from_batch(batch, start, end=None):
     if isinstance(batch, dict):
-        batch = {k: get_from_batch(v, index) for k, v in batch.items()}
+        batch = {k: get_from_batch(v, start, end=end) for k, v in batch.items()}
     elif isinstance(batch, list) or isinstance(batch, tuple):
-        batch = [get_from_batch(v, index) for v in batch]
+        batch = [get_from_batch(v, start, end=end) for v in batch]
     elif isinstance(batch, np.ndarray) or isinstance(batch, torch.Tensor):
-        batch = batch[0]
+        if end is None:
+            batch = batch[start]
+        else:
+            batch = batch[start:end]
     return batch
 
 def contains_tensors(batch):

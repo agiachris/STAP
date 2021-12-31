@@ -168,7 +168,7 @@ class Algorithm(ABC):
         if self.validation_dataset is not None:
             validation_dataloader = torch.utils.data.DataLoader(self.validation_dataset, batch_size=self.batch_size, 
                                                             shuffle=shuffle, 
-                                                            num_workers=workers, 
+                                                            num_workers=0, 
                                                             pin_memory=pin_memory,
                                                             collate_fn=self.collate_fn)
         else:

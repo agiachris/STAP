@@ -5,6 +5,8 @@ Examples are as follows:
 2. Image Augmentations applied on the entire batch at once.
 '''
 import research
+import torch
+from research.utils.utils import fetch_from_dict
 
 class Processor(object):
     '''
@@ -52,3 +54,28 @@ class ComposeProcessor(Processor):
         for processor in self.processors:
             batch = processor(batch)
         return batch
+
+class ConcatenateKeyProcessor(Processor):
+    '''
+    This processor gets items from a nested dictionary structure 
+    '''
+    def __init__(self, observation_space, action_space, dim=1, keys=[]):
+        super().__init__(observation_space, action_space)
+        self.dim = dim
+        self.keys = sorted(keys)
+
+    def __call__(self, batch):
+        if isinstance(batch, list):
+            return [self(item) for item in batch]
+        elif isinstance(batch, tuple):
+            return (self(item) for item in batch)
+        elif isinstance(batch, dict):
+            items = [fetch_from_dict(batch, key) for key in self.keys]
+            if len(items) == 0:
+                raise ValueError("Did not fetch any keys from the data")
+            elif len(items) == 1:
+                return items[0]
+            else:
+                return torch.cat(items, dim=self.dim)
+        else:
+            raise ValueError("Does not support passed in datatype" + str(type(batch)))
