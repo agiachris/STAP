@@ -1,10 +1,12 @@
 import torch
 import copy
 import numpy as np
+import itertools
 
 from .base import Algorithm
 from research.networks.base import ActorCriticPolicy
 from research.utils.utils import to_tensor, to_device, unsqueeze
+
 
 class TD3(Algorithm):
 
@@ -15,6 +17,7 @@ class TD3(Algorithm):
                        noise_clip=0.5,
                        critic_freq=1,
                        actor_freq=2,
+                       target_freq=2,
                        init_steps=1000,
                        **kwargs):
         super().__init__(env, network_class, dataset_class, **kwargs)
@@ -25,6 +28,7 @@ class TD3(Algorithm):
         self.noise_clip = noise_clip
         self.critic_freq = critic_freq
         self.actor_freq = actor_freq
+        self.target_freq = target_freq
         self.action_range = (self.env.action_space.low, self.env.action_space.high)
         self.action_range_tensor = to_device(to_tensor(self.action_range), self.device)
         self.init_steps = init_steps
@@ -47,9 +51,11 @@ class TD3(Algorithm):
     def setup_optimizers(self, optim_class, optim_kwargs):
         # Default optimizer initialization
         self.optim['actor'] = optim_class(self.network.actor.parameters(), **optim_kwargs)
-        self.optim['critic'] = optim_class(self.network.critic.parameters(), **optim_kwargs)
+        # Update the encoder with the critic.
+        critic_params = itertools.chain(self.network.critic.parameters(), self.network.encoder.parameters())        
+        self.optim['critic'] = optim_class(critic_params, **optim_kwargs)
 
-    def _compute_q_loss(self, batch):
+    def _compute_critic_loss(self, batch):
         with torch.no_grad():
             noise = (torch.randn_like(batch['action']) * self.policy_noise).clamp(-self.noise_clip, self.noise_clip)
             next_action = self.target_network.actor(batch['next_obs'])
@@ -65,8 +71,9 @@ class TD3(Algorithm):
         return q_loss, dict(q1_loss=q1_loss.item(), q2_loss=q2_loss.item(), q_loss=q_loss.item(), target_q=target_q.mean().item())
     
     def _compute_actor_loss(self, batch):
-        action = self.network.actor(batch['obs'])
-        q1, q2 = self.network.critic(batch['obs'], action)
+        obs = batch['obs'].detach() # Detach the encoder so it isn't updated.
+        action = self.network.actor(obs)
+        q1, q2 = self.network.critic(obs, action)
         q = (q1 + q2) / 2
         actor_loss = -q.mean()
         return actor_loss, dict(actor_loss=actor_loss.item())
@@ -100,24 +107,32 @@ class TD3(Algorithm):
         else:
             self._current_obs = next_obs
         
-        if self.steps < self.init_steps:
+        if self.steps < self.init_steps or not 'obs' in batch:
             return all_metrics
+
+        updating_critic = self.steps % self.critic_freq == 0
+        updating_actor = self.steps % self.actor_freq == 0
+
+        if updating_actor or updating_critic:
+            batch['obs'] = self.network.encoder(batch['obs'])
+            with torch.no_grad():
+                batch['next_obs'] = self.target_network.encoder(batch['next_obs'])
         
-        if self.steps % self.critic_freq == 0:
+        if updating_critic:
             self.optim['critic'].zero_grad()
-            loss, metrics = self._compute_q_loss(batch)
+            loss, metrics = self._compute_critic_loss(batch)
             loss.backward()
             self.optim['critic'].step()
             all_metrics.update(metrics)
 
-        if self.steps % self.actor_freq == 0:
+        if updating_actor:
             self.optim['actor'].zero_grad()
             loss, metrics = self._compute_actor_loss(batch)
             loss.backward()
             self.optim['actor'].step()
             all_metrics.update(metrics)
 
-            # update the target network
+        if self.steps % self.target_freq == 0:
             with torch.no_grad():
                 for param, target_param in zip(self.network.parameters(), self.target_network.parameters()):
                     target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
@@ -125,20 +140,10 @@ class TD3(Algorithm):
         return all_metrics
 
     def _validation_step(self, batch):
-        '''
-        perform a validation step
-        '''
-        all_metrics = {}
-        with torch.no_grad():
-            _, metrics = self._compute_q_loss(batch)
-            all_metrics.update(metrics)
-            _, metrics = self._compute_actor_loss(batch)
-            all_metrics.update(metrics)
-        return all_metrics
+        raise NotImplementedError("RL Algorithm does not have a validation dataset.")
 
     def noisy_predict(self, obs):
         with torch.no_grad():
             action = self.predict(obs)
         action += self.policy_noise * np.random.randn(action.shape[0])
         return action
-

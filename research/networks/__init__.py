@@ -1,2 +1,3 @@
 # Register Network Classes here.
-from .mlp import ContinuousActorCriticMLP
+from .base import ActorCriticPolicy
+from .mlp import ContinuousMLPActor, ContinuousMLPCritic

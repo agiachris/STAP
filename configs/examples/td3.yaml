@@ -8,18 +8,23 @@ alg_kwargs:
   noise_clip: 0.5
   critic_freq: 1
   actor_freq: 2
+  target_freq: 2
   init_steps: 25000
 
 optim: Adam
 optim_kwargs:
   lr: 0.001
 
-network: ContinuousActorCriticMLP
+network: ActorCriticPolicy
 network_kwargs:
-  actor_hidden_layers: [256, 256]
-  critic_hidden_layers: [256, 256]
-  actor_output_act: ["import", "torch.nn", "Tanh"]
-  num_q_fns: 2
+  actor_class: ContinuousMLPActor
+  actor_kwargs:
+    hidden_layers: [256, 256]
+    output_act: ["import", "torch.nn", "Tanh"]
+  critic_class: ContinuousMLPCritic
+  critic_kwargs:
+    hidden_layers: [256, 256]
+    num_q_fns: 2
 
 batch_size: 256
 collate_fn: null # The collate function passed to the dataloader. None uses pytorch default.
