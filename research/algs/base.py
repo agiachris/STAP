@@ -32,7 +32,7 @@ def _worker_init_fn(worker_id):
     np.random.seed(seed)
     random.seed(seed)
 
-MAX_VALID_METRICS = {"reward",}
+MAX_VALID_METRICS = {"reward", "accuracy"}
 
 class Algorithm(ABC):
 
