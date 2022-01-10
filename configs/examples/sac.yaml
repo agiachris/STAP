@@ -23,6 +23,7 @@ network_kwargs:
   critic_kwargs:
     hidden_layers: [1024, 1024]
     num_q_fns: 2
+  ortho_init: true
 
 batch_size: 1024
 collate_fn: null # The collate function passed to the dataloader. None uses pytorch default.
