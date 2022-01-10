@@ -5,11 +5,15 @@ class ActorCriticPolicy(nn.Module):
 
     def __init__(self, observation_space, action_space, 
                        actor_class, critic_class, encoder_class=None, 
-                       actor_kwargs={}, critic_kwargs={}, encoder_kwargs={}) -> None:
+                       actor_kwargs={}, critic_kwargs={}, encoder_kwargs={}, **kwargs) -> None:
         super().__init__()
         encoder_class = vars(research.networks)[encoder_class] if isinstance(encoder_class, str) else encoder_class
         actor_class = vars(research.networks)[actor_class] if isinstance(actor_class, str) else actor_class
         critic_class = vars(research.networks)[critic_class] if isinstance(critic_class, str) else critic_class
+
+        encoder_kwargs.update(kwargs)
+        actor_kwargs.update(kwargs)
+        critic_kwargs.update(kwargs)
 
         if encoder_class is not None:
             self._encoder = encoder_class(observation_space, action_space, **encoder_kwargs)
@@ -33,9 +37,9 @@ class ActorCriticPolicy(nn.Module):
     def encoder(self):
         return self._encoder
         
-    def predict(self, obs):
+    def predict(self, obs, **kwargs):
         obs = self._encoder(obs)
         if hasattr(self._actor, "predict"):
-            return self._actor.predict(obs)
+            return self._actor.predict(obs, **kwargs)
         else:
             return self._actor(obs)

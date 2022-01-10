@@ -8,36 +8,40 @@ from research.networks.base import ActorCriticPolicy
 from research.utils.utils import to_tensor, to_device, unsqueeze
 
 
-class TD3(Algorithm):
+class SAC(Algorithm):
 
     def __init__(self, env, network_class, dataset_class, 
                        tau=0.005,
-                       policy_noise=0.1,
-                       target_noise=0.2,
-                       noise_clip=0.5,
+                       init_temperature=0.1,
                        critic_freq=1,
                        actor_freq=2,
                        target_freq=2,
                        init_steps=1000,
                        **kwargs):
+
+        # Save values needed for optim setup.
+        self.init_temperature = init_temperature
+
         super().__init__(env, network_class, dataset_class, **kwargs)
         # Save extra parameters
         self.tau = tau
-        self.policy_noise = policy_noise
-        self.target_noise = target_noise
-        self.noise_clip = noise_clip
         self.critic_freq = critic_freq
         self.actor_freq = actor_freq
         self.target_freq = target_freq
+
         self.action_range = (self.env.action_space.low, self.env.action_space.high)
         self.action_range_tensor = to_device(to_tensor(self.action_range), self.device)
         self.init_steps = init_steps
-        
+
         # Now setup the logging parameters
         self._current_obs = self.env.reset()
         self._episode_reward = 0
         self._episode_length = 0
         self._num_ep = 0
+
+    @property
+    def alpha(self):
+        return self.log_alpha.exp()
 
     def setup_network(self, network_class, network_kwargs):
         self.network = network_class(self.env.observation_space, self.env.action_space, 
@@ -55,14 +59,21 @@ class TD3(Algorithm):
         critic_params = itertools.chain(self.network.critic.parameters(), self.network.encoder.parameters())        
         self.optim['critic'] = optim_class(critic_params, **optim_kwargs)
 
+        # Setup the learned entropy coefficients. This has to be done first so its present in the setup_optim call.
+        self.log_alpha = torch.tensor(np.log(self.init_temperature)).to(self.device)
+        self.log_alpha.requires_grad = True
+        self.target_entropy = -np.prod(self.env.action_space.low.shape)
+
+        self.optim['log_alpha'] = optim_class([self.log_alpha], **optim_kwargs)
+
     def _compute_critic_loss(self, batch):
         with torch.no_grad():
-            noise = (torch.randn_like(batch['action']) * self.policy_noise).clamp(-self.noise_clip, self.noise_clip)
-            next_action = self.target_network.actor(batch['next_obs'])
-            noisy_next_action = (next_action + noise).clamp(*self.action_range_tensor)
-            target_q1, target_q2 = self.target_network.critic(batch['next_obs'], noisy_next_action)
-            target_q = torch.min(target_q1, target_q2)
-            target_q = batch['reward'] + batch['discount']*target_q
+            dist = self.network.actor(batch['next_obs'])
+            next_action = dist.rsample()
+            log_prob = dist.log_prob(next_action).sum(dim=-1)
+            target_q1, target_q2 = self.target_network.critic(batch['next_obs'], next_action)
+            target_v = torch.min(target_q1, target_q2) - self.alpha.detach() * log_prob
+            target_q = batch['reward'] + batch['discount']*target_v
 
         q1, q2 = self.network.critic(batch['obs'], batch['action'])
         q1_loss = torch.nn.functional.mse_loss(q1, target_q)
@@ -72,11 +83,19 @@ class TD3(Algorithm):
     
     def _compute_actor_loss(self, batch):
         obs = batch['obs'].detach() # Detach the encoder so it isn't updated.
-        action = self.network.actor(obs)
+        dist = self.network.actor(obs)
+        action = dist.rsample()
+        log_prob = dist.log_prob(action).sum(dim=-1)
         q1, q2 = self.network.critic(obs, action)
-        q = (q1 + q2) / 2
-        actor_loss = -q.mean()
-        return actor_loss, dict(actor_loss=actor_loss.item())
+        q = torch.min(q1, q2)
+        actor_loss = (-q + self.alpha.detach() * log_prob).mean()
+        entropy = -log_prob.mean()
+
+        # Update the learned temperature
+        alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
+
+        return actor_loss, alpha_loss, dict(actor_loss=actor_loss.item(), entropy=entropy.item(), 
+                                        alpha_loss=alpha_loss.item(), alpha=self.alpha.detach().item())
 
     def _train_step(self, batch):
         all_metrics = {}
@@ -86,7 +105,7 @@ class TD3(Algorithm):
             action = self.env.action_space.sample()
         else:
             self.network.eval()
-            action = self.noisy_predict(self._current_obs)
+            action = self.predict(self._current_obs, sample=True)
             self.network.train()
         
         next_obs, reward, done, _ = self.env.step(action)
@@ -121,17 +140,20 @@ class TD3(Algorithm):
                 batch['next_obs'] = self.target_network.encoder(batch['next_obs'])
         
         if updating_critic:
+            critic_loss, metrics = self._compute_critic_loss(batch)
             self.optim['critic'].zero_grad()
-            loss, metrics = self._compute_critic_loss(batch)
-            loss.backward()
+            critic_loss.backward()
             self.optim['critic'].step()
             all_metrics.update(metrics)
 
         if updating_actor:
+            actor_loss, alpha_loss, metrics = self._compute_actor_loss(batch)
             self.optim['actor'].zero_grad()
-            loss, metrics = self._compute_actor_loss(batch)
-            loss.backward()
+            actor_loss.backward()
             self.optim['actor'].step()
+            self.optim['log_alpha'].zero_grad()
+            alpha_loss.backward()
+            self.optim['log_alpha'].step()
             all_metrics.update(metrics)
 
         if self.steps % self.target_freq == 0:
@@ -143,9 +165,3 @@ class TD3(Algorithm):
 
     def _validation_step(self, batch):
         raise NotImplementedError("RL Algorithm does not have a validation dataset.")
-
-    def noisy_predict(self, obs):
-        with torch.no_grad():
-            action = self.predict(obs)
-        action += self.policy_noise * np.random.randn(action.shape[0])
-        return action

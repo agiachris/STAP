@@ -1,32 +1,30 @@
 # Example Config that uses almost all values
 
-alg: TD3
+alg: SAC
 alg_kwargs:
   tau: 0.005
-  policy_noise: 0.1
-  target_noise: 0.2
-  noise_clip: 0.5
+  init_temperature: 0.1
   critic_freq: 1
-  actor_freq: 2
+  actor_freq: 1
   target_freq: 2
-  init_steps: 25000
+  init_steps: 5000
 
 optim: Adam
 optim_kwargs:
-  lr: 0.001
+  lr: 0.0001
 
 network: ActorCriticPolicy
 network_kwargs:
-  actor_class: ContinuousMLPActor
+  actor_class: DiagonalGaussianMLPActor
   actor_kwargs:
-    hidden_layers: [256, 256]
-    output_act: ["import", "torch.nn", "Tanh"]
+    hidden_layers: [1024, 1024]
+    log_std_bounds: [-5, 2]
   critic_class: ContinuousMLPCritic
   critic_kwargs:
-    hidden_layers: [256, 256]
+    hidden_layers: [1024, 1024]
     num_q_fns: 2
 
-batch_size: 256
+batch_size: 1024
 collate_fn: null # The collate function passed to the dataloader. None uses pytorch default.
 checkpoint: null # A checkpoint to initialize the network from.
 
