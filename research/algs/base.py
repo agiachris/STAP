@@ -137,6 +137,13 @@ class Algorithm(ABC):
     def steps(self):
         return self._steps
 
+    @property
+    def total_steps(self):
+        if hasattr(self, "_total_steps"):
+            return self._total_steps
+        else:
+            raise ValueError("alg.train has not been called, no total step count available.")
+
     def _format_batch(self, batch):
         # Convert items to tensor if they are not.
         if not utils.contains_tensors(batch):
@@ -182,6 +189,7 @@ class Algorithm(ABC):
 
         # Setup model metrics.
         self._steps = 0
+        self._total_steps = total_steps
         epochs = 0
         loss_lists = defaultdict(list)
         best_validation_metric = -1*float('inf') if loss_metric in MAX_VALID_METRICS else float('inf')
