@@ -18,9 +18,9 @@ DEFAULT_REQUIRED_ARGS = ["path", "config"]
 
 def get_parser():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--entry-point", type=str, default=DEFAULT_ENTRY_POINT)
-    parser.add_argument("--arguments", metavar="KEY=VALUE", nargs='+', help="Set kv pairs used as args for the entry point script.")
-    parser.add_argument("--jobs-per-instance", type=int, default=1)
+    parser.add_argument("--entry-point", type=str, action='append', default=None)
+    parser.add_argument("--arguments", metavar="KEY=VALUE", nargs='+', action='append', help="Set kv pairs used as args for the entry point script.")
+    parser.add_argument("--seeds-per-job", type=int, default=1)
     return parser
 
 def parse_var(s):
@@ -47,39 +47,68 @@ def parse_vars(items):
     return d
 
 def get_jobs(args):
-    script_args = parse_vars(args.arguments)
-    # Handle the default case, train.
-    if args.entry_point == DEFAULT_ENTRY_POINT:
-        '''
-        Custom code for sweeping using the experiment sweeper.
-        '''
-        for arg_name in DEFAULT_REQUIRED_ARGS:
-            assert arg_name in script_args
+    all_jobs = []
 
-        if script_args['config'].endswith(".json"):
-            experiment = Experiment.load(script_args['config'])
-            configs_and_paths = [(c, os.path.join(script_args['path'], n)) for c, n in experiment.generate_configs_and_names()]
+    if args.entry_point is None:
+        # If entry point wasn't provided use the default
+        args.entry_point = [DEFAULT_ENTRY_POINT]
+    if len(args.entry_point) < len(args.arguments):
+        # If we only were given one entry point but many script arguments, replicate the entry point
+        assert len(args.entry_point) == 1
+        args.entry_point = args.entry_point * len(args.arguments)
+
+    for entry_point, script_args in zip(args.entry_point, args.script_args):
+        script_args = parse_vars(script_args)
+        # Handle the default case, train.
+        if args.entry_point == DEFAULT_ENTRY_POINT:
+            '''
+            Custom code for sweeping using the experiment sweeper.
+            '''
+            for arg_name in DEFAULT_REQUIRED_ARGS:
+                assert arg_name in script_args
+
+            if script_args['config'].endswith(".json"):
+                experiment = Experiment.load(script_args['config'])
+                configs_and_paths = [(c, os.path.join(script_args['path'], n)) for c, n in experiment.generate_configs_and_names()]
+            else:
+                configs_and_paths = [(script_args['config'], script_args['path'])]
+
+            jobs = [{"config": c, "path" : p} for c, p in configs_and_paths]
+            for arg_name in script_args.keys():
+                if not arg_name in jobs[0]:
+                    print("Warning: argument", arg_name, "being added globally to all python calls with value", script_args[arg_name])
+                    for job in jobs:
+                        job[arg_name] = script_args[arg_name]
         else:
-            configs_and_paths = [(script_args['config'], script_args['path'])]
+            # we have the default configuration. When there are multiple jobs per instance, 
+            # We replicate the same job many times on the machine.
+            jobs = [script_args]
 
-        jobs = [{"config": c, "path" : p} for c, p in configs_and_paths]
-        for arg_name in script_args.keys():
-            if not arg_name in jobs[0]:
-                print("Warning: argument", arg_name, "being added globally to all python calls with value", script_args[arg_name])
-                for job in jobs:
-                    job[arg_name] = script_args[arg_name]
+            jobs = [script_args.copy() for _ in range(args.jobs_per_instance)]
+            if args.jobs_per_instance:
+                # We need some way of distinguishing the jobs, so set the seed argument
+                # Scripts must implement this if they want to be able to run multiple on the same machine
+                for i in range(args.jobs_per_instance):
+                    seed = jobs[i].get('seed', 0)
+                    jobs[i]['seed'] = int(seed) + i
+        
+        if args.seeds_per_job > 1:
+            # copy all of the configratuions and add seeds
+            seeded_jobs = []
+            for job in jobs:
+                seed = int(job.get('seed'))
+                for i in range(args.seeds_per_job):
+                    seeded_job = job.copy() # Should be a shallow dictionary, so copy OK
+                    seeded_job['seed'] = seed + i
+                    seeded_jobs.append(seeded_job)
+            # Replace regular jobs with the seeded variants.
+            jobs = seeded_jobs
 
-    else:
-        # we have the default configuration
-        jobs = [script_args.copy() for _ in range(args.jobs_per_instance)]
-        if args.jobs_per_instance:
-            # We need some way of distinguishing the jobs, so set the seed argument
-            # Scripts must implement this if they want to be able to run multiple on the same machine
-            for i in range(args.jobs_per_instance):
-                seed = jobs[i].get('seed', 0)
-                jobs[i]['seed'] = int(seed) + i
+        # add the entry point
+        jobs = [(entry_point, job_args) for job_args in jobs]
+        all_jobs.extend(jobs)
 
-    return jobs
+    return all_jobs
 
 class Config(object):
     '''

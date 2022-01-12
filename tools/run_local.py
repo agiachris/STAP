@@ -13,7 +13,6 @@ if __name__ == "__main__":
     
     # Add Taskset and GPU arguments
     args = parser.parse_args()
-    assert args.jobs_per_instance == 1, "Jobs Per Instance does not apply to local sweeps!"
     assert isinstance(args.gpus, list) or args.gpus is None, "GPUs must be a list of ints or None."
     assert isinstance(args.cpus, list) or args.cpus is None, "CPUs must be a list"
     
@@ -36,13 +35,13 @@ if __name__ == "__main__":
     gpus = args.gpus
     
     processes = []
-    for i, job in enumerate(jobs):
+    for i, (entry_point, script_ags) in enumerate(jobs):
         job_cpus = ','.join([str(c) for c in cpu_list[i*cores_per_job:(i+1)*cores_per_job]])
         command_list = [
             'taskset', '-c', job_cpus,
-            'python', args.entry_point
+            'python', entry_point
         ]
-        for arg_name, arg_value in job.items():
+        for arg_name, arg_value in script_ags.items():
             command_list.append("--" + arg_name)
             command_list.append(str(arg_value))
         

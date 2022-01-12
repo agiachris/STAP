@@ -13,7 +13,7 @@ SLURM_ARGS = {
     "nodes": {"type": int, "default": 1},
     "ntasks-per-node": {"type": int, "default": 1},
     "cpus": {"type": int, "required": True},
-    "gpus": {"type": int, "required": True},
+    "gpus": {"type": str, "required": True},
     "mem": {"type": str, "required": True},
     "output": {"type" : str, "default": SLURM_LOG_DEFAULT},
     "error": {"type" : str, "default": SLURM_LOG_DEFAULT},
@@ -67,7 +67,7 @@ def write_slurm_header(f, args):
 if __name__ == "__main__":
 
     parser = utils.get_parser()
-    
+    parser.add_argument("--jobs-per-instance", default=1, type=int, help="Number of jobs to run in one slurm sbatch.")
     # Add Slurm Arguments
     for k, v in SLURM_ARGS.items():
         parser.add_argument("--" + k, **v)
@@ -89,9 +89,9 @@ if __name__ == "__main__":
         with open(slurm_file, 'w+') as f:
             write_slurm_header(f, args)
             # Now that we have written the header we can launch the jobs.
-            for job in current_jobs:
-                command_str = ['python', args.entry_point]
-                for arg_name, arg_value in job.items():
+            for entry_point, script_args in current_jobs:
+                command_str = ['python', entry_point]
+                for arg_name, arg_value in script_args.items():
                     command_str.append("--" + arg_name)
                     command_str.append(str(arg_value))
                 if len(current_jobs) != 1:
