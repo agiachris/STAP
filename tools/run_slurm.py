@@ -18,7 +18,8 @@ SLURM_ARGS = {
     "output": {"type" : str, "default": SLURM_LOG_DEFAULT},
     "error": {"type" : str, "default": SLURM_LOG_DEFAULT},
     "job-name" : {"type": str, "required": True},
-    "exclude" : {"type": str, "required": False, "default": None}
+    "exclude" : {"type": str, "required": False, "default": None},
+    "nodelist": {"type": str, "required": False, "default": None}
 }
 
 SLURM_NAME_OVERRIDES = {
