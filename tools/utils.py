@@ -57,8 +57,8 @@ def get_jobs(args):
         assert len(args.entry_point) == 1
         args.entry_point = args.entry_point * len(args.arguments)
 
-    for entry_point, script_args in zip(args.entry_point, args.script_args):
-        script_args = parse_vars(script_args)
+    for entry_point, arguments in zip(args.entry_point, args.arguments):
+        script_args = parse_vars(arguments)
         # Handle the default case, train.
         if args.entry_point == DEFAULT_ENTRY_POINT:
             '''
@@ -83,14 +83,6 @@ def get_jobs(args):
             # we have the default configuration. When there are multiple jobs per instance, 
             # We replicate the same job many times on the machine.
             jobs = [script_args]
-
-            jobs = [script_args.copy() for _ in range(args.jobs_per_instance)]
-            if args.jobs_per_instance:
-                # We need some way of distinguishing the jobs, so set the seed argument
-                # Scripts must implement this if they want to be able to run multiple on the same machine
-                for i in range(args.jobs_per_instance):
-                    seed = jobs[i].get('seed', 0)
-                    jobs[i]['seed'] = int(seed) + i
         
         if args.seeds_per_job > 1:
             # copy all of the configratuions and add seeds
