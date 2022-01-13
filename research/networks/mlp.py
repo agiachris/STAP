@@ -64,6 +64,8 @@ class DiagonalGaussianMLPActor(nn.Module):
         self.mlp = MLP(observation_space.shape[0], 2*action_space.shape[0], hidden_layers=hidden_layers, act=act, output_act=None)
         if ortho_init:
             self.apply(weight_init)
+        self.action_range = [float(action_space.low.min()), float(action_space.high.max())]
+        print("AC RANGE", self.action_range)
         
     def forward(self, obs):
         mu, log_std = self.mlp(obs).chunk(2, dim=-1)
@@ -81,4 +83,5 @@ class DiagonalGaussianMLPActor(nn.Module):
             action = dist.sample()
         else:
             action = dist.loc
+        action = action.clamp(*self.action_range)
         return action

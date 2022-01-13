@@ -55,7 +55,7 @@ class TD3(Algorithm):
         critic_params = itertools.chain(self.network.critic.parameters(), self.network.encoder.parameters())        
         self.optim['critic'] = optim_class(critic_params, **optim_kwargs)
 
-    def _compute_critic_loss(self, batch):
+    def _update_critic(self, batch):
         with torch.no_grad():
             noise = (torch.randn_like(batch['action']) * self.policy_noise).clamp(-self.noise_clip, self.noise_clip)
             next_action = self.target_network.actor(batch['next_obs'])
@@ -68,15 +68,25 @@ class TD3(Algorithm):
         q1_loss = torch.nn.functional.mse_loss(q1, target_q)
         q2_loss = torch.nn.functional.mse_loss(q2, target_q)
         q_loss = q1_loss + q2_loss
-        return q_loss, dict(q1_loss=q1_loss.item(), q2_loss=q2_loss.item(), q_loss=q_loss.item(), target_q=target_q.mean().item())
+        
+        self.optim['critic'].zero_grad()
+        q_loss.backward()
+        self.optim['critic'].step()
+
+        return dict(q1_loss=q1_loss.item(), q2_loss=q2_loss.item(), q_loss=q_loss.item(), target_q=target_q.mean().item())
     
-    def _compute_actor_loss(self, batch):
+    def _update_actor(self, batch):
         obs = batch['obs'].detach() # Detach the encoder so it isn't updated.
         action = self.network.actor(obs)
         q1, q2 = self.network.critic(obs, action)
         q = (q1 + q2) / 2
         actor_loss = -q.mean()
-        return actor_loss, dict(actor_loss=actor_loss.item())
+
+        self.optim['actor'].zero_grad()
+        actor_loss.backward()
+        self.optim['actor'].step()
+
+        return dict(actor_loss=actor_loss.item())
 
     def _train_step(self, batch):
         all_metrics = {}
@@ -121,17 +131,11 @@ class TD3(Algorithm):
                 batch['next_obs'] = self.target_network.encoder(batch['next_obs'])
         
         if updating_critic:
-            self.optim['critic'].zero_grad()
-            loss, metrics = self._compute_critic_loss(batch)
-            loss.backward()
-            self.optim['critic'].step()
+            metrics = self._update_critic(batch)
             all_metrics.update(metrics)
 
         if updating_actor:
-            self.optim['actor'].zero_grad()
-            loss, metrics = self._compute_actor_loss(batch)
-            loss.backward()
-            self.optim['actor'].step()
+            metrics = self._update_actor(batch)
             all_metrics.update(metrics)
 
         if self.steps % self.target_freq == 0:

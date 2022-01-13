@@ -66,7 +66,7 @@ class SAC(Algorithm):
 
         self.optim['log_alpha'] = optim_class([self.log_alpha], **optim_kwargs)
 
-    def _compute_critic_loss(self, batch):
+    def _update_critic(self, batch):
         with torch.no_grad():
             dist = self.network.actor(batch['next_obs'])
             next_action = dist.rsample()
@@ -79,23 +79,37 @@ class SAC(Algorithm):
         q1_loss = torch.nn.functional.mse_loss(q1, target_q)
         q2_loss = torch.nn.functional.mse_loss(q2, target_q)
         q_loss = q1_loss + q2_loss
-        return q_loss, dict(q1_loss=q1_loss.item(), q2_loss=q2_loss.item(), q_loss=q_loss.item(), target_q=target_q.mean().item())
+
+        self.optim['critic'].zero_grad()
+        q_loss.backward()
+        self.optim['critic'].step()
+
+        return dict(q1_loss=q1_loss.item(), q2_loss=q2_loss.item(), q_loss=q_loss.item(), 
+                    target_q=target_q.mean().item())
     
-    def _compute_actor_loss(self, batch):
+    def _update_actor_and_alpha(self, batch):
         obs = batch['obs'].detach() # Detach the encoder so it isn't updated.
         dist = self.network.actor(obs)
         action = dist.rsample()
         log_prob = dist.log_prob(action).sum(dim=-1)
         q1, q2 = self.network.critic(obs, action)
         q = torch.min(q1, q2)
-        actor_loss = (-q + self.alpha.detach() * log_prob).mean()
+        assert log_prob.shape == q.shape
+        actor_loss = (self.alpha.detach() * log_prob - q).mean()
+
+        self.optim['actor'].zero_grad()
+        actor_loss.backward()
+        self.optim['actor'].step()
         entropy = -log_prob.mean()
 
         # Update the learned temperature
+        self.optim['log_alpha'].zero_grad()
         alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
+        alpha_loss.backward()
+        self.optim['log_alpha'].step()
 
-        return actor_loss, alpha_loss, dict(actor_loss=actor_loss.item(), entropy=entropy.item(), 
-                                        alpha_loss=alpha_loss.item(), alpha=self.alpha.detach().item())
+        return dict(actor_loss=actor_loss.item(), entropy=entropy.item(), 
+                    alpha_loss=alpha_loss.item(), alpha=self.alpha.detach().item())
 
     def _train_step(self, batch):
         all_metrics = {}
@@ -140,20 +154,11 @@ class SAC(Algorithm):
                 batch['next_obs'] = self.target_network.encoder(batch['next_obs'])
         
         if updating_critic:
-            critic_loss, metrics = self._compute_critic_loss(batch)
-            self.optim['critic'].zero_grad()
-            critic_loss.backward()
-            self.optim['critic'].step()
+            metrics = self._update_critic(batch)
             all_metrics.update(metrics)
 
         if updating_actor:
-            actor_loss, alpha_loss, metrics = self._compute_actor_loss(batch)
-            self.optim['actor'].zero_grad()
-            actor_loss.backward()
-            self.optim['actor'].step()
-            self.optim['log_alpha'].zero_grad()
-            alpha_loss.backward()
-            self.optim['log_alpha'].step()
+            metrics = self._update_actor_and_alpha(batch)
             all_metrics.update(metrics)
 
         if self.steps % self.target_freq == 0:
