@@ -28,9 +28,6 @@ class SAC(Algorithm):
         self.critic_freq = critic_freq
         self.actor_freq = actor_freq
         self.target_freq = target_freq
-
-        self.action_range = (self.env.action_space.low, self.env.action_space.high)
-        self.action_range_tensor = to_device(to_tensor(self.action_range), self.device)
         self.init_steps = init_steps
 
         # Now setup the logging parameters
@@ -119,8 +116,18 @@ class SAC(Algorithm):
             action = self.env.action_space.sample()
         else:
             self.network.eval()
-            action = self.predict(self._current_obs, sample=True)
+            with torch.no_grad():
+                obs = torch.FloatTensor(self._current_obs.copy()).to(self.device)
+                obs = obs.unsqueeze(0)
+                dist = self.network.actor(obs)
+                action = dist.sample()
+                action = action.clamp(-1, 1)
+                action = action[0].cpu().numpy()
             self.network.train()
+
+            # self.network.eval()
+            # action = self.predict(self._current_obs, sample=True)
+            # self.network.train()
         
         next_obs, reward, done, _ = self.env.step(action)
         self._episode_length += 1
@@ -162,8 +169,11 @@ class SAC(Algorithm):
             all_metrics.update(metrics)
 
         if self.steps % self.target_freq == 0:
+            # Only update the critic and encoder for speed. Ignore the actor.
             with torch.no_grad():
-                for param, target_param in zip(self.network.parameters(), self.target_network.parameters()):
+                for param, target_param in zip(self.network.encoder.parameters(), self.target_network.encoder.parameters()):
+                    target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+                for param, target_param in zip(self.network.critic.parameters(), self.target_network.critic.parameters()):
                     target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
         return all_metrics
