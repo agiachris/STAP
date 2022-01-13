@@ -192,9 +192,11 @@ class Algorithm(ABC):
         self._total_steps = total_steps
         epochs = 0
         loss_lists = defaultdict(list)
-        profiling_lists = defaultdict(list)
         best_validation_metric = -1*float('inf') if loss_metric in MAX_VALID_METRICS else float('inf')
-        start_time = time.time()
+        
+        # Setup profiling
+        start_time = current_time = time.time()
+        profiling_lists = defaultdict(list)
 
         self.network.train()
         
@@ -320,7 +322,7 @@ class Algorithm(ABC):
     def _predict(self, batch, **kwargs):
         '''Internal prediction function, can be overridden'''
         if hasattr(self.network, "predict"):
-            pred = self.network.predict(batch)
+            pred = self.network.predict(batch, **kwargs)
         else:
             if len(kwargs) > 0:
                 raise ValueError("Default predict method does not accept key word args, but they were provided.")
