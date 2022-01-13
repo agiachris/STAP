@@ -273,7 +273,8 @@ class Algorithm(ABC):
 
                     # TODO: evaluation episodes.
                     if self.eval_env is not None and eval_ep > 0:
-                        eval_metrics = eval_policy(self.eval_env, self, eval_ep)
+                        with torch.no_grad():
+                            eval_metrics = eval_policy(self.eval_env, self, eval_ep)
                         if loss_metric in eval_metrics:
                             current_validation_metric = eval_metrics[loss_metric]
                         log_from_dict(logger, eval_metrics, "eval")
