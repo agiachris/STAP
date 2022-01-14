@@ -7,7 +7,7 @@ alg_kwargs:
   critic_freq: 1
   actor_freq: 1
   target_freq: 2
-  init_steps: 1000
+  init_steps: 5000
 
 optim: Adam
 optim_kwargs:

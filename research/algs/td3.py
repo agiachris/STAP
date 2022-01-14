@@ -5,7 +5,7 @@ import itertools
 
 from .base import Algorithm
 from research.networks.base import ActorCriticPolicy
-from research.utils.utils import to_tensor, to_device, unsqueeze
+from research.utils.utils import to_tensor, to_device
 
 
 class TD3(Algorithm):
@@ -21,6 +21,7 @@ class TD3(Algorithm):
                        init_steps=1000,
                        **kwargs):
         super().__init__(env, network_class, dataset_class, **kwargs)
+        assert isinstance(self.network, ActorCriticPolicy)
         # Save extra parameters
         self.tau = tau
         self.policy_noise = policy_noise
@@ -126,7 +127,7 @@ class TD3(Algorithm):
             self._episode_reward = 0
         else:
             self._current_obs = next_obs
-        
+
         if self.steps < self.init_steps or not 'obs' in batch:
             return all_metrics
 

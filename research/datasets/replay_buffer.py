@@ -18,8 +18,8 @@ def save_episode(episode, path):
         with open(path, 'wb') as f:
             f.write(bs.read())
 
-def load_episode(fn):
-    with fn.open('rb') as f:
+def load_episode(path):
+    with open(path, 'rb') as f:
         episode = np.load(f)
         episode = {k: episode[k] for k in episode.keys()}
         return episode
@@ -208,9 +208,9 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             ep_filename = f'{ts}_{ep_idx}_{ep_len}.npz'
             save_episode(episode, os.path.join(self.storage_path, ep_filename))
 
-
     def _load(self, path, cleanup=False):
         ep_filenames = sorted([os.path.join(path, f) for f in os.listdir(path)], reverse=True)
+        print(ep_filenames)
         fetched_size = 0
         for ep_filename in ep_filenames:
             ep_idx, ep_len = [int(x) for x in os.path.splitext(ep_filename)[0].split('_')[-2:]]
@@ -230,7 +230,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             action_keys = [key for key in episode.keys() if "action" in key]
             obs = {k[len("obs_"):]: episode[k] for k in obs_keys} if len(obs_keys) > 1 else episode[obs_keys[0]]
             action = {k[len("action_"):]: episode[k] for k in action_keys} if len(action_keys) > 1 else episode[action_keys[0]]
-            self._add_to_buffer(obs, action, episode["reward"], episode["discount"], episode["done"])
+            self._add_to_buffer(obs, action, episode["reward"], episode["done"], episode["discount"])
             # maintain the file list and storage
             self._episode_filenames.add(ep_filename)
             if cleanup:
@@ -239,17 +239,17 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 except OSError:
                     pass
 
-    def _get_idx_serial(self):
+    def _get_one_idx(self):
         # Add 1 for the first dummy transition
         idx = np.random.randint(0, self._size - self.nstep) + 1
         for i in range(self.nstep):
             if self._done_buffer[idx + i - 1]: # We cannot come from a "done" observation, subtract one
                 # If the episode is done here, we need to get a new transition!
-                return self._get_idx_serial() 
+                return self._get_one_idx() 
         return idx
 
-    def _get_idx_parallel(self):
-        idxs = np.random.randint(0, self._size - self.nstep, size=self.idx_queries_per_sample) + 1
+    def _get_many_idxs(self):
+        idxs = np.random.randint(0, self._size - self.nstep, size=int(1.5*self.batch_size)) + 1
         valid = np.ones(idxs.shape, dtype=np.bool_)
         # Mark all the invalid transitions
         for i in range(self.nstep):
@@ -259,14 +259,14 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         return valid_idxs[:self.batch_size] # Return the first [:batch_size] of them.
 
     def _sample(self):
-        if self._size <= self.nstep:
+        if self._size <= 1500:
             return {}
         # NOTE: one small bug is that we won't end up being able to sample segments that span
         # Across the barrier. We lose 1 to self.nstep transitions.
-        if self.is_parallel:
-            idxs = self._get_idx_parallel()
+        if self.batch_size is None:
+            idxs = self._get_one_idx()
         else:
-            idxs = self._get_idx_serial()
+            idxs = self._get_many_idxs()
 
         obs_idxs = idxs - 1
         next_obs_idxs = idxs + self.nstep - 1
@@ -280,7 +280,6 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             step_reward = self._reward_buffer[idxs + i]
             reward += discount * step_reward
             discount *= self._discount_buffer[idxs + i] * self.discount
-
         return dict(obs=obs, action=action, next_obs=next_obs, reward=reward, discount=discount)
 
     def __iter__(self):

@@ -5,8 +5,6 @@ import itertools
 
 from .base import Algorithm
 from research.networks.base import ActorCriticPolicy
-from research.utils.utils import to_tensor, to_device, unsqueeze
-
 
 class SAC(Algorithm):
 
@@ -21,8 +19,9 @@ class SAC(Algorithm):
 
         # Save values needed for optim setup.
         self.init_temperature = init_temperature
-
         super().__init__(env, network_class, dataset_class, **kwargs)
+        assert isinstance(self.network, ActorCriticPolicy)
+
         # Save extra parameters
         self.tau = tau
         self.critic_freq = critic_freq
