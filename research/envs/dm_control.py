@@ -311,7 +311,7 @@ class DMControlEnv(gym.Env):
 
     def step(self, action):
         time_step = self._env.step(action)
-        return self._extract_obs(time_step), time_step.reward, time_step.last(), {}
+        return self._extract_obs(time_step), time_step.reward, time_step.last(), {'discount': time_step.discount}
 
     def reset(self):
         time_step = self._env.reset()

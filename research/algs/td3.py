@@ -99,11 +99,19 @@ class TD3(Algorithm):
             action = self.noisy_predict(self._current_obs)
             self.network.train()
         
-        next_obs, reward, done, _ = self.env.step(action)
+        next_obs, reward, done, info = self.env.step(action)
         self._episode_length += 1
         self._episode_reward += reward
+
+        if 'discount' in info:
+            discount = info['discount']
+        elif hasattr(self.env, "_max_episode_stes") and self._episode_length == self.env._max_episode_steps:
+            discount = 1.0
+        else:
+            discount = 1 - float(done)
+
         # Store the consequences
-        self.dataset.add(next_obs, action, reward, done)
+        self.dataset.add(next_obs, action, reward, done, discount)
         
         if done:
             self._num_ep += 1

@@ -57,7 +57,7 @@ class SAC(Algorithm):
         self.optim['critic'] = optim_class(critic_params, **optim_kwargs)
 
         # Setup the learned entropy coefficients. This has to be done first so its present in the setup_optim call.
-        self.log_alpha = torch.tensor(np.log(self.init_temperature)).to(self.device)
+        self.log_alpha = torch.tensor(np.log(self.init_temperature), dtype=torch.float).to(self.device)
         self.log_alpha.requires_grad = True
         self.target_entropy = -np.prod(self.env.action_space.low.shape)
 
@@ -91,7 +91,6 @@ class SAC(Algorithm):
         log_prob = dist.log_prob(action).sum(dim=-1)
         q1, q2 = self.network.critic(obs, action)
         q = torch.min(q1, q2)
-        assert log_prob.shape == q.shape
         actor_loss = (self.alpha.detach() * log_prob - q).mean()
 
         self.optim['actor'].zero_grad()
@@ -117,24 +116,23 @@ class SAC(Algorithm):
         else:
             self.network.eval()
             with torch.no_grad():
-                obs = torch.FloatTensor(self._current_obs.copy()).to(self.device)
-                obs = obs.unsqueeze(0)
-                dist = self.network.actor(obs)
-                action = dist.sample()
-                action = action.clamp(-1, 1)
-                action = action[0].cpu().numpy()
+                action = self.predict(self._current_obs, sample=True)
             self.network.train()
-
-            # self.network.eval()
-            # action = self.predict(self._current_obs, sample=True)
-            # self.network.train()
         
-        next_obs, reward, done, _ = self.env.step(action)
+        next_obs, reward, done, info = self.env.step(action)
         self._episode_length += 1
         self._episode_reward += reward
-        # Store the consequences
-        self.dataset.add(next_obs, action, reward, done)
-        
+
+        if 'discount' in info:
+            discount = info['discount']
+        elif hasattr(self.env, "_max_episode_stes") and self._episode_length == self.env._max_episode_steps:
+            discount = 1.0
+        else:
+            discount = 1 - float(done)
+
+        # Store the consequences.
+        self.dataset.add(next_obs, action, reward, done, discount)
+
         if done:
             self._num_ep += 1
             # update metrics
