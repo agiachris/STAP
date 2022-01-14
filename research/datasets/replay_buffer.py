@@ -210,7 +210,6 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
 
     def _load(self, path, cleanup=False):
         ep_filenames = sorted([os.path.join(path, f) for f in os.listdir(path)], reverse=True)
-        print(ep_filenames)
         fetched_size = 0
         for ep_filename in ep_filenames:
             ep_idx, ep_len = [int(x) for x in os.path.splitext(ep_filename)[0].split('_')[-2:]]
