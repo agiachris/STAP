@@ -9,8 +9,9 @@ import pprint
 import argparse
 
 # Global configuration values for default output and storage.
-STORAGE_ROOT = ".."
-ENV_SETUP_SCRIPT = os.path.join("setup_shell.sh")
+repo_path = os.path.dirname(os.path.dirname(__file__))
+STORAGE_ROOT = os.path.dirname(repo_path)
+ENV_SETUP_SCRIPT = os.path.join(repo_path, "setup_shell.sh")
 TMP_DIR = os.path.join(STORAGE_ROOT, "tmp")
 FOLDER_KEYS = []
 DEFAULT_ENTRY_POINT = "scripts/train.py"
