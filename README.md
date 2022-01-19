@@ -104,8 +104,8 @@ All benchmarks of RL algorithms were run using GTX 1080 Ti GPUs, eight CPU cores
 There is still room for improvement, but the current implementations are faster and match or exceed the performance of many popular codebases.
 
 <p align="center">
-  <img width="30%" src="https://jhejna.github.io/host/research-lightning/sac.png">
-  <img width="30%" src="https://jhejna.github.io/host/research-lightning/td3.png">
+  <img width="47%" src="https://jhejna.github.io/host/research-lightning/sac.png">
+  <img width="47%" src="https://jhejna.github.io/host/research-lightning/td3.png">
 </p>
 
 | SAC          | SB3 | pytorch\_sac | Ours |
