@@ -1,12 +1,12 @@
 # Research Lightning
 
-This is a lightweight research framework designed to quickly implement and test deep learning algorithms in pytorch. This Readme describes the general structure of the framework and how to use each of its components. Here are some key features of the repository:
+This is a lightweight research framework designed to quickly implement and test deep learning algorithms in pytorch. This ReadMe describes the general structure of the framework and how to use each of its components. Here are some key features of the repository:
 * Support for supervised learning algorithms
 * Tensorboard logging
 * Support for reinforcement learning algorithms
 * Hardware stripping on both local machines and SLURM
 
-I would suggest reading through all the documentation. If you use this package, please cite it appropriately as described in the [Usage](#Usage) section.
+I would suggest reading through all the documentation. If you use this package, please cite it appropriately as described in the [License](#License) section.
 
 ## Installation
 
@@ -89,20 +89,40 @@ The default training script `scripts/train.py` also supports parameter sweeps. P
 
 There are two special keys. The first `"base"` is required and specifies the path to the base config that will be modified by the sweep file. The second, `"paired_keys"` allows you to pair the values of differnet parameters in the sweep. 
 
-## Included Implementations
-This repo contains high quality implementations of different algorithms on the `rl` and `vision` branches. Here are some features of each of the branches:
+## RL
 
-### Vision
-
-* Generic Image Classification
-* Wrapper to use arbitrary torchvision datasets
-
-### RL
+This repository contains high quality implementaitons of reinforcement learning algorithms in the `rl` branch. Here are some of the features currently supported:
 
 * ReplayBuffer class that elegantly handles both parallel and serial Dataloading as well as Dict observation and action spaces. From my benchmarking this is one of the fastest implementations I know. It borrows heavily from [DrQv2](https://github.com/facebookresearch/drqv2), but can sample entire batches of data at once to avoid serial collation. For TD3 this lead to around a 15% speed increase.
 * Gym wrappers for `dm_control`, matching those in [DrQv2](https://github.com/facebookresearch/drqv2) and [pytorch_sac](https://github.com/denisyarats/pytorch_sac).
 * High quality TD3 implementation
-* SAC implementation, borrowing closely from [pytorch_sac](https://github.com/denisyarats/pytorch_sac).
+* SAC implementation, borrowing closely from [pytorch_sac](https://github.com/denisyarats/pytorch_sac)
+
+### Benchmarks
+All benchmarks of RL algorithms were run using GTX 1080 Ti GPUs, eight CPU cores, and 16GB of memory. Hyperparameters for SAC were taken from [pytorch_sac](https://github.com/denisyarats/pytorch_sac) and hyperparameters for TD3 were left as the default as listed in [the paper](https://arxiv.org/pdf/1802.09477.pdf) except with 256 dimensional Dense layers in the actor and critic. Evaluations were run on the DM Control Cheetah Run benchmark.
+
+There is still room for improvement, but the current implementations are faster and match or exceed the performance of many popular codebases.
+
+<p align="center">
+  <img width="30%" src="https://jhejna.github.io/host/research-lightning/sac.png">
+  <img width="30%" src="https://jhejna.github.io/host/research-lightning/td3.png">
+</p>
+
+| SAC          | SB3 | pytorch\_sac | Ours |
+| ------------ | --- | ------------ | ---- |
+| Steps/Second | 60  | 50           | 76   |
+
+| TD3          | SB3 | Ours (DRQ-v2 Style Buffer) | Ours |
+| ------------ | --- | -------------------------- | ---- |
+| Steps/Second | 131 | 116                        | 134  |
+
+The performance improvement from the replay buffer will be more drastic when running vision based algorithms.
+
+## Vision
+This section contains a list of features that are included in the `vision` branch of the repo.
+
+* Generic Image Classification
+* Wrapper to use arbitrary torchvision datasets
 
 ## License
 This framework has an MIT license as found in the [LICENSE](LICENSE) file.

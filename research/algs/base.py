@@ -279,7 +279,9 @@ class Algorithm(ABC):
                             current_validation_metric = eval_metrics[loss_metric]
                         log_from_dict(logger, eval_metrics, "eval")
 
-                    if loss_metric in MAX_VALID_METRICS and current_validation_metric > best_validation_metric:
+                    if current_validation_metric is None:
+                        pass
+                    elif loss_metric in MAX_VALID_METRICS and current_validation_metric > best_validation_metric:
                         self.save(path, "best_model")
                         best_validation_metric = current_validation_metric
                     elif current_validation_metric < best_validation_metric:
