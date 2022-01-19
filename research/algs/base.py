@@ -246,7 +246,7 @@ class Algorithm(ABC):
                     logger.dump(step=self._steps)
 
                 if self._steps % eval_freq == 0:
-                    self.network.eval()
+                    self.eval()
                     current_validation_metric = None
                     if not validation_dataloader is None:
                         eval_steps = 0
@@ -291,7 +291,7 @@ class Algorithm(ABC):
                     # Eval Logger Dump to CSV
                     logger.dump(step=self._steps, dump_csv=True) # Dump the eval metrics to CSV.
                     self.save(path, "final_model") # Also save the final model every eval period.
-                    self.network.train()
+                    self.train()
 
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:
@@ -321,6 +321,14 @@ class Algorithm(ABC):
         perform any extra validation operations
         '''
         return {}
+
+    def train(self):
+        self.network.train()
+        self.processor.train()
+
+    def eval(self):
+        self.network.eval()
+        self.processor.eval()
 
     def _predict(self, batch, **kwargs):
         '''Internal prediction function, can be overridden'''

@@ -14,6 +14,7 @@ class Processor(object):
     '''
 
     def __init__(self, observation_space, action_space):
+        self.training = True
         self.observation_space = observation_space
         self.action_space = action_space
 
@@ -27,6 +28,14 @@ class Processor(object):
     @property
     def supports_gpu(self):
         return True
+
+    def train(self, mode=True):
+        if not isinstance(mode, bool):
+            raise ValueError("Training mode is expected to be a boolean")
+        self.training = mode
+        
+    def eval(self):
+        self.train(mode=False)
 
 class IdentityProcessor(Processor):
     '''
