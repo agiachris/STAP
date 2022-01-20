@@ -258,7 +258,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         return valid_idxs[:self.batch_size] # Return the first [:batch_size] of them.
 
     def _sample(self):
-        if self._size <= 3:
+        if self._size <= self.nstep + 2:
             return {}
         # NOTE: one small bug is that we won't end up being able to sample segments that span
         # Across the barrier. We lose 1 to self.nstep transitions.
