@@ -322,11 +322,11 @@ class Algorithm(ABC):
         '''
         return {}
 
-    def train(self):
+    def train_mode(self):
         self.network.train()
         self.processor.train()
 
-    def eval(self):
+    def eval_mode(self):
         self.network.eval()
         self.processor.eval()
 
