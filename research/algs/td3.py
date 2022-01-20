@@ -70,7 +70,7 @@ class TD3(Algorithm):
         q2_loss = torch.nn.functional.mse_loss(q2, target_q)
         q_loss = q1_loss + q2_loss
         
-        self.optim['critic'].zero_grad()
+        self.optim['critic'].zero_grad(set_to_none=True)
         q_loss.backward()
         self.optim['critic'].step()
 
@@ -83,7 +83,7 @@ class TD3(Algorithm):
         q = (q1 + q2) / 2
         actor_loss = -q.mean()
 
-        self.optim['actor'].zero_grad()
+        self.optim['actor'].zero_grad(set_to_none=True)
         actor_loss.backward()
         self.optim['actor'].step()
 
@@ -96,9 +96,11 @@ class TD3(Algorithm):
         if self.steps < self.init_steps:
             action = self.env.action_space.sample()
         else:
-            self.network.eval()
-            action = self.noisy_predict(self._current_obs)
-            self.network.train()
+            self.eval_mode()
+            with torch.no_grad():
+                action = self.predict(self._current_obs)
+            action += self.policy_noise * np.random.randn(action.shape[0])
+            self.train_mode()
         
         next_obs, reward, done, info = self.env.step(action)
         self._episode_length += 1
@@ -156,9 +158,3 @@ class TD3(Algorithm):
 
     def _validation_step(self, batch):
         raise NotImplementedError("RL Algorithm does not have a validation dataset.")
-
-    def noisy_predict(self, obs):
-        with torch.no_grad():
-            action = self.predict(obs)
-        action += self.policy_noise * np.random.randn(action.shape[0])
-        return action

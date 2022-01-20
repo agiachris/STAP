@@ -2,10 +2,7 @@ import torch
 from torch import nn
 from torch import distributions
 from torch.nn import functional as F
-import gym
-import math
 
-from .base import ActorCriticPolicy
 from .common import MLP
 
 def weight_init(m):
