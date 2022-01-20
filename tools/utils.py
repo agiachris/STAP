@@ -61,7 +61,7 @@ def get_jobs(args):
     for entry_point, arguments in zip(args.entry_point, args.arguments):
         script_args = parse_vars(arguments)
         # Handle the default case, train.
-        if args.entry_point == DEFAULT_ENTRY_POINT:
+        if entry_point == DEFAULT_ENTRY_POINT:
             '''
             Custom code for sweeping using the experiment sweeper.
             '''
