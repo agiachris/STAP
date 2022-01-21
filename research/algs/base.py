@@ -329,13 +329,18 @@ class Algorithm(ABC):
         self.processor.eval()
 
     def _predict(self, batch, **kwargs):
-        '''Internal prediction function, can be overridden'''
-        if hasattr(self.network, "predict"):
-            pred = self.network.predict(batch, **kwargs)
-        else:
-            if len(kwargs) > 0:
-                raise ValueError("Default predict method does not accept key word args, but they were provided.")
-            pred = self.network(batch)
+        '''
+        Internal prediction function, can be overridden
+        By default, we call torch.no_grad(). If this behavior isn't desired,
+        override the _predict funciton in your algorithm.
+        '''
+        with torch.no_grad():
+            if hasattr(self.network, "predict"):
+                pred = self.network.predict(batch, **kwargs)
+            else:
+                if len(kwargs) > 0:
+                    raise ValueError("Default predict method does not accept key word args, but they were provided.")
+                pred = self.network(batch)
         return pred
 
     def predict(self, batch, is_batched=False, **kwargs):
