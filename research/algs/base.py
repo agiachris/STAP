@@ -251,15 +251,14 @@ class Algorithm(ABC):
                     if not validation_dataloader is None:
                         eval_steps = 0
                         validation_loss_lists = defaultdict(list)
-                        with torch.no_grad():
-                            for batch in validation_dataloader:
-                                batch = self._format_batch(batch)
-                                losses = self._validation_step(batch)
-                                for loss_name, loss_value in losses.items():
-                                    validation_loss_lists[loss_name].append(loss_value)
-                                eval_steps += 1
-                                if eval_steps == max_eval_steps:
-                                    break
+                        for batch in validation_dataloader:
+                            batch = self._format_batch(batch)
+                            losses = self._validation_step(batch)
+                            for loss_name, loss_value in losses.items():
+                                validation_loss_lists[loss_name].append(loss_value)
+                            eval_steps += 1
+                            if eval_steps == max_eval_steps:
+                                break
 
                         if loss_metric in validation_loss_lists:
                             current_validation_metric = np.mean(validation_loss_lists[loss_metric])
@@ -273,8 +272,7 @@ class Algorithm(ABC):
 
                     # TODO: evaluation episodes.
                     if self.eval_env is not None and eval_ep > 0:
-                        with torch.no_grad():
-                            eval_metrics = eval_policy(self.eval_env, self, eval_ep)
+                        eval_metrics = eval_policy(self.eval_env, self, eval_ep)
                         if loss_metric in eval_metrics:
                             current_validation_metric = eval_metrics[loss_metric]
                         log_from_dict(logger, eval_metrics, "eval")
@@ -331,13 +329,18 @@ class Algorithm(ABC):
         self.processor.eval()
 
     def _predict(self, batch, **kwargs):
-        '''Internal prediction function, can be overridden'''
-        if hasattr(self.network, "predict"):
-            pred = self.network.predict(batch, **kwargs)
-        else:
-            if len(kwargs) > 0:
-                raise ValueError("Default predict method does not accept key word args, but they were provided.")
-            pred = self.network(batch)
+        '''
+        Internal prediction function, can be overridden
+        By default, we call torch.no_grad(). If this behavior isn't desired,
+        override the _predict funciton in your algorithm.
+        '''
+        with torch.no_grad():
+            if hasattr(self.network, "predict"):
+                pred = self.network.predict(batch, **kwargs)
+            else:
+                if len(kwargs) > 0:
+                    raise ValueError("Default predict method does not accept key word args, but they were provided.")
+                pred = self.network(batch)
         return pred
 
     def predict(self, batch, is_batched=False, **kwargs):
