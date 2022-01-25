@@ -1,0 +1,55 @@
+# Example Config that uses almost all values
+
+alg: AlgorithmName from algs/__init__.py
+alg_kwargs:
+  kwarg_1: value
+  # More keyword arguments for the algorithm...
+
+optim: OptimizerName from torch.optim
+optim_kwargs:
+  lr: 0.001
+  weight_decay: 0.05
+  # More key word arguments for the optimizer...
+
+network: NetworkName from networks/__init__.py
+network_kwargs:
+  hidden_layers: [256, 256]
+  act: ["import", "torch.nn", "Tanh"] # A demonstration of how to import a function
+  # More key word arguments for the network
+
+batch_size: 64
+collate_fn: null # The collate function passed to the dataloader. None uses pytorch default.
+checkpoint: null # A checkpoint to initialize the network from.
+
+# If you are running supervised learning, the env is likely Empty and can just be used to specify input/output spaces.
+env: EnvironmentName from envs/__init__.py
+env_kwargs: 
+  kwarg_1: value
+  # More key word arguments for the environment...
+
+dataset: DatasetName from datasets/__init__.py
+dataset_kwargs:
+  
+validation_dataset_kwargs:
+  # If you want a validation dataset, specify the kwargs here
+  # If none are specified, there will be no validation dataset.
+
+processor: ProcessorName from processors/__init__.py or null
+# Note that unlike other configuration types, the processor is unnecesary.
+processor_kwargs:
+  kwarg_1: value
+  # More key word arguments for the processor
+
+schedule: linear_decay # Schedule function from utils/schedules.py can be null.
+schedule_kwargs:
+  # if a scheduler is specified, specify its kwargs here.
+  # total_steps is alwasy passed into it as the first argument.
+
+train_kwargs: # Arguments given to Algorithm.train
+  total_steps: 10000 # The total number of steps to train
+  log_freq: 25 # How often to log values
+  eval_freq: 500 # How often to run evals
+  max_eval_steps: 100 # Maximum number of steps from the validatoin dataset, if included
+  eval_ep: -1 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
+  loss_metric: loss # The validation metric that determines when to save the "best_checkpoint"
+  workers: 2 # Number of dataloader workers.
