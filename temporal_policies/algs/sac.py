@@ -124,7 +124,7 @@ class SAC(Algorithm):
 
         if 'discount' in info:
             discount = info['discount']
-        elif hasattr(self.env, "_max_episode_stes") and self._episode_length == self.env._max_episode_steps:
+        elif hasattr(self.env, "_max_episode_steps") and self._episode_length == self.env._max_episode_steps:
             discount = 1.0
         else:
             discount = 1 - float(done)

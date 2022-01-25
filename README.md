@@ -1,14 +1,3 @@
-# temporal-policies
-Learning policies that act with respect to the temporally extrapolated geometric feasibility of downstream actions
-
-After setting up the repo, there are a few steps before you can get started:
-1. Edit `environment_cpu.yaml` and `environment_gpu.yaml` as desired to include any additional dependencies via conda or pip. You can also change the name if desired.
-2. Create the conda environment using `conda env create -f environment_<cpu or gpu>.yaml`.
-3. Install the research package via `pip install -e research`.
-4. Modify the `setup_shell.sh` script by updated the appropriate values as needed. The `setup_shell.sh` script should load the environment, move the shell to the repository directory, and additionally setup any external dependencies. You can add any extra code here.
-
-Other default configuration values for the sweepers, particularly slurm, can be modified at the header of `tools/run_slurm.py`.
-
 ## Usage
 You should be able to activate the development enviornment by running `. path/to/setup_shell.sh`. This is the same environment that will be activated when running jobs on SLURM.
 

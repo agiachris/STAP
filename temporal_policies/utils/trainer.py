@@ -56,7 +56,7 @@ def get_model(config, device="auto"):
 
 def train(config, path, device="auto"):
     # Create the save path and save the config
-    print("[research] Training agent with config:")
+    print("[temporal_policies] Training agent with config:")
     print(config)
     os.makedirs(path, exist_ok=False)
     config.save(path)
@@ -70,7 +70,7 @@ def train(config, path, device="auto"):
     model = get_model(config, device=device)
     assert issubclass(type(model), temporal_policies.algs.base.Algorithm)
     schedule = None if config['scheduler'] is None else vars(schedules)[config['scheduler']]
-    model.train(path,  schedule=schedule, schedule_kwargs=config['schedule_kwargs'], **config['train_kwargs'])
+    model.train(path, schedule=schedule, schedule_kwargs=config['schedule_kwargs'], **config['train_kwargs'])
     return model
 
 def load(config, model_path, device="auto", strict=True):
