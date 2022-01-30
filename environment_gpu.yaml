@@ -41,3 +41,4 @@ dependencies:
   - pip
   - pip:
       - gym>=0.12
+      - pygame
