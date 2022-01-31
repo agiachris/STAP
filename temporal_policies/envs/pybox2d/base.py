@@ -4,6 +4,7 @@ from skimage import draw
 import numpy as np
 
 from .generator import Generator
+from .utils import (rigid_body_2d, shape_to_vertices)
 from .constants import COLORS
 
 
@@ -17,9 +18,6 @@ class Box2DBase(Env, Generator):
         self._time_steps = time_steps
         self._vel_iters = vel_iters
         self._pos_iters = pos_iters
-
-        self.agent = None
-        self.state = None
 
     @abstractmethod
     def reset(self):
@@ -58,13 +56,17 @@ class Box2DBase(Env, Generator):
 
             # Render static world bodies
             static_image = image.copy()
-            for object_name, object_data in self._env_objects.items():
+            for _, object_data in self._env_objects.items():
                 if object_data["type"] != "static": continue
-                for shape_name, shape_data in object_data["shapes"].items():
+                for _, shape_data in object_data["shapes"].items():
                     vertices = shape_to_vertices(**shape_data) * r
                     vertices = np.concatenate((vertices, np.ones((vertices.shape[0], 1))), axis=1)
                     vertices_px = np.floor(global_to_image_px @ vertices.T).astype(int)
                     x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :])
+                    # Avoid rendering overlapping static objects
+                    static_mask = np.amin(static_image, axis=2) == 255
+                    idx_filter = static_mask[x_idx, y_idx]
+                    x_idx, y_idx = x_idx[idx_filter], y_idx[idx_filter]
                     static_image[x_idx, y_idx] = COLORS[object_data["render_kwargs"]["color"]]
 
             # Rendering attributes
@@ -80,7 +82,7 @@ class Box2DBase(Env, Generator):
         
             # Render all world shapes
             image = self._image.copy()
-            for object_name, object_data in self._env_objects.items():
+            for _, object_data in self._env_objects.items():
                 if object_data["type"] == "static": continue
                 for shape_name, shape_data in object_data["shapes"].items():
                     position = np.array(object_data["bodies"][shape_name].position)
@@ -95,35 +97,3 @@ class Box2DBase(Env, Generator):
             static_image[x_idx, y_idx, :] = image[x_idx, y_idx, :]
             image = static_image / 255
             return image.copy()
-
-def rigid_body_2d(theta, tx, ty, r=1):
-    """Construct a 2D rigid body homogeneous transform. 
-    All parameters are expressed in world coordinates.
-    args:
-        theta: rotation between frames
-        tx: translation between frames
-        ty: translation between frames
-        r: resolution scaling
-    returns:
-        transform: 2D rigid body transform
-    """
-    transform = np.eye(3, dtype=float)
-    transform[:2, :2] = np.array([[np.cos(theta), -np.sin(theta)],
-                                  [np.sin(theta), np.cos(theta)]])
-    transform[:2, 2] = np.array([tx, ty]) * r
-    return transform
-
-def shape_to_vertices(position, box):
-    """Computes rectangle vertices from shape parameters.
-    args:
-        position: 2D shape centroid (m)
-        box: half width and half height of the shape (m)
-    returns:
-        vertices: np.array of rectangle vertices in CCW order
-    """
-    v1 = np.array([position[0] - box[0], position[1] - box[1]])
-    v2 = np.array([position[0] + box[0], position[1] - box[1]])
-    v3 = np.array([position[0] + box[0], position[1] + box[1]])
-    v4 = np.array([position[0] - box[0], position[1] + box[1]])
-    vertices = np.array([v1, v2, v3, v4]).astype(float)
-    return vertices
