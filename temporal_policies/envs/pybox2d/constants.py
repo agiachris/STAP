@@ -34,7 +34,7 @@ ENV_OBJECTS = {
         },
         "body_kwargs": {},
         "render_kwargs": {
-            "color": "rouge"
+            "color": "red"
         }
     },
     "item": {
@@ -42,7 +42,7 @@ ENV_OBJECTS = {
         "type": "dynamic",
         "shape_kwargs": {
             "size": (1, 1.5),
-            "dy": 4
+            "dy": 1
         },
         "body_kwargs": {
             "density": 1,
@@ -50,7 +50,7 @@ ENV_OBJECTS = {
             "restitution": 0.0
         },
         "render_kwargs": {
-            "color": "blue"
+            "color": "emerald"
         }
     },
 }
@@ -73,6 +73,6 @@ COLORS = {
     "emerald": (0, 128, 0),
     "blue": (0, 0, 255),
     "navy": (0, 0, 128),
-    "brown": (165, 42, 42), 
+    "brown": (100, 42, 42), 
     "black": (0, 0, 0)
 }

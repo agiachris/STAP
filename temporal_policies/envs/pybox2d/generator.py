@@ -1,22 +1,23 @@
+from collections import OrderedDict
 from Box2D import *
+
 from .utils import GeometryHandler
 from .constants import *
 
 
 class Generator(GeometryHandler):
 
-    def __init__(self, env_objects={}, rand_params={}, geometry_params={}):
+    def __init__(self, env_params={}, rand_params={}, geometry_params={}):
         """PyBox2D environment generator.
         """
         super().__init__(**geometry_params)
-
-        self.world = None
-        self.env_objects = dict(ENV_OBJECTS.copy(), **env_objects)
-        for o in self.env_objects.keys():
-            assert self.env_objects[o]["class"] in GeometryHandler._VALID_CLASSES
-        self.vectorize(self.env_objects)
+        self._env_params = env_params
         self._rand_params = rand_params
         self._geometry_params = geometry_params
+        
+        # Public attributes: Box2D world and environment parameters
+        self.world = None
+        self.env = None
 
     def __iter__(self):
         """Declare class as an iterator.
@@ -26,16 +27,31 @@ class Generator(GeometryHandler):
     def __next__(self):
         """Return a randomly sampled 2D environment.
         """
+        self._setup_env()
+        self._setup_world()
+
+    def _setup_env(self):
+        """Setup ordered dictionary of environment objects and their attributes.
+        """
+        # TODO: Domain randomization takes place here.
+        self.env = OrderedDict(ENV_OBJECTS.copy(), **self._env_params)
+        for o in self.env.keys():
+            assert self.env[o]["class"] in GeometryHandler._VALID_CLASSES
+        self.vectorize(self.env)
+    
+    def _setup_world(self):
+        """Setup Box2D world by constructing rigid bodies.
+        """
         self.world = b2World()
-        for o in self.env_objects:
-            obj = self.env_objects[o]
+        for o in self.env:
+            obj = self.env[o]
             obj["shapes"] = getattr(self, obj["class"])(**obj["shape_kwargs"])
             obj["bodies"] = {}
             for k, v in obj["shapes"].items():
-                obj["bodies"][k] = getattr(self, "create_{}".format(obj["type"]))(**v, **obj["body_kwargs"])
-            self.env_objects[o] = obj
+                obj["bodies"][k] = getattr(self, "_create_{}".format(obj["type"]))(**v, **obj["body_kwargs"])
+            self.env[o] = obj
 
-    def create_static(self, position, box):
+    def _create_static(self, position, box):
         """Add static body to world.
         
         args: 
@@ -48,10 +64,10 @@ class Generator(GeometryHandler):
         )
         return body
     
-    def create_dynamic(self, position, box, 
+    def _create_dynamic(self, position, box, 
                        density=1,
                        friction=0.1,
-                       restitution=0.5,
+                       restitution=0.1,
                        userData=None
                        ):
         """Add static body to world.
