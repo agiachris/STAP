@@ -5,7 +5,7 @@ class GeometryHandler(object):
 
     _VALID_CLASSES = ["workspace", "receptacle", "block"]
 
-    def __init__(self, global_x=0, global_y=0):
+    def __init__(self, global_x=3, global_y=0):
         """Class for constructing Box2D shape parameters from user-specified configs. 
         Below are the currently supported shapes.
             - workspace: ground, left wall, right wall

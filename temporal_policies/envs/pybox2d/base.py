@@ -11,10 +11,11 @@ from .constants import COLORS
 class Box2DBase(Env, Generator):
 
     @abstractmethod
-    def __init__(self, max_steps=1000, time_steps=1.0/60.0, vel_iters=10, pos_iters=10, **kwargs):
+    def __init__(self, max_steps, time_steps=1.0/60.0, vel_iters=10, pos_iters=10, **kwargs):
         """Box2D environment base class.
         """
         super().__init__()
+        self.max_steps = max_steps
         self._time_steps = time_steps
         self._vel_iters = vel_iters
         self._pos_iters = pos_iters
@@ -23,18 +24,22 @@ class Box2DBase(Env, Generator):
     def reset(self):
         """Reset environment state.
         """
-        if self._world is not None:
-            for body in self._world.bodies:
-                self._world.DestroyBody(body) 
+        if self.world is not None:
+            for body in self.world.bodies:
+                self.world.DestroyBody(body) 
         self.__next__()
         self._render_setup()
+        self.steps = 0
 
     @abstractmethod
-    def step(self, action):
+    def step(self, action=None):
         """Take environment step at self._time_steps frequency.
         """
-        self._world.Step(self._time_steps, self._vel_iters, self._pos_iters)
-        self._world.ClearForces()
+        self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
+        self.world.ClearForces()
+        self.steps += 1
+        done = self.steps >= self.max_steps
+        return done 
 
     def _render_setup(self, mode="human"):
         """Initialize rendering parameters.

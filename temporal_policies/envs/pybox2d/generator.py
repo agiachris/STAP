@@ -10,11 +10,11 @@ class Generator(GeometryHandler):
         """
         super().__init__(**geometry_params)
 
-        self._world = None
-        self._env_objects = dict(ENV_OBJECTS.copy(), **env_objects)
-        for o in self._env_objects.keys():
-            assert self._env_objects[o]["class"] in GeometryHandler._VALID_CLASSES
-        self.vectorize(self._env_objects)
+        self.world = None
+        self.env_objects = dict(ENV_OBJECTS.copy(), **env_objects)
+        for o in self.env_objects.keys():
+            assert self.env_objects[o]["class"] in GeometryHandler._VALID_CLASSES
+        self.vectorize(self.env_objects)
         self._rand_params = rand_params
         self._geometry_params = geometry_params
 
@@ -26,14 +26,14 @@ class Generator(GeometryHandler):
     def __next__(self):
         """Return a randomly sampled 2D environment.
         """
-        self._world = b2World()
-        for o in self._env_objects:
-            obj = self._env_objects[o]
+        self.world = b2World()
+        for o in self.env_objects:
+            obj = self.env_objects[o]
             obj["shapes"] = getattr(self, obj["class"])(**obj["shape_kwargs"])
             obj["bodies"] = {}
             for k, v in obj["shapes"].items():
                 obj["bodies"][k] = getattr(self, "create_{}".format(obj["type"]))(**v, **obj["body_kwargs"])
-            self._env_objects[o] = obj
+            self.env_objects[o] = obj
 
     def create_static(self, position, box):
         """Add static body to world.
@@ -42,7 +42,7 @@ class Generator(GeometryHandler):
             position: tuple(x, y) centroid position in world reference (m)
             box: tuple(half_w, half_h) box shape parameters
         """
-        body = self._world.CreateStaticBody(
+        body = self.world.CreateStaticBody(
             position=position,
             shapes=b2PolygonShape(box=box)
         )
@@ -61,7 +61,7 @@ class Generator(GeometryHandler):
             box: tuple(half_w, half_h) box shape parameters
             user_data: pointer to user specified data
         """
-        body = self._world.CreateDynamicBody(
+        body = self.world.CreateDynamicBody(
             position=position,
             fixtures=b2FixtureDef(
                 shape=b2PolygonShape(box=box),
