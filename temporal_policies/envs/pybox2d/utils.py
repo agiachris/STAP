@@ -1,4 +1,4 @@
-from Box2D import *
+import numpy as np
 
 
 class GeometryHandler(object):
@@ -6,12 +6,12 @@ class GeometryHandler(object):
     _VALID_CLASSES = ["workspace", "receptacle", "block"]
 
     def __init__(self, global_x=0, global_y=0):
-        self._t_global = b2Vec2(global_x, global_y)
+        self._t_global = np.array([global_x, global_y])
         
     @staticmethod
     def vectorize(objects):
         for o in objects.keys():
-            objects[o]["shape_kwargs"]["size"] = b2Vec2(objects[o]["shape_kwargs"]["size"])
+            objects[o]["shape_kwargs"]["size"] = np.array(objects[o]["shape_kwargs"]["size"])
 
     def transform_global(self, shapes):
         for s in shapes.keys():
@@ -26,16 +26,16 @@ class GeometryHandler(object):
         (h_w, h_h), h_t = size / 2, t / 2
         shapes = {
             "ground": {
-                "position": b2Vec2(0, -h_t),
-                "box": b2Vec2(h_w + t, h_t)
+                "position": np.array([0, -h_t]),
+                "box": np.array([h_w + t, h_t])
             },
             "left_wall": {
-                "position": b2Vec2(-(h_w + h_t), h_h),
-                "box": b2Vec2(h_t, h_h)
+                "position": np.array([-(h_w + h_t), h_h]),
+                "box": np.array([h_t, h_h])
             },
             "right_wall": {
-                "position": b2Vec2(h_w + h_t, h_h),
-                "box": b2Vec2(h_t, h_h)
+                "position": np.array([h_w + h_t, h_h]),
+                "box": np.array([h_t, h_h])
             }
         }
         self.transform_global(shapes)
@@ -53,12 +53,12 @@ class GeometryHandler(object):
         (h_w, h_h), h_t = size / 2, t / 2
         shapes = {
             "ceiling": {
-                "position": b2Vec2(0 + dx, h + h_t),
-                "box": b2Vec2(h_w, h_t)
+                "position": np.array([0 + dx, h + h_t]),
+                "box": np.array([h_w, h_t])
             },
             "wall": {
-                "position": b2Vec2(config * (h_w + h_t) + dx, h_h + h_t),
-                "box": b2Vec2(h_t, h_h + h_t)
+                "position": np.array([config * (h_w + h_t) + dx, h_h + h_t]),
+                "box": np.array([h_t, h_h + h_t])
             }
         }
         self.transform_global(shapes)
@@ -74,8 +74,8 @@ class GeometryHandler(object):
         h_w, h_h = size / 2
         shapes = {
             "block": {
-                "position": b2Vec2(dx, h_h + dy),
-                "box": b2Vec2(h_w, h_h)
+                "position": np.array([dx, h_h + dy]),
+                "box": np.array([h_w, h_h])
             }
         }
         self.transform_global(shapes)

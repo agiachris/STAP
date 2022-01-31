@@ -39,7 +39,7 @@ class Generator(GeometryHandler):
         """Add static body to world.
         
         args: 
-            pos: tuple(x, y) centroid position in world reference (m)
+            position: tuple(x, y) centroid position in world reference (m)
             box: tuple(half_w, half_h) box shape parameters
         """
         body = self._world.CreateStaticBody(
@@ -57,7 +57,7 @@ class Generator(GeometryHandler):
         """Add static body to world.
         
         args: 
-            pos: tuple(x, y) centroid position in world reference (m)
+            position: tuple(x, y) centroid position in world reference (m)
             box: tuple(half_w, half_h) box shape parameters
             user_data: pointer to user specified data
         """
