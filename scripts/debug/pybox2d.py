@@ -11,6 +11,7 @@ if __name__ == "__main__":
     env._steps_per_action = 200
     for i in range(5):
         obs = env.reset()
-        plot(env.render())
         obs, rew, done, info = env.step(np.random.uniform(-1, 1, 2))
         plot(env.render())
+
+    

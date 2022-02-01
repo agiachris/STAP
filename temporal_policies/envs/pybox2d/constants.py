@@ -46,7 +46,7 @@ ENV_OBJECTS = {
         },
         "body_kwargs": {
             "density": 1,
-            "friction": 0.1,
+            "friction": 0.5,
             "restitution": 0.0
         },
         "render_kwargs": {

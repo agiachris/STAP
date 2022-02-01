@@ -3,7 +3,7 @@ from gym import spaces
 from Box2D import *
 
 from .base import Box2DBase
-from .utils import plot
+
 
 class PlaceRight2D(Box2DBase):
 
@@ -23,6 +23,7 @@ class PlaceRight2D(Box2DBase):
         item = self.env["item"]["bodies"]["block"]
         item.position = b2Vec2(action[0], item.position[1])
         item.angle = action[1]
+        item.fixedRotation = True
         
         # Simulate
         steps_exceeded = super().step()
@@ -63,7 +64,6 @@ class PlaceRight2D(Box2DBase):
             low=np.tile(np.array([x_min, y_min, w_min, h_min]), n), 
             high=np.tile(np.array([x_max, y_max, w_max, h_max]), n)
         )
-        print("Action Space:\n", self.action_space)
 
     def _get_observation(self):
         k = 0
@@ -78,9 +78,7 @@ class PlaceRight2D(Box2DBase):
 
     def _get_reward(self, observation):
         item = self.env["item"]["bodies"]["block"]
-
         # penalize collision w/ static object, reward anything else
-
         return 0
 
     def _get_done(self):

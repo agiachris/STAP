@@ -1,6 +1,5 @@
 from gym import Env
 from abc import (ABC, abstractmethod)
-from matplotlib.pyplot import step
 from skimage import draw
 import numpy as np
 
@@ -104,10 +103,13 @@ class Box2DBase(ABC, Env, Generator):
                     vertices = np.concatenate((vertices, np.ones((vertices.shape[0], 1))), axis=1)
                     vertices_px = np.floor(global_to_image_px @ vertices.T).astype(int)
                     x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :])
+
                     # Avoid rendering overlapping static objects
-                    static_mask = np.amin(static_image, axis=2) == 255
-                    idx_filter = static_mask[x_idx, y_idx]
-                    x_idx, y_idx = x_idx[idx_filter], y_idx[idx_filter]
+                    if object_data["class"] != "workspace":
+                        static_mask = np.amin(static_image, axis=2) == 255
+                        idx_filter = static_mask[x_idx, y_idx]
+                        x_idx, y_idx = x_idx[idx_filter], y_idx[idx_filter]
+
                     color = object_data["render_kwargs"]["color"] if "render_kwargs" in object_data else "black"
                     static_image[x_idx, y_idx] = COLORS[color]
 
@@ -128,15 +130,14 @@ class Box2DBase(ABC, Env, Generator):
                 if object_data["type"] == "static": continue
                 for shape_name, shape_data in object_data["shapes"].items():
                     position = np.array(object_data["bodies"][shape_name].position)
-                    position_zeros = np.zeros_like(position)
-                    vertices = shape_to_vertices(position_zeros, shape_data["box"]).T
+                    vertices = shape_to_vertices(np.zeros_like(position), shape_data["box"]).T
                     vertices = np.concatenate((vertices, np.ones((1, vertices.shape[1]))), axis=0)
+                    # Must orient vertices by angle about object centroid
                     angle = object_data["bodies"][shape_name].angle
                     vertices = rigid_body_2d(angle, 0, 0) @ vertices
-                    vertices[:2, :] += np.expand_dims(position, 1)
-                    vertices[:2, :] *= self._r
+                    vertices[:2, :] = (vertices[:2, :] + np.expand_dims(position, 1)) * self._r
+
                     vertices_px = np.floor(self._global_to_image_px @ vertices).astype(int)
-                    
                     x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :], image.shape)
                     color = object_data["render_kwargs"]["color"] if "render_kwargs" in object_data else "navy"
                     image[x_idx, y_idx] = COLORS[color]
