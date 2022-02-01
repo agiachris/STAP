@@ -45,14 +45,16 @@ class Generator(GeometryHandler):
         """Setup Box2D world by constructing rigid bodies.
         """
         self.world = b2World()
-        for o, obj in self.env.items():
-            obj["shapes"] = getattr(self, obj["class"])(**obj["shape_kwargs"])
-            obj["bodies"] = {}
-            for k, v in obj["shapes"].items():
-                obj["bodies"][k] = getattr(self, "_create_{}".format(obj["type"]))(**v, **obj["body_kwargs"])
-            self.env[o] = obj
+        for object_name, object_data in self.env.items():
+            create_shape_fn = getattr(self, object_data["class"])
+            object_data["shapes"] = create_shape_fn(object_name, **object_data["shape_kwargs"])
+            object_data["bodies"] = {}
+            for k, v in object_data["shapes"].items():
+                create_body_fn = getattr(self, "_create_{}".format(object_data["type"]))
+                object_data["bodies"][k] = create_body_fn(userData=k, **v, **object_data["body_kwargs"])
+            self.env[object_name] = object_data
 
-    def _create_static(self, position, box):
+    def _create_static(self, position, box, userData=None):
         """Add static body to world.
         
         args: 
@@ -61,7 +63,8 @@ class Generator(GeometryHandler):
         """
         body = self.world.CreateStaticBody(
             position=position,
-            shapes=b2PolygonShape(box=box)
+            shapes=b2PolygonShape(box=box),
+            userData=userData
         )
         return body
     
@@ -88,4 +91,26 @@ class Generator(GeometryHandler):
             ),
             userData=userData
         )
-        return body
+        return body    
+
+    @staticmethod
+    def _get_body_name(object_name, part_name):
+        return "{}_{}".format(object_name, part_name)
+
+    def _get_body(self, object_name, part_name):
+        """Return part_name rigid body attached to object_name.
+        """
+        body_name = self._get_body_name(object_name, part_name)
+        return self.env[object_name]["bodies"][body_name]
+
+    def _get_shape(self, object_name, part_name):
+        """Return shape_name shape attached to object_name.
+        """
+        shape_name = self._get_body_name(object_name, part_name)
+        return self.env[object_name]["shapes"][shape_name]
+
+    def _get_shape_kwargs(self, object_name):
+        """Return shape_kwargs used to construct object_name.
+        """
+        return self.env[object_name]["shape_kwargs"]
+    

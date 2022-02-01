@@ -27,6 +27,7 @@ class Box2DBase(ABC, Env, Generator):
         self._vel_iters = vel_iters
         self._pos_iters = pos_iters
 
+    @abstractmethod
     def reset(self):
         """Reset environment state.
         """
@@ -81,7 +82,7 @@ class Box2DBase(ABC, Env, Generator):
         """
         if mode == "human":
             # Get image dimensions according the playground size
-            workspace = self.env["playground"]["shape_kwargs"]
+            workspace = self._get_shape_kwargs("playground")
             (w, h), t = workspace["size"], workspace["t"]
             r = 1 / t
             assert r.is_integer()

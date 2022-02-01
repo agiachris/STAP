@@ -32,7 +32,7 @@ class GeometryHandler(object):
         for s in shapes.keys():
             shapes[s]["position"] += self._t_global
 
-    def workspace(self, size, t=0.1):
+    def workspace(self, name, size, t=0.1):
         """Compute shape parameters for the environment workspace.
 
         args:
@@ -43,15 +43,15 @@ class GeometryHandler(object):
         """
         (h_w, h_h), h_t = size / 2, t / 2
         shapes = {
-            "ground": {
+            "{}_ground".format(name): {
                 "position": np.array([0, -h_t]),
                 "box": np.array([h_w + t, h_t])
             },
-            "left_wall": {
+            "{}_left_wall".format(name): {
                 "position": np.array([-(h_w + h_t), h_h]),
                 "box": np.array([h_t, h_h])
             },
-            "right_wall": {
+            "{}_right_wall".format(name): {
                 "position": np.array([h_w + h_t, h_h]),
                 "box": np.array([h_t, h_h])
             }
@@ -62,7 +62,7 @@ class GeometryHandler(object):
         self.transform_global(shapes)
         return shapes
 
-    def receptacle(self, size, config=-1, t=0.1, dx=0.0):
+    def receptacle(self, name, size, config=-1, t=0.1, dx=0.0):
         """Compute shape parameters for the receptacle container.
         args:
             size: receptacle size w x h (m)
@@ -75,11 +75,11 @@ class GeometryHandler(object):
         w, h = size
         (h_w, h_h), h_t = size / 2, t / 2
         shapes = {
-            "ceiling": {
+            "{}_ceiling".format(name): {
                 "position": np.array([0 + dx, h + h_t]),
                 "box": np.array([h_w, h_t])
             },
-            "wall": {
+            "{}_wall".format(name): {
                 "position": np.array([config * (h_w + h_t) + dx, h_h + h_t]),
                 "box": np.array([h_t, h_h + h_t])
             }
@@ -87,7 +87,7 @@ class GeometryHandler(object):
         self.transform_global(shapes)
         return shapes
 
-    def block(self, size, dx=0.0, dy=0.0):
+    def block(self, name, size, dx=0.0, dy=0.0):
         """Compute shape parameters of a block.
         args:
             size: block size w x h (m)
@@ -98,7 +98,7 @@ class GeometryHandler(object):
         """
         h_w, h_h = size / 2
         shapes = {
-            "block": {
+            "{}_block".format(name): {
                 "position": np.array([dx, h_h + dy]),
                 "box": np.array([h_w, h_h])
             }
