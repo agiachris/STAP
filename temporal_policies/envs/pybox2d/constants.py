@@ -42,7 +42,7 @@ ENV_OBJECTS = {
         "type": "dynamic",
         "shape_kwargs": {
             "size": (1, 1.5),
-            "dy": 1
+            "dy": 5
         },
         "body_kwargs": {
             "density": 1,

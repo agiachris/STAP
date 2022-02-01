@@ -3,10 +3,10 @@ import numpy as np
 from .base import Box2DBase
 
 
-class Pick2D(Box2DBase):
+class PushRight2D(Box2DBase):
 
     def __init__(self, **kwargs):
-        """Pick2D gym environment.
+        """PushRight2D gym environment.
         """
         super().__init__(**kwargs)
         self.setup_spaces()

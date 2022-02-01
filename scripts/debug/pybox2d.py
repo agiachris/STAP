@@ -1,22 +1,16 @@
-import matplotlib.pyplot as plt
+import numpy as np
 
-from temporal_policies.envs.pybox2d.pick2d import Pick2D
-
-
-def plot(image):
-    plt.imshow(image)
-    plt.axis('off')
-    plt.show()
+from temporal_policies.envs.pybox2d import *
+from temporal_policies.envs.pybox2d.utils import plot
 
 
 if __name__ == "__main__":
 
     kwargs = {}
-    env = Pick2D(**kwargs)
-    _ = env.reset()
-
-    plot(env.render())
-    for i in range(60):
-        _= env.step(None)
-    plot(env.render())
-    
+    env = PlaceRight2D(**kwargs)
+    env._steps_per_action = 200
+    for i in range(5):
+        obs = env.reset()
+        plot(env.render())
+        obs, rew, done, info = env.step(np.random.uniform(-1, 1, 2))
+        plot(env.render())

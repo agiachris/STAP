@@ -1,5 +1,6 @@
 from gym import Env
 from abc import (ABC, abstractmethod)
+from matplotlib.pyplot import step
 from skimage import draw
 import numpy as np
 
@@ -11,48 +12,70 @@ from .constants import COLORS
 class Box2DBase(ABC, Env, Generator):
 
     @abstractmethod
-    def __init__(self, max_steps=100, time_steps=1.0/60.0, vel_iters=10, pos_iters=10, **kwargs):
+    def __init__(self, 
+                 max_steps=1,
+                 steps_per_action=1, 
+                 time_steps=1.0/60.0, 
+                 vel_iters=10, 
+                 pos_iters=10, 
+                 **kwargs):
         """Box2D environment base class.
         """
         super().__init__()
         self.max_steps = max_steps
+        self._steps_per_action = steps_per_action
         self._time_steps = time_steps
         self._vel_iters = vel_iters
         self._pos_iters = pos_iters
 
-    @abstractmethod
-    def setup_spaces(self):
-        """Setup observation space, action space, and supporting parameters.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     def reset(self):
         """Reset environment state.
         """
         if self.world is not None:
             for body in self.world.bodies:
                 self.world.DestroyBody(body) 
-        self.__next__()
-        self.setup_spaces()
-        self._render_setup()
+
         self.steps = 0
+        self.__next__()
+        self._setup_spaces()
+        self._render_setup()
+        observation = self._get_observation()
+        return observation
 
     @abstractmethod
     def step(self, action=None):
-        """Take environment step at self._time_steps frequency.
+        """Take environment steps at self._time_steps frequency.
         """
-        self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
-        self.world.ClearForces()
+        for _ in range(self._steps_per_action):    
+            self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
+            self.world.ClearForces()
+        
         self.steps += 1
-        done = self.steps >= self.max_steps
-        return done 
+        steps_exceeded = self.steps >= self.max_steps
+        return steps_exceeded
+    
+    @abstractmethod
+    def _setup_spaces(self):
+        """Setup observation space, action space, and supporting attributes.
+        """
+        raise NotImplementedError
+            
+    @abstractmethod
+    def _get_observation(self):
+        """Observation model.
+        """
+        raise NotImplementedError
 
     @abstractmethod
-    def reward(self):
+    def _get_reward(self, observation):
         """Scalar reward function.
         """
         raise NotImplementedError
+    
+    @abstractmethod
+    def _get_done(self):
+        """Returns True if terminal state has been reached.
+        """
 
     def _render_setup(self, mode="human"):
         """Initialize rendering parameters.
@@ -65,7 +88,7 @@ class Box2DBase(ABC, Env, Generator):
             assert r.is_integer()
             y_range = int((w + 2*t) * r)
             x_range = int((h + t) * r)
-            image = np.ones((x_range + 1, y_range + 1, 3), dtype=float) * 255
+            image = np.ones((x_range + 1, y_range + 1, 3)) * 255
             
             # Resolve reference frame transforms
             global_to_workspace = rigid_body_2d(0, -self._t_global[0], -self._t_global[1], r)
@@ -105,9 +128,15 @@ class Box2DBase(ABC, Env, Generator):
                 if object_data["type"] == "static": continue
                 for shape_name, shape_data in object_data["shapes"].items():
                     position = np.array(object_data["bodies"][shape_name].position)
-                    vertices = shape_to_vertices(position, shape_data["box"]) * self._r
-                    vertices = np.concatenate((vertices, np.ones((vertices.shape[0], 1))), axis=1)
-                    vertices_px = np.floor(self._global_to_image_px @ vertices.T).astype(int)
+                    position_zeros = np.zeros_like(position)
+                    vertices = shape_to_vertices(position_zeros, shape_data["box"]).T
+                    vertices = np.concatenate((vertices, np.ones((1, vertices.shape[1]))), axis=0)
+                    angle = object_data["bodies"][shape_name].angle
+                    vertices = rigid_body_2d(angle, 0, 0) @ vertices
+                    vertices[:2, :] += np.expand_dims(position, 1)
+                    vertices[:2, :] *= self._r
+                    vertices_px = np.floor(self._global_to_image_px @ vertices).astype(int)
+                    
                     x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :], image.shape)
                     color = object_data["render_kwargs"]["color"] if "render_kwargs" in object_data else "navy"
                     image[x_idx, y_idx] = COLORS[color]

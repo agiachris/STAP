@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class GeometryHandler(object):
@@ -55,6 +56,9 @@ class GeometryHandler(object):
                 "box": np.array([h_t, h_h])
             }
         }
+        # Set default global reference frame to workspace bottom left
+        if np.all(self._t_global == np.zeros_like(self._t_global)):
+            self._t_global = np.array([h_w, 0])
         self.transform_global(shapes)
         return shapes
 
@@ -114,7 +118,7 @@ def rigid_body_2d(theta, tx, ty, r=1):
     returns:
         transform: 2D rigid body transform
     """
-    transform = np.eye(3, dtype=float)
+    transform = np.eye(3)
     transform[:2, :2] = np.array([[np.cos(theta), -np.sin(theta)],
                                   [np.sin(theta), np.cos(theta)]])
     transform[:2, 2] = np.array([tx, ty]) * r
@@ -135,3 +139,9 @@ def shape_to_vertices(position, box):
     v4 = np.array([position[0] - box[0], position[1] + box[1]])
     vertices = np.array([v1, v2, v3, v4]).astype(float)
     return vertices
+
+
+def plot(image):
+    plt.imshow(image)
+    plt.axis('off')
+    plt.show()

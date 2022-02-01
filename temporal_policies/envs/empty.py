@@ -4,7 +4,7 @@ import numpy as np
 def _get_space(low=None, high=None, shape=None, dtype=None):
 
     all_vars = [low, high, shape, dtype]
-    if any([isinstance(v, dict) for v in all_vars]):        
+    if any([isinstance(v, dict) for v in all_vars]):
         all_keys = set() # get all the keys
         for v in all_vars:
             if isinstance(v, dict):

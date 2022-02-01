@@ -18,6 +18,7 @@ class Generator(GeometryHandler):
         # Public attributes: Box2D world and environment parameters
         self.world = None
         self.env = None
+        self.__next__()
 
     def __iter__(self):
         """Declare class as an iterator.
@@ -34,7 +35,8 @@ class Generator(GeometryHandler):
         """Setup ordered dictionary of environment objects and their attributes.
         """
         # TODO: Domain randomization takes place here.
-        self.env = OrderedDict(ENV_OBJECTS.copy(), **self._env_params)
+        env = dict(ENV_OBJECTS.copy(), **self._env_params)
+        self.env = OrderedDict(sorted(env.items()))
         for o in self.env.keys():
             assert self.env[o]["class"] in GeometryHandler._VALID_CLASSES
         self.vectorize(self.env)
@@ -43,8 +45,7 @@ class Generator(GeometryHandler):
         """Setup Box2D world by constructing rigid bodies.
         """
         self.world = b2World()
-        for o in self.env:
-            obj = self.env[o]
+        for o, obj in self.env.items():
             obj["shapes"] = getattr(self, obj["class"])(**obj["shape_kwargs"])
             obj["bodies"] = {}
             for k, v in obj["shapes"].items():
