@@ -4,7 +4,7 @@ from skimage import draw
 import numpy as np
 
 from .generator import Generator
-from .utils import (rigid_body_2d, shape_to_vertices)
+from .utils import (rigid_body_2d, shape_to_vertices, to_homogenous)
 from .constants import COLORS
 
 
@@ -20,7 +20,7 @@ class Box2DBase(ABC, Env, Generator):
                  **kwargs):
         """Box2D environment base class.
         """
-        super().__init__()
+        Generator.__init__(self, **kwargs)
         self.max_steps = max_steps
         self._steps_per_action = steps_per_action
         self._time_steps = time_steps
@@ -88,7 +88,7 @@ class Box2DBase(ABC, Env, Generator):
             assert r.is_integer()
             y_range = int((w + 2*t) * r)
             x_range = int((h + t) * r)
-            image = np.ones((x_range + 1, y_range + 1, 3)) * 255
+            image = np.ones((x_range + 1, y_range + 1, 3), dtype=np.float32) * 255
             
             # Resolve reference frame transforms
             global_to_workspace = rigid_body_2d(0, -self._t_global[0], -self._t_global[1], r)
@@ -100,8 +100,8 @@ class Box2DBase(ABC, Env, Generator):
             for _, object_data in self.env.items():
                 if object_data["type"] != "static": continue
                 for _, shape_data in object_data["shapes"].items():
-                    vertices = shape_to_vertices(**shape_data) * r
-                    vertices = np.concatenate((vertices, np.ones((vertices.shape[0], 1))), axis=1)
+                    vertices = to_homogenous(shape_to_vertices(**shape_data))
+                    vertices[:, :2] *= r
                     vertices_px = np.floor(global_to_image_px @ vertices.T).astype(int)
                     x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :])
 
@@ -130,9 +130,8 @@ class Box2DBase(ABC, Env, Generator):
             for _, object_data in self.env.items():
                 if object_data["type"] == "static": continue
                 for shape_name, shape_data in object_data["shapes"].items():
-                    position = np.array(object_data["bodies"][shape_name].position)
-                    vertices = shape_to_vertices(np.zeros_like(position), shape_data["box"]).T
-                    vertices = np.concatenate((vertices, np.ones((1, vertices.shape[1]))), axis=0)
+                    position = np.array(object_data["bodies"][shape_name].position, dtype=np.float32)
+                    vertices = to_homogenous(shape_to_vertices(np.zeros_like(position), shape_data["box"])).T
                     # Must orient vertices by angle about object centroid
                     angle = object_data["bodies"][shape_name].angle
                     vertices = rigid_body_2d(angle, 0, 0) @ vertices

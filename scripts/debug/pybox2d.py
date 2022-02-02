@@ -13,5 +13,3 @@ if __name__ == "__main__":
         obs = env.reset()
         obs, rew, done, info = env.step(np.random.uniform(-1, 1, 2))
         plot(env.render())
-
-    

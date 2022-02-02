@@ -1,4 +1,3 @@
-from re import M
 import numpy as np
 from gym import spaces
 from Box2D import *
@@ -13,18 +12,19 @@ class PlaceRight2D(Box2DBase):
         """PlaceRight2D gym environment.
         """
         super().__init__(**kwargs)
-        self._setup_spaces()
         self.agent = None
+        self.reset()
         
     def reset(self):
-        super().reset()
-        self.agent = self._get_body("item", "block")
+        observation = super().reset()
+        return observation
 
     def step(self, action):
         """Action components are activated via tanh().
         """
         # Act
-        low, high = self.action_space.low, self.action_space.high
+        action = action.astype(float)
+        low, high = self.action_scale.low, self.action_scale.high
         action = low + (high - low) * ((action + 1) / 2)
         self.agent.position = b2Vec2(action[0], self.agent.position[1])
         self.agent.angle = action[1]
@@ -39,11 +39,14 @@ class PlaceRight2D(Box2DBase):
         return observation, reward, done, info
     
     def _setup_spaces(self):
-        """PlaceRight primitive action and observation spaces.
-
-        Action space: x-dim coordinate and angle of "item"
-        Observation space: bounding box parameters of all rigid bodies
+        """PlaceRight2D primitive action and observation spaces.
+        Action space: (self.agent.position.x, self.agent.position.angle)
+        Observation space: [Bounding box parameters of all 2D rigid bodies]
         """
+        # Agent
+        self.agent = self._get_body("item", "block")
+
+        # Space params
         item_w = max(self._get_shape_kwargs("item")["size"])
         wksp_pos_x, wksp_pos_y = self._get_shape("playground", "ground")["position"]
         wksp_w, wksp_h = self._get_shape_kwargs("playground")["size"]
@@ -52,11 +55,15 @@ class PlaceRight2D(Box2DBase):
         # Action space
         x_min = wksp_pos_x - wksp_w / 2 + item_w / 2
         x_max = wksp_pos_x + wksp_w / 2 - item_w / 2
-        self.action_space = spaces.Box(
-            low=np.array([x_min, -np.pi/2]),
-            high=np.array([x_max, np.pi/2])
+        self.action_scale = spaces.Box(
+            low=np.array([x_min, -np.pi/2], dtype=np.float32),
+            high=np.array([x_max, np.pi/2], dtype=np.float32)
         )
-
+        self.action_space = spaces.Box(
+            low=np.array([-1, -1], dtype=np.float32),
+            high=np.array([1, 1], dtype=np.float32)
+        )
+        
         # Observation space
         x_min = wksp_pos_x - wksp_w / 2 - wksp_t
         x_max = wksp_pos_x + wksp_w / 2 + wksp_t
@@ -64,21 +71,27 @@ class PlaceRight2D(Box2DBase):
         y_max = wksp_pos_y + wksp_t / 2 + wksp_h
         w_min, w_max = wksp_t / 2, wksp_w / 2 + wksp_t
         h_min, h_max = wksp_t / 2, wksp_h / 2
-        n = len(self.world.bodies) * 4
-        self.observation_space = spaces.Box(
-            low=np.tile(np.array([x_min, y_min, w_min, h_min]), n), 
-            high=np.tile(np.array([x_max, y_max, w_max, h_max]), n)
-        )
 
+        all_bodies = set([body.userData for body in self.world.bodies])
+        redundant_bodies = set([*self.env["playground"]["bodies"].keys(), self.agent.userData])
+        self._observation_bodies = all_bodies - redundant_bodies
+
+        reps = len(self._observation_bodies)
+        self.observation_space = spaces.Box(
+            low=np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps), 
+            high=np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
+        )
+        
     def _get_observation(self):
         k = 0
-        observation = np.zeros((self.observation_space.shape[0]))
+        observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
         for _, object_data in self.env.items():
             for shape_name, shape_data in object_data["shapes"].items():
-                position = np.array(object_data["bodies"][shape_name].position)
-                box = shape_data["box"] / 2
-                observation[k: k+4] = np.concatenate((position, box))                
+                if shape_name not in self._observation_bodies: continue
+                position = np.array(object_data["bodies"][shape_name].position, dtype=np.float32)
+                observation[k: k+4] = np.concatenate((position, shape_data["box"]))
                 k += 4
+        assert self.observation_space.contains(observation)
         return observation
 
     def _get_reward(self, observation):

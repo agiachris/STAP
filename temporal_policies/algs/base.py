@@ -119,7 +119,7 @@ class Algorithm(ABC):
         '''
         Loads the model and its associated checkpoints.
         '''
-        print("[temporal_policies] loading checkpoint:", checkpoint)
+        print("[research] loading checkpoint:", checkpoint)
         checkpoint = torch.load(checkpoint, map_location=self.device)
         self.network.load_state_dict(checkpoint['network'], strict=strict)
         
@@ -159,8 +159,8 @@ class Algorithm(ABC):
 
     def train(self, path, total_steps, schedule=None, schedule_kwargs={}, log_freq=100, eval_freq=1000, max_eval_steps=-1, workers=4, loss_metric="loss", eval_ep=-1, profile_freq=-1):
         logger = Logger(path=path)
-        print("[temporal_policies] Model Directory:", path)
-        print("[temporal_policies] Training a model with", sum(p.numel() for p in self.network.parameters() if p.requires_grad), "trainable parameters.")
+        print("[research] Model Directory:", path)
+        print("[research] Training a model with", sum(p.numel() for p in self.network.parameters() if p.requires_grad), "trainable parameters.")
         
         # Construct the dataloaders.
         self.setup_datasets()

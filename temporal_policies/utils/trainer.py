@@ -56,7 +56,7 @@ def get_model(config, device="auto"):
 
 def train(config, path, device="auto"):
     # Create the save path and save the config
-    print("[temporal_policies] Training agent with config:")
+    print("[research] Training agent with config:")
     print(config)
     os.makedirs(path, exist_ok=False)
     config.save(path)

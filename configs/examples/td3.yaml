@@ -30,7 +30,9 @@ batch_size: 256 # Use collation for the replay buffer
 collate_fn: null # The collate function passed to the dataloader. None uses pytorch default.
 checkpoint: null # A checkpoint to initialize the network from.
 
-env: CheetahRun-v0
+env: PlaceRight2D-v0
+env_kwargs: 
+  steps_per_action: 100
 
 dataset: ReplayBuffer
 dataset_kwargs:

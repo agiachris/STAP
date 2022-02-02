@@ -1,5 +1,6 @@
-from collections import OrderedDict
 from Box2D import *
+import numpy as np
+from collections import OrderedDict
 
 from .utils import GeometryHandler
 from .constants import *
@@ -18,7 +19,6 @@ class Generator(GeometryHandler):
         # Public attributes: Box2D world and environment parameters
         self.world = None
         self.env = None
-        self.__next__()
 
     def __iter__(self):
         """Declare class as an iterator.
@@ -58,12 +58,12 @@ class Generator(GeometryHandler):
         """Add static body to world.
         
         args: 
-            position: tuple(x, y) centroid position in world reference (m)
-            box: tuple(half_w, half_h) box shape parameters
+            position: centroid position in world reference (m) -- np.array (2,)
+            box: half_w, half_h box shape parameters (m) -- np.array (2,)
         """
         body = self.world.CreateStaticBody(
-            position=position,
-            shapes=b2PolygonShape(box=box),
+            position=position.astype(np.float64),
+            shapes=b2PolygonShape(box=box.astype(np.float64)),
             userData=userData
         )
         return body
@@ -77,14 +77,17 @@ class Generator(GeometryHandler):
         """Add static body to world.
         
         args: 
-            position: tuple(x, y) centroid position in world reference (m)
-            box: tuple(half_w, half_h) box shape parameters
+            position: centroid position in world reference (m) -- np.array (2,)
+            box: half_w, half_h box shape parameters (m) -- np.array (2,)
+            density: rigid body density (kg / m^2)
+            friction: Coulumb friction coefficient
+            restitution: rigid body restitution
             user_data: pointer to user specified data
         """
         body = self.world.CreateDynamicBody(
-            position=position,
+            position=position.astype(np.float64),
             fixtures=b2FixtureDef(
-                shape=b2PolygonShape(box=box),
+                shape=b2PolygonShape(box=box.astype(np.float64)),
                 density=density,
                 friction=friction,
                 restitution=restitution
