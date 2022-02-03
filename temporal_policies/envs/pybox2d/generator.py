@@ -8,7 +8,12 @@ from .constants import *
 
 class Generator(GeometryHandler):
 
-    def __init__(self, env_params={}, rand_params={}, geometry_params={}):
+    def __init__(self, 
+                 env=None,
+                 world=None,
+                 env_params={}, 
+                 rand_params={}, 
+                 geometry_params={}):
         """PyBox2D environment generator.
         """
         super().__init__(**geometry_params)
@@ -17,8 +22,11 @@ class Generator(GeometryHandler):
         self._geometry_params = geometry_params
         
         # Public attributes: Box2D world and environment parameters
-        self.world = None
-        self.env = None
+        self.env = env
+        self.world = world
+        if env is None:
+            assert world is None
+            next(self)
 
     def __iter__(self):
         """Declare class as an iterator.
@@ -34,11 +42,25 @@ class Generator(GeometryHandler):
     def _setup_env(self):
         """Setup ordered dictionary of environment objects and their attributes.
         """
-        # TODO: Domain randomization takes place here.
-        env = dict(ENV_OBJECTS.copy(), **self._env_params)
-        self.env = OrderedDict(sorted(env.items()))
-        for o in self.env.keys():
-            assert self.env[o]["class"] in GeometryHandler._VALID_CLASSES
+        env = dict(ENV_OBJECTS.copy(), **self._env_params.copy())
+        env = OrderedDict(sorted(env.items()))
+        for object_name in env.keys():
+            assert env[object_name]["class"] in GeometryHandler._VALID_CLASSES
+
+        # Light domain randomization
+        for object_name, rand_params in self._rand_params.items():
+            for k, v in rand_params["shape_kwargs"].items():
+                if isinstance(v, list) and isinstance(sum(v), int):
+                    sample = np.random.choice(v)
+                elif isinstance(v, list) and isinstance(sum(v), float):
+                    sample = np.random.uniform(v[0], v[1])
+                elif isinstance(v, list) and isinstance(v[0], list):
+                    sample = [np.random.uniform(_v[0], _v[1]) for _v in zip(v)]
+                else:
+                    raise ValueError("Incorrect specification of randomization bounds.")
+                env[object_name]["shape_kwargs"][k] = sample
+
+        self.env = env
         self.vectorize(self.env)
     
     def _setup_world(self):
@@ -97,7 +119,7 @@ class Generator(GeometryHandler):
                 friction=friction,
                 restitution=restitution
             ),
-            userData=userData
+            userData=userData,
         )
         return body    
 

@@ -18,16 +18,15 @@ class GeometryHandler(object):
             global_y: y-dim workspace frame translation w.r.t global (m)
         """
         self._t_global = np.array([global_x, global_y], dtype=np.float32)
-        
-    def vectorize(self, objects):
+
+    def vectorize(self, env):
         """Convert shape "size" configuration tuples into numpy arrays.
         """
-        for object_name in objects.keys():
-            size = objects[object_name]["shape_kwargs"]["size"]
-            objects[object_name]["shape_kwargs"]["size"] = np.array(size, dtype=np.float32)
-
+        for object_name, object_data in env.items():
+            size = object_data["shape_kwargs"]["size"]
+            object_data["shape_kwargs"]["size"] = np.array(size, dtype=np.float32)
             # Set default global reference frame to workspace bottom left
-            if objects[object_name]["class"] == "workspace" and \
+            if env[object_name]["class"] == "workspace" and \
                     np.all(self._t_global == np.zeros_like(self._t_global)):
                 self._t_global = np.array([size[0] * 0.5, 0], dtype=np.float32)
 

@@ -3,7 +3,7 @@ ENV_OBJECTS = {
         "class": "workspace",
         "type": "static",
         "shape_kwargs": {
-            "size": (12, 8),
+            "size": [12.0, 8.0],
             "t": 0.1
         },
         "render_kwargs": {
@@ -14,7 +14,7 @@ ENV_OBJECTS = {
         "class": "receptacle",
         "type": "static",
         "shape_kwargs": {
-            "size": (3, 3),
+            "size": [3.0, 3.0],
             "t": 0.1,
             "config": -1,
             "dx": -3.5
@@ -27,8 +27,8 @@ ENV_OBJECTS = {
         "class": "block",
         "type": "static",
         "shape_kwargs": {
-            "size": (1, 1.5),
-            "dx": 3
+            "size": [1.0, 1.5],
+            "dx": 3.0
         },
         "render_kwargs": {
             "color": "red"
@@ -38,11 +38,11 @@ ENV_OBJECTS = {
         "class": "block",
         "type": "dynamic",
         "shape_kwargs": {
-            "size": (1, 1.5),
-            "dy": 5
+            "size": [1.0, 1.5],
+            "dy": 5.0
         },
         "body_kwargs": {
-            "density": 1,
+            "density": 1.0,
             "friction": 0.5,
             "restitution": 0.0
         },
@@ -50,15 +50,6 @@ ENV_OBJECTS = {
             "color": "emerald"
         }
     },
-}
-
-
-ENV_RANDOM_PARAMS = {
-    "h_receptacle": [0.5, 1.5],     # h (m) receptacle height scale range
-    "c_receptacle": {-1, 1},        # receptacle opening, c = -1 (right), c = 1 (left)
-    "h_obstacle": [0.5, 1.5],       # h (m) obstacle height scale range
-    "w_block": [0.5, 1.5],          # w (m) block width scale range
-    "h_block": [0.5, 1.5]           # h (m) block height scale range
 }
 
 

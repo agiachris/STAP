@@ -13,7 +13,6 @@ class PushLeft2D(Box2DBase):
         """
         super().__init__(**kwargs)
         self.agent = None
-        self.reset()
         
     def reset(self):
         observation = super().reset()
@@ -26,42 +25,37 @@ class PushLeft2D(Box2DBase):
         action = action.astype(float)
         low, high = self.action_scale.low, self.action_scale.high
         action = low + (high - low) * (action + 1) * 0.5
-        self.agent.position = b2Vec2(action[0], self.agent.position[1])
-        self.agent.angle = action[1]
-        self.agent.fixedRotation = True
-
+        self.agent.ApplyForce((action[0], 0), self.agent.position, wake=True)
+        
         # Simulate
-        steps_exceeded = super().step() 
+        steps_exceeded = super().step(clear_forces=False) 
         observation = self._get_observation()
         reward = self._get_reward(observation)
-        done = steps_exceeded or self._get_done()
+        done = steps_exceeded or self._is_done()
         info = {}
         return observation, reward, done, info
     
     def _setup_spaces(self):
-        """PlaceRight2D primitive action and observation spaces.
+        """PushLeft2D primitive action and observation spaces.
         Action space: (self.agent.position.x, self.agent.position.angle)
         Observation space: [Bounding box parameters of all 2D rigid bodies]
-        """
+        """ 
         # Agent
         self.agent = self._get_body("item", "block")
 
         # Space params
-        item_w = max(self._get_shape_kwargs("item")["size"])
         wksp_pos_x, wksp_pos_y = self._get_shape("playground", "ground")["position"]
         wksp_w, wksp_h = self._get_shape_kwargs("playground")["size"]
         wksp_t = self._get_shape_kwargs("playground")["t"]
         
         # Action space
-        x_min = wksp_pos_x - wksp_w * 0.5 + item_w * 0.5
-        x_max = wksp_pos_x + wksp_w * 0.5 - item_w * 0.5
         self.action_scale = spaces.Box(
-            low=np.array([x_min, -np.pi/2], dtype=np.float32),
-            high=np.array([x_max, np.pi/2], dtype=np.float32)
+            low=np.array([-100], dtype=np.float32),
+            high=np.array([0], dtype=np.float32)
         )
         self.action_space = spaces.Box(
-            low=np.array([-1, -1], dtype=np.float32),
-            high=np.array([1, 1], dtype=np.float32)
+            low=np.array([-1], dtype=np.float32),
+            high=np.array([1], dtype=np.float32)
         )
         
         # Observation space
@@ -73,7 +67,7 @@ class PushLeft2D(Box2DBase):
         h_min, h_max = wksp_t * 0.5, wksp_h * 0.5
 
         all_bodies = set([body.userData for body in self.world.bodies])
-        redundant_bodies = set([*self.env["playground"]["bodies"].keys(), self.agent.userData])
+        redundant_bodies = set([*self.env["playground"]["bodies"].keys()])
         self._observation_bodies = all_bodies - redundant_bodies
 
         reps = len(self._observation_bodies)
@@ -95,25 +89,43 @@ class PushLeft2D(Box2DBase):
         return observation
 
     def _get_reward(self, observation):
-        """PlaceRight2D reward function.
-            - reward=1.0 iff block touches ground and to the right of receptacle box
+        """PushLeft2D reward function.
+            - reward=1.0 iff block is pushed within the receptacle
             - reward=0.0 otherwise
         """
+        reward = float(self.__in_box())
+        return reward
+
+    def __on_ground(self):
         on_ground = False
         for contact in self.agent.contacts:
             if contact.other.userData == self._get_body_name("playground", "ground"):
                 on_ground = True
                 break
-        
+        return on_ground
+    
+    def __on_right(self):
         box_vertices = shape_to_vertices(
             position=self._get_body("box", "ceiling").position,
             box=self._get_shape("box", "ceiling")["box"]
         )
         x_min = np.amax(box_vertices, axis=0)[0]
         on_right = self.agent.position[0] >= x_min
-        reward = float(on_ground and on_right)
-        return reward
-
-    def _get_done(self):
-        return True
+        return on_right
     
+    def __in_box(self):
+        box_vertices = shape_to_vertices(
+            position=self._get_body("box", "ceiling").position,
+            box=self._get_shape("box", "ceiling")["box"]
+        )
+        x_mid = np.mean(box_vertices, axis=0)[0]
+        y_max = np.amax(box_vertices, axis=0)[1]
+        in_box = self.agent.position[0] <= x_mid and self.agent.position[1] < y_max
+        return in_box
+        
+    def _is_done(self):
+        return self.__in_box() or (not self.__on_ground())
+    
+    def _is_valid(self):
+        self.simulate(100, clear_forces=True)
+        return self.__on_ground() and self.__on_right()

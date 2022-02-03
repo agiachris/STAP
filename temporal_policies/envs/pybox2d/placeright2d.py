@@ -13,7 +13,6 @@ class PlaceRight2D(Box2DBase):
         """
         super().__init__(**kwargs)
         self.agent = None
-        self.reset()
         
     def reset(self):
         observation = super().reset()
@@ -31,10 +30,10 @@ class PlaceRight2D(Box2DBase):
         self.agent.fixedRotation = True
 
         # Simulate
-        steps_exceeded = super().step() 
+        steps_exceeded = super().step(clear_forces=True) 
         observation = self._get_observation()
         reward = self._get_reward(observation)
-        done = steps_exceeded or self._get_done()
+        done = steps_exceeded or self._is_done()
         info = {}
         return observation, reward, done, info
     
@@ -42,7 +41,7 @@ class PlaceRight2D(Box2DBase):
         """PlaceRight2D primitive action and observation spaces.
         Action space: (self.agent.position.x, self.agent.position.angle)
         Observation space: [Bounding box parameters of all 2D rigid bodies]
-        """
+        """ 
         # Agent
         self.agent = self._get_body("item", "block")
 
@@ -99,21 +98,28 @@ class PlaceRight2D(Box2DBase):
             - reward=1.0 iff block touches ground and to the right of receptacle box
             - reward=0.0 otherwise
         """
+        reward = float(self.__on_ground() and self.__on_right())
+        return reward
+
+    def __on_ground(self):
         on_ground = False
         for contact in self.agent.contacts:
             if contact.other.userData == self._get_body_name("playground", "ground"):
                 on_ground = True
                 break
-        
+        return on_ground
+
+    def __on_right(self):
         box_vertices = shape_to_vertices(
             position=self._get_body("box", "ceiling").position,
             box=self._get_shape("box", "ceiling")["box"]
         )
         x_min = np.amax(box_vertices, axis=0)[0]
         on_right = self.agent.position[0] >= x_min
-        reward = float(on_ground and on_right)
-        return reward
+        return on_right
 
-    def _get_done(self):
+    def _is_done(self):
         return True
     
+    def _is_valid(self):
+        return True

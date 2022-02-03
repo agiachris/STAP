@@ -1,6 +1,7 @@
 name: temporal_policies
 channels:
   - pytorch
+  - conda-forge
   - default
 dependencies:
   - python=3.8
@@ -16,6 +17,9 @@ dependencies:
   - scipy
   - networkx
   - scikit-image
+
+  # Environment
+  - pybox2d
 
   # IO
   - imageio
