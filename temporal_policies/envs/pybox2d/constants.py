@@ -6,7 +6,6 @@ ENV_OBJECTS = {
             "size": (12, 8),
             "t": 0.1
         },
-        "body_kwargs": {},
         "render_kwargs": {
             "color": "black"
         }
@@ -20,7 +19,6 @@ ENV_OBJECTS = {
             "config": -1,
             "dx": -3.5
         },
-        "body_kwargs": {},
         "render_kwargs": {
             "color": "brown"
         }
@@ -32,7 +30,6 @@ ENV_OBJECTS = {
             "size": (1, 1.5),
             "dx": 3
         },
-        "body_kwargs": {},
         "render_kwargs": {
             "color": "red"
         }

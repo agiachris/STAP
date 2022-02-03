@@ -25,7 +25,7 @@ class PlaceRight2D(Box2DBase):
         # Act
         action = action.astype(float)
         low, high = self.action_scale.low, self.action_scale.high
-        action = low + (high - low) * ((action + 1) / 2)
+        action = low + (high - low) * (action + 1) * 0.5
         self.agent.position = b2Vec2(action[0], self.agent.position[1])
         self.agent.angle = action[1]
         self.agent.fixedRotation = True
@@ -53,8 +53,8 @@ class PlaceRight2D(Box2DBase):
         wksp_t = self._get_shape_kwargs("playground")["t"]
         
         # Action space
-        x_min = wksp_pos_x - wksp_w / 2 + item_w / 2
-        x_max = wksp_pos_x + wksp_w / 2 - item_w / 2
+        x_min = wksp_pos_x - wksp_w * 0.5 + item_w * 0.5
+        x_max = wksp_pos_x + wksp_w * 0.5 - item_w * 0.5
         self.action_scale = spaces.Box(
             low=np.array([x_min, -np.pi/2], dtype=np.float32),
             high=np.array([x_max, np.pi/2], dtype=np.float32)
@@ -65,12 +65,12 @@ class PlaceRight2D(Box2DBase):
         )
         
         # Observation space
-        x_min = wksp_pos_x - wksp_w / 2 - wksp_t
-        x_max = wksp_pos_x + wksp_w / 2 + wksp_t
-        y_min = wksp_pos_y - wksp_t / 2
-        y_max = wksp_pos_y + wksp_t / 2 + wksp_h
-        w_min, w_max = wksp_t / 2, wksp_w / 2 + wksp_t
-        h_min, h_max = wksp_t / 2, wksp_h / 2
+        x_min = wksp_pos_x - wksp_w * 0.5 - wksp_t
+        x_max = wksp_pos_x + wksp_w * 0.5 + wksp_t
+        y_min = wksp_pos_y - wksp_t * 0.5
+        y_max = wksp_pos_y + wksp_t * 0.5 + wksp_h
+        w_min, w_max = wksp_t * 0.5, wksp_w * 0.5 + wksp_t
+        h_min, h_max = wksp_t * 0.5, wksp_h * 0.5
 
         all_bodies = set([body.userData for body in self.world.bodies])
         redundant_bodies = set([*self.env["playground"]["bodies"].keys(), self.agent.userData])

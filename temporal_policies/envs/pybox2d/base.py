@@ -1,7 +1,8 @@
+import numpy as np
 from gym import Env
 from abc import (ABC, abstractmethod)
 from skimage import draw
-import numpy as np
+from PIL import Image
 
 from .generator import Generator
 from .utils import (rigid_body_2d, shape_to_vertices, to_homogenous)
@@ -80,7 +81,7 @@ class Box2DBase(ABC, Env, Generator):
     def _render_setup(self, mode="human"):
         """Initialize rendering parameters.
         """
-        if mode == "human":
+        if mode == "human" or mode == "rgb_array":
             # Get image dimensions according the playground size
             workspace = self._get_shape_kwargs("playground")
             (w, h), t = workspace["size"], workspace["t"]
@@ -120,13 +121,13 @@ class Box2DBase(ABC, Env, Generator):
             self._image = image
             self._static_image = static_image
         
-    def render(self, mode="human"):
+    def render(self, mode="human", width=None, height=None):
         """Render sprites on all 2D bodies and set background to white.
         """
-        if mode == "human":
+        if mode == "human" or mode == "rgb_array":
         
             # Render all world shapes
-            image = self._image.copy()
+            dynamic_image = self._image.copy()
             for _, object_data in self.env.items():
                 if object_data["type"] == "static": continue
                 for shape_name, shape_data in object_data["shapes"].items():
@@ -138,12 +139,18 @@ class Box2DBase(ABC, Env, Generator):
                     vertices[:2, :] = (vertices[:2, :] + np.expand_dims(position, 1)) * self._r
 
                     vertices_px = np.floor(self._global_to_image_px @ vertices).astype(int)
-                    x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :], image.shape)
+                    x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :], dynamic_image.shape)
                     color = object_data["render_kwargs"]["color"] if "render_kwargs" in object_data else "navy"
-                    image[x_idx, y_idx] = COLORS[color]
+                    dynamic_image[x_idx, y_idx] = COLORS[color]
             
-            x_idx, y_idx = np.where(np.amin(image, axis=2) < 255)
-            static_image = self._static_image.copy()
-            static_image[x_idx, y_idx, :] = image[x_idx, y_idx, :]
-            image = static_image / 255
-            return image.copy()
+            x_idx, y_idx = np.where(np.amin(dynamic_image, axis=2) < 255)
+            image = self._static_image.copy()
+            image[x_idx, y_idx, :] = dynamic_image[x_idx, y_idx, :]
+
+            image = Image.fromarray(np.round(image).astype(np.uint8), "RGB")
+            if width is not None or height is not None:
+                width = width if width is not None else image.shape[1]
+                height = height if height is not None else image.shape[0]
+                image = image.resize((width, height))
+
+            return np.array(image, dtype=np.uint8)

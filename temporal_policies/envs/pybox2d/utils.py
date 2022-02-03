@@ -29,7 +29,7 @@ class GeometryHandler(object):
             # Set default global reference frame to workspace bottom left
             if objects[object_name]["class"] == "workspace" and \
                     np.all(self._t_global == np.zeros_like(self._t_global)):
-                self._t_global = np.array([size[0] / 2, 0], dtype=np.float32)
+                self._t_global = np.array([size[0] * 0.5, 0], dtype=np.float32)
 
     def transform_global(self, shapes):
         """Transform shape parameters into global reference frame. 
@@ -46,7 +46,7 @@ class GeometryHandler(object):
         returns: 
             shapes: polygon shape parameters
         """
-        (h_w, h_h), h_t = size / 2, t / 2
+        (h_w, h_h), h_t = size * 0.5, t * 0.5
         shapes = {
             "{}_ground".format(name): {
                 "position": np.array([0, -h_t], dtype=np.float32),
@@ -75,7 +75,7 @@ class GeometryHandler(object):
             shapes: polygon shape parameters
         """
         w, h = size
-        (h_w, h_h), h_t = size / 2, t / 2
+        (h_w, h_h), h_t = size * 0.5, t * 0.5
         shapes = {
             "{}_ceiling".format(name): {
                 "position": np.array([0 + dx, h + h_t], dtype=np.float32),
@@ -98,7 +98,7 @@ class GeometryHandler(object):
         returns: 
             shapes: polygon shape parameters
         """
-        h_w, h_h = size / 2
+        h_w, h_h = size * 0.5
         shapes = {
             "{}_block".format(name): {
                 "position": np.array([dx, h_h + dy], dtype=np.float32),
@@ -155,9 +155,3 @@ def shape_to_vertices(position, box):
     v4 = np.array([position[0] - box[0], position[1] + box[1]])
     vertices = np.array([v1, v2, v3, v4])
     return vertices.astype(np.float32)
-
-
-def plot(image):
-    plt.imshow(image)
-    plt.axis('off')
-    plt.show()

@@ -50,8 +50,13 @@ class Generator(GeometryHandler):
             object_data["shapes"] = create_shape_fn(object_name, **object_data["shape_kwargs"])
             object_data["bodies"] = {}
             for k, v in object_data["shapes"].items():
-                create_body_fn = getattr(self, "_create_{}".format(object_data["type"]))
-                object_data["bodies"][k] = create_body_fn(userData=k, **v, **object_data["body_kwargs"])
+                if object_data["type"] == "static":
+                    bodies = self._create_static(userData=k, **v)
+                elif object_data["type"] == "dynamic":
+                    bodies = self._create_dynamic(userData=k, **v, **object_data["body_kwargs"])
+                else:
+                    raise NotImplementedError("Cannot create rigid body of type {}".format(object_data["type"]))
+                object_data["bodies"][k] = bodies
             self.env[object_name] = object_data
 
     def _create_static(self, position, box, userData=None):
