@@ -34,6 +34,10 @@ env: PlaceRight2D-v0
 env_kwargs:
   max_episode_steps: 1
   steps_per_action: 100
+  rand_params:
+    obstacle:
+      shape_kwargs:
+        dx: [0.0, 5.0]
 
 dataset: ReplayBuffer
 dataset_kwargs:
