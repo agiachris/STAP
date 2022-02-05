@@ -1,6 +1,8 @@
 import argparse
 import imageio
+
 from temporal_policies.utils.trainer import load_from_path
+
 
 if __name__ == "__main__":
 

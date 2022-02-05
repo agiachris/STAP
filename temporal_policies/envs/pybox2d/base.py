@@ -4,7 +4,7 @@ import numpy as np
 from gym import Env
 from abc import (ABC, abstractmethod)
 from skimage import draw
-from PIL import Image
+from PIL import (Image, ImageDraw)
 
 from .generator import Generator
 from .utils import (rigid_body_2d, shape_to_vertices, to_homogenous)
@@ -36,6 +36,8 @@ class Box2DBase(ABC, Env, Generator):
         self._time_steps = time_steps
         self._vel_iters = vel_iters
         self._pos_iters = pos_iters
+        self.steps = 0
+        self.physics_steps = 0
         self._setup_spaces()
         self._render_setup()
     
@@ -71,29 +73,34 @@ class Box2DBase(ABC, Env, Generator):
                 self.world.DestroyBody(body) 
 
         self.steps = 0
+        self.physics_steps = 0
+
         is_valid = False
         while not is_valid:
             next(self)
             self._setup_spaces()
             is_valid = self._is_valid()
         self._render_setup()
+        
         observation = self._get_observation()
         return observation
 
     @abstractmethod
-    def step(self, clear_forces=True):
+    def step(self, clear_forces=True, render=False):
         """Take environment steps at self._time_steps frequency.
         """
-        self.simulate(self._steps_per_action, clear_forces=clear_forces)
+        self.simulate(self._steps_per_action, clear_forces, render)
         self.steps += 1
         steps_exceeded = self.steps >= self._max_episode_steps
         return steps_exceeded
     
-    def simulate(self, time_steps, clear_forces=True):
+    def simulate(self, time_steps, clear_forces=True, render=False):
         for _ in range(time_steps):
             self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
             if clear_forces: self.world.ClearForces()
+            if render: self._render_buffer.append(self.render())
         self.world.ClearForces()
+        self.physics_steps += time_steps
 
     @abstractmethod
     def _setup_spaces(self):
@@ -165,37 +172,52 @@ class Box2DBase(ABC, Env, Generator):
             self._global_to_image_px = global_to_image_px
             self._image = image
             self._static_image = static_image
+            self._render_buffer = [self.render()]
         
-    def render(self, mode="human", width=None, height=None):
+    def render(self, mode="human", width=320, height=240):
         """Render sprites on all 2D bodies and set background to white.
-        """
-        if mode == "human" or mode == "rgb_array":
+        """        
+        # Render all world shapes
+        dynamic_image = self._image.copy()
+        for _, object_data in self.env.items():
+            if object_data["type"] == "static": continue
+            for shape_name, shape_data in object_data["shapes"].items():
+                position = np.array(object_data["bodies"][shape_name].position, dtype=np.float32)
+                vertices = to_homogenous(shape_to_vertices(np.zeros_like(position), shape_data["box"])).T
+                # Must orient vertices by angle about object centroid
+                angle = object_data["bodies"][shape_name].angle
+                vertices = rigid_body_2d(angle, 0, 0) @ vertices
+                vertices[:2, :] = (vertices[:2, :] + np.expand_dims(position, 1)) * self._r
+
+                vertices_px = np.floor(self._global_to_image_px @ vertices).astype(int)
+                x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :], dynamic_image.shape)
+                color = object_data["render_kwargs"]["color"] if "render_kwargs" in object_data else "navy"
+                dynamic_image[x_idx, y_idx] = COLORS[color]
         
-            # Render all world shapes
-            dynamic_image = self._image.copy()
-            for _, object_data in self.env.items():
-                if object_data["type"] == "static": continue
-                for shape_name, shape_data in object_data["shapes"].items():
-                    position = np.array(object_data["bodies"][shape_name].position, dtype=np.float32)
-                    vertices = to_homogenous(shape_to_vertices(np.zeros_like(position), shape_data["box"])).T
-                    # Must orient vertices by angle about object centroid
-                    angle = object_data["bodies"][shape_name].angle
-                    vertices = rigid_body_2d(angle, 0, 0) @ vertices
-                    vertices[:2, :] = (vertices[:2, :] + np.expand_dims(position, 1)) * self._r
+        x_idx, y_idx = np.where(np.amin(dynamic_image, axis=2) < 255)
+        image = self._static_image.copy()
+        image[x_idx, y_idx, :] = dynamic_image[x_idx, y_idx, :]
 
-                    vertices_px = np.floor(self._global_to_image_px @ vertices).astype(int)
-                    x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :], dynamic_image.shape)
-                    color = object_data["render_kwargs"]["color"] if "render_kwargs" in object_data else "navy"
-                    dynamic_image[x_idx, y_idx] = COLORS[color]
-            
-            x_idx, y_idx = np.where(np.amin(dynamic_image, axis=2) < 255)
-            image = self._static_image.copy()
-            image[x_idx, y_idx, :] = dynamic_image[x_idx, y_idx, :]
+        image = Image.fromarray(np.round(image).astype(np.uint8), "RGB")
+        image = image.resize((width, height))
 
-            image = Image.fromarray(np.round(image).astype(np.uint8), "RGB")
-            if width is not None or height is not None:
-                width = width if width is not None else image.shape[1]
-                height = height if height is not None else image.shape[0]
-                image = image.resize((width, height))
+        if mode == "human":
+            text = f"Env: {type(self).__name__} | Step: {self.steps} | \
+                Time: {self.physics_steps} | Reward: {self._get_reward()}"
+            image = draw_text(np.asarray(image), text)
+        
+        return np.array(image, dtype=np.uint8)
 
-            return np.array(image, dtype=np.uint8)
+
+def draw_text(image, text):
+    """Draw text on image.
+    args:
+        image: RGB image as np.array HxWx3
+        text: str text
+    returns:
+        image: PIL.Image
+    """
+    image = Image.fromarray(image)
+    d = ImageDraw.Draw(image)
+    d.text((10, 0), text, (0, 0, 0))
+    return image

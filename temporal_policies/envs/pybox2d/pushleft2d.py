@@ -12,13 +12,12 @@ class PushLeft2D(Box2DBase):
         """PushLeft2D gym environment.
         """
         super().__init__(**kwargs)
-        self.agent = None
         
     def reset(self):
         observation = super().reset()
         return observation
 
-    def step(self, action):
+    def step(self, action, render=False):
         """Action components are activated via tanh().
         """
         # Act
@@ -28,7 +27,7 @@ class PushLeft2D(Box2DBase):
         self.agent.ApplyForce((action[0], 0), self.agent.position, wake=True)
         
         # Simulate
-        steps_exceeded = super().step(clear_forces=False) 
+        steps_exceeded = super().step(clear_forces=False, render=render) 
         observation = self._get_observation()
         reward = self._get_reward(observation)
         done = steps_exceeded or self._is_done()

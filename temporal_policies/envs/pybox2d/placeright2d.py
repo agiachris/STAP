@@ -12,13 +12,12 @@ class PlaceRight2D(Box2DBase):
         """PlaceRight2D gym environment.
         """
         super().__init__(**kwargs)
-        self.agent = None
         
     def reset(self):
         observation = super().reset()
         return observation
 
-    def step(self, action):
+    def step(self, action, render=False):
         """Action components are activated via tanh().
         """
         # Act
@@ -30,7 +29,7 @@ class PlaceRight2D(Box2DBase):
         self.agent.fixedRotation = True
 
         # Simulate
-        steps_exceeded = super().step(clear_forces=True) 
+        steps_exceeded = super().step(clear_forces=True, render=render) 
         observation = self._get_observation()
         reward = self._get_reward(observation)
         done = steps_exceeded or self._is_done()

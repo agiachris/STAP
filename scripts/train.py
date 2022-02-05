@@ -1,6 +1,7 @@
 import argparse
 from temporal_policies.utils.trainer import Config, train
 
+
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser()
