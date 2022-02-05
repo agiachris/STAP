@@ -50,7 +50,7 @@ class PushLeft2D(Box2DBase):
         # Action space
         self.action_scale = spaces.Box(
             low=np.array([-100], dtype=np.float32),
-            high=np.array([0], dtype=np.float32)
+            high=np.array([100], dtype=np.float32)
         )
         self.action_space = spaces.Box(
             low=np.array([-1], dtype=np.float32),
