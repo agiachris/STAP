@@ -34,6 +34,7 @@ env: PushLeft2D-v0
 env_kwargs:
   max_episode_steps: 50
   steps_per_action: 5
+  config: configs/pybox2d/envs/obstacle.yaml
   rand_params:
     obstacle:
       shape_kwargs:
@@ -41,6 +42,8 @@ env_kwargs:
     item:
       shape_kwargs:
         dx: [0.0, 5.0]
+      body_kwargs:
+        angle: [-1.57, 1.57]
 
 dataset: ReplayBuffer
 dataset_kwargs:

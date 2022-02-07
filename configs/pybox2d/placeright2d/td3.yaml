@@ -34,6 +34,7 @@ env: PlaceRight2D-v0
 env_kwargs:
   max_episode_steps: 1
   steps_per_action: 100
+  config: configs/pybox2d/envs/obstacle.yaml
   rand_params:
     obstacle:
       shape_kwargs:

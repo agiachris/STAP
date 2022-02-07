@@ -13,7 +13,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, required=True, help="Path to save gif")
     parser.add_argument("--checkpoints", nargs="+", type=str, required=True, help="Path to model checkpoint")
-    parser.add_argument("--eval-random", action="store_true", help="Evaluate a random policy baseline")
     parser.add_argument("--num-eps", type=int, default=1, help="Number of episodes to unit test across")
     parser.add_argument("--every-n-frames", type=int, default=10, help="Save every n frames to the gif.")
     parser.add_argument("--device", "-d", type=str, default="auto")
@@ -50,7 +49,11 @@ if __name__ == "__main__":
                 else:
                     curr_env = type(model.env.unwrapped).load(prev_env, **configs[j]["env_kwargs"])
                     obs = curr_env._get_observation()
-                
+
+                # PlaceRight2D, PushLeft2D
+                # 1. PlaceRight2D, Q(s, a), s constant, a ranges | a = (x, theta) 
+                # 2. PushLeft2D, Q(s, a), a constant, s ranges | s = (x, theta)
+
                 for _ in range(curr_env._max_episode_steps):
                     if exp == "random_policy": action = curr_env.action_space.sample()
                     else: action = model.predict(obs)

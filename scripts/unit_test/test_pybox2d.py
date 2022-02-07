@@ -38,26 +38,28 @@ if __name__ == "__main__":
     for i in range(args.num_eps):
         step = 0
         reward = 0
-        curr_env = None
+        prev_env = None
 
         for j in range(len(args.envs)):
             config = Config.load(args.configs[j])
-            next_env = gym.make(args.envs[j] + "-v0", **config["env_kwargs"])
-            if curr_env is None:
-                _ = next_env.reset()
+            curr_env = gym.make(args.envs[j] + "-v0", **config["env_kwargs"]).unwrapped
+            if prev_env is None:
+                obs = curr_env.reset()
             else:
-                next_env = type(next_env.unwrapped).load(curr_env, **config["env_kwargs"])
+                curr_env = type(curr_env).load(prev_env, **config["env_kwargs"])
+                obs = curr_env._get_observation()
 
-            draw_text(next_env.render(mode="rgb_array", width=args.width, height=args.height), \
+            draw_text(curr_env.render(mode="rgb_array", width=args.width, height=args.height), \
                 get_text(i, j, args.envs[j], step, reward)).show()
 
-            for _ in range(next_env.unwrapped._max_episode_steps):
-                action = next_env.action_space.sample()
-                obs, rew, done, info = next_env.step(action)
+            for _ in range(curr_env.unwrapped._max_episode_steps):
+                action = curr_env.action_space.sample()
+                obs, rew, done, info = curr_env.step(action)
                 reward += rew
                 step += 1
                 if done: break
             if rew == 0: break
-    
-        draw_text(next_env.render(mode="rgb_array", width=args.width, height=args.height), \
+            prev_env = curr_env
+
+        draw_text(curr_env.render(mode="rgb_array", width=args.width, height=args.height), \
                 get_text(i, j, args.envs[j], step, reward)).show()

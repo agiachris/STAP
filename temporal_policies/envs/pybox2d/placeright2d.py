@@ -31,7 +31,7 @@ class PlaceRight2D(Box2DBase):
         # Simulate
         steps_exceeded = super().step(clear_forces=True, render=render) 
         observation = self._get_observation()
-        reward = self._get_reward(observation)
+        reward = self._get_reward()
         done = steps_exceeded or self._is_done()
         info = {}
         return observation, reward, done, info
@@ -54,8 +54,8 @@ class PlaceRight2D(Box2DBase):
         x_min = wksp_pos_x - wksp_w * 0.5 + item_w * 0.5
         x_max = wksp_pos_x + wksp_w * 0.5 - item_w * 0.5
         self.action_scale = spaces.Box(
-            low=np.array([x_min, -np.pi/2], dtype=np.float32),
-            high=np.array([x_max, np.pi/2], dtype=np.float32)
+            low=np.array([x_min, -np.pi * 0.5], dtype=np.float32),
+            high=np.array([x_max, np.pi * 0.5], dtype=np.float32)
         )
         self.action_space = spaces.Box(
             low=np.array([-1, -1], dtype=np.float32),
@@ -71,9 +71,8 @@ class PlaceRight2D(Box2DBase):
         h_min, h_max = wksp_t * 0.5, wksp_h * 0.5
 
         all_bodies = set([body.userData for body in self.world.bodies])
-        redundant_bodies = set([*self.env["playground"]["bodies"].keys(), self.agent.userData])
+        redundant_bodies = set([*self._get_bodies("playground").keys(), self.agent.userData])
         self._observation_bodies = all_bodies - redundant_bodies
-
         reps = len(self._observation_bodies)
         self.observation_space = spaces.Box(
             low=np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps), 
@@ -83,16 +82,16 @@ class PlaceRight2D(Box2DBase):
     def _get_observation(self):
         k = 0
         observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
-        for _, object_data in self.env.items():
-            for shape_name, shape_data in object_data["shapes"].items():
+        for object_name in self.env.keys():
+            for shape_name, shape_data in self._get_shapes(object_name).items():
                 if shape_name not in self._observation_bodies: continue
-                position = np.array(object_data["bodies"][shape_name].position, dtype=np.float32)
+                position = np.array(self._get_body(object_name, shape_name).position, dtype=np.float32)
                 observation[k: k+4] = np.concatenate((position, shape_data["box"]))
                 k += 4
         assert self.observation_space.contains(observation)
         return observation
 
-    def _get_reward(self, observation):
+    def _get_reward(self):
         """PlaceRight2D reward function.
             - reward=1.0 iff block touches ground and to the right of receptacle box
             - reward=0.0 otherwise

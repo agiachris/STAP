@@ -1,14 +1,11 @@
-from turtle import clear
-from matplotlib.pyplot import step
 import numpy as np
 from gym import Env
-from abc import (ABC, abstractmethod)
+from abc import ABC, abstractmethod
 from skimage import draw
-from PIL import (Image, ImageDraw)
+from PIL import Image, ImageDraw
 
 from .generator import Generator
-from .utils import (rigid_body_2d, shape_to_vertices, to_homogenous)
-from .constants import COLORS
+from .utils import rigid_body_2d, shape_to_vertices, to_homogenous
 
 
 class Box2DBase(ABC, Env, Generator):
@@ -115,7 +112,7 @@ class Box2DBase(ABC, Env, Generator):
         raise NotImplementedError
 
     @abstractmethod
-    def _get_reward(self, observation):
+    def _get_reward(self):
         """Scalar reward function.
         """
         raise NotImplementedError
@@ -150,22 +147,21 @@ class Box2DBase(ABC, Env, Generator):
 
             # Render static world bodies
             static_image = image.copy()
-            for object_name, object_data in self.env.items():
-                if object_data["type"] != "static": continue
-                for _, shape_data in object_data["shapes"].items():
+            for object_name in self.env.keys():
+                if self._get_type(object_name) != "static": continue
+                for _, shape_data in self._get_shapes(object_name).items():
                     vertices = to_homogenous(shape_to_vertices(**shape_data))
                     vertices[:, :2] *= r
                     vertices_px = np.floor(global_to_image_px @ vertices.T).astype(int)
                     x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :])
 
                     # Avoid rendering overlapping static objects
-                    if object_data["class"] != "workspace":
+                    if self._get_class(object_name) != "workspace":
                         static_mask = np.amin(static_image, axis=2) == 255
                         idx_filter = static_mask[x_idx, y_idx]
                         x_idx, y_idx = x_idx[idx_filter], y_idx[idx_filter]
 
-                    color = object_data["render_kwargs"]["color"] if "render_kwargs" in object_data else "black"
-                    static_image[x_idx, y_idx] = COLORS[color]
+                    static_image[x_idx, y_idx] = self._get_color(object_name)                 
 
             # Rendering attributes
             self._r = r
@@ -179,20 +175,20 @@ class Box2DBase(ABC, Env, Generator):
         """        
         # Render all world shapes
         dynamic_image = self._image.copy()
-        for _, object_data in self.env.items():
-            if object_data["type"] == "static": continue
-            for shape_name, shape_data in object_data["shapes"].items():
-                position = np.array(object_data["bodies"][shape_name].position, dtype=np.float32)
+        for object_name in self.env.keys():
+            if self._get_type(object_name) == "static": continue
+            for shape_name, shape_data in self._get_shapes(object_name).items():
+                body = self._get_body(object_name, shape_name)
+                position = np.array(body.position, dtype=np.float32)
                 vertices = to_homogenous(shape_to_vertices(np.zeros_like(position), shape_data["box"])).T
+                
                 # Must orient vertices by angle about object centroid
-                angle = object_data["bodies"][shape_name].angle
-                vertices = rigid_body_2d(angle, 0, 0) @ vertices
+                vertices = rigid_body_2d(body.angle, 0, 0) @ vertices
                 vertices[:2, :] = (vertices[:2, :] + np.expand_dims(position, 1)) * self._r
 
                 vertices_px = np.floor(self._global_to_image_px @ vertices).astype(int)
                 x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :], dynamic_image.shape)
-                color = object_data["render_kwargs"]["color"] if "render_kwargs" in object_data else "navy"
-                dynamic_image[x_idx, y_idx] = COLORS[color]
+                dynamic_image[x_idx, y_idx] = self._get_color(object_name)
         
         x_idx, y_idx = np.where(np.amin(dynamic_image, axis=2) < 255)
         image = self._static_image.copy()
@@ -202,8 +198,8 @@ class Box2DBase(ABC, Env, Generator):
         image = image.resize((width, height))
 
         if mode == "human":
-            text = f"Env: {type(self).__name__} | Step: {self.steps} | \
-                Time: {self.physics_steps} | Reward: {self._get_reward()}"
+            text = f"Env: {type(self).__name__} | Step: {self.steps} | "
+            text += f"Time: {self.physics_steps} | Reward: {self._get_reward()}"
             image = draw_text(np.asarray(image), text)
         
         return np.array(image, dtype=np.uint8)

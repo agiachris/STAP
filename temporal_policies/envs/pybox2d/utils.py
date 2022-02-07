@@ -154,3 +154,15 @@ def shape_to_vertices(position, box):
     v4 = np.array([position[0] - box[0], position[1] + box[1]])
     vertices = np.array([v1, v2, v3, v4])
     return vertices.astype(np.float32)
+
+
+def sample_random_params(v):
+    if isinstance(v, list) and isinstance(sum(v), int):
+        sample = np.random.choice(v)
+    elif isinstance(v, list) and isinstance(sum(v), float):
+        sample = np.random.uniform(v[0], v[1])
+    elif isinstance(v, list) and isinstance(v[0], list):
+        sample = [np.random.uniform(_v[0], _v[1]) for _v in zip(v)]
+    else:
+        raise ValueError("Incorrect specification of randomization bounds.")
+    return sample
