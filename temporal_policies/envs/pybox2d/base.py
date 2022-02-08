@@ -2,10 +2,11 @@ import numpy as np
 from gym import Env
 from abc import ABC, abstractmethod
 from skimage import draw
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from .generator import Generator
 from .utils import rigid_body_2d, shape_to_vertices, to_homogenous
+from .visualization import draw_caption
 
 
 class Box2DBase(ABC, Env, Generator):
@@ -17,6 +18,7 @@ class Box2DBase(ABC, Env, Generator):
                  time_steps=1.0/60.0, 
                  vel_iters=10, 
                  pos_iters=10,
+                 cumulative_reward=0.0,
                  **kwargs):
         """Box2D environment base class.
 
@@ -26,6 +28,7 @@ class Box2DBase(ABC, Env, Generator):
             time_steps: simulation frequency
             vel_iters: Box2D velocity numerical solver iterations per time step  
             pos_iters: Box2D positional numerical solver iterations per time step  
+            cumulative_reward: rewards accrued over the course of the episode
         """
         Generator.__init__(self, **kwargs)
         self._max_episode_steps = max_episode_steps
@@ -33,6 +36,7 @@ class Box2DBase(ABC, Env, Generator):
         self._time_steps = time_steps
         self._vel_iters = vel_iters
         self._pos_iters = pos_iters
+        self._cumulative_reward = cumulative_reward
         self.steps = 0
         self.physics_steps = 0
         self._setup_spaces()
@@ -55,7 +59,8 @@ class Box2DBase(ABC, Env, Generator):
             "geometry_params": {
                 "global_x": env._t_global[0],
                 "global_y": env._t_global[1]
-            }
+            },
+            "cumulative_reward": env._cumulative_reward
         }
         env_kwargs.update(kwargs)
         env = cls(**env_kwargs)
@@ -69,9 +74,10 @@ class Box2DBase(ABC, Env, Generator):
             for body in self.world.bodies:
                 self.world.DestroyBody(body) 
 
+        self._cumulative_reward = 0.0
         self.steps = 0
         self.physics_steps = 0
-
+        
         is_valid = False
         while not is_valid:
             next(self)
@@ -87,6 +93,7 @@ class Box2DBase(ABC, Env, Generator):
         """Take environment steps at self._time_steps frequency.
         """
         self.simulate(self._steps_per_action, clear_forces, render)
+        self._cumulative_reward += self._get_reward()
         self.steps += 1
         steps_exceeded = self.steps >= self._max_episode_steps
         return steps_exceeded
@@ -170,7 +177,7 @@ class Box2DBase(ABC, Env, Generator):
             self._static_image = static_image
             self._render_buffer = [self.render()]
         
-    def render(self, mode="human", width=320, height=240):
+    def render(self, mode="human", width=480, height=360):
         """Render sprites on all 2D bodies and set background to white.
         """        
         # Render all world shapes
@@ -198,22 +205,50 @@ class Box2DBase(ABC, Env, Generator):
         image = image.resize((width, height))
 
         if mode == "human":
-            text = f"Env: {type(self).__name__} | Step: {self.steps} | "
-            text += f"Time: {self.physics_steps} | Reward: {self._get_reward()}"
-            image = draw_text(np.asarray(image), text)
+            caption = f"Env: {type(self).__name__} | Step: {self.steps} | "
+            caption += f"Time: {self.physics_steps} | Reward: {self._cumulative_reward + self._get_reward()}"
+            image = draw_caption(np.asarray(image), caption)
         
         return np.array(image, dtype=np.uint8)
+    
+    def interp_actions(self, num, dims, default=None):
+        """Linear interpolation of action space across specified dimensions.
 
+        args:
+            num: number of evenly spaced action space samples
+            dims: tuple() of dimensions to interpolate across
+            default: default action values for unspecified dimensions -- np.array (action_space.ndim,)
+        returns:
+            actions: linear interpolation of action space -- np.array (num, action_space.ndim)
+        """
+        low = self.action_space.low
+        high = self.action_space.high
+        if default is None: default = (low + high) * 0.5
+        actions = np.linspace(low, high, num, dtype=np.float32)
+        # Fill in default action value
+        mask = np.ones_like(low, dtype=np.bool)
+        mask[dims] = False
+        actions[:, mask] = default[mask]
+        assert all(self.action_space.contains(a) for a in actions)
+        return actions
 
-def draw_text(image, text):
-    """Draw text on image.
-    args:
-        image: RGB image as np.array HxWx3
-        text: str text
-    returns:
-        image: PIL.Image
-    """
-    image = Image.fromarray(image)
-    d = ImageDraw.Draw(image)
-    d.text((10, 0), text, (0, 0, 0))
-    return image
+    def interp_states(self, num, dims, default=None):
+        """Linear interpolation of state space across specified dimensions.
+
+        args:
+            num: number of evenly spaced action space samples
+            dims: tuple() of dimensions to interpolate across
+            default: default state values for unspecified dimensions -- np.array (observation_space.ndim,)
+        returns:
+            actions: linear interpolation of action space -- np.array (num, observation_space.ndim)
+        """
+        low = self.observation_space.low
+        high = self.observation_space.high
+        if default is None: default = (low + high) * 0.5
+        states = np.linspace(low, high, num, dtype=np.float32)
+        # Fill in default state values
+        mask = np.ones_like(low, dtype=np.bool)
+        mask[dims] = False
+        states[:, mask] = default[mask]
+        assert all(self.observation_space.contains(s) for s in states)
+        return states

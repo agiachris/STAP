@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 
 class GeometryHandler(object):
@@ -157,12 +156,19 @@ def shape_to_vertices(position, box):
 
 
 def sample_random_params(v):
-    if isinstance(v, list) and isinstance(sum(v), int):
-        sample = np.random.choice(v)
+    """Sample from discrete or continuous distribution uniformly based 
+    based on parameters v.
+    """
+    if isinstance(v, list) and isinstance(v[0], list):
+        # multi-variate discrete or continuous sampling distribution
+        v = [sample_random_params(_v) for _v in v]
+    elif isinstance(v, list) and isinstance(sum(v), int):
+        # discrete sampling distribution
+        v = np.random.choice(v)
     elif isinstance(v, list) and isinstance(sum(v), float):
-        sample = np.random.uniform(v[0], v[1])
-    elif isinstance(v, list) and isinstance(v[0], list):
-        sample = [np.random.uniform(_v[0], _v[1]) for _v in zip(v)]
+        # continuous uniform sampling distribution
+        assert len(v) == 2
+        v = np.random.uniform(v[0], v[1])
     else:
         raise ValueError("Incorrect specification of randomization bounds.")
-    return sample
+    return v
