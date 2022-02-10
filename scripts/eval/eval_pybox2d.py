@@ -12,8 +12,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoints", nargs="+", type=str, required=True, help="Path to model checkpoint")
+    parser.add_argument("--eval-planner", type=str, default="rollout_policy", help="Names of planners to evaluate")
     parser.add_argument("--eval-random", action="store_true", help="Evaluate a random policy baseline")
-    parser.add_argument("--eval-planners", nargs="+", type=str, help="Names of planners to evaluate")
     parser.add_argument("--num-samples", type=int, default=100, help="Number of samples for planners")
     parser.add_argument("--num-eps", type=int, default=1, help="Number of episodes to unit test across")
     parser.add_argument("--device", "-d", type=str, default="auto")
@@ -26,9 +26,8 @@ if __name__ == "__main__":
     planner = SamplingOptim(models, configs)
 
     # Policies
-    exps = ["learned_policy"]
+    exps = [args.eval_planner]
     if args.eval_random: exps.insert(0, "random_policy")
-    for planner_type in args.eval_planners: exps.append(planner_type)
 
     # Simulate random and trained policies
     for e, exp in enumerate(exps):
