@@ -35,6 +35,26 @@ class PyBox2DVisualizer:
         self._env = env
         self._image = image
 
+    @property
+    def env(self):
+        return self._env
+    
+    @env.setter
+    def env(self, env):
+        self._env = env
+
+    @property
+    def image(self):
+        return self._image
+    
+    @image.setter
+    def image(self, image):
+        self._image = image
+
+    def clear(self, hard=False):
+        self._image = None
+        if hard: self._env = None
+
     def save(self, path, image=None, clear=False, format="png"):
         if image is None:
             assert self._image is not None, "Must render an image before saving"
@@ -43,9 +63,6 @@ class PyBox2DVisualizer:
         assert os.path.splitext(path)[-1][1:] == format, "Save path must match format"
         image.save(path, format)
         if clear: self.clear()
-    
-    def clear(self):
-        self._image = None
 
     @staticmethod
     def _get_color(color=None):
@@ -59,43 +76,46 @@ class PyBox2DVisualizer:
         for i, _x in enumerate(deepcopy(x)):
             assert isinstance(_x, np.ndarray)
             x[i] = _x.squeeze()
-
-    def render_values_xdim(self, **kwargs):
-        """Plot x-component values over rendered image.
-        """
+    
+    def _format_kwargs(self, kwargs):
         assert isinstance(kwargs["x"], list) and isinstance(kwargs["y"], list)
         self._format_list(kwargs["x"])
         self._format_list(kwargs["y"])
-        
+
         # Normalize value estimates
         for i, y in enumerate(kwargs["y"]):
             kwargs["y"][i] = (y - y.min()) / (y.max() - y.min())
         
-        # Project to global x to image coordinates
-        for i, x in enumerate(kwargs["x"]):
-            x = to_homogenous(np.vstack((x * self._env._r, np.zeros_like(x))))
-            kwargs["x"][i] = (self._env._global_to_plot @ x)[0, :]
+        # Replicate x
         if len(kwargs["x"]) == 1 and len(kwargs["x"]) != len(kwargs["y"]):
             kwargs["x"] *= len(kwargs["y"])
-
+        
         # Other 
         if "colors" not in kwargs: kwargs["colors"] = [self._get_color(i) for i in range(len(kwargs["y"]))]
         else: kwargs["colors"] = [self._get_color(k) for k in kwargs["colors"]]
         if "labels" not in kwargs: kwargs["labels"] = [f"Q(s, a) k={i}" for i in range(len(kwargs["y"]))]
         if "yticks" not in kwargs: kwargs["yticks"] = np.around(np.linspace(0, 1, 11), 1)
+        for k in ["x", "labels", "colors"]: assert len(kwargs[k]) == len(kwargs["y"])
+
+    def render_values_xdim(self, **kwargs):
+        """Plot x-component values over rendered image.
+        """
+        self._format_kwargs(kwargs)
+
+        # Project to global x to image coordinates
+        for i, x in enumerate(kwargs["x"]):
+            x = to_homogenous(np.vstack((x * self._env._r, np.zeros_like(x))))
+            kwargs["x"][i] = (self._env._global_to_plot @ x)[0, :]
+        
         if "xticks" not in kwargs:
             x_min = self._env.observation_space.low[0]
             x_max = self._env.observation_space.high[0]
             kwargs["xticks"] = np.around(np.arange(x_min, x_max, 1), 1)
 
-        for k in ["x", "labels", "colors"]: assert len(kwargs[k]) == len(kwargs["y"])
         image = self._env.render(mode="rgb_array")
         image = self._plot_values_xdim(image, **kwargs)
         self._image = self._env._render_util(image)
         return self._image.copy()
-
-    def render_values_theta(self, **kwargs):
-        raise NotImplementedError
 
     @staticmethod
     def _plot_values_xdim(image,
@@ -105,9 +125,9 @@ class PyBox2DVisualizer:
                           xticks,
                           yticks,
                           mode="prod",
-                          scale = 0.6,
+                          scale = 0.6
                           ):
-        """Overlay function values over x-coordinate.
+        """Plot function values over x-coordinate.
 
         args:
             image: uint8 RGB image -- np.array (h, w)
@@ -161,11 +181,74 @@ class PyBox2DVisualizer:
         image = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         return image
 
-    def _plot_values_theta(self, 
+    def render_values_theta(self, **kwargs):
+        """Plot theta values alongside rendered image.
+        """
+        self._format_kwargs(kwargs)
+        image = self._env.render()
+        image = self._plot_values_theta(image, **kwargs)
+        self._image = image
+        return self._image.copy()
+
+    @staticmethod
+    def _plot_values_theta(image,
                            x, y,
                            labels,
-                           colors, 
+                           colors,
+                           yticks,
+                           mode="prod",
+                           scale = 0.75
                            ):
+        """Plot values over theta alongside image.
+
+        args:
+            image: uint8 RGB image -- np.array (h, w)
+            x: list of numpy arrays of theta values
+            y: list of numpy arrays of normalized y-axis values
+            labels: list of labels
+            colors: list of colors
+            yticks: ytick labels
+            mode: mode for superimposing y-axis values
+        returns: 
+            image: rendered plot alongside image -- np.array (h_new, w_new)
         """
-        """
-        raise NotImplementedError
+        fig = plt.figure(figsize=(8, 8))
+        ax = fig.add_subplot(211)
+        ax.imshow(image)
+        ax.set_title("Environment under Q-function estimates")
+        ax.set_axis_off()
+
+        # Superimpose value estimates
+        if mode:
+            y.append(getattr(np, mode)(np.array(y), axis=0))
+            x.append(x[-1])
+            labels.append(f"{mode.capitalize()} Q(s, a)")
+            colors.append("tab:purple")
+
+        # Plot normalized values
+        ax = fig.add_subplot(212)
+        for i in range(len(x)):
+            y_scaled = y[i] * scale
+            ax.plot(
+                x[i], y_scaled, 
+                label=labels[i],
+                color=colors[i],
+                linewidth=1,
+                linestyle="-"
+            )
+            ax.fill_between(
+                x[i], y_scaled,
+                color=colors[i],
+                alpha=0.1
+            )    
+        ax.set_title("Q-function estimates across theta-component")
+        ax.set_xlabel("theta [rad]")
+        ax.set_ylabel(f"Normalized Q(s, a) [units] (scale {scale:0.1f})")
+        ax.set_yticks(yticks)
+        ax.legend(loc="best")
+        
+        # Convert image to array 
+        fig.canvas.draw()
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        image = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        return image

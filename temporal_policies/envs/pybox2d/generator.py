@@ -103,7 +103,7 @@ class Generator(GeometryHandler):
             _object_data = {k: deepcopy(v) for k, v in object_data.items() if k not in instance_keys}
             
             if object_data["type"] == "dynamic":
-                _object_data["body_kwargs"] = deepcopy(object_data["body_kwargs"])
+                _object_data["body_kwargs"] = object_data["body_kwargs"]
                 
                 assert len(object_data["bodies"]) == 1, "Only support cloning of rigid bodies with one fixture"
                 for body_name, body in object_data["bodies"].items():

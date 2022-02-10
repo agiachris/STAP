@@ -47,6 +47,13 @@ class Box2DBase(ABC, Env, Generator):
         self.physics_steps = physics_steps
         self._setup_spaces()
         self._render_setup()
+
+    def _clean_base_kwargs(self):
+        """Clean up base kwargs for future envioronment loading and cloning.
+        """
+        assert hasattr(self, "_base_kwargs")
+        if "env" in self._base_kwargs: del self._base_kwargs["env"]
+        if "world" in self._base_kwargs: del self._base_kwargs["world"]
     
     @classmethod
     def load(cls, env, **kwargs):
@@ -71,6 +78,7 @@ class Box2DBase(ABC, Env, Generator):
         }
         env_kwargs.update(kwargs)
         env = cls(**env_kwargs)
+        env._clean_base_kwargs()
         return env
 
     @classmethod
@@ -96,6 +104,7 @@ class Box2DBase(ABC, Env, Generator):
         }
         env_kwargs.update(kwargs)
         env = cls(**env_kwargs)
+        env._clean_base_kwargs()
         return env
 
     @abstractmethod
@@ -206,7 +215,7 @@ class Box2DBase(ABC, Env, Generator):
         }
         # Simulate forward cloned environment
         if step:
-            env = self.clone(self, **self._base_kwargs)
+            env = type(self).clone(self, **self._base_kwargs)
             output["env"] = env
             obs, rew, done, info = env.step(output["action"])
             output["observation"] = obs
@@ -253,7 +262,7 @@ class Box2DBase(ABC, Env, Generator):
             outputs["action_dim"].append(action_dim)
             if not step: continue
             # Simulate forward cloned environments
-            env = self.clone(self, **self._base_kwargs)
+            env = type(self).clone(self, **self._base_kwargs)
             outputs["env"].append(env)
             obs, rew, done, info = env.step(action)
             outputs["observation"].append(obs)
@@ -299,7 +308,7 @@ class Box2DBase(ABC, Env, Generator):
             outputs["action"].append(action)
             if not step: continue
             # Simulate forward cloned environments
-            env = self.clone(self, **self._base_kwargs)
+            env = type(self).clone(self, **self._base_kwargs)
             outputs["env"].append(env)
             obs, rew, done, info = env.step(action)
             outputs["observation"].append(obs)

@@ -1,6 +1,7 @@
 import argparse
 import os
 from os import path
+from turtle import clone
 import numpy as np
 from PIL import Image
 
@@ -41,38 +42,42 @@ if __name__ == "__main__":
                 obs = curr_env._get_observation()
             
             if j + 1 < len(models):
+                clone_env = type(curr_env).clone(curr_env, **configs[j]["env_kwargs"])
+
                 # Value estimates over agent x-dim component
-                curr_qs, curr_outputs = curr_env.value_over_interp_actions(model, args.num_samples, [0])
+                curr_qs, curr_outputs = clone_env.value_over_interp_actions(model, args.num_samples, [0])
                 next_envs = [type(models[j+1].env.unwrapped).load(env, **configs[j+1]["env_kwargs"]) for env in curr_outputs["env"]]
                 next_qs, next_outputs = zip(*[env.action_value(models[j+1]) for env in next_envs]) 
 
-                visualizer = PyBox2DVisualizer(curr_env)
+                visualizer = PyBox2DVisualizer(clone_env)
                 visualizer.render_values_xdim(
                     x=[np.array(curr_outputs["action_dim"])],
                     y=[curr_qs, np.array(next_qs)],
-                    labels=[type(curr_env).__name__, type(next_envs[0]).__name__],
-                    colors=["blue", "orange"]
+                    labels=[type(clone_env).__name__, type(next_envs[0]).__name__],
                 )
                 visualizer.save(path.join(args.path, f"sample_{i}_{j}_xdim.png"))
+                
+                # Value estimates over theta component
+                curr_qs, curr_outputs = clone_env.value_over_interp_actions(model, args.num_samples, [1])
+                next_envs = [type(models[j+1].env.unwrapped).load(env, **configs[j+1]["env_kwargs"]) for env in curr_outputs["env"]]
+                next_qs, next_outputs = zip(*[env.action_value(models[j+1]) for env in next_envs]) 
 
+                for _ in range(clone_env._max_episode_steps):
+                    action = model.predict(obs)
+                    obs, rew, done, info = clone_env.step(action)
+                    if done: break
 
-                # # Value estimates over theta component
-                # curr_qs, curr_outputs = curr_env.value_over_interp_actions(model, args.num_samples, [1])
-                # next_envs = [type(models[j+1].env.unwrapped).load(env, **configs[j+1]["env_kwargs"]) for env in curr_outputs["env"]]
-                # next_qs, next_outputs = zip(*[env.action_value(models[j+1]) for env in next_envs]) 
+                visualizer = PyBox2DVisualizer(clone_env)
+                visualizer.render_values_theta(
+                    x=[np.array(curr_outputs["action_dim"])],
+                    y=[curr_qs, np.array(next_qs)],
+                    labels=[type(clone_env).__name__, type(next_envs[0]).__name__],
+                )
+                visualizer.save(path.join(args.path, f"sample_{i}_{j}_theta.png"))
 
-                # plot_kwargs = {
-                #     "x": np.array(curr_outputs["action_dim"]).squeeze(-1),
-                #     "y": [curr_qs, np.array(next_qs)],
-                #     "labels": [type(curr_env).__name__, type(next_envs[0]).__name__],
-                #     "colors": ["tab:blue", "tab:red"],
-                # }
-                # image = Image.fromarray(curr_env.render(**plot_kwargs))
-                # image.save(path.join(args.path, f"sample_{i}_{j}_theta"), "png")
-            
             for _ in range(curr_env._max_episode_steps):
                 action = model.predict(obs)
-                obs, rew, done, info = curr_env.step(action, render=True)
+                obs, rew, done, info = curr_env.step(action)
                 if done: break
 
             if rew == 0: break
