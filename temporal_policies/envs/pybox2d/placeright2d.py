@@ -12,6 +12,7 @@ class PlaceRight2D(Box2DBase):
         """PlaceRight2D gym environment.
         """
         super().__init__(**kwargs)
+        self._base_kwargs = kwargs
         
     def reset(self):
         observation = super().reset()
@@ -112,11 +113,13 @@ class PlaceRight2D(Box2DBase):
             position=self._get_body("box", "ceiling").position,
             box=self._get_shape("box", "ceiling")["box"]
         )
-        x_min = np.amax(box_vertices, axis=0)[0]
+        x_min = np.max(box_vertices, axis=0)[0]
         on_right = self.agent.position[0] >= x_min
         return on_right
 
     def _is_done(self):
+        if len(self.agent.contacts) == 0:
+            return False
         return True
     
     def _is_valid(self):

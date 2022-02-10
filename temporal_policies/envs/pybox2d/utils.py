@@ -25,8 +25,7 @@ class GeometryHandler(object):
             size = object_data["shape_kwargs"]["size"]
             object_data["shape_kwargs"]["size"] = np.array(size, dtype=np.float32)
             # Set default global reference frame to workspace bottom left
-            if env[object_name]["class"] == "workspace" and \
-                    np.all(self._t_global == np.zeros_like(self._t_global)):
+            if env[object_name]["class"] == "workspace" and np.all(self._t_global == np.zeros_like(self._t_global)):
                 self._t_global = np.array([size[0] * 0.5, 0], dtype=np.float32)
 
     def transform_global(self, shapes):
@@ -134,8 +133,14 @@ def to_homogenous(points):
     returns:
         augmented_points: 2D or 3D homogenous coordinates -- np.array (N, D+1)
     """
+    is_transposed = False
+    if points.shape[0] == 2:
+        is_transposed = True
+        points = points.T
     ones = np.ones((points.shape[0], 1))
     augmented_points = np.concatenate((points, ones), axis=1)
+    if is_transposed:
+        augmented_points = augmented_points.T    
     return augmented_points.astype(np.float32)
 
 

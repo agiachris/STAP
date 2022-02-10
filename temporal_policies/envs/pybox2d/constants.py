@@ -9,3 +9,16 @@ COLORS = {
     "brown": (100, 42, 42), 
     "black": (0, 0, 0)
 }
+
+TAB_COLORS = {
+    "blue": "tab:blue", 
+    "orange": "tab:orange", 
+    "green": "tab:green", 
+    "red": "tab:red",
+    "purple": "tab:purple",
+    "brown": "tab:brown",
+    "pink": "tab:pink",
+    "gray": "tab:gray",
+    "olive": "tab:olive",
+    "cyan": "tab:cyan"
+}

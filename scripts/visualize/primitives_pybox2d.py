@@ -12,8 +12,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, required=True, help="Path to save gif")
     parser.add_argument("--checkpoints", nargs="+", type=str, required=True, help="Path to model checkpoint")
-    parser.add_argument("--vis-value-fn", action="store_true", help="Visualize value function estimates for the model")
-    parser.add_argument("--vis-random", action="store_true", help="Evaluate a random policy baseline")
+    parser.add_argument("--vis-random", action="store_true", help="Visualize a random policy baseline")
     parser.add_argument("--num-eps", type=int, default=1, help="Number of episodes to unit test across")
     parser.add_argument("--every-n-frames", type=int, default=10, help="Save every n frames to the gif.")
     parser.add_argument("--device", "-d", type=str, default="auto")
@@ -21,6 +20,7 @@ if __name__ == "__main__":
 
     # Setup
     models = [load_from_path(c, device=args.device, strict=True) for c in args.checkpoints]
+    for model in models: model.eval_mode()
     configs = [Config.load(path.join(path.dirname(c), "config.yaml")) for c in args.checkpoints]
 
     # Outputs

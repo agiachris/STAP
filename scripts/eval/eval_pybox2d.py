@@ -17,6 +17,7 @@ if __name__ == "__main__":
 
     # Setup
     models = [load_from_path(c, device=args.device, strict=True) for c in args.checkpoints]
+    for model in models: model.eval_mode()
     configs = [Config.load(path.join(path.dirname(c), "config.yaml")) for c in args.checkpoints]
 
     # Policies

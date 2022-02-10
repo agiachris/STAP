@@ -2,6 +2,7 @@ import os
 import yaml
 import numpy as np
 from collections import OrderedDict
+from copy import deepcopy
 from Box2D import *
 
 from .utils import GeometryHandler, sample_random_params
@@ -16,7 +17,8 @@ class Generator(GeometryHandler):
                  world=None,
                  env_params={}, 
                  rand_params={}, 
-                 geometry_params={}):
+                 geometry_params={},
+                 mode="init"):
         """PyBox2D environment generator.
         """
         super().__init__(**geometry_params)
@@ -29,9 +31,10 @@ class Generator(GeometryHandler):
         # Public attributes: Box2D world and environment parameters
         self.env = env
         self.world = world
-        if env is None:
-            assert world is None
-            next(self)
+        if mode == "init": next(self)
+        elif mode == "load": assert env is not None and world is not None
+        elif mode == "clone": self._clone() 
+        else: raise ValueError(f"Unsupported Generator instantiation mode {mode}")
 
     def __iter__(self):
         """Declare class as an iterator.
@@ -49,7 +52,7 @@ class Generator(GeometryHandler):
         """
         env = dict(self._config.copy(), **self._env_params.copy())
         env = OrderedDict(sorted(env.items()))
-        assert all([object_data["class"] in GeometryHandler._VALID_CLASSES for object_data in env.values()])
+        assert all(object_data["class"] in GeometryHandler._VALID_CLASSES for object_data in env.values())
         
         # Light domain randomization (shape_kwargs)
         for object_name, rand_params in self._rand_params.items():
@@ -81,7 +84,61 @@ class Generator(GeometryHandler):
                 elif object_data["type"] == "dynamic":
                     body = self._create_dynamic(userData=k, **v, **object_data["body_kwargs"])
                 else:
-                    raise NotImplementedError("Cannot create rigid body of type {}".format(object_data["type"]))
+                    raise NotImplementedError(f"Cannot create rigid body of type {object_data['type']}")
+                object_data["bodies"][k] = body
+            self.env[object_name] = object_data
+    
+    def _clone(self):
+        """Clone environment.
+        """
+        self._clone_env()
+        self._clone_world()
+
+    def _clone_env(self):
+        """Clone ordered dictionary of environment objects and their attributes.
+        """
+        env = OrderedDict()
+        for object_name, object_data in self.env.items():
+            instance_keys = ["body_kwargs", "bodies"]
+            _object_data = {k: deepcopy(v) for k, v in object_data.items() if k not in instance_keys}
+            
+            if object_data["type"] == "dynamic":
+                _object_data["body_kwargs"] = deepcopy(object_data["body_kwargs"])
+                
+                assert len(object_data["bodies"]) == 1, "Only support cloning of rigid bodies with one fixture"
+                for body_name, body in object_data["bodies"].items():
+                    _object_data["shapes"][body_name]["position"] = np.array(body.position.copy(), dtype=np.float32)
+                    _body_kwargs = {
+                        "angle": body.angle,
+                        "linearVelocity": body.linearVelocity.copy(),
+                        "angularVelocity": body.angularVelocity,
+                        "linearDamping": body.linearDamping,
+                        "angularDamping": body.angularDamping,
+                        "awake": body.awake,
+                        "fixedRotation": body.fixedRotation,
+                        "bullet": body.bullet,
+                        "active": body.active,
+                        "gravityScale": body.gravityScale
+                    }
+                _object_data["body_kwargs"].update(_body_kwargs)
+            env[object_name] = _object_data
+
+        self.env = env
+
+    def _clone_world(self):
+        """Clone Box2D world by constructing rigid bodies.
+        """
+        self.world = b2World()
+        for object_name, object_data in self.env.items():
+            object_data["bodies"] = {}
+            
+            for k, v in object_data["shapes"].items():
+                if object_data["type"] == "static":
+                    body = self._create_static(userData=k, **v)
+                elif object_data["type"] == "dynamic":
+                    body = self._create_dynamic(userData=k, **v, **object_data["body_kwargs"])
+                else:
+                    raise NotImplementedError(f"Cannot create rigid body of type {object_data['type']}")
                 object_data["bodies"][k] = body
             self.env[object_name] = object_data
 
@@ -100,26 +157,24 @@ class Generator(GeometryHandler):
         return body
     
     def _create_dynamic(self, position, box, 
-                        angle=0,
                         density=1,
                         friction=0.1,
                         restitution=0.1,
-                        userData=None
-                        ):
+                        userData=None,
+                        **kwargs):
         """Add static body to world.
         
         args: 
             position: centroid position in world reference (m) -- np.array (2,)
             box: half_w, half_h box shape parameters (m) -- np.array (2,)
-            angle: rigid body angle about center of mass
             density: rigid body density (kg / m^2)
             friction: Coulumb friction coefficient
             restitution: rigid body restitution
             user_data: pointer to user specified data
+            kwargs: additional key word arguments for b2BodyDef
         """
         body = self.world.CreateDynamicBody(
             position=position.astype(np.float64),
-            angle=angle,
             fixtures=b2FixtureDef(
                 shape=b2PolygonShape(box=box.astype(np.float64)),
                 density=density,
@@ -127,12 +182,13 @@ class Generator(GeometryHandler):
                 restitution=restitution
             ),
             userData=userData,
+            **kwargs
         )
         return body    
 
     @staticmethod
     def _get_body_name(object_name, part_name):
-        return "{}_{}".format(object_name, part_name)
+        return f"{object_name}_{part_name}"
 
     def _get_class(self, object_name):
         """Return class of the rigid body object_name.
