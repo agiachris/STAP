@@ -56,7 +56,7 @@ dataset_kwargs:
 processor: null
 
 train_kwargs: # Arguments given to Algorithm.train
-  total_steps: 1000000 # The total number of steps to train
+  total_steps: 250000 # The total number of steps to train
   log_freq: 250 # How often to log values
   eval_freq: 10000 # How often to run evals
   eval_ep: 10 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
