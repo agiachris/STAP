@@ -166,7 +166,7 @@ def sample_random_params(v):
     """
     if isinstance(v, list) and isinstance(v[0], list):
         # multi-variate discrete or continuous sampling distribution
-        v = [sample_random_params(_v) for _v in v]
+        v = np.array([sample_random_params(_v) for _v in v])
     elif isinstance(v, list) and isinstance(sum(v), int):
         # discrete sampling distribution
         v = np.random.choice(v)
