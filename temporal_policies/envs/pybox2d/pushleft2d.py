@@ -78,7 +78,7 @@ class PushLeft2D(Box2DBase):
         high = np.concatenate((high, [np.pi * 0.5 + 1e-2]))
         self.observation_space = spaces.Box(low=low, high=high)
         
-    def _get_observation(self):
+    def _get_observation(self, noise=0):
         k = 0
         observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
         for object_name in self.env.keys():

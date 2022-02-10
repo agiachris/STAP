@@ -80,7 +80,7 @@ class PlaceRight2D(Box2DBase):
             high=np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
         )
         
-    def _get_observation(self):
+    def _get_observation(self, noise=0):
         k = 0
         observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
         for object_name in self.env.keys():

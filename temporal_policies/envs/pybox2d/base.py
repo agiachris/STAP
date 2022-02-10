@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from collections import defaultdict
+from copy import deepcopy
 from gym import Env
 from abc import ABC, abstractmethod
 from skimage import draw
@@ -76,7 +77,7 @@ class Box2DBase(ABC, Env, Generator):
             "physics_steps": env.physics_steps,
             "mode": "load"
         }
-        env_kwargs.update(kwargs)
+        env_kwargs.update(deepcopy(kwargs))
         env = cls(**env_kwargs)
         env._clean_base_kwargs()
         return env
@@ -102,7 +103,7 @@ class Box2DBase(ABC, Env, Generator):
             "physics_steps": env.physics_steps,
             "mode": "clone"
         }
-        env_kwargs.update(kwargs)
+        env_kwargs.update(deepcopy(kwargs))
         env = cls(**env_kwargs)
         env._clean_base_kwargs()
         return env
