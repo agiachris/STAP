@@ -28,13 +28,6 @@ class PushLeft2DControl(Box2DBase):
         action = action.astype(float)
         low, high = self.action_scale.low, self.action_scale.high
         action = low + (high - low) * (action + 1) * 0.5
-
-        box_vertices = shape_to_vertices(
-            position=self._get_body("box", "ceiling").position,
-            box=self._get_shape("box", "ceiling")["box"]
-        )
-        x_mid = np.mean(box_vertices, axis=0)[0]
-        action = np.array([x_mid])
         self._pid_control.reset(
             ref=action.item(), 
             y=self.agent.position[0]
