@@ -17,17 +17,16 @@ class Generator(GeometryHandler):
                  world=None,
                  env_params={}, 
                  rand_params={}, 
-                 geometry_params={},
-                 mode="init"):
+                 mode="init",
+                 **kwargs):
         """PyBox2D environment generator.
         """
-        super().__init__(**geometry_params)
+        super().__init__(**kwargs)
         with open(os.path.realpath(config), "r") as file:
             self._config = yaml.load(file, yaml.Loader)
         self._env_params = env_params
         self._rand_params = rand_params
-        self._geometry_params = geometry_params
-        
+                
         # Public attributes: Box2D world and environment parameters
         self.env = env
         self.world = world
@@ -42,7 +41,8 @@ class Generator(GeometryHandler):
         return self
 
     def __next__(self):
-        """Return a randomly sampled 2D environment.
+        """Randomly sample a Box2D environment, setting up the public self.env
+        dictionary and a b2World instance as self.world
         """
         self._setup_env()
         self._setup_world()

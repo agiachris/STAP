@@ -24,7 +24,7 @@ if __name__ == "__main__":
     configs = [Config.load(path.join(path.dirname(c), "config.yaml")) for c in args.checkpoints]
 
     # Outputs
-    exps = ["learned_policy"]
+    exps = ["rollout_policy"]
     if args.vis_random: exps.insert(0, "random_policy")
     paths = [path.join(args.path, exp) for exp in exps]
     for p in paths: 
@@ -34,10 +34,10 @@ if __name__ == "__main__":
     # Simulate random and trained policies
     for e, exp in enumerate(exps):
         for i in range(args.num_eps):
-            frames = []
             prev_env = None
 
             for j, model in enumerate(models):
+                # Instantiate environment
                 if prev_env is None:
                     curr_env = model.env.unwrapped
                     obs = curr_env.reset()
@@ -45,16 +45,16 @@ if __name__ == "__main__":
                     curr_env = type(model.env.unwrapped).load(prev_env, **configs[j]["env_kwargs"])
                     obs = curr_env._get_observation()
                 
+                # Simulate forward under policy
                 for _ in range(curr_env._max_episode_steps):
                     if exp == "random_policy": action = curr_env.action_space.sample()
                     else: action = model.predict(obs)
-                    obs, rew, done, info = curr_env.step(action, render=True)
+                    obs, rew, done, info = curr_env.step(action)
                     if done: break
+                if not info["success"]: break
 
-                frames.extend(curr_env._render_buffer)
-                if j == len(models) - 1: frames.extend([curr_env._render_buffer[-1]] * args.every_n_frames**2)
-                if rew == 0: break
                 prev_env = curr_env
-            
-            filepath = path.join(paths[e], f"sample_{i}.gif")
+
+            frames = curr_env._frame_buffer + [curr_env._frame_buffer[-1]] * args.every_n_frames**2
+            filepath = path.join(paths[e], f"example_{i}.gif")
             imageio.mimsave(filepath, frames[::args.every_n_frames])

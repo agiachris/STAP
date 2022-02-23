@@ -18,7 +18,7 @@ class PushLeft2D(Box2DBase):
         observation = super().reset()
         return observation
 
-    def step(self, action, render=False):
+    def step(self, action):
         """Action components are activated via tanh().
         """
         # Act
@@ -26,14 +26,8 @@ class PushLeft2D(Box2DBase):
         low, high = self.action_scale.low, self.action_scale.high
         action = low + (high - low) * (action + 1) * 0.5
         self.agent.ApplyForce((action[0], 0), self.agent.position, wake=True)
-        
         # Simulate
-        steps_exceeded = super().step(clear_forces=False, render=render) 
-        observation = self._get_observation()
-        reward = self._get_reward()
-        done = steps_exceeded or self._is_done()
-        info = {}
-        return observation, reward, done, info
+        return super().step()
     
     def _setup_spaces(self):
         """PushLeft2D primitive action and observation spaces.
@@ -78,7 +72,7 @@ class PushLeft2D(Box2DBase):
         high = np.concatenate((high, [np.pi * 0.5 + 1e-2]))
         self.observation_space = spaces.Box(low=low, high=high)
         
-    def _get_observation(self, noise=0):
+    def _get_observation(self):
         k = 0
         observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
         for object_name in self.env.keys():
@@ -92,8 +86,7 @@ class PushLeft2D(Box2DBase):
         box = self._get_shape("item", "block")["box"]
         angle = np.array([self.agent.angle])
         observation[k: k+5] = np.concatenate((position, box, angle))
-        assert self.observation_space.contains(observation)
-        return observation
+        return super()._get_observation(observation)
 
     def _get_reward(self):
         """PushLeft2D reward function.
@@ -125,14 +118,29 @@ class PushLeft2D(Box2DBase):
             position=self._get_body("box", "ceiling").position,
             box=self._get_shape("box", "ceiling")["box"]
         )
-        x_mid = np.mean(box_vertices, axis=0)[0]
         y_max = np.max(box_vertices, axis=0)[1]
-        in_box = self.agent.position[0] <= x_mid and self.agent.position[1] < y_max
+        
+        touching_wall = False
+        for contact in self.agent.contacts:
+            if contact.other.userData == self._get_body_name("box", "wall"):
+                touching_wall = True
+                break
+        
+        in_box = touching_wall and self.agent.position[1] < y_max
         return in_box
         
     def _is_done(self):
-        return self.__in_box() or (not self.__on_ground())
+        return self.__in_box()
     
     def _is_valid(self):
-        self.simulate(100, clear_forces=True)
+        return self.__on_ground()
+
+    def _is_valid_start(self):
+        self.simulate(
+            time_steps=100, 
+            clear_forces=True,
+            break_on_done=False,
+            accrue_rewards=False,
+            buffer_frames=False
+        )
         return self.__on_ground() and self.__on_right()

@@ -81,9 +81,9 @@ if __name__ == "__main__":
         reward_max = np.amax(ep_rewards)
         # Compute stats
         print(f"Results for {exp} policy over {i+1} episodes:")
-        print(f"\tRewards: mean {ep_rewards.mean():.3f} std {ep_rewards.std():.3f}")
+        print(f"\tRewards: mean {ep_rewards.mean():.2f} std {ep_rewards.std():.2f}")
         print(f"\t         min {reward_min} percent {(ep_rewards == reward_min).sum() / (i+1)}")
         print(f"\t         max {reward_max} percent {(ep_rewards == reward_max).sum() / (i+1)}")
-        print(f"\tSec / Primitive: mean {time_per_primitive.mean():.3f} std {time_per_primitive.std():.3f}")
-        print(f"\tPrimitives: mean {macro_steps.mean():.3f} std {macro_steps.std():.3f}")
-        print(f"\tSteps: mean {micro_steps.mean():.3f} std {micro_steps.std():.3f}\n")
+        print(f"\tSec / Primitive: mean {time_per_primitive.mean():.2f} std {time_per_primitive.std():.2f}")
+        print(f"\tPrimitives: mean {macro_steps.mean():.2f} std {macro_steps.std():.2f}")
+        print(f"\tSteps: mean {micro_steps.mean():.2f} std {micro_steps.std():.2f}\n")

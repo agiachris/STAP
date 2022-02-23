@@ -1,9 +1,7 @@
 import argparse
 import os
 from os import path
-from turtle import clone
 import numpy as np
-from PIL import Image
 
 from temporal_policies.utils.config import Config
 from temporal_policies.utils.trainer import load_from_path

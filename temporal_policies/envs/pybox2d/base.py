@@ -20,32 +20,51 @@ class Box2DBase(ABC, Env, Generator):
     def __init__(self, 
                  max_episode_steps,
                  steps_per_action, 
+                 observation_noise=0.0,
                  time_steps=1.0/60.0, 
                  vel_iters=10, 
                  pos_iters=10,
+                 clear_forces=True,
+                 break_on_done=True,
                  cumulative_reward=0.0,
                  steps=0,
                  physics_steps=0,
+                 physics_steps_buffer=0,
+                 buffer_frames=False,
                  **kwargs):
         """Box2D environment base class.
 
         args:
             max_episode_steps: maximum number per episode
             steps_per_action: number of simulation steps per action
+            observation_noise: percent noise added to observations
             time_steps: simulation frequency
             vel_iters: Box2D velocity numerical solver iterations per time step  
-            pos_iters: Box2D positional numerical solver iterations per time step  
+            pos_iters: Box2D positional numerical solver iterations per time step
+            clear_forces: clear forces upon every Box2D simulation step
+            break_on_done: stop simulation at terminal state
             cumulative_reward: rewards accrued over the course of the episode
+            steps: initial step of the gym environment
+            physics_steps: number of time_steps occured
+            physics_steps_buffer: number of extra time_steps after episode has terminated
+            buffer_frames: save frames rendered at each timestep to buffer
         """
         Generator.__init__(self, **kwargs)
         self._max_episode_steps = max_episode_steps
         self._steps_per_action = steps_per_action
+        self._observation_noise = observation_noise
         self._time_steps = time_steps
         self._vel_iters = vel_iters
         self._pos_iters = pos_iters
+        self._clear_forces = clear_forces
+        self._break_on_done = break_on_done
         self._cumulative_reward = cumulative_reward
-        self.steps = steps
-        self.physics_steps = physics_steps
+        self._steps = steps
+        self._physics_steps = physics_steps
+        self._physics_steps_buffer = physics_steps_buffer
+        self._buffer_frames = buffer_frames
+
+        self._frame_buffer = []
         self._setup_spaces()
         self._render_setup()
 
@@ -67,20 +86,23 @@ class Box2DBase(ABC, Env, Generator):
             **kwargs: keyword arguments of Box2DBase subclass
         """
         env_kwargs = {
+            # Box2DBase kwargs
+            "cumulative_reward": env._cumulative_reward,
+            "physics_steps": env._physics_steps,
+            "buffer_frames": env._buffer_frames,
+            # Generator kwargs
             "env": env.env,
             "world": env.world,
-            "geometry_params": {
-                "global_x": env._t_global[0],
-                "global_y": env._t_global[1]
-            },
-            "cumulative_reward": env._cumulative_reward,
-            "physics_steps": env.physics_steps,
-            "mode": "load"
+            "mode": "load",
+            # GeometryHandler kwargs
+            "global_x": env._t_global[0],
+            "global_y": env._t_global[1]
         }
         env_kwargs.update(deepcopy(kwargs))
-        env = cls(**env_kwargs)
-        env._clean_base_kwargs()
-        return env
+        loaded_env = cls(**env_kwargs)
+        loaded_env._clean_base_kwargs()
+        loaded_env._frame_buffer = deepcopy(env._frame_buffer)
+        return loaded_env
 
     @classmethod
     def clone(cls, env, **kwargs):
@@ -92,21 +114,24 @@ class Box2DBase(ABC, Env, Generator):
             **kwargs: keyword arguments of Box2DBase subclass
         """
         env_kwargs = {
+            # Box2DBase kwargs
+            "cumulative_reward": env._cumulative_reward,
+            "steps": env._steps,
+            "physics_steps": env._physics_steps,
+            "buffer_frames": env._buffer_frames,
+            # Generator kwargs
             "env": env.env,
             "world": env.world,
-            "geometry_params": {
-                "global_x": env._t_global[0],
-                "global_y": env._t_global[1]
-            },
-            "cumulative_reward": env._cumulative_reward,
-            "steps": env.steps,
-            "physics_steps": env.physics_steps,
-            "mode": "clone"
+            "mode": "clone",
+            # GeometryHandler kwargs
+            "global_x": env._t_global[0],
+            "global_y": env._t_global[1]
         }
         env_kwargs.update(deepcopy(kwargs))
-        env = cls(**env_kwargs)
-        env._clean_base_kwargs()
-        return env
+        loaded_env = cls(**env_kwargs)
+        loaded_env._clean_base_kwargs()
+        loaded_env._frame_buffer = deepcopy(env._frame_buffer)
+        return loaded_env
 
     @abstractmethod
     def reset(self):
@@ -115,44 +140,83 @@ class Box2DBase(ABC, Env, Generator):
         if self.world is not None:
             for body in self.world.bodies:
                 self.world.DestroyBody(body) 
-
-        self._cumulative_reward = 0.0
-        self.steps = 0
-        self.physics_steps = 0
         
-        is_valid = False
-        while not is_valid:
+        is_valid_start = False
+        while not is_valid_start:
             next(self)
             self._setup_spaces()
-            is_valid = self._is_valid()
+            is_valid_start = self._is_valid_start()
+            self._cumulative_reward = 0.0
+            self._steps = 0
+            self._physics_steps = 0
+            self._frame_buffer = []
         self._render_setup()
         
         observation = self._get_observation()
         return observation
 
     @abstractmethod
-    def step(self, clear_forces=True, render=False):
+    def step(self):
         """Take environment steps at self._time_steps frequency.
         """
-        self.simulate(self._steps_per_action, clear_forces, render)
-        if render: self._render_buffer.append(self.render())
-        self.steps += 1
-        steps_exceeded = self.steps >= self._max_episode_steps
-        return steps_exceeded
+        obs, reward, done, info = self.simulate()
+        self._steps += 1
+        if self._steps >= self._max_episode_steps:
+            done = True
+            info["success"] = info.get("success", False)
+        return obs, reward, done, info
     
-    def simulate(self, time_steps, clear_forces=True, render=False):
-        done_reward = False
-        for _ in range(time_steps):
+    def simulate(self,
+                 time_steps=None, 
+                 clear_forces=None,
+                 break_on_done=None,
+                 accrue_rewards=True,
+                 buffer_frames=None):
+        # Custom simulation arguments
+        time_steps = time_steps if time_steps is not None else self._steps_per_action
+        clear_forces = clear_forces if clear_forces is not None else self._clear_forces
+        break_on_done = break_on_done if break_on_done is not None else self._break_on_done
+        buffer_frames = buffer_frames if buffer_frames is not None else self._buffer_frames
+        
+        obs = None
+        done = False
+        reward = 0
+        info = {}
+        steps = 0
+        while steps < time_steps:
             self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
-            if clear_forces: self.world.ClearForces()
-            if not self._is_done(): 
-                self._cumulative_reward += self._get_reward()
-            elif self._is_done() and not done_reward:
-                self._cumulative_reward += self._get_reward()
-                done_reward = True
-            if render: self._render_buffer.append(self.render())            
-            self.physics_steps += 1
+            if clear_forces: self.world.ClearForces() 
+
+            # Only accrue rewards for valid states
+            is_valid = self._is_valid()
+            if accrue_rewards and not done:
+                r = 0 if not is_valid else self._get_reward() 
+                reward += r
+                self._cumulative_reward += r
+
+            if buffer_frames: self._frame_buffer.append(self.render())
+            self._physics_steps += 1
+            steps += 1
+
+            if not done:
+                # Save terminal state
+                is_done = self._is_done()
+                if is_done or not is_valid: 
+                    done = True
+                    obs = self._get_observation()
+                    info["success"] = is_done and is_valid and reward > 0
+
+                    # Optionally run extra simulation steps
+                    if break_on_done:
+                        steps = 0
+                        time_steps = self._physics_steps_buffer
+                        clear_forces = True
+        
+        if not done:
+            obs = self._get_observation()
+
         self.world.ClearForces()
+        return obs, reward, done, info
 
     @abstractmethod
     def _setup_spaces(self):
@@ -161,10 +225,16 @@ class Box2DBase(ABC, Env, Generator):
         raise NotImplementedError
             
     @abstractmethod
-    def _get_observation(self):
-        """Observation model.
+    def _get_observation(self, obs):
+        """Observation model. Optionally incorporate noise to observations.
         """
-        raise NotImplementedError
+        assert self.observation_space.contains(obs)
+        low = self.observation_space.low
+        high = self.observation_space.high
+        margin = (high - low) * self._observation_noise
+        noise = np.random.uniform(-margin, margin)
+        obs = np.clip(obs + noise, low, high)
+        return obs
 
     @abstractmethod
     def _get_reward(self):
@@ -179,8 +249,14 @@ class Box2DBase(ABC, Env, Generator):
         raise NotImplementedError
 
     @abstractmethod
-    def _is_valid(self):
+    def _is_valid_start(self):
         """Check if start state is valid.
+        """
+        raise NotImplementedError
+    
+    @abstractmethod
+    def _is_valid(self):
+        """Check if current state is valid.
         """
         raise NotImplementedError
 
@@ -409,9 +485,8 @@ class Box2DBase(ABC, Env, Generator):
             self._global_to_plot = image_to_plot @ global_to_image
             self._image = image
             self._static_image = static_image
-            self._render_buffer = [self.render()]
     
-    def render(self, mode="human", width=480, height=360):
+    def render(self, mode="human"):
         """Render sprites on all 2D bodies and set background to white.
         """        
         # Render all world shapes
@@ -437,15 +512,30 @@ class Box2DBase(ABC, Env, Generator):
         image = np.round(image).astype(np.uint8)
         
         if mode == "human":
-            image = self._render_util(image, width, height)
+            width, height = 480, 360
+            caption = f"Env: {type(self).__name__} | Step: {self._steps} | "
+            caption += f"Time: {self._physics_steps} | Reward: {self._cumulative_reward}"
+            dtype = np.uint8
+        elif mode == "rgb_array":
+            width, height = 84, 84
+            caption = None
+            dtype = np.float32
+        else:
+            raise NotImplementedError(f"Rendering for mode {mode} is not suppported.")
+
+        image = self._render_util(
+            image, 
+            caption=caption, 
+            width=width, 
+            height=height,
+            dtype=dtype
+        )
         return image
 
-    def _render_util(self, image, width=480, height=360):
+    def _render_util(self, image, caption=None, width=480, height=360, dtype=np.uint8):
         """Caption and resize image.
         """
         image = Image.fromarray(image, "RGB")
         image = image.resize((width, height))
-        caption = f"Env: {type(self).__name__} | Step: {self.steps} | "
-        caption += f"Time: {self.physics_steps} | Reward: {self._cumulative_reward}"
-        image = draw_caption(np.asarray(image), caption)
-        return np.asarray(image, dtype=np.uint8)
+        if caption: image = draw_caption(np.asarray(image), caption)
+        return np.asarray(image, dtype=dtype)
