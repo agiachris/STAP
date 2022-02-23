@@ -234,7 +234,7 @@ class Box2DBase(ABC, Env, Generator):
         margin = (high - low) * self._observation_noise
         noise = np.random.uniform(-margin, margin)
         obs = np.clip(obs + noise, low, high)
-        return obs
+        return obs.astype(np.float32)
 
     @abstractmethod
     def _get_reward(self):
