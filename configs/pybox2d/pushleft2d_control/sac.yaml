@@ -46,7 +46,7 @@ env_kwargs:
   control_kwargs: 
     kp: 2
     kd: 2
-    ki: 0.01
+    ki: 0.05
     overshoot_reset: True
   
 dataset: ReplayBuffer
