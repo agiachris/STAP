@@ -114,12 +114,10 @@ class PushLeft2DControl(Box2DBase):
         return reward
 
     def __on_ground(self):
-        on_ground = False
         for contact in self.agent.contacts:
             if contact.other.userData == self._get_body_name("playground", "ground"):
-                on_ground = True
-                break
-        return on_ground
+                return True
+        return False
     
     def __on_right(self):
         box_vertices = shape_to_vertices(
@@ -151,8 +149,8 @@ class PushLeft2DControl(Box2DBase):
             self._get_body_name("box", "wall")]
         for contact in self.agent.contacts:
             if contact.other.userData not in valid_bodies:
-                return False
-        return True
+                return True
+        return False
 
     def _is_done(self):
         return self.__in_box()
