@@ -145,12 +145,20 @@ class PushLeft2DControl(Box2DBase):
         
         in_box = touching_wall and self.agent.position[1] < y_max
         return in_box
-        
+
+    def __invalid_contact(self):
+        valid_bodies = [self._get_body_name("playground", "ground"), \
+            self._get_body_name("box", "wall")]
+        for contact in self.agent.contacts:
+            if contact.other.userData not in valid_bodies:
+                return False
+        return True
+
     def _is_done(self):
         return self.__in_box()
     
     def _is_valid(self):
-        return self.__on_ground()
+        return self.__on_ground() and not self.__invalid_contact()
 
     def _is_valid_start(self):
         self.simulate(
