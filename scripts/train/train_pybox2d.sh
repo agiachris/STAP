@@ -33,5 +33,5 @@ done
 
 len=${#inputs[@]}
 for (( j=0; j < len; j++)); do
-    echo "python scripts/train.py --path ${outputs[$j]} --config ${inputs[$j]}"
+    eval "python scripts/train.py --path ${outputs[$j]} --config ${inputs[$j]}"
 done
