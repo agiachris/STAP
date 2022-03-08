@@ -67,6 +67,7 @@ class Box2DBase(ABC, Env, Generator):
         self._frame_buffer = []
         self._setup_spaces()
         self._render_setup()
+        self._eval_mode=False
 
     def _clean_base_kwargs(self):
         """Clean up base kwargs for future envioronment loading and cloning.
@@ -75,6 +76,25 @@ class Box2DBase(ABC, Env, Generator):
         if "env" in self._base_kwargs: del self._base_kwargs["env"]
         if "world" in self._base_kwargs: del self._base_kwargs["world"]
     
+    def train_mode(self):
+        """Set environment to train mode.
+        """
+        self._eval_mode = False
+        self._break_on_done = True
+        self._physics_steps_buffer = 0
+        self._buffer_frames = False
+
+    def eval_mode(self,
+                  break_on_done=True,
+                  physics_steps_buffer=10,
+                  buffer_frames=True):
+        """Set environment to evaluation mode.
+        """
+        self._eval_mode = True
+        self._break_on_done = break_on_done
+        self._physics_steps_buffer = physics_steps_buffer
+        self._buffer_frames = buffer_frames
+
     @classmethod
     def load(cls, env, **kwargs):
         """Load environment from pre-existing b2World. The b2World instance is transferred
@@ -102,6 +122,12 @@ class Box2DBase(ABC, Env, Generator):
         loaded_env = cls(**env_kwargs)
         loaded_env._clean_base_kwargs()
         loaded_env._frame_buffer = deepcopy(env._frame_buffer)
+        if env._eval_mode:
+            loaded_env.eval_mode(
+                break_on_done=env._break_on_done,
+                physics_steps_buffer=env._physics_steps_buffer,
+                buffer_frames=env._buffer_frames
+            )
         return loaded_env
 
     @classmethod
@@ -131,6 +157,12 @@ class Box2DBase(ABC, Env, Generator):
         loaded_env = cls(**env_kwargs)
         loaded_env._clean_base_kwargs()
         loaded_env._frame_buffer = deepcopy(env._frame_buffer)
+        if env._eval_mode:
+            loaded_env.eval_mode(
+                break_on_done=env._break_on_done,
+                physics_steps_buffer=env._physics_steps_buffer,
+                buffer_frames=env._buffer_frames
+            )
         return loaded_env
 
     @abstractmethod
@@ -406,13 +438,19 @@ class Box2DBase(ABC, Env, Generator):
             actions: linear interpolation of action space -- np.array (num, action_space.ndim)
             action_dims: action components indexed at dims
         """
-        low, high = self.action_space.low, self.action_space.high
+        mask = np.zeros_like(self.action_space.shape[0], dtype=bool)
+        mask[dims] = True
+
+        # Compute combinations of action components across specified dims
+        low, high = self.action_space.low, self.action_space.high        
+        action_dims = np.linspace(low[mask], high[mask], num, dtype=np.float32) 
+        action_dims = np.array(np.meshgrid(*action_dims.T))
+        action_dims = action_dims.T.reshape(-1, self.action_space.shape[0])
+
         if default is None: default = (low + high) * 0.5
-        actions = np.linspace(low, high, num, dtype=np.float32)
-        # Fill in default action values
-        mask = np.ones_like(low, dtype=np.bool)
-        mask[dims] = False
-        actions[:, mask] = default[mask]
+        actions = np.tile(default, (action_dims.shape[0], 1))
+        actions[:, mask] = action_dims.copy()
+
         assert all(self.action_space.contains(a) for a in actions)
         # Convert to un-normalized action space
         low, high = self.action_scale.low, self.action_scale.high
@@ -430,14 +468,20 @@ class Box2DBase(ABC, Env, Generator):
             states: linear interpolation of state space -- np.array (num, observation_space.ndim)
             state_dims: state components indexed by dims
         """
-        low = self.observation_space.low
-        high = self.observation_space.high
+        mask = np.zeros_like(self.observation_space.shape[0], dtype=bool)
+        mask[dims] = True
+
+        # Compute combinations of action components across specified dims
+        low, high = self.observation_space.low, self.observation_space.high        
+        state_dims = np.linspace(low[mask], high[mask], num, dtype=np.float32) 
+        state_dims = np.array(np.meshgrid(*state_dims.T))
+        state_dims = state_dims.T.reshape(-1, self.observation_space.shape[0])
+
         if default is None: default = (low + high) * 0.5
-        states = np.linspace(low, high, num, dtype=np.float32)
-        # Fill in default state values
-        mask = np.ones_like(low, dtype=np.bool)
-        mask[dims] = False
-        states[:, mask] = default[mask]
+        states = np.tile(default, (state_dims.shape[0], 1))
+        states[:, mask] = state_dims.copy()
+
+        # Convert to un-normalized state space
         assert all(self.observation_space.contains(s) for s in states)
         state_dims = states[:, mask].copy()
         return states, state_dims

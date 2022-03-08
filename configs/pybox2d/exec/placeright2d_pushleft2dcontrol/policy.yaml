@@ -1,0 +1,11 @@
+planner: Policy
+planner_kwargs: {}
+
+task: 
+  - env: "PlaceRight2D"
+    opt: [1]
+    dep: [[]]
+
+  - env: "PushLeft2DControl"
+    opt: []
+    dep: []

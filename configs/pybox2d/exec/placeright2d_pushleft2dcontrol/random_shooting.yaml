@@ -1,0 +1,12 @@
+planner: RandomShootingPlanner
+planner_kwargs: 
+  samples: 100
+
+task: 
+  - env: "PlaceRight2D"
+    opt: [1]
+    dep: [[]]
+
+  - env: "PushLeft2DControl"
+    opt: []
+    dep: []

@@ -31,7 +31,7 @@ class PushLeft2D(Box2DBase):
     
     def _setup_spaces(self):
         """PushLeft2D primitive action and observation spaces.
-        Action space: (self.agent.position.x, self.agent.position.angle)
+        Action space: Apply force to (self.agent.position.x)
         Observation space: [Bounding box parameters of all 2D rigid bodies]
         """ 
         # Agent

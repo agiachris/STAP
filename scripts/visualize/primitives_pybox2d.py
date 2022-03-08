@@ -34,8 +34,9 @@ if __name__ == "__main__":
     # Simulate random and trained policies
     for e, exp in enumerate(exps):
         for i in range(args.num_eps):
-            prev_env = None
+            print(f"Episode {i+1} / {args.num_eps}")
 
+            prev_env = None
             for j, model in enumerate(models):
                 # Instantiate environment
                 if prev_env is None:

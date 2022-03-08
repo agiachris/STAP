@@ -11,10 +11,18 @@ from temporal_policies.envs.pybox2d.visualization import PyBox2DVisualizer
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", type=str, required=True, help="Path to save gif")
-    parser.add_argument("--checkpoints", nargs="+", type=str, required=True, help="Path to model checkpoint")
+    # Inputs
+    parser.add_argument("--checkpoints", nargs="+", type=str, required=True, help="Path to model checkpoints")
+    parser.add_argument("--exec-config", type=str, required=True, help="Path to execution order configuration file")
+    # Outputs
+    parser.add_argument("--path", type=str, required=True, help="Path to save gifs and/or images")
+    parser.add_argument("--gifs", type=bool, required=True, help="Save GIF of the scene")
+    parser.add_argument("--plot-2d", type=bool, required=True, help="Plot 2D visualization of value estimates")
+    parser.add_argument("--plot-3d", type=bool, required=True, help="Plot 3D visualization of value estimates")
+    # 
     parser.add_argument("--num-samples", type=int, default=100, help="Number of value estimates per image")
     parser.add_argument("--num-eps", type=int, default=1, help="Number of episodes to unit test across")
+    parser.add_argument("--every-n-frames", type=int, default=10, help="Save every n frames to the gif.")
     parser.add_argument("--device", "-d", type=str, default="auto")
     args = parser.parse_args()
 
@@ -77,7 +85,7 @@ if __name__ == "__main__":
                 action = model.predict(obs)
                 obs, rew, done, info = curr_env.step(action)
                 if done: break
+            if not info["success"]: break
 
-            if rew == 0: break
             prev_env = curr_env
         

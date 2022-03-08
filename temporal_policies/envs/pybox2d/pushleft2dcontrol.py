@@ -1,21 +1,20 @@
-from matplotlib.pyplot import step
 import numpy as np
 from gym import spaces
 from Box2D import *
 
 from .base import Box2DBase
 from .utils import shape_to_vertices
-from temporal_policies.algs.utils import SISOController
+from temporal_policies.algs.controllers.siso_control import SISOControl
 
 
 class PushLeft2DControl(Box2DBase):
 
     def __init__(self, control_kwargs, **kwargs):
-        """PushLeft2D gym environment.
+        """PushLeft2DControl gym environment.
         """
         super().__init__(**kwargs)
         self._base_kwargs = kwargs
-        self._pid_control = SISOController(**control_kwargs)
+        self._pid_control = SISOControl(**control_kwargs)
         
     def reset(self):
         observation = super().reset()
@@ -30,7 +29,8 @@ class PushLeft2DControl(Box2DBase):
         action = low + (high - low) * (action + 1) * 0.5
         self._pid_control.reset(
             ref=action.item(), 
-            y=self.agent.position[0]
+            y=self.agent.position[0],
+            scale=float(self.agent.mass)
         )
 
         # Simulate
@@ -44,8 +44,8 @@ class PushLeft2DControl(Box2DBase):
         return observation, reward, done, info
     
     def _setup_spaces(self):
-        """PushLeft2D primitive action and observation spaces.
-        Action space: (self.agent.position.x, self.agent.position.angle)
+        """PushLeft2DControl primitive action and observation spaces.
+        Action space: (self.agent.position.x)
         Observation space: [Bounding box parameters of all 2D rigid bodies]
         """ 
         # Agent

@@ -1,0 +1,13 @@
+planner: CEMPolicyPlanner
+planner_kwargs: 
+  samples: 10
+  iterations: 10
+
+task: 
+  - env: "PlaceRight2D"
+    opt: [1]
+    dep: [[]]
+
+  - env: "PushLeft2DControl"
+    opt: []
+    dep: []

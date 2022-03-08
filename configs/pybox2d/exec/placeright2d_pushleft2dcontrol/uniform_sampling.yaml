@@ -1,0 +1,14 @@
+planner: UniformSamplingPlanner
+planner_kwargs: 
+  samples: 100 
+
+task:
+  - env: "PlaceRight2D"
+    opt: [1]
+    dep: [[]]
+    dims: [0, 1]
+
+  - env: "PushLeft2DControl"
+    opt: []
+    dep: []
+    dims: [0]
