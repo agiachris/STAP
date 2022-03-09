@@ -19,12 +19,10 @@ class UniformSamplingPlanner(Box2DTrajOptim):
         self._samples = samples
         self._agg_mode = agg_mode
 
-    def _q_over_action_space(self, env, idx, agg=True):
-        state = env._get_observation()
-        actions, _ = env._interp_actions(self._samples, self._task[idx]["dims"])
-        q_vals = self._q_function(idx, state, actions)
-        if agg: return getattr(np, self._agg_mode)(q_vals)
-        return q_vals
+    def plan(self, env, idx, mode="prod"):
+        super().plan(env, idx, mode=mode)
+        action = self._uniform_rollout(env, idx, self._branches)
+        return action
 
     def _uniform_rollout(self, env, idx, branches):
         """Perform recursive uniform rollout on task structure as defined by branches.
@@ -67,7 +65,9 @@ class UniformSamplingPlanner(Box2DTrajOptim):
         if idx != self._idx: return getattr(np, self._agg_mode)(curr_qs)
         return actions[curr_qs.argmax()]
 
-    def plan(self, env, idx, mode="prod"):
-        super().plan(env, idx, mode=mode)
-        action = self._uniform_rollout(env, idx, self._branches)
-        return action
+    def _q_over_action_space(self, env, idx, agg=True):
+        state = env._get_observation()
+        actions, _ = env._interp_actions(self._samples, self._task[idx]["dims"])
+        q_vals = self._q_function(idx, state, actions)
+        if agg: return getattr(np, self._agg_mode)(q_vals)
+        return q_vals
