@@ -1,4 +1,3 @@
-import torch
 import numpy as np
 
 from .pybox2d_base import Box2DTrajOptim
@@ -6,28 +5,53 @@ from .pybox2d_base import Box2DTrajOptim
 
 class PolicyShootingPlanner(Box2DTrajOptim):
 
-    def __init__(self, samples, variance, sample_downstream=False, **kwargs):
+    def __init__(self, samples, variance=None, parallelize=True, sample_policy=False, **kwargs):
         """Construct and rollout trajectories composed of actions sampled from a multivariate Gaussian
         distribution centered at the policy's prediction. Return the action with the highest scoring trajectory.
 
         args: 
             samples: number of policy guided trajectories to sample
             variance: float or list of float of covariance of the diagonal Gaussian
-            sample_downstream: if False, only the first primitive (being optimized) will be sampled from a 
-                               multivariate Gaussian distribution, while other primitives will be deterministically 
-                               queried from the policy. If False, all primitives downstream primitives are sampled.
+            parallelize: whether or not to role out the trajectories in parallel
+            sample_policy: whether or not stochastic policy outputs should be sampled or taken at the mean
         """
         super(PolicyShootingPlanner, self).__init__(**kwargs)
         self._samples = samples
         self._variance = variance
-        self._sample_downstream = sample_downstream
+        self._parallelize = parallelize
+        self._policy_kwargs = {"sample": sample_policy}
+
+    def plan(self, env, idx, mode="prod"):
+        super().plan(env, idx, mode=mode)
+        if self._parallelize: action = self._plan_parallel(env, idx)
+        else: action = self._plan_sequential(env, idx)
+        return action
+
+    def _plan_sequential(self, env, idx):
+        """Rollout trajectories one at a time. The efficiency of this method is approximately 
+        equivalent to self.plan_parallel when using gym environments to forward simulate the state.
+        """
+        q_vals = np.zeros(self._samples, dtype=np.float32)
+        actions = []
+        for i in range(self._samples):
+            action, q_vals[i] = self._policy_rollout(env, idx, self._branches)
+            actions.append(action)
+        return actions[q_vals.argmax()]
+
+    def _plan_parallel(self, env, idx):
+        """Parallelize computation for faster trajectory simulation. Use this method when 
+        for model-based forward prediction for which state evolution can be batched.
+        """
+        action = self._parallel_policy_rollout(env, idx, self._branches)
+        return action
 
     def _policy_rollout(self, env, idx, branches):
-        """Perform random trajectory rollouts on task structure as defined by branches.
+        """Perform policy-guided trajectory rollouts on task structure as defined by branches.
         """
         # Compute current Q(s, a)
-        action = env.action_space.sample()
         state = env._get_observation()
+        variance = self._variance if self._idx == idx else None
+        action = self._policy(idx, state, variance=variance, **self._policy_kwargs)
         q_val = self._q_function(idx, state, action)
 
         # Simulate forward environment
@@ -37,68 +61,61 @@ class PolicyShootingPlanner(Box2DTrajOptim):
         # Query optimization variables
         opt_vars = [x for x in branches if isinstance(x, int)]
         for opt_idx in opt_vars:
-            next_env = self._clone_env(curr_env, opt_idx)
+            next_env = self._load_env(curr_env, opt_idx)
             next_state = next_env._get_observation()
-            next_action = next_env.action_space.sample()
+            next_action = self._policy(opt_idx, next_state, **self._policy_kwargs)
             next_q_val = self._q_function(opt_idx, next_state, next_action)
-            q_val = getattr(np, self._mode)(q_val, next_q_val, axis=0)
+            q_val = getattr(np, self._mode)((q_val, next_q_val), axis=0)
         
         # Recursively simulate branches forward
         sim_vars = [x for x in branches if isinstance(x, dict)]
         for sim_dict in sim_vars:
             sim_idx, sim_branches = list(sim_dict.items())[0]
-            next_env = self._clone_env(curr_env, sim_idx)
-            next_q_val = self._random_rollout(next_env, sim_idx, sim_branches)
-            q_val = getattr(np, self._mode)(q_val, next_q_val, axis=0)
+            next_env = self._load_env(curr_env, sim_idx)
+            next_q_val = self._policy_rollout(next_env, sim_idx, sim_branches)
+            q_val = getattr(np, self._mode)((q_val, next_q_val), axis=0)
 
         return action, q_val.item() if idx == self._idx else q_val 
 
-    def plan(self, env, idx, mode="prod"):
-        super().plan(env, idx, mode=mode)
-        q_vals = np.zeros(self._samples, dtype=np.float32)
-        actions = []
-        for i in range(self._samples):
-            action, q_vals[i] = self._random_rollout(env, idx, self._branches)
-            actions.append(action)
-        return actions[q_vals.argmax()]
-
-    def plan(self, env, idx, samples, mode="prod"):
-       
-        super().plan(env, idx, mode=mode)
+    def _parallel_policy_rollout(self, env, idx, branches):
+        """Perform policy-gudied trajectory rollouts on task structure as defined by branches.
+        """
+        # Compute current Q(s, a)
+        state = env._get_observation()
+        primitive_actions = self._policy(idx, state, samples=self._samples, variance=self._variance, **self._policy_kwargs)
+        q_vals = self._q_function(idx, state, primitive_actions)
         
-        # assert len(self._models) == 2
-        # curr_model, next_model = self._models
-        # curr_env_cls, next_env_cls = self._env_cls
-        # curr_config, next_config = self._configs
-
-        # # Compute current Q(s, a)
-        # state = curr_env._get_observation()
-        # states = np.tile(state.copy(), (samples, 1))
-        # actions = np.random.multivariate_normal(
-        #     mean=curr_model.predict(state),
-        #     cov=np.array([[var_x, 0], [0, var_theta]]),
-        #     size=samples
-        # )
-        # actions = np.clip(actions, -1, 1).astype(np.float32)
-        # assert actions.shape == (samples, curr_env.action_space.shape[0])
-        # curr_q1s, curr_q2s = curr_model.network.critic(self._fmt(states), self._fmt(actions))
-        # curr_qs = utils.to_np(torch.min(curr_q1s, curr_q2s))
-
-        # # Simulate forward environments
-        # curr_envs = [curr_env_cls.clone(curr_env, **curr_config) for _ in range(samples)]
-        # next_envs = []
-        # for action, env in zip(actions, curr_envs):
-        #     obs, rew, done, info = env.step(action)
-        #     next_envs.append(next_env_cls.load(env, **next_config))
+        # Simulate forward environments
+        curr_envs = self._clone_env(env, idx, num=self._samples) 
+        curr_envs = [self._simulate_env(curr_env, action)[0] for curr_env, action in zip(curr_envs, primitive_actions)]
         
-        # # Compute next Q(s, a)
-        # next_qs = np.array(list(zip(*[env.action_value(next_model) for env in next_envs]))[0])
+        # Rollout trajectories
+        stack = [(branches, curr_envs, idx)]
+        while stack:
+            branches, curr_envs, idx = stack.pop()
+            if not branches: continue
 
-        # qs = getattr(np, mode)((curr_qs, next_qs), axis=0)
-        # assert qs.shape == (samples,) and qs.ndim == 1
+            var = branches.pop()
+            to_stack = []
+            if branches: to_stack.append((branches, curr_envs, idx))
 
-        # action = actions[qs.argmax(), :]
-        # return action
+            # Query Q(s, a) for optimization variable
+            if isinstance(var, int):
+                next_envs = [self._load_env(curr_env, var) for curr_env in curr_envs]
+                states = np.array([next_env._get_observation() for next_env in next_envs])
+                actions = self._policy(var, states, **self._policy_kwargs)
+                next_q_vals = self._q_function(var, states, actions)
+                q_vals = getattr(np, self._mode)((q_vals, next_q_vals), axis=0)
 
-        action = None
-        return action
+            # Simulate branches forward for simulation variable
+            elif isinstance(var, dict):
+                sim_idx, sim_branches = list(var.items())[0]
+                next_envs = [self._load_env(curr_env, sim_idx) for curr_env in curr_envs]
+                states = np.array([next_env._get_observation() for next_env in next_envs])
+                actions = self._policy(sim_idx, states, **self._policy_kwargs)
+                next_envs = [self._simulate_env(next_env, action) for next_env, action in zip(next_envs, actions)]
+                to_stack.append((sim_branches, next_envs, sim_idx))
+            
+            stack.extend(to_stack)
+
+        return primitive_actions[q_vals.argmax()]

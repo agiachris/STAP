@@ -42,7 +42,7 @@ if __name__ == "__main__":
         prev_env = None
         ep_time = 0
 
-        for j, (env, config) in zip(env_cls, configs):
+        for j, (env, config) in enumerate(zip(env_cls, configs)):
             curr_env = env(**config["env_kwargs"]) if prev_env is None \
                 else env.load(prev_env, **config["env_kwargs"])
             

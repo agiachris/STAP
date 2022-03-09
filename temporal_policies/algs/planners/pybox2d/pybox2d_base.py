@@ -1,5 +1,5 @@
-from ctypes import util
 import torch
+from torch.distributions import MultivariateNormal
 import numpy as np
 from collections import defaultdict
 from abc import ABC, abstractmethod
@@ -22,7 +22,6 @@ class Box2DTrajOptim(ABC):
             configs: list of environment configuration dictionaries corresponding to checkpoints
             device: device to run models on
             load_models: whether or not to pre-load the model checkpoints
-
         """
         envs = [c["env"].split("-")[0] for c in configs]
         assert len(envs) == len(set(envs)), "Environment primitives must be unique"
@@ -30,7 +29,10 @@ class Box2DTrajOptim(ABC):
         self._task = task
         self._configs = {env: v["env_kwargs"] for env, v in zip(envs, configs)}
         self._checkpoints = {env: v for env, v in zip(envs, checkpoints)}
-        self._device = device
+
+        if device == "auto":
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._device = torch.device(device)
 
         self._load_models = load_models
         if self._load_models:
@@ -82,9 +84,16 @@ class Box2DTrajOptim(ABC):
         """
         env_cls = self._get_env_cls(idx)
         config = self._get_config(idx)
-        if num is None:
-            return env_cls.clone(env, **config)
+        if num is None: return env_cls.clone(env, **config)
         return [env_cls.clone(env, **config) for _ in range(num)]
+
+    def _load_env(self, env, idx, num=None):
+        """Return loaded environment(s).
+        """
+        env_cls = self._get_env_cls(idx)
+        config = self._get_config(idx)
+        if num is None: return env_cls.load(env, **config)
+        return [env_cls.load(env, **config) for _ in range(num)]
 
     @abstractmethod
     def plan(self, env, idx, mode="prod"):
@@ -153,15 +162,44 @@ class Box2DTrajOptim(ABC):
         """
         if states.ndim == 1 and actions.ndim == 2:
             states = np.tile(states, (actions.shape[0], 1))
-            
+        
         is_batched = states.ndim == 2 and states.ndim == 2
-        if not is_batched: batch = utils.unsqueeze(batch, 0)
+        if not is_batched: 
+            states = utils.unsqueeze(states, 0)
+            actions = utils.unsqueeze(actions, 0)
 
         model = self._get_model(idx)
         fmt = model._format_batch
         q1, q2 = model.network.critic(fmt(states), fmt(actions))
         q_vals = utils.to_np(torch.min(q1, q2))
         return q_vals
+
+    def _policy(self, idx, states, samples=1, variance=None, **kwargs):
+        """Query the policy for actions given states.
+        """
+        is_batched = True if states.ndim == 2 else False
+        actions = self._get_model(idx).predict(states, is_batched=is_batched, **kwargs)
+        if variance is None: 
+            if samples > 1: actions = np.tile(actions, (samples, 1))
+            return actions
+
+        # Batch mean and covariance tensors
+        if not is_batched: actions = utils.unsqueeze(actions, 0)
+        cov = np.eye(actions.shape[1], dtype=np.float32)
+        if isinstance(variance, float): cov *= variance
+        elif isinstance(variance, list): cov = cov @ np.array(variance, dtype=np.float32)
+        else: raise ValueError("variance must be float or list type")
+
+        # Sample from Multivariate Gaussian
+        loc = torch.from_numpy(actions).to(self._device)
+        cov = torch.from_numpy(cov).to(self._device).tile(loc.size(0), 1, 1)
+        dist = MultivariateNormal(loc=loc, covariance_matrix=cov)
+        actions = torch.clamp(dist.sample((samples,)), -1, 1)
+
+        if samples == 1: actions = actions.squeeze(0)
+        else: actions = actions.transpose(1, 0)
+        if not is_batched: actions = actions.squeeze(0)
+        return utils.to_np(actions).astype(np.float32)
 
     @staticmethod
     def _simulate_env(env, action):

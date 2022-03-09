@@ -23,13 +23,6 @@ class RandomShootingPlanner(Box2DTrajOptim):
         else: action = self._plan_sequential(env, idx)
         return action
 
-    def _plan_parallel(self, env, idx):
-        """Parallelize computation for faster trajectory simulation. Use this method when 
-        for model-based forward prediction for which state evolution can be batched.
-        """
-        action = self._parallel_random_rollout(env, idx, self._branches)
-        return action
-
     def _plan_sequential(self, env, idx):
         """Rollout trajectories one at a time. The efficiency of this method is approximately 
         equivalent to self.plan_parallel when using gym environments to forward simulate the state.
@@ -40,6 +33,13 @@ class RandomShootingPlanner(Box2DTrajOptim):
             action, q_vals[i] = self._random_rollout(env, idx, self._branches)
             actions.append(action)
         return actions[q_vals.argmax()]
+
+    def _plan_parallel(self, env, idx):
+        """Parallelize computation for faster trajectory simulation. Use this method when 
+        for model-based forward prediction for which state evolution can be batched.
+        """
+        action = self._parallel_random_rollout(env, idx, self._branches)
+        return action
 
     def _random_rollout(self, env, idx, branches):
         """Perform random trajectory rollouts on task structure as defined by branches.
@@ -56,19 +56,19 @@ class RandomShootingPlanner(Box2DTrajOptim):
         # Query optimization variables
         opt_vars = [x for x in branches if isinstance(x, int)]
         for opt_idx in opt_vars:
-            next_env = self._clone_env(curr_env, opt_idx)
+            next_env = self._load_env(curr_env, opt_idx)
             next_state = next_env._get_observation()
             next_action = next_env.action_space.sample()
             next_q_val = self._q_function(opt_idx, next_state, next_action)
-            q_val = getattr(np, self._mode)(q_val, next_q_val, axis=0)
+            q_val = getattr(np, self._mode)((q_val, next_q_val), axis=0)
         
         # Recursively simulate branches forward
         sim_vars = [x for x in branches if isinstance(x, dict)]
         for sim_dict in sim_vars:
             sim_idx, sim_branches = list(sim_dict.items())[0]
-            next_env = self._clone_env(curr_env, sim_idx)
+            next_env = self._load_env(curr_env, sim_idx)
             next_q_val = self._random_rollout(next_env, sim_idx, sim_branches)
-            q_val = getattr(np, self._mode)(q_val, next_q_val, axis=0)
+            q_val = getattr(np, self._mode)((q_val, next_q_val), axis=0)
 
         return action, q_val.item() if idx == self._idx else q_val 
 
@@ -96,15 +96,16 @@ class RandomShootingPlanner(Box2DTrajOptim):
 
             # Query Q(s, a) for optimization variable
             if isinstance(var, int):
-                next_envs = [self._clone_env(curr_env, var) for curr_env in curr_envs]
+                next_envs = [self._load_env(curr_env, var) for curr_env in curr_envs]
                 states = np.array([next_env._get_observation() for next_env in next_envs])
                 actions = np.array([next_env.action_space.sample() for next_env in next_envs])
                 next_q_vals = self._q_function(var, states, actions)
-                q_vals = getattr(np, self._mode)(q_vals, next_q_vals, axis=0)
+                q_vals = getattr(np, self._mode)((q_vals, next_q_vals), axis=0)
+
             # Simulate branches forward for simulation variable
             elif isinstance(var, dict):
                 sim_idx, sim_branches = list(var.items())[0]
-                next_envs = [self._clone_env(curr_env, sim_idx) for curr_env in curr_envs]
+                next_envs = [self._load_env(curr_env, sim_idx) for curr_env in curr_envs]
                 states = np.array([next_env._get_observation() for next_env in next_envs])
                 actions = np.array([next_env.action_space.sample() for next_env in next_envs])
                 next_envs = [self._simulate_env(next_env, action) for next_env, action in zip(next_envs, actions)]

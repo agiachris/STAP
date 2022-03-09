@@ -13,10 +13,10 @@ class UniformSamplingPlanner(Box2DTrajOptim):
         args:
             samples: nunber of uniform samples across the action space for each node in the planning graph
             agg_mode: value aggregation method at optimization nodes - hasattr(np, agg_mode) == True
-        
         """
         super(UniformSamplingPlanner, self).__init__(**kwargs)
         self._samples = samples
+        assert hasattr(np, agg_mode), "Value aggregation mode not supported by Numpy"
         self._agg_mode = agg_mode
 
     def plan(self, env, idx, mode="prod"):
@@ -30,14 +30,19 @@ class UniformSamplingPlanner(Box2DTrajOptim):
         # Compute current Q(s, a) 
         state = env._get_observation()
         actions, _ = env._interp_actions(self._samples, self._task[idx]["dims"])
-        curr_qs += self._q_function(idx, state, actions)
-        
+        curr_qs = self._q_function(idx, state, actions)
+
         # Simulate forward environments
         mask = np.zeros(actions.shape[0], dtype=bool)
-        curr_envs = self._clone_env(env, idx, num=self._samples)
+        curr_envs = self._clone_env(env, idx, num=actions.shape[0])
         for i, (action, curr_env) in enumerate(zip(actions, curr_envs)):
             curr_env, mask[i] = self._simulate_env(curr_env, action)
         
+        # No valid action, simply return the highest scoring one
+        if not mask.max():
+            if idx != self._idx: return getattr(np, self._agg_mode)(curr_qs)
+            return actions[curr_qs.argmax()]
+
         # Retain only successful actions
         actions = actions[mask]
         curr_qs = curr_qs[mask]
@@ -48,7 +53,7 @@ class UniformSamplingPlanner(Box2DTrajOptim):
         for opt_idx in opt_vars:
             next_qs = np.zeros_like(curr_qs)
             for i, curr_env in enumerate(curr_envs):
-                next_env = self._clone_env(curr_env, opt_idx)
+                next_env = self._load_env(curr_env, opt_idx)
                 next_qs[i] = self._q_over_action_space(next_env, opt_idx, agg=True)
             curr_qs = getattr(np, self._mode)((curr_qs, next_qs), axis=0)
         
@@ -58,11 +63,11 @@ class UniformSamplingPlanner(Box2DTrajOptim):
             sim_idx, sim_branches = list(sim_dict.items())[0]
             next_qs = np.zeros_like(curr_qs)
             for i, curr_env in enumerate(curr_envs):
-                next_env = self._clone_env(curr_env, sim_idx)
+                next_env = self._load_env(curr_env, sim_idx)
                 next_qs[i] = self._uniform_rollout(next_env, sim_idx, sim_branches)
             curr_qs = getattr(np, self._mode)((curr_qs, next_qs), axis=0)
-
-        if idx != self._idx: return getattr(np, self._agg_mode)(curr_qs)
+        
+        if idx != self._idx: return getattr(np, self._agg_mode)(curr_qs).item()
         return actions[curr_qs.argmax()]
 
     def _q_over_action_space(self, env, idx, agg=True):

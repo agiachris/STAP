@@ -1,6 +1,7 @@
 planner: PolicyShootingPlanner
 planner_kwargs: 
   samples: 10
+  variance: 0.2
 
 task: 
   - env: "PlaceRight2D"

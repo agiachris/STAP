@@ -438,7 +438,7 @@ class Box2DBase(ABC, Env, Generator):
             actions: linear interpolation of action space -- np.array (num, action_space.ndim)
             action_dims: action components indexed at dims
         """
-        mask = np.zeros_like(self.action_space.shape[0], dtype=bool)
+        mask = np.zeros(self.action_space.shape[0], dtype=bool)
         mask[dims] = True
 
         # Compute combinations of action components across specified dims
@@ -468,7 +468,7 @@ class Box2DBase(ABC, Env, Generator):
             states: linear interpolation of state space -- np.array (num, observation_space.ndim)
             state_dims: state components indexed by dims
         """
-        mask = np.zeros_like(self.observation_space.shape[0], dtype=bool)
+        mask = np.zeros(self.observation_space.shape[0], dtype=bool)
         mask[dims] = True
 
         # Compute combinations of action components across specified dims
