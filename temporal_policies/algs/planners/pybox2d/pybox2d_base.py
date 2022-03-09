@@ -203,7 +203,7 @@ class Box2DTrajOptim(ABC):
 
     @staticmethod
     def _simulate_env(env, action):
-        """Simulate forward a single step environment given an action.
+        """Simulate forward a single step environment (in-place) given an action.
         
         args:
             env: Box2DBase gym environment

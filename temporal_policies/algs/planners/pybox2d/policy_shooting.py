@@ -56,7 +56,7 @@ class PolicyShootingPlanner(Box2DTrajOptim):
 
         # Simulate forward environment
         curr_env = self._clone_env(env, idx)
-        curr_env, _ = self._simulate_env(curr_env, action)
+        self._simulate_env(curr_env, action)
 
         # Query optimization variables
         opt_vars = [x for x in branches if isinstance(x, int)]
@@ -87,7 +87,7 @@ class PolicyShootingPlanner(Box2DTrajOptim):
         
         # Simulate forward environments
         curr_envs = self._clone_env(env, idx, num=self._samples) 
-        curr_envs = [self._simulate_env(curr_env, action)[0] for curr_env, action in zip(curr_envs, primitive_actions)]
+        for curr_env, action in zip(curr_envs, primitive_actions): self._simulate_env(curr_env, action)
         
         # Rollout trajectories
         stack = [(branches, curr_envs, idx)]
@@ -113,7 +113,7 @@ class PolicyShootingPlanner(Box2DTrajOptim):
                 next_envs = [self._load_env(curr_env, sim_idx) for curr_env in curr_envs]
                 states = np.array([next_env._get_observation() for next_env in next_envs])
                 actions = self._policy(sim_idx, states, **self._policy_kwargs)
-                next_envs = [self._simulate_env(next_env, action) for next_env, action in zip(next_envs, actions)]
+                for next_env, action in zip(next_envs, actions): self._simulate_env(next_env, action)
                 to_stack.append((sim_branches, next_envs, sim_idx))
             
             stack.extend(to_stack)

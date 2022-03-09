@@ -36,7 +36,7 @@ class UniformSamplingPlanner(Box2DTrajOptim):
         mask = np.zeros(actions.shape[0], dtype=bool)
         curr_envs = self._clone_env(env, idx, num=actions.shape[0])
         for i, (action, curr_env) in enumerate(zip(actions, curr_envs)):
-            curr_env, mask[i] = self._simulate_env(curr_env, action)
+            _, mask[i] = self._simulate_env(curr_env, action)
         
         # No valid action, simply return the highest scoring one
         if not mask.max():
