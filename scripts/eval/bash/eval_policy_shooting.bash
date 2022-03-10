@@ -4,7 +4,7 @@ source ~/.zshrc
 conda activate temporal_policies
 
 # Easy
-python scripts/visualize/primitives_pybox2d.py \
+python scripts/eval/eval_pybox2d.py \
     --exec-config configs/pybox2d/exec/placeright2d_pushleft2dcontrol/policy_shooting.yaml \
     --checkpoints \
     ${OUTPUTS}/temporal_policies/models/easy/placeright2d_sac/best_model.pt \
@@ -12,7 +12,7 @@ python scripts/visualize/primitives_pybox2d.py \
     --num-eps 100 
 
 # Hard
-python scripts/visualize/primitives_pybox2d.py \
+python scripts/eval/eval_pybox2d.py \
     --exec-config configs/pybox2d/exec/placeright2d_pushleft2dcontrol/policy_shooting.yaml \
     --checkpoints \
     ${OUTPUTS}/temporal_policies/models/hard/placeright2d_sac_rand/best_model.pt \
