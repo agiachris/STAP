@@ -34,8 +34,6 @@ if __name__ == "__main__":
     time_per_primitive = np.zeros(args.num_eps)
 
     for i in range(args.num_eps):
-        print(f"Episode {i+1} / {args.num_eps}")
-
         step = 0
         reward = 0
         ep_time = 0
