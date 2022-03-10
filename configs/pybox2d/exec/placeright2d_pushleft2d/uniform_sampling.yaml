@@ -8,7 +8,7 @@ task:
     dep: [[]]
     dims: [0, 1]
 
-  - env: "PushLeft2DControl"
+  - env: "PushLeft2D"
     opt: []
     dep: []
     dims: [0]
