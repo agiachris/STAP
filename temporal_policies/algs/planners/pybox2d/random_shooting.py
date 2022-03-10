@@ -82,7 +82,7 @@ class RandomShootingPlanner(Box2DTrajOptim):
         
         # Simulate forward environments
         curr_envs = self._clone_env(env, idx, num=self._samples)
-        for curr_env, action in zip(curr_envs, actions): self._simulate_env(curr_env, action)
+        for curr_env, action in zip(curr_envs, primitive_actions): self._simulate_env(curr_env, action)
         
         # Rollout trajectories
         stack = [(branches, curr_envs, idx)]
