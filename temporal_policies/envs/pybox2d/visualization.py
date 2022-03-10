@@ -252,3 +252,38 @@ class PyBox2DVisualizer:
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         image = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         return image
+
+    @staticmethod
+    def plot_xdim_theta_3d(x, y, 
+                           z1, z2,
+                           labels,
+                           path,
+                           mode="prod",
+                           ):
+
+        
+        # Normalize value estimates
+        z_min = min(z1.min(), z2.min())
+        z_max = max(z1.max(), z2.max())
+        z1 = (z1 - z_min) / (z_max - z_min)
+        z2 = (z2 - z_min) / (z_max - z_min)
+        z_prod = z1 * z2
+        z = [z1, z2, z_prod]
+
+        colors = [PyBox2DVisualizer._get_color(i) for i in range(3)]
+        labels.append(f"{mode.capitalize()}")
+
+        fig, axes = plt.subplots(
+            1, 3, 
+            subplot_kw={"projection": "3d"}, 
+            figsize=(16, 6)
+        )
+
+        for i in range(len(z)):
+            axes[i].plot_trisurf(x, y, z[i], cmap="jet", linewidth=0)
+            axes[i].set_title(f"3D Visualization of {labels[i]} Q(s, a)")
+            axes[i].set_xlabel("x-dim [m]")
+            axes[i].set_ylabel("theta [rad]")
+            axes[i].set_zlabel("Normalized Q(s, a) [units]")
+
+        plt.savefig(path)

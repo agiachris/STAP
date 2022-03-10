@@ -6,13 +6,14 @@ from .pybox2d_base import Box2DTrajOptim
 class PolicyShootingPlanner(Box2DTrajOptim):
 
     def __init__(self, samples, variance=None, parallelize=True, sample_policy=False, **kwargs):
-        """Construct and rollout trajectories composed of actions sampled from a multivariate Gaussian
-        distribution centered at the policy's prediction. Return the action with the highest scoring trajectory.
+        """Perform shooting-based model-predictive control with actions sampled from a multivariate
+        Gaussian distribution centered at the policy's prediction. Return the first action of the 
+        highest scoring trajectory.
 
         args: 
             samples: number of policy guided trajectories to sample
             variance: float or list of float of covariance of the diagonal Gaussian
-            parallelize: whether or not to role out the trajectories in parallel
+            parallelize: whether or not to simulate trajectories in parallel
             sample_policy: whether or not stochastic policy outputs should be sampled or taken at the mean
         """
         super(PolicyShootingPlanner, self).__init__(**kwargs)
@@ -39,8 +40,8 @@ class PolicyShootingPlanner(Box2DTrajOptim):
         return actions[q_vals.argmax()]
 
     def _plan_parallel(self, env, idx):
-        """Parallelize computation for faster trajectory simulation. Use this method when 
-        for model-based forward prediction for which state evolution can be batched.
+        """Parallelize computation for faster trajectory simulation. Use this method 
+        for model-based forward prediction when the state evolution can be batched.
         """
         action = self._parallel_policy_rollout(env, idx, self._branches)
         return action

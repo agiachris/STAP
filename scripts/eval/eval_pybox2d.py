@@ -1,10 +1,9 @@
 import time
 import argparse
-from os import path
 import numpy as np
 import yaml
+from copy import deepcopy
 
-from temporal_policies.utils.config import Config
 import temporal_policies.algs.planners.pybox2d as pybox2d_planners
 import temporal_policies.envs.pybox2d as pybox2d_envs
 
@@ -21,11 +20,9 @@ if __name__ == "__main__":
     # Setup
     with open(args.exec_config, "r") as fs: exec_config = yaml.safe_load(fs)
     env_cls = [vars(pybox2d_envs)[subtask["env"]] for subtask in exec_config["task"]]
-    configs = [Config.load(path.join(path.dirname(c), "config.yaml")) for c in args.checkpoints]
     planner = vars(pybox2d_planners)[exec_config["planner"]](
         task=exec_config["task"],
         checkpoints=args.checkpoints,
-        configs=configs,
         device=args.device,
         **exec_config["planner_kwargs"]
     )
@@ -37,14 +34,15 @@ if __name__ == "__main__":
     time_per_primitive = np.zeros(args.num_eps)
 
     for i in range(args.num_eps):
+        print(f"Episode {i+1} / {args.num_eps}")
+
         step = 0
         reward = 0
-        prev_env = None
         ep_time = 0
-
-        for j, (env, config) in enumerate(zip(env_cls, configs)):
-            curr_env = env(**config["env_kwargs"]) if prev_env is None \
-                else env.load(prev_env, **config["env_kwargs"])
+        prev_env = None
+        for j, env in enumerate(env_cls):
+            config = deepcopy(planner._get_config(j))
+            curr_env = env(**config) if prev_env is None else env.load(prev_env, **config)
             
             st = time.time()
             for _ in range(curr_env._max_episode_steps):

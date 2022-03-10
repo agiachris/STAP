@@ -6,12 +6,12 @@ from .pybox2d_base import Box2DTrajOptim
 class RandomShootingPlanner(Box2DTrajOptim):
 
     def __init__(self, samples, parallelize=True, **kwargs):
-        """Construct and rollout trajectories composed of actions randomly sampled from the action space of
-        each primitive. Return the action with the highest scoring trajectory.
+        """Perform shooting-based model-predictive control with randomly sampled actions.
+        Return the first action of the highest scoring trajectory.
 
         args:
             samples: number of randomly sampled trajectories
-            parallelize: whether or not to role out the trajectories in parallel
+            parallelize: whether or not to simulate trajectories in parallel
         """
         super(RandomShootingPlanner, self).__init__(**kwargs)
         self._samples = samples
@@ -35,8 +35,8 @@ class RandomShootingPlanner(Box2DTrajOptim):
         return actions[q_vals.argmax()]
 
     def _plan_parallel(self, env, idx):
-        """Parallelize computation for faster trajectory simulation. Use this method when 
-        for model-based forward prediction for which state evolution can be batched.
+        """Parallelize computation for faster trajectory simulation. Use this method 
+        for model-based forward prediction when the state evolution can be batched.
         """
         action = self._parallel_random_rollout(env, idx, self._branches)
         return action

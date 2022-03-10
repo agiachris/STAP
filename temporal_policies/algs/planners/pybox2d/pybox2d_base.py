@@ -1,9 +1,11 @@
+import os
 import torch
 from torch.distributions import MultivariateNormal
 import numpy as np
 from collections import defaultdict
 from abc import ABC, abstractmethod
 
+from temporal_policies.utils.config import Config
 import temporal_policies.envs.pybox2d as pybox2d_envs
 from temporal_policies.utils.trainer import load_from_path
 from temporal_policies.utils import utils
@@ -11,7 +13,7 @@ from temporal_policies.utils import utils
 
 class Box2DTrajOptim(ABC):
 
-    def __init__(self, task, checkpoints, configs, device="auto", load_models=True):
+    def __init__(self, task, checkpoints, device="auto", load_models=True):
         """Base class for trajectory optimization algorithms in the PyBox2D environment.
         
         args:
@@ -19,10 +21,10 @@ class Box2DTrajOptim(ABC):
                   defining a task when executed in sequence
             checkpoints: unordered list of paths of checkpoints to unique primitive models 
                          required for the task
-            configs: list of environment configuration dictionaries corresponding to checkpoints
             device: device to run models on
             load_models: whether or not to pre-load the model checkpoints
         """
+        configs = [Config.load(os.path.join(os.path.dirname(c), "config.yaml")) for c in checkpoints]
         envs = [c["env"].split("-")[0] for c in configs]
         assert len(envs) == len(set(envs)), "Environment primitives must be unique"
         
@@ -188,7 +190,7 @@ class Box2DTrajOptim(ABC):
         cov = np.eye(actions.shape[1], dtype=np.float32)
         if isinstance(variance, float): cov *= variance
         elif isinstance(variance, list): cov = cov @ np.array(variance, dtype=np.float32)
-        else: raise ValueError("variance must be float or list type")
+        else: raise TypeError("variance must be float or list type")
 
         # Sample from Multivariate Gaussian
         loc = torch.from_numpy(actions).to(self._device)
