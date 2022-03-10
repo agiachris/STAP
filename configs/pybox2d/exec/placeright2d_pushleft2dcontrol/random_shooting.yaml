@@ -1,6 +1,6 @@
 planner: RandomShootingPlanner
 planner_kwargs: 
-  samples: 100
+  samples: 10
 
 task: 
   - env: "PlaceRight2D"
