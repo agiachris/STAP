@@ -38,6 +38,7 @@ class Algorithm(ABC):
 
     def __init__(self, env, network_class, dataset_class, 
                        network_kwargs={}, dataset_kwargs={},
+                       eval_dataset_kwargs=None,
                        device="auto",
                        optim_class=torch.optim.Adam,
                        optim_kwargs={
@@ -57,6 +58,7 @@ class Algorithm(ABC):
 
         self.dataset_class = dataset_class
         self.dataset_kwargs = dataset_kwargs
+        self.eval_dataset_kwargs = eval_dataset_kwargs if eval_dataset_kwargs is not None else dict(dataset_kwargs)
         self.validation_dataset_kwargs = validation_dataset_kwargs
         self.collate_fn = collate_fn
         self.batch_size = batch_size
@@ -100,6 +102,7 @@ class Algorithm(ABC):
         Everything must be saved apriori. This is done to ensure that we don't need to load all of the data to load the model.
         '''
         self.dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.dataset_kwargs)
+        self.eval_dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.eval_dataset_kwargs)
         if not self.validation_dataset_kwargs is None:
             validation_dataset_kwargs = copy.deepcopy(self.dataset_kwargs)
             validation_dataset_kwargs.update(self.validation_dataset_kwargs)
@@ -272,7 +275,7 @@ class Algorithm(ABC):
 
                     # TODO: evaluation episodes.
                     if self.eval_env is not None and eval_ep > 0:
-                        eval_metrics = eval_policy(self.eval_env, self, eval_ep)
+                        eval_metrics = eval_policy(self.eval_env, self, eval_ep, self.eval_dataset)
                         if loss_metric in eval_metrics:
                             current_validation_metric = eval_metrics[loss_metric]
                         log_from_dict(logger, eval_metrics, "eval")

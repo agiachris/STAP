@@ -1,3 +1,4 @@
+import enum
 from json import load
 from multiprocessing.sharedctypes import Value
 import torch
@@ -31,9 +32,15 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
     All variables starting with an underscore ie _variable are used only by the child processes
     All other variables are used by the parent process.
     '''
+
+    class SamplingStrategy(enum.Enum):
+        UNIFORM = 0
+        DETERMINISTIC = 1
+
     def __init__(self, observation_space, action_space, 
                        discount=0.99, nstep=1, preload_path=None,
-                       capacity=100000, fetch_every=1000, cleanup=True, batch_size=None):
+                       capacity=100000, fetch_every=1000, cleanup=True,
+                       batch_size=None, sampling_strategy="uniform"):
         # Observation and action space values
         self.observation_space = observation_space
         self.action_space = action_space
@@ -52,6 +59,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self.preload_path = preload_path
         self.num_episodes = 0
         self.storage_path = tempfile.mkdtemp()
+
+        self.sampling_strategy = ReplayBuffer.SamplingStrategy(sampling_strategy.upper())
+
+        self._setup()
+
         print("[research] Replay Buffer Storage Path", self.storage_path)
 
     @property
@@ -126,7 +138,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             def add_to_buffer_helper(buffer, value):
                 if isinstance(buffer, dict):
                     for k, v in buffer.items():
-                        add_to_buffer_helper(buffer, value[k])
+                        add_to_buffer_helper(buffer[k], value[k])
                 elif isinstance(buffer, np.ndarray):
                     buffer[self._idx:self._idx+num_to_add] = value
                 else:
@@ -238,41 +250,64 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 except OSError:
                     pass
 
-    def _get_one_idx(self):
+    def _get_one_idx(self, strategy: SamplingStrategy):
         # Add 1 for the first dummy transition
-        idx = np.random.randint(0, self._size - self.nstep) + 1
+        if strategy == ReplayBuffer.SamplingStrategy.DETERMINISTIC:
+            self._idx_deterministic += 1
+            idx = self._idx_deterministic
+            if idx >= self._size:
+                return None
+        else:
+            idx = np.random.randint(0, self._size - self.nstep) + 1
+
         for i in range(self.nstep):
             if self._done_buffer[idx + i - 1]: # We cannot come from a "done" observation, subtract one
                 # If the episode is done here, we need to get a new transition!
-                return self._get_one_idx() 
+                return self._get_one_idx(strategy) 
         return idx
 
-    def _get_many_idxs(self):
-        idxs = np.random.randint(0, self._size - self.nstep, size=int(1.5*self.batch_size)) + 1
+    def _get_many_idxs(self, strategy: SamplingStrategy):
+        if strategy == ReplayBuffer.SamplingStrategy.DETERMINISTIC:
+            if self._idx_deterministic + 1 >= self._size:
+                return None
+            idxs = np.arange(
+                1 + self._idx_deterministic,
+                min(self._size, 1 + self._idx_deterministic + int(1.5 * self.batch_size)),
+            )
+        else:
+            idxs = np.random.randint(0, self._size - self.nstep, size=int(1.5*self.batch_size)) + 1
+
         valid = np.ones(idxs.shape, dtype=np.bool_)
         # Mark all the invalid transitions
         for i in range(self.nstep):
             dones = self._done_buffer[idxs + i - 1]  # We cannot come from a "done" observation, subtract one
             valid[dones == True] = False
         valid_idxs = idxs[valid == True] # grab only the idxs that are still valid.
-        return valid_idxs[:self.batch_size] # Return the first [:batch_size] of them.
+        valid_idxs = valid_idxs[:self.batch_size] # Return the first [:batch_size] of them.
 
-    def _sample(self):
+        if strategy == ReplayBuffer.SamplingStrategy.DETERMINISTIC:
+            self._idx_deterministic: int = valid_idxs[-1]
+
+        return valid_idxs
+
+    def _sample(self, strategy: SamplingStrategy):
         if self._size <= self.nstep + 2:
             return {}
         # NOTE: one small bug is that we won't end up being able to sample segments that span
         # Across the barrier. We lose 1 to self.nstep transitions.
         if self.batch_size is None:
-            idxs = self._get_one_idx()
+            idxs = self._get_one_idx(strategy)
         else:
-            idxs = self._get_many_idxs()
+            idxs = self._get_many_idxs(strategy)
+        if idxs is None:
+            return None
 
         obs_idxs = idxs - 1
         next_obs_idxs = idxs + self.nstep - 1
 
-        obs = {k:v[obs_idxs] for k, v in self._obs_buffer} if isinstance(self._obs_buffer, dict) else self._obs_buffer[obs_idxs]
-        action = {k:v[idxs] for k, v in self._action_buffer} if isinstance(self._action_buffer, dict) else self._action_buffer[idxs]
-        next_obs = {k:v[next_obs_idxs] for k, v in self._obs_buffer} if isinstance(self._obs_buffer, dict) else self._obs_buffer[next_obs_idxs]
+        obs = {k:v[obs_idxs] for k, v in self._obs_buffer.items()} if isinstance(self._obs_buffer, dict) else self._obs_buffer[obs_idxs]
+        action = {k:v[idxs] for k, v in self._action_buffer.items()} if isinstance(self._action_buffer, dict) else self._action_buffer[idxs]
+        next_obs = {k:v[next_obs_idxs] for k, v in self._obs_buffer.items()} if isinstance(self._obs_buffer, dict) else self._obs_buffer[next_obs_idxs]
         reward = np.zeros_like(self._reward_buffer[idxs])
         discount = np.ones_like(self._discount_buffer[idxs])
         for i in range(self.nstep):
@@ -281,7 +316,17 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             discount *= self._discount_buffer[idxs + i] * self.discount
         return dict(obs=obs, action=action, next_obs=next_obs, reward=reward, discount=discount)
 
-    def __iter__(self):
+    @property
+    def sampling_strategy(self) -> SamplingStrategy:
+        return self._sampling_strategy
+
+    @sampling_strategy.setter
+    def sampling_strategy(self, strategy: SamplingStrategy) -> None:
+        self._sampling_strategy = strategy
+        if strategy == ReplayBuffer.SamplingStrategy.DETERMINISTIC:
+            self._idx_deterministic = 0
+
+    def _setup(self):
         assert not hasattr(self, "setup"), "Attempted to re-call iter on ReplayBuffer. Should only be called once!"
         self.setup = True
         worker_info = torch.utils.data.get_worker_info()
@@ -303,8 +348,12 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         if self.preload_path is not None:
             self._load(self.preload_path, cleanup=False) # Load any initial episodes
 
+    def __iter__(self):
         while True:
-            yield self._sample()
+            sample = self._sample(self.sampling_strategy)
+            if sample is None:
+                return
+            yield sample
             if self.is_parallel:
                 self._samples_since_last_load += 1
                 if self._samples_since_last_load >= self.fetch_every:

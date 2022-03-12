@@ -1,3 +1,7 @@
+from typing import List
+
+import gym
+
 import torch
 from torch import nn
 from torch import distributions
@@ -35,6 +39,37 @@ class ContinuousMLPActor(nn.Module):
         
     def forward(self, obs):
         return self.mlp(obs)
+
+
+class MLPDynamics(nn.Module):
+    """Basic MLP for the dynamics model that concatenates the latent vector and policy
+    params inputs."""
+
+    def __init__(
+        self,
+        action_space: gym.spaces.Space,
+        dim_latent: int,
+        hidden_layers: List[int] = [256, 256],
+        act: nn.Module = nn.ReLU,
+        output_act: nn.Module = nn.Tanh,
+        ortho_init: bool = False
+    ):
+        super().__init__()
+        self.mlp = MLP(
+            dim_latent + action_space.shape[0],
+            dim_latent,
+            hidden_layers=hidden_layers,
+            act=act,
+            output_act=output_act
+        )
+        if ortho_init:
+            self.apply(weight_init)
+
+    def forward(
+        self, latent: torch.Tensor, policy_params: torch.Tensor
+    ) -> torch.Tensor:
+        return self.mlp(torch.cat((latent, policy_params), dim=-1))
+
 
 class SquashedNormal(distributions.TransformedDistribution):
 

@@ -1,11 +1,16 @@
+import collections
+from typing import Optional
+
 import torch
 import numpy as np
-import collections
 
 LAST_METRICS = {'success', 'is_success'}
 MEAN_METRICS = {}
 
-def eval_policy(env, model, num_ep):
+
+def eval_policy(
+    env, model, num_ep, dataset: Optional[torch.utils.data.IterableDataset] = None
+):
     ep_rewards = []
     ep_lengths = []
     ep_metrics = collections.defaultdict(list)
@@ -18,6 +23,8 @@ def eval_policy(env, model, num_ep):
         ep_metric = collections.defaultdict(list)
         
         obs = env.reset()
+        if dataset is not None:
+            dataset.add(obs)
         while not done:
             with torch.no_grad():
                 action = model.predict(obs)
@@ -27,7 +34,14 @@ def eval_policy(env, model, num_ep):
             for k, v in info.items():
                 if isinstance(v, float) or np.isscalar(v):
                     ep_metric[k].append(v)
-            
+
+            if dataset is not None:
+                if "discount" in info:
+                    discount = info["discount"]
+                else:
+                    discount = 1 - float(done)
+                dataset.add(obs, action, reward, done, discount)
+
         ep_rewards.append(ep_reward)
         ep_lengths.append(ep_length)
         for k, v in ep_metric.items():

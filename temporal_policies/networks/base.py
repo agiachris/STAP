@@ -36,9 +36,10 @@ class ActorCriticPolicy(nn.Module):
     @property
     def encoder(self):
         return self._encoder
-        
-    def predict(self, obs, **kwargs):
-        obs = self._encoder(obs)
+
+    def predict(self, obs, encoded=False, **kwargs):
+        if not encoded:
+            obs = self._encoder(obs)
         if hasattr(self._actor, "predict"):
             return self._actor.predict(obs, **kwargs)
         else:

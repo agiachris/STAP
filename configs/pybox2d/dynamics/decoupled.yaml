@@ -1,0 +1,32 @@
+optim: Adam
+optim_kwargs:
+  lr: 0.0001
+
+dynamics: DecoupledDynamics
+dynamics_kwargs: null
+
+network: MLPDynamics
+network_kwargs:
+  dim_latent: 17
+  hidden_layers: [256, 256]
+  ortho_init: true
+
+batch_size: null # Use serial replay buffer
+collate_fn: null # The collate function passed to the dataloader. None uses pytorch default.
+checkpoint: null # A checkpoint to initialize the network from.
+
+dataset: ReplayBuffer
+dataset_kwargs:
+  discount: 0.99
+  nstep: 1
+  capacity: 100000
+  fetch_every: 1000
+  batch_size: 1024
+  cleanup: false
+
+train_kwargs: # Arguments given to Algorithm.train
+  total_steps: 10000 # The total number of steps to train
+  log_freq: 100 # How often to log values
+  eval_freq: 1000 # How often to run evals
+  workers: 0 # Number of dataloader workers.
+  profile_freq: 50

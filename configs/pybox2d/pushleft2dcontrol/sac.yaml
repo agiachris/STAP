@@ -55,6 +55,7 @@ dataset_kwargs:
   nstep: 1
   capacity: 1000000
   fetch_every: 1000
+  cleanup: false
   batch_size: 1024
 
 processor: null
