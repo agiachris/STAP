@@ -68,11 +68,16 @@ class PlaceRight2D(Box2DBase):
         all_bodies = set([body.userData for body in self.world.bodies])
         redundant_bodies = set([*self._get_bodies("playground").keys(), self.agent.userData])
         self._observation_bodies = all_bodies - redundant_bodies
-        reps = len(self._observation_bodies)
-        self.observation_space = spaces.Box(
-            low=np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps), 
-            high=np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
-        )
+        reps = len(self._observation_bodies) + 1
+        # self.observation_space = spaces.Box(
+        #     low=np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps),
+        #     high=np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
+        # )
+        low = np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps)
+        low = np.concatenate((low, [-np.pi * 0.5 - 1e-2]))
+        high = np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
+        high = np.concatenate((high, [np.pi * 0.5 + 1e-2]))
+        self.observation_space = spaces.Box(low=low, high=high)
         
     def _get_observation(self):
         k = 0
@@ -83,6 +88,11 @@ class PlaceRight2D(Box2DBase):
                 position = np.array(self._get_body(object_name, shape_name).position, dtype=np.float32)
                 observation[k: k+4] = np.concatenate((position, shape_data["box"]))
                 k += 4
+        # Agent data
+        position = np.array(self.agent.position, dtype=np.float32)
+        box = self._get_shape("item", "block")["box"]
+        angle = np.array([self.agent.angle])
+        observation[k: k+5] = np.concatenate((position, box, angle))
         return super()._get_observation(observation)
 
     def _get_reward(self):
