@@ -32,9 +32,10 @@ if __name__ == "__main__":
         **exec_config["planner_kwargs"]
     )
     fname = path.splitext(path.split(args.exec_config)[1])[0] + ".json"
-    fpath = path.join(args.path, fname)
+    fdir = path.split(path.dirname(args.exec_config))[-1]
+    fpath = path.join(args.path, fdir, fname)
     assert not path.exists(fpath), "Save path already exists"
-    if not os.path.exists(args.path): os.makedirs(args.path)
+    if not os.path.exists(path.dirname(fpath)): os.makedirs(path.dirname(fpath))
     
     # Evaluate
     ep_rewards = np.zeros(args.num_eps)
@@ -69,7 +70,7 @@ if __name__ == "__main__":
         macro_steps[i] = j + 1
         time_per_primitive[i] = ep_time / (j + 1)
     
-    
+    # Log results
     results = {}
     results["return_mean"] = ep_rewards.mean()
     results["return_std"] = ep_rewards.std()

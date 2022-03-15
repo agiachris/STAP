@@ -137,8 +137,8 @@ class IOManager(TaskManager):
         else:
             # Simulated environment dynamics
             req_kwargs, opt_kwargs = _parse_simulate_kwargs(**kwargs)
-            actions = np.array(utils.to_np(req_kwargs["actions"]))
-            req_kwargs["actions"] = actions.squeeze()
+            req_kwargs["actions"] = utils.to_np(req_kwargs["actions"]) 
+            assert isinstance(req_kwargs["actions"], np.ndarray)
             output_states, output_success = self._simulate_env(idx, **req_kwargs, **opt_kwargs)
         return output_states, output_success
 
@@ -231,11 +231,13 @@ class IOManager(TaskManager):
         """
         if isinstance(envs, list):
             assert len(envs) == len(actions)
+            # print(actions.shape)
             outputs = [self._simulate_env(idx, env, action) for env, action in zip(envs, actions)]
             next_states, success = list(zip(*outputs))
             return np.array(next_states).squeeze(), np.array(success, dtype=bool).squeeze()
 
         for _ in range(envs._max_episode_steps):
+            # print(actions)
             state, _, done, info = envs.step(actions)
             if done: break
             actions = self._actor_interface(idx, envs=envs, states=state)
