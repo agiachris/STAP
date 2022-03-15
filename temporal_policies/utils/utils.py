@@ -39,6 +39,17 @@ def unsqueeze(batch, dim):
         batch = batch.unsqueeze(dim)
     return batch
 
+def squeeze(batch, dim):
+    if isinstance(batch, dict):
+        batch = {k: squeeze(v, dim) for k, v in batch.items()}
+    elif isinstance(batch, list) or isinstance(batch, tuple):
+        batch = [squeeze(v, dim) for v in batch]
+    elif isinstance(batch, np.ndarray):
+        batch = np.squeeze(batch, dim)
+    elif isinstance(batch, torch.Tensor):
+        batch = batch.squeeze(dim)
+    return batch
+
 def get_from_batch(batch, start, end=None):
     if isinstance(batch, dict):
         batch = {k: get_from_batch(v, start, end=end) for k, v in batch.items()}

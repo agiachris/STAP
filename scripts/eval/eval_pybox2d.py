@@ -1,8 +1,12 @@
+import os
+from os import path
 import time
 import argparse
 import numpy as np
 import yaml
+import json
 from copy import deepcopy
+import pprint
 
 import temporal_policies.algs.planners.pybox2d as pybox2d_planners
 import temporal_policies.envs.pybox2d as pybox2d_envs
@@ -13,6 +17,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--exec-config", type=str, required=True, help="Path to execution configs")
     parser.add_argument("--checkpoints", nargs="+", type=str, required=True, help="Path to model checkpoints")
+    parser.add_argument("--path", type=str, required=True, help="Path to save json files")
     parser.add_argument("--num-eps", type=int, default=1, help="Number of episodes to unit test across")
     parser.add_argument("--device", "-d", type=str, default="auto")
     args = parser.parse_args()
@@ -26,6 +31,10 @@ if __name__ == "__main__":
         device=args.device,
         **exec_config["planner_kwargs"]
     )
+    fname = path.splitext(path.split(args.exec_config)[1])[0] + ".json"
+    fpath = path.join(args.path, fname)
+    assert not path.exists(fpath), "Save path already exists"
+    if not os.path.exists(args.path): os.makedirs(args.path)
     
     # Evaluate
     ep_rewards = np.zeros(args.num_eps)
@@ -44,7 +53,7 @@ if __name__ == "__main__":
             
             st = time.time()
             for _ in range(curr_env._max_episode_steps):
-                action = planner.plan(curr_env, j)
+                action = planner.plan(j, curr_env)
                 obs, rew, done, info = curr_env.step(action)
                 reward += rew
                 step += 1
@@ -57,16 +66,23 @@ if __name__ == "__main__":
 
         ep_rewards[i] = reward
         micro_steps[i] = step
-        macro_steps[i] = j
+        macro_steps[i] = j + 1
         time_per_primitive[i] = ep_time / (j + 1)
     
-    reward_min = np.amin(ep_rewards)
-    reward_max = np.amax(ep_rewards)
-    # Compute stats
-    print(f"Results for {args.exec_config} policy over {i+1} episodes:")
-    print(f"\tRewards: mean {ep_rewards.mean():.2f} std {ep_rewards.std():.2f}")
-    print(f"\t         min {reward_min} percent {(ep_rewards == reward_min).sum() / (i+1)}")
-    print(f"\t         max {reward_max} percent {(ep_rewards == reward_max).sum() / (i+1)}")
-    print(f"\tSec / Primitive: mean {time_per_primitive.mean():.2f} std {time_per_primitive.std():.2f}")
-    print(f"\tPrimitives: mean {macro_steps.mean():.2f} std {macro_steps.std():.2f}")
-    print(f"\tSteps: mean {micro_steps.mean():.2f} std {micro_steps.std():.2f}\n")
+    
+    results = {}
+    results["return_mean"] = ep_rewards.mean()
+    results["return_std"] = ep_rewards.std()
+    results["return_min"] = ep_rewards.min()
+    results["return_max"] = ep_rewards.max()
+    results["return_min_percentage"] = (ep_rewards == ep_rewards.min()).sum() / (i+1)
+    results["return_max_percentage"] = (ep_rewards == ep_rewards.max()).sum() / (i+1)
+    results["frequency_mean"] = (1 / time_per_primitive).mean()
+    results["frequency_std"] = (1 / time_per_primitive).std()
+    results["primitives_mean"] = macro_steps.mean()
+    results["primitives_std"] = macro_steps.std()
+    results["steps_mean"] = micro_steps.mean()
+    results["steps_std"] = micro_steps.std()
+    print(f"Results for {path.split(args.exec_config)[1]} over {i+1} runs:")
+    pprint.pprint(results, indent=4)
+    with open(fpath, "w") as fs: json.dump(results, fs)

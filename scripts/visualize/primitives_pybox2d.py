@@ -83,17 +83,17 @@ if __name__ == "__main__":
                     [type(curr_env).__name__, type(temp_env).__name__],
                     path.join(args.path, f"example_{i}.png") 
                 )
-            break
-            # for _ in range(curr_env._max_episode_steps):
-            #     action = planner.plan(curr_env, j)
-            #     obs, rew, done, info = curr_env.step(action)
-            #     if done: break
 
-            # if not info["success"]: break
+            for _ in range(curr_env._max_episode_steps):
+                action = planner.plan(j, curr_env)
+                obs, rew, done, info = curr_env.step(action)
+                if done: break
+
+            if not info["success"]: break
             
-        #     prev_env = curr_env
+            prev_env = curr_env
         
-        # if args.gifs:
-        #     frames = curr_env._frame_buffer + [curr_env._frame_buffer[-1]] * args.every_n_frames**2
-        #     filepath = path.join(args.path, f"example_{i}.gif")
-        #     imageio.mimsave(filepath, frames[::args.every_n_frames])
+        if args.gifs:
+            frames = curr_env._frame_buffer + [curr_env._frame_buffer[-1]] * args.every_n_frames**2
+            filepath = path.join(args.path, f"example_{i}.gif")
+            imageio.mimsave(filepath, frames[::args.every_n_frames])

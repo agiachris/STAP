@@ -1,6 +1,9 @@
 planner: UniformSamplingPlanner
 planner_kwargs: 
-  samples: 20
+  default_actor: random
+  default_critic: q_fn
+  default_model: ground_truth
+  samples: 10
 
 task:
   - env: "PlaceRight2D"

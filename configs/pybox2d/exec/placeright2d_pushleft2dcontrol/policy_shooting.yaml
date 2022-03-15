@@ -1,5 +1,8 @@
-planner: PolicyShootingPlanner
-planner_kwargs: 
+planner: ShootingPlanner
+planner_kwargs:
+  default_actor: policy
+  default_critic: q_fn
+  default_model: ground_truth
   samples: 10
   variance: 0.3
 

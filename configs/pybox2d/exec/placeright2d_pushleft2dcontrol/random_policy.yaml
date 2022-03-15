@@ -1,5 +1,7 @@
-planner: RandomPolicy
-planner_kwargs: {}
+planner: NonPlanner 
+planner_kwargs:
+  default_actor: random
+  default_model: ground_truth
 
 task: 
   - env: "PlaceRight2D"
