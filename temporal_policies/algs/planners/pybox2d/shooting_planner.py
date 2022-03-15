@@ -6,19 +6,19 @@ from .pybox2d_base import Box2DPlannerBase
 
 class ShootingPlanner(Box2DPlannerBase):
 
-    def __init__(self, samples, variance=None, sample_policy=False, **kwargs):
+    def __init__(self, samples, standard_deviation=None, sample_policy=False, **kwargs):
         """Perform shooting-based model-predictive control with randomly sampled actions OR actions
         sampled from a multivariate Gaussian distribution centered at the policy's prediction. Return
         the first action of the highest scoring trajectory.
 
         args:
             samples: number of sampled trajectories
-            variance: float or list of float of covariance of the diagonal Gaussian
+            standard_deviation: float standard deviation parameterizing diagonal Gaussian
             sample_policy: whether or not stochastic policy outputs should be sampled or taken at the mean
         """
         super().__init__(**kwargs)
         self._samples = samples
-        self._variance = variance
+        self._variance = standard_deviation ** 2
         self._policy_kwargs = {"sample": sample_policy}
     
     def plan(self, idx, env, mode="prod"):
@@ -67,10 +67,6 @@ class ShootingPlanner(Box2DPlannerBase):
                 
                 actor_kwargs = {"envs": next_envs, "states": next_states}
                 next_actions = self._actor_interface(var, **actor_kwargs)
-
-                # print(next_states.shape)
-                # print(next_actions.shape)
-                # exit()
                 critic_kwargs = {"states": next_states, "actions": next_actions}
                 next_returns = self._critic_interface(var, **critic_kwargs)
                 curr_returns = getattr(np, self._mode)((curr_returns, next_returns), axis=0)
@@ -86,10 +82,8 @@ class ShootingPlanner(Box2DPlannerBase):
 
                 actor_kwargs = {"envs": next_envs, "states": next_states}
                 next_actions = self._actor_interface(sim_idx, **actor_kwargs)
-                
                 simulation_kwargs = {"envs": next_envs, "states": next_states, "actions": next_actions}
                 next_next_states, _ = self._simulate_interface(sim_idx, **simulation_kwargs)
-
                 if use_learned_dynamics: next_envs = next_envs[0]
                 to_stack.append((sim_idx, next_envs, next_next_states, sim_branches))
             

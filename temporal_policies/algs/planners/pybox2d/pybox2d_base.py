@@ -1,5 +1,5 @@
 import numpy as np
-from abc import ABC, abstractmethod, abstractstaticmethod
+from abc import ABC, abstractmethod
 
 from .utils.io_manager import IOManager
 

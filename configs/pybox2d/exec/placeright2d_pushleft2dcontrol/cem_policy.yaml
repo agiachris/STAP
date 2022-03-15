@@ -1,7 +1,12 @@
-planner: CEMPolicyPlanner
-planner_kwargs: 
+planner: CrossEntropyMethod
+planner_kwargs:
+  default_actor: policy
+  default_critic: q_fn
+  default_model: ground_truth
   samples: 10
+  elites: 2
   iterations: 10
+  standard_deviation: 0.5
 
 task: 
   - env: "PlaceRight2D"

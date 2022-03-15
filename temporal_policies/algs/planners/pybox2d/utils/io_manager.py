@@ -216,6 +216,7 @@ class IOManager(TaskManager):
         cov = torch.eye(loc.size(1)).to(self._device)
         if isinstance(variance, float): cov *= variance
         elif isinstance(variance, list): cov = cov @ torch.tensor(variance).to(self._device)
+        elif isinstance(variance, np.ndarray): cov = cov @ torch.from_numpy(variance).to(self._device)
         else: raise TypeError("Variance must be float or list type")
 
         # Sample from Multivariate Gaussian
