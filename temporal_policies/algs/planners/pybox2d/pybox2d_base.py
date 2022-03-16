@@ -6,8 +6,9 @@ from .utils.io_manager import IOManager
 
 class Box2DPlannerBase(IOManager, ABC):
 
-    def __init__(self, **kwargs):
+    def __init__(self, mode="prod", **kwargs):
         IOManager.__init__(self, **kwargs)
+        self._mode = mode
 
     @abstractmethod
     def plan(self, idx, env, mode="prod"):

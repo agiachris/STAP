@@ -66,11 +66,11 @@ class PushLeft2D(Box2DBase):
         self._observation_bodies = all_bodies - redundant_bodies
         reps = len(self._observation_bodies) + 1
 
-        low = np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps)
+        low = np.tile(np.array([x_min, y_min, w_min, h_min]), reps)
         low = np.concatenate((low, [-np.pi * 0.5 - 1e-2]))
-        high = np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
+        high = np.tile(np.array([x_max, y_max, w_max, h_max]), reps)
         high = np.concatenate((high, [np.pi * 0.5 + 1e-2]))
-        self.observation_space = spaces.Box(low=low, high=high)
+        self.observation_space = spaces.Box(low=low.astype(np.float32), high=high.astype(np.float32))
         
     def _get_observation(self):
         k = 0

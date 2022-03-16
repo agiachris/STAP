@@ -557,13 +557,16 @@ class Box2DBase(ABC, Env, Generator):
         
         if mode == "human":
             width, height = 480, 360
-            caption = f"Env: {type(self).__name__} | Step: {self._steps} | "
-            caption += f"Time: {self._physics_steps} | Reward: {self._cumulative_reward}"
+            caption = self._render_caption()
             dtype = np.uint8
         elif mode == "rgb_array":
             width, height = 84, 84
             caption = None
             dtype = np.float32
+        elif mode == "default":
+            width, height = None, None
+            caption = None
+            dtype = np.uint8
         else:
             raise NotImplementedError(f"Rendering for mode {mode} is not suppported.")
 
@@ -580,6 +583,13 @@ class Box2DBase(ABC, Env, Generator):
         """Caption and resize image.
         """
         image = Image.fromarray(image, "RGB")
-        image = image.resize((width, height))
+        if width is not None or height is not None: image = image.resize((width, height))
         if caption: image = draw_caption(np.asarray(image), caption)
         return np.asarray(image, dtype=dtype)
+
+    def _render_caption(self):
+        """Return standard caption for the image.
+        """
+        caption = f"Env: {type(self).__name__} | Step: {self._steps} | "
+        caption += f"Time: {self._physics_steps} | Reward: {self._cumulative_reward}"
+        return caption

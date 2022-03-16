@@ -4,11 +4,10 @@ from os import path
 import yaml
 import imageio
 from copy import deepcopy
-import numpy as np
 
 import temporal_policies.algs.planners.pybox2d as pybox2d_planners
 import temporal_policies.envs.pybox2d as pybox2d_envs
-from temporal_policies.envs.pybox2d.visualization import PyBox2DVisualizer
+from temporal_policies.envs.pybox2d.visualization import Box2DVisualizer, plot_toy_demo
 
 
 if __name__ == "__main__":
@@ -16,13 +15,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--exec-config", type=str, required=True, help="Path to execution configs")
     parser.add_argument("--checkpoints", nargs="+", type=str, required=True, help="Path to model checkpoint")
-    parser.add_argument("--path", type=str, required=True, help="Path to save gifs and/or images")
+    parser.add_argument("--path", type=str, required=True, help="Path to directory for saving gifs and/or images")
+    parser.add_argument("--num-eps", type=int, default=1, help="Number of episodes to unit test across")
+    parser.add_argument("--device", "-d", type=str, default="auto")
+    # Gif Visualization Arguments
     parser.add_argument("--gifs", action="store_true", help="Save GIF of the scene")
+    parser.add_argument("--every-n-frames", type=int, default=10, help="Save every n frames to the gif.")
+    # 2D-3D Visualization Arguments
     parser.add_argument("--plot-2d", action="store_true", help="Plot 2D visualization of value estimates")
     parser.add_argument("--plot-3d", action="store_true", help="Plot 3D visualization of value estimates")
-    parser.add_argument("--num-eps", type=int, default=1, help="Number of episodes to unit test across")
-    parser.add_argument("--every-n-frames", type=int, default=10, help="Save every n frames to the gif.")
-    parser.add_argument("--device", "-d", type=str, default="auto")
+    parser.add_argument("--plot-samples", type=int, default=100, help="Discretization along state / action space components")
+    parser.add_argument("--plot-unbiased", type=bool, default=True, help="Evaluate Q(s, a) action components under learned policy")
     args = parser.parse_args()
 
     # Setup
@@ -47,41 +50,20 @@ if __name__ == "__main__":
             config["buffer_frames"] = True
             curr_env = env(**config) if prev_env is None else env.load(prev_env, **config)
             
-            # TODO: make generic
-            if args.plot_3d and j < len(env_cls) - 1:
-                
-                # Current Q(s, a) over all actions (x, theta)
-                temp_env = env_cls[j].clone(curr_env, **planner._get_config(j))
-                state = temp_env._get_observation()
-                curr_actions, curr_action_dims = temp_env._interp_actions(10, [0, 1])
-                curr_q_vals = planner._q_function(j, state, curr_actions)
-
-                # Store x, y, q
-                x_curr = curr_actions[:, 0].copy()
-                y_curr = curr_actions[:, 1].copy()
-                z_curr = curr_q_vals.copy()
-
-                # Simulate forward environments
-                temp_envs = planner._clone_env(temp_env, j, num=curr_actions.shape[0])
-                for temp_env, action in zip(temp_envs, curr_actions): planner._simulate_env(temp_env, action)
-                temp_envs = [planner._load_env(temp_env, j+1) for temp_env in temp_envs]
-
-                # Next Q(s, a)
-                z_next = []
-                for k, temp_env in enumerate(temp_envs):
-                    state = temp_env._get_observation()
-                    action = planner._policy(j+1, state)
-                    z_next.append(planner._q_function(j+1, state, action).item())
-                z_next = np.array(z_next)
-
-                assert z_curr.shape == z_next.shape
-                PyBox2DVisualizer.plot_xdim_theta_3d(
-                    x_curr, 
-                    y_curr, 
-                    z_curr, 
-                    z_next, 
-                    [type(curr_env).__name__, type(temp_env).__name__],
-                    path.join(args.path, f"example_{i}.png") 
+            # Note: 2D and 3D visualization only available for toy PlaceRight2D + PushLeft2D<control> task 
+            if (args.plot_3d or args.plot_2d) and j == 0:
+                temp_env = env.clone(curr_env, **config)
+                visualizer = Box2DVisualizer(temp_env)
+                plot_toy_demo(
+                    episode=i,
+                    visualizer=visualizer, 
+                    env=temp_env, 
+                    planner=planner,
+                    output_path=args.path,
+                    samples=args.plot_samples,
+                    ensure_unbiased=args.plot_unbiased,
+                    plot_2d=args.plot_2d,
+                    plot_3d=args.plot_3d
                 )
 
             for _ in range(curr_env._max_episode_steps):
