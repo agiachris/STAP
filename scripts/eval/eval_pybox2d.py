@@ -15,10 +15,10 @@ import temporal_policies.envs.pybox2d as pybox2d_envs
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--exec-config", type=str, required=True, help="Path to execution configs")
-    parser.add_argument("--checkpoints", nargs="+", type=str, required=True, help="Path to model checkpoints")
-    parser.add_argument("--path", type=str, required=True, help="Path to save json files")
-    parser.add_argument("--num-eps", type=int, default=1, help="Number of episodes to unit test across")
+    parser.add_argument("--exec-config", "-e", type=str, required=True, help="Path to execution configs")
+    parser.add_argument("--checkpoints", "-c", nargs="+", type=str, required=True, help="Path to model checkpoints")
+    parser.add_argument("--path", "-p", type=str, required=True, help="Path to save json files of results")
+    parser.add_argument("--num-eps", "-n", type=int, default=1, help="Number of episodes to unit test across")
     parser.add_argument("--device", "-d", type=str, default="auto")
     args = parser.parse_args()
 
@@ -31,12 +31,11 @@ if __name__ == "__main__":
         device=args.device,
         **exec_config["planner_kwargs"]
     )
-    fname = path.splitext(path.split(args.exec_config)[1])[0] + ".json"
-    fdir = path.split(path.dirname(args.exec_config))[-1]
-    fpath = path.join(args.path, fdir, fname)
-    assert not path.exists(fpath), "Save path already exists"
-    if not os.path.exists(path.dirname(fpath)): os.makedirs(path.dirname(fpath))
-    
+    if not path.splitext(args.path)[-1] == ".json": args.path += ".json"
+    assert not path.exists(args.path), "Save path already exists"
+    fdir = path.dirname(args.path)
+    if not path.exists(fdir): os.makedirs(fdir)
+
     # Evaluate
     ep_rewards = np.zeros(args.num_eps)
     micro_steps = np.zeros(args.num_eps)
@@ -71,7 +70,7 @@ if __name__ == "__main__":
         time_per_primitive[i] = ep_time / (j + 1)
     
     # Log results
-    results = {}
+    results = {"settings": planner.planner_settings}
     results["return_mean"] = ep_rewards.mean()
     results["return_std"] = ep_rewards.std()
     results["return_min"] = ep_rewards.min()
@@ -86,4 +85,4 @@ if __name__ == "__main__":
     results["steps_std"] = micro_steps.std()
     print(f"Results for {path.split(args.exec_config)[1]} over {i+1} runs:")
     pprint.pprint(results, indent=4)
-    with open(fpath, "w") as fs: json.dump(results, fs)
+    with open(args.path, "w") as fs: json.dump(results, fs)

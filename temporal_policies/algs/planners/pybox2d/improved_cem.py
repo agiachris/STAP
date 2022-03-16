@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 from .pybox2d_base import Box2DPlannerBase
 
@@ -42,6 +43,22 @@ class CrossEntropyMethod(Box2DPlannerBase):
         self._keep_elites_fraction = keep_elites_fraction
         self._policy_kwargs = {"sample": sample_policy}
 
+    @property
+    def planner_settings(self):
+        settings = {
+            "samples": self._samples,
+            "elites": self._elites,
+            "iterations": self._iterations,
+            "standard_deviation": self._standard_deviation,
+            "momentum": self._momentum,
+            "population_decay": self._population_decay,
+            "best_action": self._best_action,
+            "keep_elites_fraction": self._keep_elites_fraction,
+            "sample_policy": self._policy_kwargs["sample"],
+            **super().planner_settings
+        }
+        return deepcopy(settings)
+
     def plan(self, idx, env, mode="prod"):
         super().plan(idx, env, mode=mode)
         self._init_cem_params()
@@ -65,8 +82,8 @@ class CrossEntropyMethod(Box2DPlannerBase):
     def _init_cem_params(self):
         """Initialize CEM parameters.
         """
-        self._mean = self._init_mean()
-        self._std = self._init_std()
+        self._mean = self._init_mean(True)
+        self._std = self._init_std(True)
         self._population = self._samples
         self._prev_mean = None
         self._prev_elites = None
@@ -80,7 +97,7 @@ class CrossEntropyMethod(Box2DPlannerBase):
             returns: np.array of returns under actions
         """
         # Compute elites
-        num_elites = max(2, min(self._elites, self._population / 2))
+        num_elites = max(2, min(self._elites, self._population // 2))
         num_elites = int(round(num_elites))
         actions = actions[returns.argsort()]
         elites = actions[:num_elites]
@@ -91,8 +108,8 @@ class CrossEntropyMethod(Box2DPlannerBase):
 
         # Update mean and std
         self._prev_mean = self._mean.copy()
-        self._mean = (1-self._momentum) * self._mean + self._momentum * elites.mean(0)
-        self._std = (1-self._momentum) * self._std + self._momentum * elites.std(0)
+        self._mean = self._momentum * self._mean + (1 - self._momentum) * elites.mean(0)
+        self._std = self._momentum * self._std + (1 - self._momentum) * elites.std(0)
 
         # Update population size
         self._population = max(self._population * self._population_decay, 2 * self._elites)
@@ -104,12 +121,12 @@ class CrossEntropyMethod(Box2DPlannerBase):
         """
         low = self._env.action_space.low
         high = self._env.action_space.high
-        actions = np.clip(np.random.randn(self._population, *low.shape), low, high)
+        actions = self._mean + self._std * np.random.randn(self._population, *low.shape)
         if self._prev_mean is not None: 
             actions = np.concatenate((actions, np.expand_dims(self._prev_mean, 0)), axis=0)
         if self._prev_elites is not None: 
             actions = np.concatenate((actions, self._prev_elites), axis=0)
-        return actions.astype(np.float32)
+        return np.clip(actions, low, high).astype(np.float32)
         
     def _incremental_cem(self, idx, env):
         """Cross-Entropy Method outer-loop.

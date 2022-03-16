@@ -408,4 +408,3 @@ def plot_toy_demo(episode,
             labels=[type(curr_env).__name__, type(next_env).__name__],
         )
         visualizer.save(os.path.join(output_path, f"example_{episode}_2d_theta.png"))
-        

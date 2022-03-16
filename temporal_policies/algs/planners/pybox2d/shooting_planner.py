@@ -1,5 +1,6 @@
 
 import numpy as np
+from copy import deepcopy
 
 from .pybox2d_base import Box2DPlannerBase
 
@@ -18,8 +19,18 @@ class ShootingPlanner(Box2DPlannerBase):
         """
         super().__init__(**kwargs)
         self._samples = samples
-        self._variance = standard_deviation ** 2
+        self._standard_deviation = standard_deviation
         self._policy_kwargs = {"sample": sample_policy}
+
+    @property
+    def planner_settings(self):
+        settings = {
+            "samples": self._samples,
+            "standard_deviation": self._standard_deviation,
+            "sample_policy": self._policy_kwargs["sample"],
+            **super().planner_settings
+        }
+        return deepcopy(settings)
     
     def plan(self, idx, env, mode="prod"):
         super().plan(idx, env, mode=mode)
@@ -36,7 +47,8 @@ class ShootingPlanner(Box2DPlannerBase):
         if use_learned_dynamics: curr_state = self._encode_state(idx, curr_state)
         actor_kwargs = {"envs": env, "states": curr_state}
         curr_actions = self._actor_interface(
-            idx, samples=self._samples, variance=self._variance, 
+            idx, samples=self._samples, 
+            variance=None if self._standard_deviation is None else self._standard_deviation ** 2,
             **actor_kwargs, **self._policy_kwargs
         )
         critic_kwargs = {"states": curr_state, "actions": curr_actions}

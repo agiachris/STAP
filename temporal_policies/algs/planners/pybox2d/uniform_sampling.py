@@ -1,4 +1,5 @@
 import numpy as np
+from copy import deepcopy
 
 from .pybox2d_base import Box2DPlannerBase
 
@@ -18,6 +19,15 @@ class UniformSamplingPlanner(Box2DPlannerBase):
         assert hasattr(np, agg_mode)
         self._samples = samples
         self._agg_mode = agg_mode
+
+    @property
+    def planner_settings(self):
+        settings = {
+            "samples": self._samples,
+            "agg_mode": self._agg_mode,
+            **super().planner_settings
+        }
+        return deepcopy(settings)
 
     def plan(self, idx, env, mode="prod"):
         super().plan(idx, env, mode=mode)

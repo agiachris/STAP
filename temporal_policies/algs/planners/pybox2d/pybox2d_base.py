@@ -1,5 +1,6 @@
 import numpy as np
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
+from copy import deepcopy
 
 from .utils.io_manager import IOManager
 
@@ -9,6 +10,16 @@ class Box2DPlannerBase(IOManager, ABC):
     def __init__(self, mode="prod", **kwargs):
         IOManager.__init__(self, **kwargs)
         self._mode = mode
+    
+    @abstractproperty
+    def planner_settings(self):
+        settings = {
+            "default_actor": self._default_actor,
+            "default_critic": self._default_critic,
+            "default_model": self._default_model,
+            "mode": self._mode
+        }
+        return deepcopy(settings)
 
     @abstractmethod
     def plan(self, idx, env, mode="prod"):
