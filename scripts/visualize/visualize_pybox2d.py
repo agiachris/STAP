@@ -24,7 +24,7 @@ if __name__ == "__main__":
     # 2D-3D Visualization Arguments
     parser.add_argument("--plot-2d", action="store_true", help="Plot 2D visualization of value estimates")
     parser.add_argument("--plot-3d", action="store_true", help="Plot 3D visualization of value estimates")
-    parser.add_argument("--plot-samples", type=int, default=100, help="Discretization along state / action space components")
+    parser.add_argument("--plot-samples", type=int, default=10, help="Discretization along state / action space components")
     parser.add_argument("--plot-unbiased", type=bool, default=True, help="Evaluate Q(s, a) action components under learned policy")
     args = parser.parse_args()
 
