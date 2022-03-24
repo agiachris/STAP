@@ -1,15 +1,17 @@
-planner: ShootingPlanner
-planner_kwargs:
+planner: UniformSamplingPlanner
+planner_kwargs: 
   default_actor: random
   default_critic: q_fn
   default_model: ground_truth
-  samples: 100
+  samples: 20
 
-task: 
+task:
   - env: "PlaceRight2D"
     opt: [1]
     dep: [[]]
+    dims: [0, 1]
 
-  - env: "PushLeft2DControl"
+  - env: "PushLeft2D"
     opt: []
     dep: []
+    dims: [0]

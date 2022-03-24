@@ -29,7 +29,7 @@ def draw_caption(image, caption, color="black", loc="top_left"):
     return image
 
 
-class PyBox2DVisualizer:
+class Box2DVisualizer:
 
     def __init__(self, env, image=None):
         self._env = env
@@ -55,7 +55,7 @@ class PyBox2DVisualizer:
         self._image = None
         if hard: self._env = None
 
-    def save(self, path, image=None, clear=False, format="png"):
+    def save(self, path, image=None, clear=True, format="png"):
         if image is None:
             assert self._image is not None, "Must render an image before saving"
             image = self._image
@@ -77,8 +77,9 @@ class PyBox2DVisualizer:
             assert isinstance(_x, np.ndarray)
             x[i] = _x.squeeze()
     
-    def _format_kwargs(self, kwargs):
+    def _format_kwargs_2d(self, kwargs):
         assert isinstance(kwargs["x"], list) and isinstance(kwargs["y"], list)
+        # Squeeze numpy arrays of values
         self._format_list(kwargs["x"])
         self._format_list(kwargs["y"])
 
@@ -100,7 +101,7 @@ class PyBox2DVisualizer:
     def render_values_xdim(self, **kwargs):
         """Plot x-component values over rendered image.
         """
-        self._format_kwargs(kwargs)
+        self._format_kwargs_2d(kwargs)
 
         # Project to global x to image coordinates
         for i, x in enumerate(kwargs["x"]):
@@ -112,9 +113,11 @@ class PyBox2DVisualizer:
             x_max = self._env.observation_space.high[0]
             kwargs["xticks"] = np.around(np.arange(x_min, x_max, 1), 1)
 
-        image = self._env.render(mode="rgb_array")
+        # image = self._env.render(mode="rgb_array")
+        image = self._env.render(mode="default")
         image = self._plot_values_xdim(image, **kwargs)
-        self._image = self._env._render_util(image)
+        caption = self._env._render_caption()
+        self._image = self._env._render_util(image, caption=caption)
         return self._image.copy()
 
     @staticmethod
@@ -179,12 +182,13 @@ class PyBox2DVisualizer:
         fig.canvas.draw()
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         image = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        plt.close()
         return image
 
     def render_values_theta(self, **kwargs):
         """Plot theta values alongside rendered image.
         """
-        self._format_kwargs(kwargs)
+        self._format_kwargs_2d(kwargs)
         image = self._env.render()
         image = self._plot_values_theta(image, **kwargs)
         self._image = image
@@ -196,6 +200,7 @@ class PyBox2DVisualizer:
                            labels,
                            colors,
                            yticks,
+                           xticks=None,
                            mode="prod",
                            scale = 0.75
                            ):
@@ -208,6 +213,7 @@ class PyBox2DVisualizer:
             labels: list of labels
             colors: list of colors
             yticks: ytick labels
+            xticks: xtick labels
             mode: mode for superimposing y-axis values
         returns: 
             image: rendered plot alongside image -- np.array (h_new, w_new)
@@ -243,6 +249,7 @@ class PyBox2DVisualizer:
             )    
         ax.set_title("Q-function estimates across theta-component")
         ax.set_xlabel("theta [rad]")
+        if xticks is not None: ax.set_xticks(x[0], np.around(xticks, 1))
         ax.set_ylabel(f"Normalized Q(s, a) [units] (scale {scale:0.1f})")
         ax.set_yticks(yticks)
         ax.legend(loc="best")
@@ -251,4 +258,153 @@ class PyBox2DVisualizer:
         fig.canvas.draw()
         data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
         image = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        plt.close()
         return image
+
+    @staticmethod
+    def plot_xdim_theta_3d(x, y, z,
+                           labels, 
+                           xticks,
+                           yticks,
+                           path,
+                           mode="prod",
+                           ):
+        """Plot values
+        """
+        # Normalize value estimates
+        assert isinstance(z, list)
+        z_min = np.array(z).min()
+        z_max = np.array(z).max()
+        for i, _z in enumerate(deepcopy(z)):
+            z[i] = (_z - z_min) / (z_max - z_min)
+        z.append(getattr(np, mode)(z, axis=0))
+        labels.append(mode.capitalize())
+
+        # Plot normalized values
+        fig, axes = plt.subplots(1, 3, 
+            subplot_kw={"projection": "3d"}, 
+            figsize=(16, 5)
+        )
+
+        xtick_labels = np.around(np.unique(np.sort(xticks)), 1)
+        ytick_labels = np.around(np.unique(np.sort(yticks)), 1)
+        xticks = np.unique(np.sort(x))
+        yticks = np.unique(np.sort(y))
+        for i in range(len(z)):
+            axes[i].plot_trisurf(x, y, z[i], cmap="plasma", linewidth=0)
+            axes[i].set_title(f"{labels[i]} Q(s, a)")
+            axes[i].set_xlabel("x-dim [m]")
+            axes[i].set_xticks(xticks, xtick_labels, rotation=20)
+            axes[i].set_yticks(yticks, ytick_labels, rotation=-10)
+            axes[i].set_ylabel("theta [rad]")
+            axes[i].set_zlabel("Normalized Q(s, a) [units]")
+        str_title = "3D Visualization of Learned Optimization Landscape"
+        plt.suptitle(str_title, fontweight="bold")
+        plt.savefig(path)
+        plt.close()
+
+
+def plot_toy_demo(episode,
+                  visualizer,
+                  env, planner, 
+                  output_path, 
+                  samples=100, 
+                  ensure_unbiased=True, 
+                  plot_2d=True, 
+                  plot_3d=True,
+                  ):
+    """Plot 2D-3D value function visualization for toy 2d environment.
+    args:
+        visualizer: Box2DVisualizer instance
+        env: gym environment subclass of Box2DBase
+        planner: planner instance subclass of Box2DPlannerBase
+        output_path: path to save 3D plot
+        samples: number of individual samples
+        ensure_unbiased: if planner._default_critic == "v_fn", this variables is redundant, else
+            if planner._default_critic == "q_fn":
+                if ensure_unbiased == True, Q(s, a) will be evaluated under a ~ learned policy
+                if ensure_unbiased == False, Q(s, a) will be evaluated under a ~ planner._default_actor
+                Notice that V(s) = E[Q(s, a)] = Q(s, a), a ~ policy is only an unbiased estimate
+                iff policy = learned policy.
+    """
+    use_learned_dynamics = planner._use_learned_dynamics(0)
+    config = planner._get_config(0)
+    curr_env = planner._get_env_cls(0).clone(env, **config)
+    
+    # Current V(s) or Q(s, a) over all actions (x, theta)
+    curr_state = curr_env._get_observation()
+    if use_learned_dynamics: curr_state = planner._encode_state(0, curr_state)
+    curr_actions, curr_action_dims = curr_env._interp_actions(samples, [0, 1])
+    curr_returns = planner._critic_interface(0, states=curr_state, actions=curr_actions)
+    
+    # Store x, y, xticks, yticks, curr_z
+    x = curr_actions[:, 0].copy()
+    y = curr_actions[:, 1].copy()
+    xticks = curr_action_dims[:, 0].copy()
+    yticks = curr_action_dims[:, 1].copy()
+    curr_z = curr_returns.copy()
+
+    # Simulate forward environments
+    num = None if use_learned_dynamics else curr_actions.shape[0]
+    curr_envs = planner._clone_env(0, curr_env, num=num)
+    next_states, _ = planner._simulate_interface(0, envs=curr_envs, states=curr_state, actions=curr_actions)
+    
+    next_envs = planner._load_env(1, curr_envs)
+    if use_learned_dynamics: next_envs = [next_envs] * len(curr_actions)
+
+    # Next V(s) or Q(s, a) over states, actions (x, theta)
+    next_z = np.zeros_like(curr_z)
+    for i, (next_env, next_state) in enumerate(zip(next_envs, next_states)):
+        if not use_learned_dynamics: next_state = next_env._get_observation()
+        if ensure_unbiased: next_action = planner._policy(1, next_state)
+        else: next_action = planner._actor_inferface(1, envs=next_env, states=next_state)
+        next_z[i] = planner._critic_interface(1, states=next_state, actions=next_action)
+
+    if plot_3d:
+        # Plot over xdim and theta
+        visualizer.plot_xdim_theta_3d(
+            x=x.copy(), y=y.copy(), z=deepcopy([curr_z, next_z]),
+            labels=[type(curr_env).__name__, type(next_env).__name__],
+            xticks=xticks, yticks=yticks,
+            path=os.path.join(output_path, f"example_{episode}_3d.png"),
+            mode=planner._mode
+        )
+
+    if plot_2d:
+        # Parse optimal xdim values
+        unique_x = np.unique(np.sort(x))
+        curr_y_xdim = np.zeros_like(unique_x)
+        next_y_xdim = np.zeros_like(unique_x)
+        for k, v in enumerate(unique_x):
+            x_idx = np.where(x == v)
+            curr_y_xdim[k] = curr_z[x_idx].max()
+            next_y_xdim[k] = next_z[x_idx].max()
+
+        # Render over xdim
+        visualizer.render_values_xdim(
+            x=[np.unique(np.sort(xticks))],
+            y=[curr_y_xdim, next_y_xdim],
+            labels=[type(curr_env).__name__, type(next_env).__name__]
+        )
+        visualizer.save(os.path.join(output_path, f"example_{episode}_2d_xdim.png"))
+        
+        # Plot variation across theta at top scoring xdim position
+        prod_z = getattr(np, planner._mode)(np.array([curr_z, next_z]), axis=0)
+        theta_idx = np.where(x == x[prod_z.argmax()])
+        unique_theta = y[theta_idx]
+        theta = np.sort(unique_theta)
+        theta_ticks = yticks[theta_idx][unique_theta.argsort()]
+        curr_y_theta = curr_z[theta_idx][unique_theta.argsort()]
+        next_y_theta = next_z[theta_idx][unique_theta.argsort()]
+        assert np.all(np.unique(unique_theta) == unique_theta)
+        
+        # Render over theta
+        planner._simulate_interface(0, envs=env, states=curr_state, actions=curr_actions[prod_z.argmax()])
+        visualizer.env = env        
+        visualizer.render_values_theta(
+            x=[theta],
+            xticks=theta_ticks,
+            y=[curr_y_theta, next_y_theta],
+            labels=[type(curr_env).__name__, type(next_env).__name__],
+        )
+        visualizer.save(os.path.join(output_path, f"example_{episode}_2d_theta.png"))

@@ -1,0 +1,6 @@
+{
+    "planner": "UniformSamplingPlanner",
+    "planner_kwargs": {
+        "samples": [5, 10, 20, 50, 100]
+    }
+}

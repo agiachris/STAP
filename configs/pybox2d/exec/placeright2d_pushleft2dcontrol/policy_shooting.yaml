@@ -1,7 +1,10 @@
-planner: PolicyShootingPlanner
-planner_kwargs: 
-  samples: 10
-  variance: 0.2
+planner: ShootingPlanner
+planner_kwargs:
+  default_actor: policy
+  default_critic: q_fn
+  default_model: ground_truth
+  samples: 100
+  standard_deviation: 0.5
 
 task: 
   - env: "PlaceRight2D"
