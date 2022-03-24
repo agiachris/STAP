@@ -1,3 +1,5 @@
+from typing import Tuple, Union
+
 import torch  # type: ignore
 import numpy as np  # type: ignore
 
@@ -62,7 +64,7 @@ class IOManager(TaskManager):
         self,
         default_actor="random",
         default_critic="q_fn",
-        default_model="ground_truth",
+        default_dynamics="ground_truth",
         **kwargs
     ):
         """Interfaces input representations from the planner (e.g., states, environments, actions)
@@ -71,15 +73,15 @@ class IOManager(TaskManager):
         args:
             default_actor: default actor type to evaluate for valid actions
             default_critic: default critic type to evaluate for unspecified primitive returns
-            default_model: default model type to evaluate for unspecified primitive dynamics
+            default_dynamics: default model type to evaluate for unspecified primitive dynamics
         """
         super().__init__(**kwargs)
         assert default_actor in ["policy", "random"]
         assert default_critic in ["q_fn", "v_fn"]
-        assert default_model in ["ground_truth", "learned"]
+        assert default_dynamics in ["ground_truth", "learned"]
         self._default_actor = default_actor
         self._default_critic = default_critic
-        self._default_model = default_model
+        self._default_dynamics = default_dynamics
 
     def _use_q_function(self, idx):
         critic = self._task[idx].get("critic", None)
@@ -128,36 +130,37 @@ class IOManager(TaskManager):
             actions = utils.to_tensor(actions).to_device(self._device)
         return actions
 
-    def _use_learned_dynamics(self, idx):
-        model = self._task[idx].get("model", None)
-        use_learned = model == "learned" or (
-            model is None and self._default_model == "learned"
-        )
-        return use_learned
+    def _use_learned_dynamics(self, idx_action: int) -> bool:
+        task_dynamics = self._task[idx_action].get("dynamics", self._default_dynamics)
+        return task_dynamics == "learned"
 
-    def _simulate_interface(self, idx, **kwargs):
+    def _simulate_interface(
+        self, idx_action: int, **simulation_kwargs
+    ) -> Tuple[np.ndarray, Union[bool, np.ndarray]]:
         """Generic simulation interface: query learned or ground truth dynamics for next state."""
         output_states, output_success = None, None
-        if self._use_learned_dynamics(idx):
+        if self._use_learned_dynamics(idx_action):
             # Simulate learned dynamics model
-            req_kwargs, opt_kwargs = _parse_model_kwargs(**kwargs)
+            req_kwargs, opt_kwargs = _parse_model_kwargs(**simulation_kwargs)
             states, actions, is_np, is_batched = self._pre_process_states_actions(
                 **req_kwargs, **opt_kwargs
             )
             output_success = np.ones(states.size(0), dtype=bool) if is_batched else True
-            output_states = self._simulate_model(idx, states, actions)
+            output_states = self._simulate_model(idx_action, states, actions)
             output_states = self._post_process_outputs(output_states, is_np, is_batched)
         else:
             # Simulated environment dynamics
-            req_kwargs, opt_kwargs = _parse_simulate_kwargs(**kwargs)
+            req_kwargs, opt_kwargs = _parse_simulate_kwargs(**simulation_kwargs)
             req_kwargs["actions"] = utils.to_np(req_kwargs["actions"])
             assert isinstance(req_kwargs["actions"], np.ndarray)
             output_states, output_success = self._simulate_env(
-                idx, **req_kwargs, **opt_kwargs
+                idx_action, **req_kwargs, **opt_kwargs
             )
         return output_states, output_success
 
-    def _pre_process_inputs(self, inputs):
+    def _pre_process_inputs(
+        self, inputs: Union[torch.Tensor, np.ndarray]
+    ) -> Tuple[torch.Tensor, bool, bool]:
         """Batch and tensorize inputs."""
         is_np = not utils.contains_tensors(inputs)
         is_batched = inputs.ndim > 1
@@ -168,7 +171,9 @@ class IOManager(TaskManager):
         return inputs, is_np, is_batched
 
     @staticmethod
-    def _post_process_outputs(outputs, is_np, is_batched):
+    def _post_process_outputs(
+        outputs: torch.Tensor, is_np: bool, is_batched: bool
+    ) -> Union[torch.Tensor, np.ndarray]:
         """Post-process outputs based on their input configuration."""
         if not is_batched:
             outputs = utils.squeeze(outputs, 0)
@@ -176,7 +181,11 @@ class IOManager(TaskManager):
             outputs = utils.to_np(outputs)
         return outputs
 
-    def _pre_process_states_actions(self, states, actions):
+    def _pre_process_states_actions(
+        self,
+        states: Union[torch.Tensor, np.ndarray],
+        actions: Union[torch.Tensor, np.ndarray],
+    ) -> Tuple[torch.Tensor, torch.Tensor, bool, bool]:
         """Batch and tensorize states and actions."""
         states, is_np_s, is_batched_s = self._pre_process_inputs(states)
         actions, is_np_a, is_batched_a = self._pre_process_inputs(actions)
@@ -278,12 +287,21 @@ class IOManager(TaskManager):
             actions = self._actor_interface(idx, envs=envs, states=state)
         return envs._get_observation(), info["success"]
 
-    def _simulate_model(self, idx, states, actions):
+    def _simulate_model(
+        self,
+        idx_action: int,
+        states: Union[torch.Tensor, np.ndarray],
+        actions: Union[torch.Tensor, np.ndarray],
+    ) -> Union[torch.Tensor, np.ndarray]:
         """Simulate forward dynamics with learned model."""
         states, actions, is_np, is_batched = self._pre_process_states_actions(
             states, actions
         )
-        next_states = self._get_model(idx).network.dynamics(states, actions)
+
+        # TODO: Find way to map repeated action indices to unique policy indices.
+        idx_policy = torch.full(actions.shape[0], idx_action, dtype=torch.int32)
+
+        next_states = self.dynamics_model.forward(states, idx_policy, actions)
         return self._post_process_outputs(next_states, is_np, is_batched)
 
     def _encode_state(self, idx, states):

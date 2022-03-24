@@ -30,23 +30,23 @@ class ShootingPlanner(Box2DPlannerBase):
         }
         return deepcopy(settings)
 
-    def plan(self, idx, env, mode="prod"):
-        super().plan(idx, env, mode=mode)
-        action = self._parallel_rollout(idx, env, self._branches)
+    def plan(self, idx_action: int, env, mode="prod"):
+        super().plan(idx_action, env, mode=mode)
+        action = self._parallel_rollout(idx_action, env, self._branches)
         return action
 
-    def _parallel_rollout(self, idx, env, branches):
+    def _parallel_rollout(self, idx_action: int, env, branches):
         """Parallelize computation for faster trajectory simulation. Use this method
         for model-based forward prediction when the state evolution can be batched.
         """
         # Compute current V(s) or Q(s, a)
-        use_learned_dynamics = self._use_learned_dynamics(idx)
+        use_learned_dynamics = self._use_learned_dynamics(idx_action)
         curr_state = env._get_observation()
         if use_learned_dynamics:
-            curr_state = self._encode_state(idx, curr_state)
+            curr_state = self._encode_state(idx_action, curr_state)
         actor_kwargs = {"envs": env, "states": curr_state}
         curr_actions = self._actor_interface(
-            idx,
+            idx_action,
             samples=self._samples,
             variance=None
             if self._standard_deviation is None
@@ -55,20 +55,26 @@ class ShootingPlanner(Box2DPlannerBase):
             **self._policy_kwargs
         )
         critic_kwargs = {"states": curr_state, "actions": curr_actions}
-        curr_returns = self._critic_interface(idx, **critic_kwargs)
+        curr_returns = self._critic_interface(idx_action, **critic_kwargs)
 
         # Simulate forward environments
         num = None if use_learned_dynamics else curr_actions.shape[0]
-        curr_envs = self._clone_env(idx, env, num=num)
-        simulation_kwargs = {
-            "envs": curr_envs,
-            "states": curr_state,
-            "actions": curr_actions,
-        }
-        next_states, _ = self._simulate_interface(idx, **simulation_kwargs)
+        if use_learned_dynamics:
+            simulation_kwargs = {
+                "states": curr_state,
+                "actions": curr_actions,
+            }
+        else:
+            curr_envs = self._clone_env(idx_action, env, num=num)
+            simulation_kwargs = {
+                "envs": curr_envs,
+                "states": curr_state,
+                "actions": curr_actions,
+            }
+        next_states, _ = self._simulate_interface(idx_action, **simulation_kwargs)
 
         # Rollout trajectories
-        stack = [(idx, curr_envs, next_states, branches)]
+        stack = [(idx_action, curr_envs, next_states, branches)]
         while stack:
             idx, curr_envs, next_states, branches = stack.pop()
             if not branches:
@@ -86,8 +92,6 @@ class ShootingPlanner(Box2DPlannerBase):
                     next_states = np.array(
                         [next_env._get_observation() for next_env in next_envs]
                     )
-                else:
-                    next_envs = [self._load_env(var, curr_envs)] * len(next_states)
 
                 actor_kwargs = {"envs": next_envs, "states": next_states}
                 next_actions = self._actor_interface(var, **actor_kwargs)
@@ -106,8 +110,6 @@ class ShootingPlanner(Box2DPlannerBase):
                     next_states = np.array(
                         [next_env._get_observation() for next_env in next_envs]
                     )
-                else:
-                    next_envs = [self._load_env(sim_idx, curr_envs)] * len(next_states)
 
                 actor_kwargs = {"envs": next_envs, "states": next_states}
                 next_actions = self._actor_interface(sim_idx, **actor_kwargs)
@@ -119,8 +121,6 @@ class ShootingPlanner(Box2DPlannerBase):
                 next_next_states, _ = self._simulate_interface(
                     sim_idx, **simulation_kwargs
                 )
-                if use_learned_dynamics:
-                    next_envs = next_envs[0]
                 to_stack.append((sim_idx, next_envs, next_next_states, sim_branches))
 
             stack.extend(to_stack)
