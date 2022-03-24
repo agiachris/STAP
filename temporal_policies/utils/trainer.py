@@ -1,7 +1,8 @@
-import os
+import pathlib
 import subprocess
-import torch
+
 import gym
+import torch
 
 import temporal_policies
 from . import schedules
@@ -58,27 +59,33 @@ def train(config, path, device="auto"):
     # Create the save path and save the config
     print("[research] Training agent with config:")
     print(config)
-    os.makedirs(path, exist_ok=False)
+    path = pathlib.Path(path)
+    path.mkdir(parents=True, exist_ok=False)
     config.save(path)
 
     # save the git hash
     process = subprocess.Popen(['git', 'rev-parse', 'HEAD'], shell=False, stdout=subprocess.PIPE)
     git_head_hash = process.communicate()[0].strip()
-    with open(os.path.join(path, 'git_hash.txt'), 'wb') as f:
+    with open(path / 'git_hash.txt', 'wb') as f:
         f.write(git_head_hash)
     
     model = get_model(config, device=device)
+    model.path = path
     assert issubclass(type(model), temporal_policies.algs.base.Algorithm)
     schedule = None if config['scheduler'] is None else vars(schedules)[config['scheduler']]
     model.train(path, schedule=schedule, schedule_kwargs=config['schedule_kwargs'], **config['train_kwargs'])
+    model.dataset.save()
+    model.eval_dataset.save()
     return model
 
 def load(config, model_path, device="auto", strict=True):
     model = get_model(config, device=device)
     model.load(model_path, strict=strict)
+    model.path = model_path.parent
     return model
 
 def load_from_path(checkpoint_path, device="auto", strict=True):
-    config_path = os.path.join(os.path.dirname(checkpoint_path), "config.yaml")
+    checkpoint_path = pathlib.Path(checkpoint_path)
+    config_path = checkpoint_path.parent / "config.yaml"
     config = Config.load(config_path)
     return load(config, checkpoint_path, device=device, strict=strict)

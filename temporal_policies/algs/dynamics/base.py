@@ -37,13 +37,7 @@ def load_policies(
     for checkpoint_path in checkpoint_paths:
         policy = trainer.load_from_path(checkpoint_path, device=device, strict=True)
         policy.eval_mode()
-
-        # Load replay buffers.
         policy.setup_datasets()
-        replay_buffer_path = pathlib.Path(checkpoint_path).parent / "replay_buffers"
-        policy.dataset.preload_path = replay_buffer_path / "train"
-        policy.eval_dataset.preload_path = replay_buffer_path / "eval"
-
         policies.append(policy)
 
     return policies
@@ -61,6 +55,8 @@ class DynamicsModel(abc.ABC):
         dataset_kwargs: Dict[str, Any],
         optimizer_class: Type[torch.optim.Optimizer],
         optimizer_kwargs: Dict[str, Any],
+        scheduler_class: Optional[Type[torch.optim.lr_scheduler._LRScheduler]],
+        scheduler_kwargs: Dict[str, Any],
     ):
         """Initializes the dynamics model network, dataset, and optimizer.
 
@@ -72,6 +68,8 @@ class DynamicsModel(abc.ABC):
             dataset_kwargs: Kwargs for dataset class.
             optimizer_class: Dynamics model optimizer class.
             optimizer_kwargs: Kwargs for optimizer class.
+            scheduler_class: Dynamics model learning rate scheduler class.
+            scheduler_class: Kwargs for scheduler class.
         """
         self._policies = policies
         self._loss = torch.nn.MSELoss()
@@ -80,6 +78,12 @@ class DynamicsModel(abc.ABC):
             policies, dataset_class, dataset_kwargs
         )
         self._optimizer = optimizer_class(self.network.parameters(), **optimizer_kwargs)
+        if scheduler_class is not None:
+            self._scheduler = scheduler_class(
+                optimizer=self._optimizer, **scheduler_kwargs
+            )
+        else:
+            self._scheduler = None
         self._steps = 0
         self._epochs = 0
 
@@ -92,6 +96,11 @@ class DynamicsModel(abc.ABC):
     def optimizer(self) -> torch.optim.Optimizer:
         """Training optimizer."""
         return self._optimizer
+
+    @property
+    def scheduler(self) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
+        """Learning rate scheduler."""
+        return self._scheduler
 
     @property
     def network(self) -> torch.nn.Module:
@@ -135,7 +144,7 @@ class DynamicsModel(abc.ABC):
         self,
         observation: Any,
         idx_policy: torch.Tensor,
-        policy_params: List[torch.Tensor],
+        action: List[torch.Tensor],
     ) -> torch.Tensor:
         """Predicts the next latent state given the current observation and
         action.
@@ -143,20 +152,20 @@ class DynamicsModel(abc.ABC):
         Args:
             observation: Unencoded observation (common to all primitives).
             idx_policy: Index of executed policy.
-            policy_params: Policy parameters.
+            action: Policy action.
 
         Returns:
             Prediction of next latent state.
         """
         latent = self.encode(observation, idx_policy)
-        latent_next = self.forward(latent, idx_policy, policy_params)
+        latent_next = self.forward(latent, idx_policy, action)
         return latent_next
 
     def forward(
         self,
         latent: torch.Tensor,
         idx_policy: torch.Tensor,
-        policy_params: List[torch.Tensor],
+        action: List[torch.Tensor],
     ) -> torch.Tensor:
         """Predicts the next latent state given the current latent state and
         action.
@@ -191,7 +200,7 @@ class DynamicsModel(abc.ABC):
         self,
         observation: Any,
         idx_policy: torch.Tensor,
-        policy_params: List[torch.Tensor],
+        action: List[torch.Tensor],
         next_observation: torch.Tensor,
     ) -> torch.Tensor:
         """Computes the L2 loss between the predicted next latent and the latent
@@ -200,14 +209,14 @@ class DynamicsModel(abc.ABC):
         Args:
             observation: Common observation across all policies.
             idx_policy: Index of executed policy.
-            policy_params: Policy parameters.
+            action: Policy parameters.
             next_observation: Next observation.
 
         Returns:
             L2 loss.
         """
         # Predict next latent state.
-        next_latent_pred = self.predict(observation, idx_policy, policy_params)
+        next_latent_pred = self.predict(observation, idx_policy, action)
 
         # Encode next latent state.
         next_latent = self.encode(next_observation, idx_policy)
@@ -216,7 +225,7 @@ class DynamicsModel(abc.ABC):
         l2_loss = self._loss(next_latent_pred, next_latent)
         return l2_loss
 
-    def save(self, path: str, name: str) -> None:
+    def save(self, path: Union[str, pathlib.Path], name: str) -> None:
         """Saves a checkpoint of the model and the optimizers.
 
         Args:
@@ -229,7 +238,7 @@ class DynamicsModel(abc.ABC):
         }
         torch.save(save_dict, pathlib.Path(path) / f"{name}.pt")
 
-    def load(self, checkpoint: str, strict: bool = True) -> None:
+    def load(self, checkpoint: Union[str, pathlib.Path], strict: bool = True) -> None:
         """Loads the model from the given checkpoint.
 
         Args:
@@ -271,19 +280,15 @@ class DynamicsModel(abc.ABC):
         dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=None,
-            # shuffle=True,
             num_workers=workers,
             worker_init_fn=worker_init_fn,
             pin_memory=pin_memory,
-            # collate_fn=self.collate_fn,
         )
         eval_dataloader = torch.utils.data.DataLoader(
             self.eval_dataset,
             batch_size=None,
-            # shuffle=True,
             num_workers=0,
             pin_memory=pin_memory,
-            # collate_fn=self.collate_fn,
         )
 
         self.train_mode()
@@ -313,7 +318,7 @@ class DynamicsModel(abc.ABC):
             except StopIteration:
                 batches = iter(dataloader)
                 self._epochs += 1
-                break
+                continue
             profiler.toc("dataset")
 
             # Train step.
@@ -356,10 +361,14 @@ class DynamicsModel(abc.ABC):
         Returns:
             Computed loss.
         """
+        self.optimizer.zero_grad()
         batch = self._format_batch(batch)
         loss = self.compute_loss(**batch)
+
         loss.backward()
         self.optimizer.step()
+        if self.scheduler is not None:
+            self.scheduler.step(loss)
 
         return loss.cpu().detach().numpy()
 
@@ -396,19 +405,13 @@ class DynamicsModel(abc.ABC):
             batch: Replay buffer batch.
 
         Returns:
-            Dict with (observation, idx_policy, policy_params, next_observation).
+            Dict with (observation, idx_policy, action, next_observation).
         """
-        # Collect policy params.
-        idx_policy = batch["action"]["idx_policy"]
-        policy_params = [
-            batch["action"][f"policy_{i}"][idx_batch]
-            for idx_batch, i in enumerate(idx_policy)
-        ]
         batch = {
-            "observation": batch["obs"],
-            "idx_policy": idx_policy,
-            "policy_params": policy_params,
-            "next_observation": batch["next_obs"],
+            "observation": batch["observation"],
+            "idx_policy": batch["action"]["idx_policy"],
+            "action": batch["action"]["action"],
+            "next_observation": batch["next_observation"],
         }
 
         # Convert items to tensor if they are not.
@@ -416,111 +419,6 @@ class DynamicsModel(abc.ABC):
             batch = utils.to_tensor(batch)
         batch = utils.to_device(batch, self.device)
         return batch
-
-
-def _add_to_replay_buffer(
-    replay_buffer: datasets.ReplayBuffer,
-    source: Union[Batch, datasets.ReplayBuffer],
-    max_entries: int = sys.maxsize,
-) -> int:
-    """Adds entries from the source to the given replay buffer.
-
-    Args:
-        replay_buffer: Replay buffer.
-        source: Batch or another replay buffer.
-        max_entries: Maximum number of entries to add.
-
-    Returns:
-        Number of entries added.
-    """
-    def to_batch(
-        replay_buffer: datasets.ReplayBuffer, trim: bool = True
-    ) -> Batch:
-        batch = {
-            "obs": replay_buffer._obs_buffer,
-            "action": replay_buffer._action_buffer,
-            "reward": replay_buffer._reward_buffer,
-            "done": replay_buffer._done_buffer,
-            "discount": replay_buffer._discount_buffer,
-        }
-        if not trim:
-            return batch
-
-        idx_end = replay_buffer._size if trim else replay_buffer.capacity
-        return nest.map_structure(lambda x: x[:idx_end], batch)
-
-    def add_to_buffer(
-        dest: np.ndarray, src: np.ndarray, idx: int, max_entries: int
-    ) -> int:
-        assert max_entries >= 0
-
-        len_src = min(max_entries, len(src))
-        idx_end = min(len(dest), idx + len_src)
-        num_added = idx_end - idx
-        dest[idx:idx_end] = src[:num_added]
-
-        if num_added < len_src:
-            return num_added + add_to_buffer(
-                dest, src[num_added:], 0, max_entries - num_added
-            )
-        else:
-            return num_added
-
-    def add_to_batch(
-        dest: Batch, src: Batch, idx: int, max_entries: int
-    ) -> int:
-        num_added = nest.map_structure(
-            lambda x, y: add_to_buffer(x, y, idx, max_entries), dest, src
-        )
-        return next(nest.structure_iterator(num_added))  # type: ignore
-
-    dest = to_batch(replay_buffer, trim=False)
-    src = to_batch(source) if isinstance(source, datasets.ReplayBuffer) else source
-    num_added = add_to_batch(dest, src, replay_buffer._size, max_entries)
-
-    replay_buffer._idx = (replay_buffer._size + num_added) % replay_buffer.capacity
-    replay_buffer._size = min(replay_buffer.capacity, replay_buffer._size + num_added)
-
-    return num_added
-
-
-def _load_replay_buffer_from_disk(
-    replay_buffer: datasets.ReplayBuffer,
-    path: pathlib.Path,
-    max_entries: int = sys.maxsize,
-    transform_batch: Optional[Callable[[Batch], Batch]] = None,
-) -> int:
-    """Adds episodes stored on disk to the given replay buffer.
-
-    Args:
-        replay_buffer: Replay buffer.
-        path: Directory where episodes are stored.
-        max_entries: Maximum number of entries to add.
-        transform_batch: Optional function to transform the batch from disk
-            before adding to the replay buffer.
-
-    Returns:
-        Number of entries added.
-    """
-    # Sort episodes by creation time/episode number.
-    episode_paths = sorted(
-        path.iterdir(), key=lambda f: tuple(map(int, re.split(r"T|_", f.stem)[:-1]))
-    )
-    num_added_total = 0
-    for episode_path in tqdm.tqdm(episode_paths):
-        with open(episode_path, "rb") as f:
-            batch: Batch = dict(np.load(f))
-
-        if transform_batch is not None:
-            batch = transform_batch(batch)
-
-        num_added = _add_to_replay_buffer(replay_buffer, batch, max_entries)
-        num_added_total += num_added
-        max_entries -= num_added
-        if max_entries <= 0:
-            break
-
-    return num_added_total
 
 
 def _construct_datasets(
@@ -553,55 +451,65 @@ def _construct_datasets(
             action: Policy parameters.
 
         Returns:
-            Action dict with null entries for other policies.
+            Action dict with nan padding.
         """
-        # TODO: Need better way to combine actions.
+        action_padding = np.full(
+            (action.shape[0], action_space["action"].shape[0] - action.shape[1]),
+            float("nan"),
+            dtype=action_space.dtype,
+        )
         action_dict = {
             "idx_policy": np.full(action.shape[0], idx_policy, dtype=np.int32),
-            f"policy_{idx_policy}": action,
+            "action": np.concatenate(
+                (action.astype(action_space.dtype), action_padding), axis=1
+            ),
         }
-        for key, space in action_space.items():
-            if key in action_dict:
-                continue
-            action_dict[key] = np.full(
-                (action.shape[0], *space.shape), float("nan"), dtype=np.float32
-            )
         return action_dict
 
+    # Get observation space.
     assert all(
         policy.env.observation_space == policies[0].env.observation_space
         for policy in policies
     ), "Observation spaces must be the same among all policies."
     observation_space = policies[0].env.observation_space
 
-    action_dict = {
-        f"policy_{i}": policy.env.action_space for i, policy in enumerate(policies)
-    }
-    action_dict["idx_policy"] = gym.spaces.Discrete(len(policies))
-    action_space = gym.spaces.Dict(action_dict)
+    # Set the action space to the largest of the policy action spaces.
+    len_action = max(policy.env.action_space.shape[0] for policy in policies)
+    action_space = gym.spaces.Dict(
+        {
+            "idx_policy": gym.spaces.Discrete(len(policies)),
+            "action": gym.spaces.Box(
+                low=-1, high=1, shape=(len_action,), dtype=np.float32
+            ),
+        }
+    )
 
+    # Initialize the dynamics dataset.
     dataset = dataset_class(observation_space, action_space, **dataset_kwargs)
+    dataset.initialize()
     eval_dataset = dataset_class(observation_space, action_space, **dataset_kwargs)
+    eval_dataset.initialize()
+
+    # Split dataset evenly among policies.
+    num_entries_per_policy = dataset.capacity // len(policies)
 
     for idx_policy, policy in enumerate(policies):
+        # Load policy replay buffers.
+        policy.dataset.initialize()
+        policy.eval_dataset.initialize()
+        policy.dataset.load(max_entries=num_entries_per_policy)
+        policy.eval_dataset.load(max_entries=num_entries_per_policy)
 
-        def transform_batch(batch: Batch) -> Batch:
-            batch["action"] = create_action_dict(  # type: ignore
-                action_space, idx_policy, batch["action"]  # type: ignore
-            )
-            return batch
+        # Load policy batch and reformat action.
+        batch = dict(policy.dataset[:num_entries_per_policy])
+        batch["action"] = create_action_dict(action_space, idx_policy, batch["action"])
 
-        _load_replay_buffer_from_disk(
-            dataset,
-            policy.dataset.preload_path,
-            max_entries=dataset.capacity // len(policies),
-            transform_batch=transform_batch,
+        eval_batch = dict(policy.eval_dataset[:num_entries_per_policy])
+        eval_batch["action"] = create_action_dict(
+            action_space, idx_policy, eval_batch["action"]
         )
-        _load_replay_buffer_from_disk(
-            eval_dataset,
-            policy.eval_dataset.preload_path,
-            max_entries=eval_dataset.capacity // len(policies),
-            transform_batch=transform_batch,
-        )
+
+        dataset.add(batch=batch)
+        eval_dataset.add(batch=eval_batch)
 
     return dataset, eval_dataset

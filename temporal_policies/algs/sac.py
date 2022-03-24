@@ -109,7 +109,7 @@ class SAC(Algorithm):
     def _train_step(self, batch):
         all_metrics = {}
         if self.steps == 0: 
-            self.dataset.add(self._current_obs) # Store the initial reset observation!
+            self.dataset.add(observation=self._current_obs) # Store the initial reset observation!
         if self.steps < self.init_steps:
             action = self.env.action_space.sample()
         else:
@@ -130,7 +130,9 @@ class SAC(Algorithm):
             discount = 1 - float(done)
 
         # Store the consequences.
-        self.dataset.add(next_obs, action, reward, done, discount)
+        self.dataset.add(
+            action=action, reward=reward, next_observation=next_obs, discount=discount, done=done
+        )
 
         if done:
             self._num_ep += 1
@@ -140,7 +142,7 @@ class SAC(Algorithm):
             all_metrics['num_ep'] = self._num_ep
             # Reset the environment
             self._current_obs = self.env.reset()
-            self.dataset.add(self._current_obs) # Add the first timestep
+            self.dataset.add(observation=self._current_obs) # Add the first timestep
             self._episode_length = 0
             self._episode_reward = 0
         else:

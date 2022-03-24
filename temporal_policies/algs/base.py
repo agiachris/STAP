@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import random
 import copy
+import pathlib
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -15,14 +16,18 @@ from temporal_policies.utils import utils
 from temporal_policies.utils.evaluate import eval_policy
 
 
-def log_from_dict(logger, loss_lists, prefix):
+def log_from_dict(logger, loss_lists, prefix, log_stddev: bool = False):
     keys_to_remove = []
     for loss_name, loss_value in loss_lists.items():
         if isinstance(loss_value, list) and len(loss_value) > 0:
             logger.record(prefix + "/" + loss_name, np.mean(loss_value))
+            if log_stddev:
+                logger.record(f"{prefix}/{loss_name}/stddev", np.std(loss_value))
             keys_to_remove.append(loss_name)
         else:
             logger.record(prefix + "/" + loss_name, loss_value)
+            if log_stddev:
+                logger.record(f"{prefix}/{loss_name}/stddev", 0)
             keys_to_remove.append(loss_name)
     for key in keys_to_remove:
         del loss_lists[key]
@@ -50,7 +55,8 @@ class Algorithm(ABC):
                        validation_dataset_kwargs=None,
                        collate_fn=None,
                        batch_size=64,
-                       eval_env=None):
+                       eval_env=None,
+                       path=None):
 
         # Save relevant values
         self.env = env
@@ -83,6 +89,8 @@ class Algorithm(ABC):
         if checkpoint:
             self.load(checkpoint, strict=True)
 
+        self.path = None if path is None else pathlib.Path(path)
+
     def setup_processor(self, processor_class, processor_kwargs):
         if processor_class is None:
             self.processor = IdentityProcessor(self.env.observation_space, self.env.action_space)
@@ -101,12 +109,28 @@ class Algorithm(ABC):
         Setup the datasets. Note that this is called only during the learn method and thus doesn't take any arguments.
         Everything must be saved apriori. This is done to ensure that we don't need to load all of the data to load the model.
         '''
-        self.dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.dataset_kwargs)
-        self.eval_dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.eval_dataset_kwargs)
-        if not self.validation_dataset_kwargs is None:
+        self.dataset = self.dataset_class(
+            observation_space=self.env.observation_space,
+            action_space=self.env.action_space,
+            path=self.path / "train_data",
+            **self.dataset_kwargs
+        )
+        self.eval_dataset = self.dataset_class(
+            observation_space=self.env.observation_space,
+            action_space=self.env.action_space,
+            path=self.path / "eval_data",
+            **self.eval_dataset_kwargs
+        )
+        self.eval_dataset.initialize()
+        if self.validation_dataset_kwargs is not None:
             validation_dataset_kwargs = copy.deepcopy(self.dataset_kwargs)
             validation_dataset_kwargs.update(self.validation_dataset_kwargs)
-            self.validation_dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **validation_dataset_kwargs)
+            self.validation_dataset = self.dataset_class(
+                observation_space=self.env.observation_space,
+                action_space=self.env.action_space,
+                path=self.path / "eval_data",
+                **validation_dataset_kwargs
+            )
         else:
             self.validation_dataset = None
 

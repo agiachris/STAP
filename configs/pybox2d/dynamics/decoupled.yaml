@@ -1,6 +1,6 @@
 optim: Adam
 optim_kwargs:
-  lr: 0.0001
+  lr: 0.001
 
 dynamics: DecoupledDynamics
 dynamics_kwargs: null
@@ -17,12 +17,9 @@ checkpoint: null # A checkpoint to initialize the network from.
 
 dataset: ReplayBuffer
 dataset_kwargs:
-  discount: 0.99
-  nstep: 1
-  capacity: 100000
-  fetch_every: 1000
+  capacity: 10000
   batch_size: 1024
-  cleanup: false
+  sample_strategy: uniform
 
 train_kwargs: # Arguments given to Algorithm.train
   total_steps: 10000 # The total number of steps to train

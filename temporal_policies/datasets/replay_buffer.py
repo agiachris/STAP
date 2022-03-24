@@ -1,361 +1,514 @@
-import enum
-from json import load
-from multiprocessing.sharedctypes import Value
-import torch
-import numpy as np
-import tempfile
-import io
-import gym
-import collections
-import copy
 import datetime
-import os
-import shutil
+import enum
+import functools
+import pathlib
+from typing import Generator, Optional, Sequence, Union
 
-def save_episode(episode, path):
-    with io.BytesIO() as bs:
-        np.savez_compressed(bs, **episode)
-        bs.seek(0)
-        with open(path, 'wb') as f:
-            f.write(bs.read())
+import gym  # type: ignore
+import numpy as np  # type: ignore
+import torch  # type: ignore
+import tqdm  # type: ignore
 
-def load_episode(path):
-    with open(path, 'rb') as f:
-        episode = np.load(f)
-        episode = {k: episode[k] for k in episode.keys()}
-        return episode
+from temporal_policies.utils import nest
+
+Batch = nest.NestedStructure
+
 
 class ReplayBuffer(torch.utils.data.IterableDataset):
-    '''
-    This replay buffer is carefully implemented to run efficiently and prevent multiprocessing
-    memory leaks and errors.
-    All variables starting with an underscore ie _variable are used only by the child processes
-    All other variables are used by the parent process.
-    '''
+    """Replay buffer class."""
 
-    class SamplingStrategy(enum.Enum):
-        UNIFORM = 0
-        DETERMINISTIC = 1
+    class SampleStrategy(enum.Enum):
+        """Replay buffer sample strategy."""
 
-    def __init__(self, observation_space, action_space, 
-                       discount=0.99, nstep=1, preload_path=None,
-                       capacity=100000, fetch_every=1000, cleanup=True,
-                       batch_size=None, sampling_strategy="uniform"):
-        # Observation and action space values
-        self.observation_space = observation_space
-        self.action_space = action_space
+        UNIFORM = 0  # Uniform random sampling.
+        SEQUENTIAL = 1  # Deterministic sequential order.
 
-        # Queuing values
-        self.discount = discount
-        self.nstep = nstep
-        self.batch_size = batch_size
+    def __init__(
+        self,
+        observation_space: gym.spaces.Space,
+        action_space: gym.spaces.Space,
+        capacity: int = 100000,
+        batch_size: Optional[int] = None,
+        sample_strategy: Union[str, SampleStrategy] = "uniform",
+        nstep: int = 1,
+        path: Optional[Union[str, pathlib.Path]] = None,
+        save_frequency: Optional[int] = None,
+    ):
+        """Stores the configuration parameters for the replay buffer.
 
-        # Data storage values
-        self.capacity = capacity
-        self.cleanup = cleanup # whether or not to remove loaded episodes from disk
-        self.fetch_every = fetch_every
+        The actual buffers will be constructed upon calling
+        `ReplayBuffer.__iter__() or `ReplayBuffer.initialize()`.
 
-        # worker values to be shared across processes.
-        self.preload_path = preload_path
-        self.num_episodes = 0
-        self.storage_path = tempfile.mkdtemp()
+        Args:
+            observation_space: Observation space.
+            action_space: Action space.
+            capacity: Replay buffer capacity.
+            batch_size: Sample batch size.
+            sample_strategy: Sample strategy.
+            nstep: Number of steps between sample and next observation.
+            path: Optional location of replay buffer on disk.
+            save_frequency: Frequency of optional automatic saving to disk.
+        """
+        self._observation_space = observation_space
+        self._action_space = action_space
+        self._capacity = capacity
 
-        self.sampling_strategy = ReplayBuffer.SamplingStrategy(sampling_strategy.upper())
+        self._batch_size = batch_size
+        self._sample_strategy = (
+            ReplayBuffer.SampleStrategy[sample_strategy.upper()]
+            if isinstance(sample_strategy, str)
+            else sample_strategy
+        )
+        self._nstep = nstep
 
-        self._setup()
-
-        print("[research] Replay Buffer Storage Path", self.storage_path)
+        self._path = None if path is None else pathlib.Path(path)
+        if save_frequency is not None and save_frequency <= 0:
+            save_frequency = None
+        self._save_frequency = save_frequency
 
     @property
-    def is_parallel(self):
-        return not hasattr(self, "is_serial")
+    def capacity(self) -> int:
+        """Replay buffer capacity."""
+        return self._capacity
 
-    def save(self, path):
-        '''
-        Save the replay buffer to the specified path. This is literally just copying the files
-        from the storage path to the desired path. By default, we will also delete the original files.
-        '''
-        if self.cleanup:
-            print("[research] Warning, attempting to save a cleaned up replay buffer. There are likely no files")
-        os.makedirs(path, exist_ok=True)
-        srcs = os.listdir(self.storage_path)
-        for src in srcs:
-            shutil.move(os.path.join(self.storage_path, src), os.path.join(path, src))
-        print("Successfully saved", len(srcs), "episodes.")
-    
-    def __del__(self):
-        if not self.cleanup:
-            return
-        paths = [os.path.join(self.storage_path, f) for f in os.listdir(self.storage_path)]
-        for path in paths:
-            try:
-                os.remove(path)
-            except:
-                pass
+    @property
+    def batch_size(self) -> Optional[int]:
+        """Sample batch size."""
+        return self._batch_size
+
+    @property
+    def sample_strategy(self) -> SampleStrategy:
+        """Sample strategy."""
+        return self._sample_strategy
+
+    @property
+    def nstep(self) -> int:
+        """Number of steps between sample and next observation."""
+        return self._nstep
+
+    @property
+    def path(self) -> Optional[pathlib.Path]:
+        """Location of replay buffer on disk."""
+        return self._path
+
+    @property
+    def save_frequency(self) -> Optional[int]:
+        """Frequency of automatic saving to disk."""
+        return self._save_frequency
+
+    @property
+    def num_workers(self) -> int:
+        """Number of parallel data workers."""
+        worker_info = torch.utils.data.get_worker_info()
+        return 1 if worker_info is None else worker_info.num_workers
+
+    @property
+    def worker_id(self) -> int:
+        """Current worker id."""
+        worker_info = torch.utils.data.get_worker_info()
+        return 0 if worker_info is None else worker_info.id
+
+    @property
+    def worker_capacity(self) -> int:
+        """Current worker capacity."""
         try:
-            os.rmdir(self.storage_path)
-        except:
-            pass
+            return self._worker_capacity
+        except AttributeError:
+            raise RuntimeError("Need to run ReplayBuffer.initialize() first.")
 
-    def _setup_buffers(self):
-        self._idx = 0
-        self._size = 0
-        self._capacity = self.capacity // self._num_workers
+    @property
+    def worker_buffers(self):
+        """Current worker buffers."""
+        try:
+            return self._worker_buffers
+        except AttributeError:
+            raise RuntimeError("Need to run ReplayBuffer.initialize() first.")
 
-        def construct_buffer_helper(space):
-            if isinstance(space, gym.spaces.Dict):
-                return {k: construct_buffer_helper(v) for k, v in space.items()}
+    def initialize(self) -> None:
+        """Initializes the buffers."""
+
+        def create_buffer(space: gym.spaces.Space, capacity: int):
+            if isinstance(space, gym.spaces.Discrete):
+                return np.full(capacity, space.start - 1, dtype=np.int64)
             elif isinstance(space, gym.spaces.Box):
-                return np.empty((self._capacity, *space.shape), dtype=space.dtype)
-            elif isinstance(space, gym.spaces.Discrete):
-                return np.empty((self.capacity,), dtype=np.int64)
+                return np.full(
+                    (capacity, *space.shape), float("nan"), dtype=space.dtype
+                )
+            elif isinstance(space, gym.spaces.Tuple):
+                return tuple(create_buffer(s, capacity) for s in space)
+            elif isinstance(space, gym.spaces.Dict):
+                return {key: create_buffer(s, capacity) for key, s in space.items()}
             else:
                 raise ValueError("Invalid space provided")
-        
-        self._obs_buffer = construct_buffer_helper(self.observation_space)
-        self._action_buffer = construct_buffer_helper(self.action_space)
-        self._reward_buffer = np.empty((self._capacity,), dtype=np.float32)
-        # TODO: Determine best data types for these buffers.
-        self._discount_buffer = np.empty((self._capacity,), dtype=np.float32)
-        self._done_buffer = np.empty((self._capacity,), dtype=np.bool_)
 
-    def _add_to_buffer(self, obs, action, reward, done, discount):
-        # Can add in batches or serially.
-        if isinstance(reward, list) or isinstance(reward, np.ndarray):
-            num_to_add = len(reward)
-        else:
-            num_to_add = 1
+        # Set up only once.
+        if hasattr(self, "_worker_buffers"):
+            return
 
-        if self._idx + num_to_add > self._capacity:
-            # Add all we can at first, then add the rest later
-            num_b4_wrap = self._capacity - self._idx
-            self._add_to_buffer(obs[:num_b4_wrap], action[:num_b4_wrap], reward[:num_b4_wrap], 
-                                done[:num_b4_wrap], discount[:num_b4_wrap])
-            self._add_to_buffer(obs[num_b4_wrap:], action[num_b4_wrap:], reward[num_b4_wrap:], 
-                                done[num_b4_wrap:], discount[num_b4_wrap:])
-        else:
-            # Add the transition
-            def add_to_buffer_helper(buffer, value):
-                if isinstance(buffer, dict):
-                    for k, v in buffer.items():
-                        add_to_buffer_helper(buffer[k], value[k])
-                elif isinstance(buffer, np.ndarray):
-                    buffer[self._idx:self._idx+num_to_add] = value
-                else:
-                    raise ValueError("Attempted buffer ran out of space!")
-            
-            add_to_buffer_helper(self._obs_buffer, obs)
-            add_to_buffer_helper(self._action_buffer, action)
-            add_to_buffer_helper(self._reward_buffer, reward)
-            add_to_buffer_helper(self._discount_buffer, discount)
-            
-            add_to_buffer_helper(self._done_buffer, done)
-            self._idx = (self._idx + num_to_add) % self._capacity
-            self._size = min(self._size + num_to_add, self._capacity)
-    
-    def add_to_current_ep(self, key, value):
-        if isinstance(value, dict):
-            for k, v in value.items():
-                self.add_to_current_ep(key + '_' + k, v)
-        else:
-            self.current_ep[key].append(value)
+        # TODO: Need to think about how to load data among multiple workers when
+        # multiple policies are being trained.
+        if self.num_workers != 1:
+            raise NotImplementedError("Multiple workers not supported yet.")
 
-    def add(self, obs, action=None, reward=None, done=None, discount=None):
-        # Make sure that if we are adding the first transition, it is consistent
-        assert (action is None) == (reward is None) == (done is None) == (discount is None)
-        if action is None:
-            # construct dummy transition
-            action = self.action_space.sample()
-            reward = 0.0
-            done = False
-            discount = 1.0
-        
-        # Case 1: Not Parallel and Cleanup: just add to buffer
-        if not self.is_parallel:
-            # Deep copy to make sure we don't mess up references.
-            self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, done, discount)
-            if self.cleanup:
-                return # Exit if we clean up and don't save the buffer.
+        self._worker_capacity = self.capacity // self.num_workers
+        self._worker_buffers = {
+            "observation": create_buffer(self._observation_space, self.worker_capacity),
+            "action": create_buffer(self._action_space, self.worker_capacity),
+            "reward": np.full(self.worker_capacity, float("nan"), dtype=np.float32),
+            "discount": np.full(self.worker_capacity, float("nan"), dtype=np.float32),
+            "done": np.zeros(self.worker_capacity, dtype=bool),
+        }
+        self._worker_size = 0
+        self._worker_idx = 0
+        self._worker_idx_checkpoint = 0
 
-        # If we don't have a current episode list, construct one.
-        if not hasattr(self, "current_ep"):
-            self.current_ep = collections.defaultdict(list)
+    def add(
+        self,
+        observation: Optional[Batch] = None,
+        action: Optional[Batch] = None,
+        reward: Optional[Union[np.ndarray, float]] = None,
+        next_observation: Optional[Batch] = None,
+        discount: Optional[Union[np.ndarray, float]] = None,
+        done: Optional[Union[np.ndarray, bool]] = None,
+        batch: Optional[Batch] = None,
+        max_entries: Optional[int] = None,
+    ) -> int:
+        """Adds an experience tuple to the replay buffer.
 
-        # Add values to the current episode
-        self.add_to_current_ep("obs", obs)
-        self.add_to_current_ep("action", action)
-        self.add_to_current_ep("reward", reward)
-        self.add_to_current_ep("done", done)
-        self.add_to_current_ep("discount", discount)
+        The experience can either be a single initial `observation`, a 5-tuple
+        (`action`, `reward`, `next_observation`, `discount`, `done`), or a
+        `batch` dict from buffer storage.
 
-        if done:
-            # save the episode
-            keys = list(self.current_ep.keys())
-            assert len(self.current_ep['reward']) == len(self.current_ep['done'])
-            obs_keys = [key for key in keys if "obs" in key]
-            action_keys = [key for key in keys if "action" in key]
-            assert len(obs_keys) > 0, "No observation key"
-            assert len(action_keys) > 0, "No action key"
-            assert len(self.current_ep[obs_keys[0]]) == len(self.current_ep['reward'])
-            # Commit to disk.
-            ep_idx = self.num_episodes
-            ep_len = len(self.current_ep['reward'])
-            episode = {}
-            for k, v in self.current_ep.items():
-                first_value = v[0]
-                if isinstance(first_value, np.ndarray):
-                    dtype = first_value.dtype
-                elif isinstance(first_value, int):
-                    dtype = np.int64
-                elif isinstance(first_value, float):
-                    dtype = np.float32
-                elif isinstance(first_value, bool):
-                    dtype = np.bool_
-                episode[k] = np.array(v, dtype=dtype)
-            # Delete the current_ep reference
-            self.current_ep = collections.defaultdict(list)
-            # Store the ep
-            self.num_episodes += 1
-            ts = datetime.datetime.now().strftime('%Y%m%dT%H%M%S')
-            ep_filename = f'{ts}_{ep_idx}_{ep_len}.npz'
-            save_episode(episode, os.path.join(self.storage_path, ep_filename))
+        The inputs can be single entries or batches.
 
-    def _load(self, path, cleanup=False):
-        ep_filenames = sorted([os.path.join(path, f) for f in os.listdir(path)], reverse=True)
-        fetched_size = 0
-        for ep_filename in ep_filenames:
-            ep_idx, ep_len = [int(x) for x in os.path.splitext(ep_filename)[0].split('_')[-2:]]
-            if ep_idx % self._num_workers != self._worker_id:
-                continue
-            if ep_filename in self._episode_filenames:
-                break # We found something we have already loaded
-            if fetched_size + ep_len > self._capacity:
-                break # Cannot fetch more than the size of the replay buffer
-            # Load the episode from disk
-            try:
-                episode = load_episode(ep_filename)
-            except:
-                continue
-            # Add the episode to the buffer
-            obs_keys = [key for key in episode.keys() if "obs" in key]
-            action_keys = [key for key in episode.keys() if "action" in key]
-            obs = {k[len("obs_"):]: episode[k] for k in obs_keys} if len(obs_keys) > 1 else episode[obs_keys[0]]
-            action = {k[len("action_"):]: episode[k] for k in action_keys} if len(action_keys) > 1 else episode[action_keys[0]]
-            self._add_to_buffer(obs, action, episode["reward"], episode["done"], episode["discount"])
-            # maintain the file list and storage
-            self._episode_filenames.add(ep_filename)
-            if cleanup:
-                try:
-                    os.remove(ep_filename)
-                except OSError:
-                    pass
+        Args:
+            observation: Initial observation.
+            action: Action.
+            reward: Reward.
+            next_observation: Next observation.
+            discount: Discount factor.
+            done: Whether episode is done.
+            batch: Batch dict. Useful for loading from disk.
+            max_entries: Limit the number of entries to add.
 
-    def _get_one_idx(self, strategy: SamplingStrategy):
-        # Add 1 for the first dummy transition
-        if strategy == ReplayBuffer.SamplingStrategy.DETERMINISTIC:
-            self._idx_deterministic += 1
-            idx = self._idx_deterministic
-            if idx >= self._size:
-                return None
-        else:
-            idx = np.random.randint(0, self._size - self.nstep) + 1
-
-        for i in range(self.nstep):
-            if self._done_buffer[idx + i - 1]: # We cannot come from a "done" observation, subtract one
-                # If the episode is done here, we need to get a new transition!
-                return self._get_one_idx(strategy) 
-        return idx
-
-    def _get_many_idxs(self, strategy: SamplingStrategy):
-        if strategy == ReplayBuffer.SamplingStrategy.DETERMINISTIC:
-            if self._idx_deterministic + 1 >= self._size:
-                return None
-            idxs = np.arange(
-                1 + self._idx_deterministic,
-                min(self._size, 1 + self._idx_deterministic + int(1.5 * self.batch_size)),
+        Returns:
+            Number of entries added.
+        """
+        if sum(arg is not None for arg in (observation, next_observation, batch)) != 1:
+            raise ValueError(
+                "Only one of observation, next_observation, or batch can be specified."
             )
+        if not (
+            (action is None)
+            == (reward is None)
+            == (next_observation is None)
+            == (discount is None)
+            == (done is None)
+        ):
+            raise ValueError(
+                "(action, reward, next_observation, discount, done) need to be set together."
+            )
+
+        if observation is not None:
+            buffers = self.worker_buffers["observation"]
+            batch = observation
+        elif batch is None:
+            buffers = self.worker_buffers
+            batch = {
+                "observation": next_observation,
+                "action": action,
+                "reward": reward,
+                "discount": discount,
+                "done": done,
+            }
         else:
-            idxs = np.random.randint(0, self._size - self.nstep, size=int(1.5*self.batch_size)) + 1
+            buffers = self.worker_buffers
 
-        valid = np.ones(idxs.shape, dtype=np.bool_)
-        # Mark all the invalid transitions
+        idx_start = self._worker_idx
+        num_added_structure = nest.map_structure(
+            functools.partial(_wrap_insert, idx=idx_start, max_entries=max_entries),
+            buffers,
+            batch,
+            atom_type=np.ndarray,
+        )
+        num_added = next(nest.structure_iterator(num_added_structure, atom_type=int))
+        idx_stop = idx_start + num_added
+
+        self._worker_idx = idx_stop
+        self._worker_size = min(self.worker_capacity, idx_stop)
+
+        if not isinstance(done, bool) or done:
+            len_checkpoint = self._worker_idx - self._worker_idx_checkpoint
+            if (
+                self.save_frequency is not None
+                and len_checkpoint >= self.save_frequency
+            ):
+                self.save()
+
+        return num_added
+
+    def sample(
+        self, sample_strategy: Optional[SampleStrategy] = None
+    ) -> Optional[Batch]:
+        """Samples a batch from the replay buffer.
+
+        Args:
+            sample_strategy: Optional sample strategy.
+
+        Returns:
+            Sample batch.
+        """
+        if sample_strategy is None:
+            sample_strategy = self.sample_strategy
+
+        # Ensure steps [t, t + nstep) aren't terminal steps.
+        len_buffer = self._worker_size
+        is_valid = np.roll(
+            self.worker_buffers["discount"] == self.worker_buffers["discount"], -1
+        )[:len_buffer]
+        is_not_terminal = ~self.worker_buffers["done"][:len_buffer]
+        # TODO: Bug with incomplete episodes due to wrapping.
         for i in range(self.nstep):
-            dones = self._done_buffer[idxs + i - 1]  # We cannot come from a "done" observation, subtract one
-            valid[dones == True] = False
-        valid_idxs = idxs[valid == True] # grab only the idxs that are still valid.
-        valid_idxs = valid_idxs[:self.batch_size] # Return the first [:batch_size] of them.
+            is_valid &= np.roll(is_not_terminal, -i)
 
-        if strategy == ReplayBuffer.SamplingStrategy.DETERMINISTIC:
-            self._idx_deterministic: int = valid_idxs[-1]
+        # Get sample indices.
+        batch_size = 1 if self.batch_size is None else self.batch_size
+        if sample_strategy == ReplayBuffer.SampleStrategy.SEQUENTIAL:
+            idx_start = self._idx_deterministic
+            num_entries = min(batch_size, len_buffer - idx_start)
+            if num_entries <= 0:
+                return None
+            self._idx_deterministic += num_entries
 
-        return valid_idxs
+            is_valid = is_valid[idx_start:]
+            idx_sample = idx_start + np.nonzero(is_valid)[0][:num_entries]
+            if len(idx_sample) == 0:
+                return None
+        else:
+            valid_indices = np.nonzero(is_valid)[0]
+            if len(valid_indices) == 0:
+                return {}
+            idx_sample = np.random.choice(valid_indices, size=batch_size)
 
-    def _sample(self, strategy: SamplingStrategy):
-        if self._size <= self.nstep + 2:
-            return {}
-        # NOTE: one small bug is that we won't end up being able to sample segments that span
-        # Across the barrier. We lose 1 to self.nstep transitions.
         if self.batch_size is None:
-            idxs = self._get_one_idx(strategy)
+            idx_sample = np.squeeze(idx_sample)
+
+        # Assemble sample dict.
+        observation = nest.map_structure(
+            functools.partial(_wrap_get, idx=idx_sample),
+            self.worker_buffers["observation"],
+            atom_type=np.ndarray,
+        )
+        next_observation = nest.map_structure(
+            functools.partial(_wrap_get, idx=idx_sample + self.nstep),
+            self.worker_buffers["observation"],
+            atom_type=np.ndarray,
+        )
+        action = nest.map_structure(
+            functools.partial(_wrap_get, idx=idx_sample + 1),
+            self.worker_buffers["action"],
+            atom_type=np.ndarray,
+        )
+        reward = np.zeros_like(self.worker_buffers["reward"][idx_sample])
+        discount = np.ones_like(self.worker_buffers["discount"][idx_sample])
+        for i in range(1, 1 + self.nstep):
+            idx_sample_i = (idx_sample + i) % self._worker_size
+            reward += discount * self.worker_buffers["reward"][idx_sample_i]
+            discount *= self.worker_buffers["discount"][idx_sample_i]
+
+        return {
+            "observation": observation,
+            "action": action,
+            "reward": reward,
+            "next_observation": next_observation,
+            "discount": discount,
+        }
+
+    def load(
+        self, path: Optional[pathlib.Path] = None, max_entries: Optional[int] = None
+    ) -> int:
+        """Loads replay buffer checkpoints from disk.
+
+        Args:
+            path: Location of checkpoints.
+            max_entries: Maximum number of entries to load.
+
+        Returns:
+            Number of entries loaded.
+        """
+        if path is None:
+            path = self.path
+        if path is None:
+            return 0
+
+        num_loaded = 0
+        checkpoint_paths = sorted(
+            path.iterdir(), key=lambda f: tuple(map(int, f.stem.split("_")[:-1]))
+        )
+        for checkpoint_path in tqdm.tqdm(checkpoint_paths):
+            with open(checkpoint_path, "rb") as f:
+                checkpoint = dict(np.load(f))
+            num_added = self.add(batch=checkpoint, max_entries=max_entries)
+            num_loaded += num_added
+
+            if max_entries is not None:
+                max_entries -= num_added
+                if max_entries <= 0:
+                    break
+
+        return num_loaded
+
+    def save(self, path: Optional[pathlib.Path] = None) -> int:
+        """Saves a replay buffer checkpoint to disk.
+
+        The checkpoint filename is saved as
+        "{timestamp}_{worker_id}_{checkpoint_size}.npz".
+
+        Args:
+            path: Location of checkpoints.
+
+        Returns:
+            Number of entries saved.
+        """
+        if path is None:
+            path = self.path
+        if path is None:
+            return 0
+
+        idx_start = self._worker_idx_checkpoint
+        idx_stop = self._worker_idx
+        if idx_stop < idx_start:
+            idx_stop += self.worker_capacity
+        checkpoint = self[idx_start:idx_stop]
+        len_checkpoint = idx_stop - idx_start
+
+        path.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        checkpoint_name = f"{timestamp}_{self.worker_id}_{len_checkpoint}"
+        with open(path / f"{checkpoint_name}.npz", "wb") as f:
+            np.savez_compressed(f, **checkpoint)
+
+        self._worker_idx_checkpoint = idx_stop
+
+        return len_checkpoint
+
+    def __getitem__(self, idx: Union[int, slice, Sequence[int]]):
+        """Gets the given entries from the buffers.
+
+        Args:
+            idx: Numpy-style indices.
+
+        Returns:
+            Buffer slices. May be mutable views of the original buffers or
+            temporary copies.
+        """
+        is_invalid = False
+        if isinstance(idx, int):
+            is_invalid = idx >= self._worker_idx
+        elif isinstance(idx, slice):
+            is_invalid = idx.start is not None and idx.start >= self._worker_idx
+            if idx.stop is not None and idx.stop > self._worker_idx:
+                idx = slice(idx.start, self._worker_idx, idx.step)
         else:
-            idxs = self._get_many_idxs(strategy)
-        if idxs is None:
-            return None
+            is_invalid = any(i >= self._worker_idx for i in idx)
+        if is_invalid:
+            raise ValueError(f"Cannot index beyond {self._worker_idx}: idx={idx}.")
 
-        obs_idxs = idxs - 1
-        next_obs_idxs = idxs + self.nstep - 1
+        return nest.map_structure(
+            functools.partial(_wrap_get, idx=idx),
+            self.worker_buffers,
+            atom_type=np.ndarray,
+        )
 
-        obs = {k:v[obs_idxs] for k, v in self._obs_buffer.items()} if isinstance(self._obs_buffer, dict) else self._obs_buffer[obs_idxs]
-        action = {k:v[idxs] for k, v in self._action_buffer.items()} if isinstance(self._action_buffer, dict) else self._action_buffer[idxs]
-        next_obs = {k:v[next_obs_idxs] for k, v in self._obs_buffer.items()} if isinstance(self._obs_buffer, dict) else self._obs_buffer[next_obs_idxs]
-        reward = np.zeros_like(self._reward_buffer[idxs])
-        discount = np.ones_like(self._discount_buffer[idxs])
-        for i in range(self.nstep):
-            step_reward = self._reward_buffer[idxs + i]
-            reward += discount * step_reward
-            discount *= self._discount_buffer[idxs + i] * self.discount
-        return dict(obs=obs, action=action, next_obs=next_obs, reward=reward, discount=discount)
+    def __iter__(self) -> Generator[Batch, None, None]:
+        """Iterates over the replay buffer."""
+        self.initialize()
 
-    @property
-    def sampling_strategy(self) -> SamplingStrategy:
-        return self._sampling_strategy
-
-    @sampling_strategy.setter
-    def sampling_strategy(self, strategy: SamplingStrategy) -> None:
-        self._sampling_strategy = strategy
-        if strategy == ReplayBuffer.SamplingStrategy.DETERMINISTIC:
+        if self.sample_strategy == ReplayBuffer.SampleStrategy.SEQUENTIAL:
             self._idx_deterministic = 0
 
-    def _setup(self):
-        assert not hasattr(self, "setup"), "Attempted to re-call iter on ReplayBuffer. Should only be called once!"
-        self.setup = True
-        worker_info = torch.utils.data.get_worker_info()
-        if worker_info is None:
-            # Be EXTREMELEY careful here to not modify any values that are in the parent object.
-            # This is only called if we are in the serial case!
-            self.is_serial = True
-
-        # Setup values to be used by this worker in setup
-        self._num_workers = worker_info.num_workers if worker_info is not None else 1
-        self._worker_id = worker_info.id if worker_info is not None else 0
-
-        self._setup_buffers()
-
-        # setup episode tracker to track loaded episodes
-        self._episode_filenames = set()
-        self._samples_since_last_load = 0
-
-        if self.preload_path is not None:
-            self._load(self.preload_path, cleanup=False) # Load any initial episodes
-
-    def __iter__(self):
         while True:
-            sample = self._sample(self.sampling_strategy)
+            sample = self.sample()
             if sample is None:
                 return
             yield sample
-            if self.is_parallel:
-                self._samples_since_last_load += 1
-                if self._samples_since_last_load >= self.fetch_every:
-                    self._load(self.storage_path, cleanup=self.cleanup)
-                    self._samples_since_last_load = 0
+
+
+def _wrap_insert(
+    dest: np.ndarray,
+    src: Union[np.ndarray, int, float, bool],
+    idx: int,
+    max_entries: Optional[int] = None,
+) -> int:
+    """Inserts entries into the destination buffer with wrapping indices.
+
+    Args:
+        dest: Destination buffer.
+        src: Source entry or batch.
+        idx: Index in destination buffer to start inserting.
+        max_entries: Optional maximum number of entries to insert.
+
+    Returns:
+        Number of entries added.
+    """
+    len_buffer = len(dest)
+    idx_start = idx % len_buffer
+    if isinstance(src, np.ndarray) and src.ndim == dest.ndim:
+        num_entries = len(src) if max_entries is None else min(max_entries, len(src))
+        idx_stop = idx_start + num_entries
+        idx_split = min(len_buffer, idx_stop)
+        num_added = idx_split - idx_start
+        dest[idx_start:idx_split] = src[:num_added]
+
+        if idx_split != idx_stop:
+            new_max_entries = None if max_entries is None else max_entries - num_added
+            return num_added + _wrap_insert(dest, src[num_added:], 0, new_max_entries)
+    else:
+        dest[idx_start] = src
+        num_added = 1
+
+    return num_added
+
+
+def _wrap_get(
+    buffer: np.ndarray,
+    idx: Union[int, slice, Sequence[int]],
+) -> np.ndarray:
+    """Gets entries from the buffer with wrapping indices.
+
+    Args:
+        buffer: Buffer.
+        idx: Numpy-style indices.
+
+    Returns:
+        Buffer slices. May be mutable views of the original buffers or temporary
+        copies.
+    """
+    len_buffer = len(buffer)
+    if isinstance(idx, int):
+        return buffer[idx % len_buffer]
+
+    if not isinstance(idx, slice):
+        idx = [i % len_buffer for i in idx]
+        return buffer[idx]
+
+    # Compute number of desired entries.
+    idx_start = 0 if idx.start is None else idx.start
+    idx_stop = len_buffer if idx.stop is None else idx.stop
+    num_entries = min(len_buffer, idx_stop - idx_start)
+    if num_entries < 0:
+        raise ValueError(f"Invalid slice {idx}.")
+
+    # Wrap idx_start to range [0, len_buffer).
+    idx_start = idx_start % len_buffer
+    idx_stop = idx_start + num_entries
+    idx_step = idx.step
+
+    if num_entries > len_buffer:
+        len_wrap = num_entries - (len_buffer - idx_start)
+        wrapped_buffer = np.concatenate(
+            buffer[idx_start:len_buffer], buffer[:len_wrap], axis=0
+        )
+        return wrapped_buffer[::idx_step]
+    else:
+        return buffer[idx_start:idx_stop:idx_step]

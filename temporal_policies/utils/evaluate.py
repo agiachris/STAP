@@ -24,7 +24,7 @@ def eval_policy(
         
         obs = env.reset()
         if dataset is not None:
-            dataset.add(obs)
+            dataset.add(observation=obs)
         while not done:
             with torch.no_grad():
                 action = model.predict(obs)
@@ -40,7 +40,13 @@ def eval_policy(
                     discount = info["discount"]
                 else:
                     discount = 1 - float(done)
-                dataset.add(obs, action, reward, done, discount)
+                dataset.add(
+                    action=action,
+                    reward=reward,
+                    next_observation=obs,
+                    discount=discount,
+                    done=done
+                )
 
         ep_rewards.append(ep_reward)
         ep_lengths.append(ep_length)

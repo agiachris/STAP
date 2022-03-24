@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Optional, Type
 
 import torch  # type: ignore
 
@@ -31,24 +31,24 @@ class ConcatenatedDynamicsModel(torch.nn.Module):
             [network_class(**network_kwargs) for _ in range(num_policies)]
         )
 
-    def forward(
-        self, latent: torch.Tensor, policy_params: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, latent: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         """Calls all subnetworks and concatenates the results.
 
         Computes z' = T_a(z, theta_a).
 
         Args:
             latent: Current latent state.
-            policy_params: Policy parameters (for a single policy).
+            action: Policy action (for a single policy).
 
         Returns:
             Concatenated latent prediction z' for a single policy action.
         """
-        policy_latents = torch.reshape(latent, (self._num_policies, -1))
+        policy_latents = torch.reshape(
+            latent, (*latent.shape[:-1], self._num_policies, -1)
+        )
         next_latents = [
-            model_a(policy_latent, policy_params)
-            for policy_latent, model_a in zip(policy_latents, self.models)
+            model_a(policy_latents[..., i, :], action)
+            for i, model_a in enumerate(self.models)
         ]
         next_latents = torch.cat(next_latents, dim=-1)
         return next_latents
@@ -89,7 +89,10 @@ class DecoupledDynamicsModel(torch.nn.Module):
         )
 
     def forward(
-        self, latents: torch.Tensor, policy_indices: torch.Tensor, policy_params: Any
+        self,
+        latents: torch.Tensor,
+        policy_indices: torch.Tensor,
+        actions: torch.Tensor,
     ) -> torch.Tensor:
         """Predicts the next latent state using separate dynamics model per
         action.
@@ -97,28 +100,18 @@ class DecoupledDynamicsModel(torch.nn.Module):
         Args:
             latents: Current latent state.
             policy_indices: Index of executed policy.
-            policy_params: Policy parameters.
+            actions: Policy action.
 
         Returns:
             Prediction of next latent state.
         """
-        if latents.dim == 1:
-            assert policy_indices.numel == 1
-
-            next_latent = self.models[policy_indices](latents, policy_params)
-        else:
-            assert latents.shape[0] == policy_indices.shape[0]
-            assert policy_indices.shape[0] == len(policy_params)
-
-            next_latents = [
-                self.models[idx_policy](latent, params)
-                for latent, idx_policy, params in zip(
-                    latents, policy_indices, policy_params
-                )
-            ]
-            next_latent = torch.stack(next_latents, dim=0)
-
-        return next_latent
+        next_latents = torch.full_like(latents, float("nan"))
+        for i, policy_model in enumerate(self.models):
+            idx_policy = policy_indices == i
+            next_latents[idx_policy] = policy_model(
+                latents[idx_policy], actions[idx_policy]
+            )
+        return next_latents
 
 
 class DecoupledDynamics(dynamics.DynamicsModel):
@@ -140,6 +133,8 @@ class DecoupledDynamics(dynamics.DynamicsModel):
         dataset_kwargs: Dict[str, Any],
         optimizer_class: Type[torch.optim.Optimizer],
         optimizer_kwargs: Dict[str, Any],
+        scheduler_class: Optional[Type[torch.optim.lr_scheduler._LRScheduler]],
+        scheduler_kwargs: Dict[str, Any],
     ):
         """Initializes the dynamics model network, dataset, and optimizer.
 
@@ -151,6 +146,8 @@ class DecoupledDynamics(dynamics.DynamicsModel):
             dataset_kwargs: Kwargs for dataset class.
             optimizer_class: Dynamics model optimizer class.
             optimizer_kwargs: Kwargs for optimizer class.
+            scheduler_class: Dynamics model learning rate scheduler class.
+            scheduler_class: Kwargs for scheduler class.
         """
         super().__init__(
             policies=policies,
@@ -164,6 +161,8 @@ class DecoupledDynamics(dynamics.DynamicsModel):
             dataset_kwargs=dataset_kwargs,
             optimizer_class=optimizer_class,
             optimizer_kwargs=optimizer_kwargs,
+            scheduler_class=scheduler_class,
+            scheduler_kwargs=scheduler_kwargs,
         )
 
     def encode(self, observation: Any, idx_policy: torch.Tensor) -> torch.Tensor:
@@ -177,6 +176,7 @@ class DecoupledDynamics(dynamics.DynamicsModel):
         Returns:
             Concatenated latent state vector of size [Z * A].
         """
-        zs = [policy.network.encoder(observation) for policy in self.policies]
-        z = torch.cat(zs, dim=-1)
+        with torch.no_grad():
+            zs = [policy.network.encoder(observation) for policy in self.policies]
+            z = torch.cat(zs, dim=-1)
         return z
