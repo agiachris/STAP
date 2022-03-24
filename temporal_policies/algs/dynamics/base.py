@@ -173,12 +173,12 @@ class DynamicsModel(abc.ABC):
         Args:
             latent: Current latent state.
             idx_policy: Index of executed policy.
-            policy_params: Policy parameters.
+            action: Policy action.
 
         Returns:
             Prediction of next latent state.
         """
-        dz = self.network(latent, idx_policy, policy_params)
+        dz = self.network(latent, idx_policy, action)
         return latent + dz
 
     def encode(self, observation: Any, idx_policy: torch.Tensor) -> torch.Tensor:
