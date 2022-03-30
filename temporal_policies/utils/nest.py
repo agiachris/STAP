@@ -10,7 +10,8 @@ from typing import (
     Union,
 )
 
-import numpy as np
+import numpy as np  # type: ignore
+import torch  # type: ignore
 
 # mypy doesn't support recursive types, so we define two levels of recursion.
 StructureAtom = Any
@@ -23,6 +24,7 @@ def map_structure(
     *args: NestedStructure,
     atom_type: Union[Type, Tuple[Type, ...]] = (
         np.ndarray,
+        torch.Tensor,
         float,
         int,
         bool,
@@ -57,6 +59,7 @@ def structure_iterator(
     structure: NestedStructure,
     atom_type: Union[Type, Tuple[Type, ...]] = (
         np.ndarray,
+        torch.Tensor,
         float,
         int,
         bool,

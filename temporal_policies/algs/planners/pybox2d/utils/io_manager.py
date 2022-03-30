@@ -127,7 +127,7 @@ class IOManager(TaskManager):
         if not use_learned_dynamics and utils.contains_tensors(actions):
             actions = utils.to_np(actions)
         elif use_learned_dynamics and isinstance(actions, np.ndarray):
-            actions = utils.to_tensor(actions).to_device(self._device)
+            actions = utils.to_tensor(actions).to(self._device)
         return actions
 
     def _use_learned_dynamics(self, idx_action: int) -> bool:
@@ -211,13 +211,18 @@ class IOManager(TaskManager):
         returns = self._get_model(idx).network.critic(states)
         return self._post_process_outputs(returns, is_np, is_batched)
 
-    def _q_value_fn(self, idx, states, actions):
+    def _q_value_fn(self, idx_action: int, states, actions):
         """Compute Q(s, a)."""
         states, actions, is_np, is_batched = self._pre_process_states_actions(
             states, actions
         )
-        q1, q2 = self._get_model(idx).network.critic(states, actions)
-        returns = torch.min(q1, q2)
+        if self._use_learned_dynamics(idx_action):
+            # TODO: Find way to map repeated action indices to unique policy indices.
+            idx_policy = torch.full((states.shape[0],), idx_action, dtype=torch.int64).to(self._device)
+            states = self.dynamics_model.decode(states, idx_policy)
+
+        q1, q2 = self._get_model(idx_action).network.critic(states, actions)
+        returns = torch.min(q1, q2).cpu().detach()
         return self._post_process_outputs(returns, is_np, is_batched)
 
     def _random_policy(self, envs, samples=1):
@@ -228,10 +233,15 @@ class IOManager(TaskManager):
             return envs.action_space.sample()
         return np.array([envs.action_space.sample() for _ in range(samples)])
 
-    def _policy(self, idx, states, **kwargs):
+    def _policy(self, idx_action: int, states, **kwargs):
         """Query the policy for actions given states."""
         states, is_np, is_batched = self._pre_process_inputs(states)
-        actions = self._get_model(idx).predict(states, is_batched=True, **kwargs)
+        if self._use_learned_dynamics(idx_action):
+            # TODO: Find way to map repeated action indices to unique policy indices.
+            idx_policy = torch.full((states.shape[0],), idx_action, dtype=torch.int64).to(self._device)
+            states = self.dynamics_model.decode(states, idx_policy)
+
+        actions = self._get_model(idx_action).predict(states, is_batched=True, **kwargs)
         return self._post_process_outputs(actions, is_np, is_batched)
 
     def _sample_policy(
@@ -299,13 +309,19 @@ class IOManager(TaskManager):
         )
 
         # TODO: Find way to map repeated action indices to unique policy indices.
-        idx_policy = torch.full(actions.shape[0], idx_action, dtype=torch.int32)
+        idx_policy = torch.full((actions.shape[0],), idx_action, dtype=torch.int32)
 
         next_states = self.dynamics_model.forward(states, idx_policy, actions)
         return self._post_process_outputs(next_states, is_np, is_batched)
 
-    def _encode_state(self, idx, states):
+    def _encode_state(
+        self, idx_action: int, states: Union[torch.Tensor, np.ndarray]
+    ) -> Union[torch.Tensor, np.ndarray]:
         """Encode into latent state."""
         states, is_np, is_batched = self._pre_process_inputs(states)
-        latents = self._get_model(idx).network.dynamics.encode(states)
+
+        # TODO: Find way to map repeated action indices to unique policy indices.
+        idx_policy = torch.full((states.shape[0],), idx_action, dtype=torch.int32)
+
+        latents = self.dynamics_model.encode(states, idx_policy)
         return self._post_process_outputs(latents, is_np, is_batched)

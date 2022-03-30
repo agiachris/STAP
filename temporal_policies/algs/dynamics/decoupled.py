@@ -44,7 +44,12 @@ class ConcatenatedDynamicsModel(torch.nn.Module):
             Concatenated latent prediction z' for a single policy action.
         """
         policy_latents = torch.reshape(
-            latent, (*latent.shape[:-1], self._num_policies, -1)
+            latent,
+            (
+                *latent.shape[:-1],
+                self._num_policies,
+                latent.shape[-1] // self._num_policies,
+            ),
         )
         next_latents = [
             model_a(policy_latents[..., i, :], action)
@@ -164,6 +169,7 @@ class DecoupledDynamics(dynamics.DynamicsModel):
             scheduler_class=scheduler_class,
             scheduler_kwargs=scheduler_kwargs,
         )
+        self._num_policies = len(policies)
 
     def encode(self, observation: Any, idx_policy: torch.Tensor) -> torch.Tensor:
         """Encodes the observation as a concatenation of latent states for each
@@ -180,3 +186,23 @@ class DecoupledDynamics(dynamics.DynamicsModel):
             zs = [policy.network.encoder(observation) for policy in self.policies]
             z = torch.cat(zs, dim=-1)
         return z
+
+    def decode(self, latent: torch.Tensor, idx_policy: torch.Tensor) -> Any:
+        """Extracts the policy observations from the concatenated latent states.
+
+        Args:
+            latent: Encoded latent state.
+            idx_policy: Index of executed policy.
+
+        Returns:
+            Decoded policy observation.
+        """
+        policy_latents = torch.reshape(
+            latent, (*latent.shape[:-1], self._num_policies, -1)
+        )
+        idx_policy = (
+            idx_policy.unsqueeze(-1)
+            .unsqueeze(-1)
+            .expand(*idx_policy.shape, 1, policy_latents.shape[-1])
+        )
+        return torch.gather(policy_latents, dim=1, index=idx_policy).squeeze(1)

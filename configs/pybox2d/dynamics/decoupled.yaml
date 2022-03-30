@@ -17,13 +17,13 @@ checkpoint: null # A checkpoint to initialize the network from.
 
 dataset: ReplayBuffer
 dataset_kwargs:
-  capacity: 10000
+  capacity: 1000000
   batch_size: 1024
   sample_strategy: uniform
 
 train_kwargs: # Arguments given to Algorithm.train
-  total_steps: 10000 # The total number of steps to train
-  log_freq: 100 # How often to log values
-  eval_freq: 1000 # How often to run evals
+  total_steps: 250000 # The total number of steps to train
+  log_freq: 250 # How often to log values
+  eval_freq: 10000 # How often to run evals
   workers: 0 # Number of dataloader workers.
   profile_freq: 50

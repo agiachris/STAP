@@ -15,7 +15,7 @@ class Box2DPlannerBase(IOManager, ABC):
         settings = {
             "default_actor": self._default_actor,
             "default_critic": self._default_critic,
-            "default_model": self._default_model,
+            "default_dynamics": self._default_dynamics,
             "mode": self._mode,
         }
         return deepcopy(settings)

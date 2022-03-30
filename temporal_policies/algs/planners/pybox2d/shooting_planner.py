@@ -1,6 +1,8 @@
 import numpy as np  # type: ignore
 from copy import deepcopy
 
+import torch
+
 from .pybox2d_base import Box2DPlannerBase
 
 
@@ -64,6 +66,8 @@ class ShootingPlanner(Box2DPlannerBase):
                 "states": curr_state,
                 "actions": curr_actions,
             }
+            # TODO: Preload envs to avoid overhead.
+            curr_envs = self._clone_env(idx_action, env, num=num)
         else:
             curr_envs = self._clone_env(idx_action, env, num=num)
             simulation_kwargs = {
@@ -92,6 +96,9 @@ class ShootingPlanner(Box2DPlannerBase):
                     next_states = np.array(
                         [next_env._get_observation() for next_env in next_envs]
                     )
+                else:
+                    # TODO: Preload envs to avoid overhead.
+                    next_envs = self._load_env(var, curr_envs)
 
                 actor_kwargs = {"envs": next_envs, "states": next_states}
                 next_actions = self._actor_interface(var, **actor_kwargs)
@@ -110,6 +117,8 @@ class ShootingPlanner(Box2DPlannerBase):
                     next_states = np.array(
                         [next_env._get_observation() for next_env in next_envs]
                     )
+                else:
+                    next_envs = self._load_env(sim_idx, curr_envs)
 
                 actor_kwargs = {"envs": next_envs, "states": next_states}
                 next_actions = self._actor_interface(sim_idx, **actor_kwargs)
@@ -125,4 +134,9 @@ class ShootingPlanner(Box2DPlannerBase):
 
             stack.extend(to_stack)
 
-        return curr_actions[curr_returns.argmax()]
+        best_action = curr_actions[curr_returns.argmax()]
+
+        if isinstance(best_action, torch.Tensor):
+            best_action = best_action.cpu().detach().numpy()
+
+        return best_action

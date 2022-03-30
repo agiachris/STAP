@@ -1,6 +1,8 @@
 import numpy as np  # type: ignore
 from copy import deepcopy
 
+import torch
+
 from .pybox2d_base import Box2DPlannerBase
 
 
@@ -68,9 +70,10 @@ class CrossEntropyMethod(Box2DPlannerBase):
 
     def _init_mean(self, relative=True):
         if self._use_policy_actor(self._idx):
-            return self._policy(
-                self._idx, self._env._get_observation(), **self._policy_kwargs
-            )
+            state = self._env._get_observation()
+            if self._use_learned_dynamics(self._idx):
+                state = self._encode_state(self._idx, state)
+            return self._policy(self._idx, state, **self._policy_kwargs)
         low = self._env.action_space.low
         high = self._env.action_space.high
         if relative:
@@ -149,31 +152,39 @@ class CrossEntropyMethod(Box2DPlannerBase):
 
         return self._optimal_action if self._best_action else self._mean
 
-    def _parallel_rollout(self, idx, env, branches):
+    def _parallel_rollout(self, idx_action: int, env, branches):
         """Parallelize computation for faster trajectory simulation. Use this method
         for model-based forward prediction when the state evolution can be batched.
         """
         # Compute current V(s) or Q(s, a)
-        use_learned_dynamics = self._use_learned_dynamics(idx)
+        use_learned_dynamics = self._use_learned_dynamics(idx_action)
         curr_state = env._get_observation()
         if use_learned_dynamics:
-            curr_state = self._encode_state(idx, curr_state)
+            curr_state = self._encode_state(idx_action, curr_state)
         curr_actions = self._sample_actions()
         critic_kwargs = {"states": curr_state, "actions": curr_actions}
-        curr_returns = self._critic_interface(idx, **critic_kwargs)
+        curr_returns = self._critic_interface(idx_action, **critic_kwargs)
 
         # Simulate forward environments
         num = None if use_learned_dynamics else curr_actions.shape[0]
-        curr_envs = self._clone_env(idx, env, num=num)
-        simulation_kwargs = {
-            "envs": curr_envs,
-            "states": curr_state,
-            "actions": curr_actions,
-        }
-        next_states, _ = self._simulate_interface(idx, **simulation_kwargs)
+        if use_learned_dynamics:
+            simulation_kwargs = {
+                "states": curr_state,
+                "actions": curr_actions,
+            }
+            # TODO: Preload envs to avoid overhead.
+            curr_envs = self._clone_env(idx_action, env, num=num)
+        else:
+            curr_envs = self._clone_env(idx_action, env, num=num)
+            simulation_kwargs = {
+                "envs": curr_envs,
+                "states": curr_state,
+                "actions": curr_actions,
+            }
+        next_states, _ = self._simulate_interface(idx_action, **simulation_kwargs)
 
         # Rollout trajectories
-        stack = [(idx, curr_envs, next_states, branches)]
+        stack = [(idx_action, curr_envs, next_states, branches)]
         while stack:
             idx, curr_envs, next_states, branches = stack.pop()
             if not branches:
@@ -192,7 +203,8 @@ class CrossEntropyMethod(Box2DPlannerBase):
                         [next_env._get_observation() for next_env in next_envs]
                     )
                 else:
-                    next_envs = [self._load_env(var, curr_envs)] * len(next_states)
+                    # TODO: Preload envs to avoid overhead.
+                    next_envs = self._load_env(var, curr_envs)
 
                 actor_kwargs = {"envs": next_envs, "states": next_states}
                 next_actions = self._actor_interface(var, **actor_kwargs)
@@ -224,10 +236,13 @@ class CrossEntropyMethod(Box2DPlannerBase):
                 next_next_states, _ = self._simulate_interface(
                     sim_idx, **simulation_kwargs
                 )
-                if use_learned_dynamics:
-                    next_envs = next_envs[0]
                 to_stack.append((sim_idx, next_envs, next_next_states, sim_branches))
 
             stack.extend(to_stack)
+
+        if isinstance(curr_actions, torch.Tensor):
+            curr_actions = curr_actions.cpu().detach().numpy()
+        if isinstance(curr_returns, torch.Tensor):
+            curr_returns = curr_returns.cpu().detach().numpy()
 
         return curr_actions, curr_returns

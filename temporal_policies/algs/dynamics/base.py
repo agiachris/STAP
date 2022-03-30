@@ -196,6 +196,20 @@ class DynamicsModel(abc.ABC):
         assert type(observation) is torch.Tensor
         return observation
 
+    def decode(self, latent: torch.Tensor, idx_policy: torch.Tensor) -> Any:
+        """Decodes the latent state vector into an observation.
+
+        The base class returns the original observation.
+
+        Args:
+            latent: Encoded latent state.
+            idx_policy: Index of executed policy.
+
+        Returns:
+            Decoded observation.
+        """
+        return latent
+
     def compute_loss(
         self,
         observation: Any,
