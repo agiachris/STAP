@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import datetime
 import enum
 import functools
@@ -127,6 +129,32 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
     def initialize(self) -> None:
         """Initializes the buffers."""
 
+        # Set up only once.
+        if hasattr(self, "_worker_buffers"):
+            return
+
+        # TODO: Need to think about how to load data among multiple workers when
+        # multiple policies are being trained.
+        if self.num_workers != 1:
+            raise NotImplementedError("Multiple workers not supported yet.")
+
+        self._worker_capacity = self.capacity // self.num_workers
+        self._worker_buffers = self.create_default_batch(self.worker_capacity)
+        self._worker_valid_samples = np.zeros(self.worker_capacity, dtype=bool)
+        self._worker_size = 0
+        self._worker_idx = 0
+        self._worker_idx_checkpoint = 0
+
+    def create_default_batch(self, size: int) -> Batch:
+        """Creates a batch of the specified size with default values.
+
+        Args:
+            size: Batch size.
+
+        Returns:
+            Batch dict with observation, action, reward, discount, done fields.
+        """
+
         def create_buffer(space: gym.spaces.Space, capacity: int):
             if isinstance(space, gym.spaces.Discrete):
                 return np.full(capacity, space.start - 1, dtype=np.int64)
@@ -141,26 +169,13 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             else:
                 raise ValueError("Invalid space provided")
 
-        # Set up only once.
-        if hasattr(self, "_worker_buffers"):
-            return
-
-        # TODO: Need to think about how to load data among multiple workers when
-        # multiple policies are being trained.
-        if self.num_workers != 1:
-            raise NotImplementedError("Multiple workers not supported yet.")
-
-        self._worker_capacity = self.capacity // self.num_workers
-        self._worker_buffers = {
-            "observation": create_buffer(self._observation_space, self.worker_capacity),
-            "action": create_buffer(self._action_space, self.worker_capacity),
-            "reward": np.full(self.worker_capacity, float("nan"), dtype=np.float32),
-            "discount": np.full(self.worker_capacity, float("nan"), dtype=np.float32),
-            "done": np.zeros(self.worker_capacity, dtype=bool),
+        return {
+            "observation": create_buffer(self._observation_space, size),
+            "action": create_buffer(self._action_space, size),
+            "reward": np.full(size, float("nan"), dtype=np.float32),
+            "discount": np.full(size, float("nan"), dtype=np.float32),
+            "done": np.zeros(size, dtype=bool),
         }
-        self._worker_size = 0
-        self._worker_idx = 0
-        self._worker_idx_checkpoint = 0
 
     def add(
         self,
@@ -209,11 +224,20 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 "(action, reward, next_observation, discount, done) need to be set together."
             )
 
+        # Prepare batch.
         if observation is not None:
-            buffers = self.worker_buffers["observation"]
-            batch = observation
+            dim_observation = next(nest.structure_iterator(observation)).shape
+            dim_observation_space = next(
+                nest.structure_iterator(self.worker_buffers["observation"])
+            )
+            if len(dim_observation) == len(dim_observation_space):
+                batch_size = dim_observation[0]
+            else:
+                batch_size = 1
+
+            batch = self.create_default_batch(batch_size)
+            batch["observation"] = observation  # type: ignore
         elif batch is None:
-            buffers = self.worker_buffers
             batch = {
                 "observation": next_observation,
                 "action": action,
@@ -221,13 +245,12 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 "discount": discount,
                 "done": done,
             }
-        else:
-            buffers = self.worker_buffers
 
+        # Insert batch and advance indices.
         idx_start = self._worker_idx
         num_added_structure = nest.map_structure(
             functools.partial(_wrap_insert, idx=idx_start, max_entries=max_entries),
-            buffers,
+            self.worker_buffers,
             batch,
             atom_type=np.ndarray,
         )
@@ -237,7 +260,23 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self._worker_idx = idx_stop
         self._worker_size = min(self.worker_capacity, idx_stop)
 
-        if not isinstance(done, bool) or done:
+        # Compute valid samples.
+        idx_batch = slice(max(0, idx_start - self.nstep), idx_stop)
+        batch_done = _wrap_get(self.worker_buffers["done"], idx_batch)
+        batch_discount = _wrap_get(self.worker_buffers["discount"], idx_batch)
+        batch_valid = np.zeros_like(batch_done)
+
+        # Ensure steps [t, t + nstep) are valid, non-terminal steps.
+        batch_valid[:-1] = ~batch_done[:-1] & ~np.isnan(batch_discount[1:])
+        for i in range(1, self.nstep):
+            j = i + 1
+            batch_valid[:-j] &= batch_done[i:-1] & ~np.isnan(batch_discount[j:])
+        _wrap_insert(self._worker_valid_samples, batch_valid, idx_batch.start)
+
+        # Save checkpoint.
+        if (isinstance(done, bool) and done) or (
+            isinstance(done, np.ndarray) and np.any(done)
+        ):
             len_checkpoint = self._worker_idx - self._worker_idx_checkpoint
             if (
                 self.save_frequency is not None
@@ -248,50 +287,48 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         return num_added
 
     def sample(
-        self, sample_strategy: Optional[SampleStrategy] = None
+        self,
+        sample_strategy: Optional[SampleStrategy] = None,
+        batch_size: Optional[int] = None,
     ) -> Optional[Batch]:
         """Samples a batch from the replay buffer.
 
         Args:
             sample_strategy: Optional sample strategy.
+            batch_size: Optional batch size. Otherwise uses default batch size.
 
         Returns:
             Sample batch.
         """
         if sample_strategy is None:
             sample_strategy = self.sample_strategy
-
-        # Ensure steps [t, t + nstep) aren't terminal steps.
-        len_buffer = self._worker_size
-        is_valid = np.roll(
-            self.worker_buffers["discount"] == self.worker_buffers["discount"], -1
-        )[:len_buffer]
-        is_not_terminal = ~self.worker_buffers["done"][:len_buffer]
-        # TODO: Bug with incomplete episodes due to wrapping.
-        for i in range(self.nstep):
-            is_valid &= np.roll(is_not_terminal, -i)
+        if batch_size is None:
+            batch_size = self.batch_size
 
         # Get sample indices.
-        batch_size = 1 if self.batch_size is None else self.batch_size
+        len_buffer = self._worker_size
+        valid_samples = self._worker_valid_samples[:len_buffer]
         if sample_strategy == ReplayBuffer.SampleStrategy.SEQUENTIAL:
             idx_start = self._idx_deterministic
-            num_entries = min(batch_size, len_buffer - idx_start)
+            num_entries = min(
+                1 if batch_size is None else batch_size, len_buffer - idx_start
+            )
             if num_entries <= 0:
                 return None
             self._idx_deterministic += num_entries
 
-            is_valid = is_valid[idx_start:]
-            idx_sample = idx_start + np.nonzero(is_valid)[0][:num_entries]
-            if len(idx_sample) == 0:
+            valid_indices = np.nonzero(valid_samples[idx_start:])[0][:num_entries]
+            valid_indices[:num_entries]
+            if len(valid_indices) == 0:
                 return None
+            elif batch_size is None:
+                valid_indices = valid_indices[0]
+            idx_sample = valid_indices + idx_start
         else:
-            valid_indices = np.nonzero(is_valid)[0]
+            valid_indices = np.nonzero(valid_samples)[0]
             if len(valid_indices) == 0:
                 return {}
             idx_sample = np.random.choice(valid_indices, size=batch_size)
-
-        if self.batch_size is None:
-            idx_sample = np.squeeze(idx_sample)
 
         # Assemble sample dict.
         observation = nest.map_structure(
@@ -504,11 +541,48 @@ def _wrap_get(
     idx_stop = idx_start + num_entries
     idx_step = idx.step
 
-    if num_entries > len_buffer:
+    if idx_stop > len_buffer:
         len_wrap = num_entries - (len_buffer - idx_start)
         wrapped_buffer = np.concatenate(
-            buffer[idx_start:len_buffer], buffer[:len_wrap], axis=0
+            (buffer[idx_start:len_buffer], buffer[:len_wrap]), axis=0
         )
         return wrapped_buffer[::idx_step]
     else:
         return buffer[idx_start:idx_stop:idx_step]
+
+
+if __name__ == "__main__":
+    observation_space = gym.spaces.Box(low=np.full(2, 0), high=np.full(2, 1))
+    action_space = gym.spaces.Box(low=0, high=1, shape=(1,))
+    replay_buffer = ReplayBuffer(
+        observation_space, action_space, capacity=5, batch_size=4
+    )
+
+    replay_buffer.initialize()
+    print(replay_buffer.worker_buffers)
+    print("SAMPLE", replay_buffer.sample())
+
+    for i in range(3):
+        v = 0.2 * i
+        replay_buffer.add(observation=np.full(2, v))
+        print("")
+        print(replay_buffer.worker_buffers)
+        print("SAMPLE", replay_buffer.sample())
+
+        replay_buffer.add(
+            next_observation=np.full(2, v + 0.1),
+            action=np.full(1, v + 0.1),
+            reward=v,
+            discount=0.99,
+            done=True,
+        )
+        print("")
+        print(replay_buffer.worker_buffers)
+        print("SAMPLE", replay_buffer.sample())
+
+    for i, batch in enumerate(replay_buffer):
+        if i > 2:
+            break
+        print("BATCH", batch)
+        print("")
+    # print("SAMPLE", replay_buffer.sample())

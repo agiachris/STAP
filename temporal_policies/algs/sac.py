@@ -64,14 +64,14 @@ class SAC(Algorithm):
 
     def _update_critic(self, batch):
         with torch.no_grad():
-            dist = self.network.actor(batch['next_obs'])
+            dist = self.network.actor(batch['next_observation'])
             next_action = dist.rsample()
             log_prob = dist.log_prob(next_action).sum(dim=-1)
-            target_q1, target_q2 = self.target_network.critic(batch['next_obs'], next_action)
+            target_q1, target_q2 = self.target_network.critic(batch['next_observation'], next_action)
             target_v = torch.min(target_q1, target_q2) - self.alpha.detach() * log_prob
             target_q = batch['reward'] + batch['discount']*target_v
 
-        q1, q2 = self.network.critic(batch['obs'], batch['action'])
+        q1, q2 = self.network.critic(batch['observation'], batch['action'])
         q1_loss = torch.nn.functional.mse_loss(q1, target_q)
         q2_loss = torch.nn.functional.mse_loss(q2, target_q)
         q_loss = q1_loss + q2_loss
@@ -84,7 +84,7 @@ class SAC(Algorithm):
                     target_q=target_q.mean().item())
     
     def _update_actor_and_alpha(self, batch):
-        obs = batch['obs'].detach() # Detach the encoder so it isn't updated.
+        obs = batch['observation'].detach() # Detach the encoder so it isn't updated.
         dist = self.network.actor(obs)
         action = dist.rsample()
         log_prob = dist.log_prob(action).sum(dim=-1)
@@ -148,16 +148,16 @@ class SAC(Algorithm):
         else:
             self._current_obs = next_obs
         
-        if self.steps < self.init_steps or not 'obs' in batch:
+        if self.steps < self.init_steps or not 'observation' in batch:
             return all_metrics
 
         updating_critic = self.steps % self.critic_freq == 0
         updating_actor = self.steps % self.actor_freq == 0
 
         if updating_actor or updating_critic:
-            batch['obs'] = self.network.encoder(batch['obs'])
+            batch['observation'] = self.network.encoder(batch['observation'])
             with torch.no_grad():
-                batch['next_obs'] = self.target_network.encoder(batch['next_obs'])
+                batch['next_observation'] = self.target_network.encoder(batch['next_observation'])
         
         if updating_critic:
             metrics = self._update_critic(batch)

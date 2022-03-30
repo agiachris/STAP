@@ -53,13 +53,13 @@ class RandomShiftsAug(Processor):
             batch = self._flatten(batch.float())
         elif isinstance(batch, dict):
             for k in batch.keys():
-                if 'obs' in k:
+                if 'observation' in k:
                     batch[k] = self._flatten(batch[k].float())
         if not self.training:
             return batch
         else:
             print("AUGED")
             for k in batch.keys():
-                if 'obs' in k:
+                if 'observation' in k:
                     batch[k] = self._aug(batch[k])
             return batch

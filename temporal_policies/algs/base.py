@@ -1,15 +1,15 @@
-import os
-import time
-import torch
-import numpy as np
-import random
-import copy
-import pathlib
-
-from abc import ABC, abstractmethod
+import abc
 from collections import defaultdict
+import copy
+import os
+import random
+import pathlib
+import time
 
-import temporal_policies
+import numpy as np  # type: ignore
+import torch  # type: ignore
+import tqdm  # type: ignore
+
 from temporal_policies.processors.base import IdentityProcessor
 from temporal_policies.utils.logger import Logger
 from temporal_policies.utils import utils
@@ -32,14 +32,17 @@ def log_from_dict(logger, loss_lists, prefix, log_stddev: bool = False):
     for key in keys_to_remove:
         del loss_lists[key]
 
+
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
     np.random.seed(seed)
     random.seed(seed)
 
+
 MAX_VALID_METRICS = {"reward", "accuracy"}
 
-class Algorithm(ABC):
+
+class Algorithm(abc.ABC):
 
     def __init__(self, env, network_class, dataset_class, 
                        network_kwargs={}, dataset_kwargs={},
@@ -188,7 +191,7 @@ class Algorithm(ABC):
         logger = Logger(path=path)
         print("[research] Model Directory:", path)
         print("[research] Training a model with", sum(p.numel() for p in self.network.parameters() if p.requires_grad), "trainable parameters.")
-        
+
         # Construct the dataloaders.
         self.setup_datasets()
         shuffle = not issubclass(self.dataset_class, torch.utils.data.IterableDataset)
@@ -220,121 +223,122 @@ class Algorithm(ABC):
         epochs = 0
         loss_lists = defaultdict(list)
         best_validation_metric = -1*float('inf') if loss_metric in MAX_VALID_METRICS else float('inf')
-        
+
         # Setup profiling
         start_time = current_time = time.time()
         profiling_lists = defaultdict(list)
 
         self.network.train()
-        
-        while self._steps < total_steps:
 
-            for batch in dataloader:
-                # Profiling
-                if profile_freq > 0 and self._steps % profile_freq == 0:
-                    stop_time = time.time()
-                    profiling_lists['dataset'].append(stop_time - current_time)
-                    current_time = stop_time
+        with tqdm.tqdm(total=total_steps) as pbar:
+            while self._steps < total_steps:
+                for batch in dataloader:
+                    # Profiling
+                    if profile_freq > 0 and self._steps % profile_freq == 0:
+                        stop_time = time.time()
+                        profiling_lists['dataset'].append(stop_time - current_time)
+                        current_time = stop_time
 
-                batch = self._format_batch(batch)
+                    batch = self._format_batch(batch)
 
-                if profile_freq > 0 and self._steps % profile_freq == 0:
-                    stop_time = time.time()
-                    profiling_lists['preprocess'].append(stop_time - current_time)
-                    current_time = stop_time
+                    if profile_freq > 0 and self._steps % profile_freq == 0:
+                        stop_time = time.time()
+                        profiling_lists['preprocess'].append(stop_time - current_time)
+                        current_time = stop_time
 
-                # Train the network
-                assert self.network.training, "Network was not in training mode and trainstep was called."
-                losses = self._train_step(batch)
-                for loss_name, loss_value in losses.items():
-                    loss_lists[loss_name].append(loss_value)
+                    # Train the network
+                    assert self.network.training, "Network was not in training mode and trainstep was called."
+                    losses = self._train_step(batch)
+                    for loss_name, loss_value in losses.items():
+                        loss_lists[loss_name].append(loss_value)
 
-                if profile_freq > 0 and self._steps % profile_freq == 0:
-                    stop_time = time.time()
-                    profiling_lists['train_step'].append(stop_time - current_time)
+                    if profile_freq > 0 and self._steps % profile_freq == 0:
+                        stop_time = time.time()
+                        profiling_lists['train_step'].append(stop_time - current_time)
 
-                # Increment the number of training steps.
-                self._steps += 1
+                    # Increment the number of training steps.
+                    self._steps += 1
 
-                # Update the schedulers
-                for scheduler in schedulers.values():
-                    scheduler.step()
+                    # Update the schedulers
+                    for scheduler in schedulers.values():
+                        scheduler.step()
 
-                # Run the logger
-                if self._steps % log_freq == 0:
-                    current_time = time.time()
-                    log_from_dict(logger, loss_lists, "train")
-                    logger.record("time/epochs", epochs)
-                    logger.record("time/steps_per_second", log_freq / (current_time - start_time))
-                    log_from_dict(logger, profiling_lists, "time")
-                    for name, scheduler in schedulers.items():
-                        logger.record("lr/" + name, scheduler.get_last_lr()[0])
-                    start_time = current_time
-                    logger.dump(step=self._steps)
+                    # Run the logger
+                    if self._steps % log_freq == 0:
+                        current_time = time.time()
+                        log_from_dict(logger, loss_lists, "train")
+                        logger.record("time/epochs", epochs)
+                        logger.record("time/steps_per_second", log_freq / (current_time - start_time))
+                        log_from_dict(logger, profiling_lists, "time")
+                        for name, scheduler in schedulers.items():
+                            logger.record("lr/" + name, scheduler.get_last_lr()[0])
+                        start_time = current_time
+                        logger.dump(step=self._steps)
 
-                if self._steps % eval_freq == 0:
-                    self.eval_mode()
-                    current_validation_metric = None
-                    if not validation_dataloader is None:
-                        eval_steps = 0
-                        validation_loss_lists = defaultdict(list)
-                        for batch in validation_dataloader:
-                            batch = self._format_batch(batch)
-                            losses = self._validation_step(batch)
-                            for loss_name, loss_value in losses.items():
-                                validation_loss_lists[loss_name].append(loss_value)
-                            eval_steps += 1
-                            if eval_steps == max_eval_steps:
-                                break
+                    if self._steps % eval_freq == 0:
+                        self.eval_mode()
+                        current_validation_metric = None
+                        if validation_dataloader is not None:
+                            eval_steps = 0
+                            validation_loss_lists = defaultdict(list)
+                            for batch in validation_dataloader:
+                                batch = self._format_batch(batch)
+                                losses = self._validation_step(batch)
+                                for loss_name, loss_value in losses.items():
+                                    validation_loss_lists[loss_name].append(loss_value)
+                                eval_steps += 1
+                                if eval_steps == max_eval_steps:
+                                    break
 
-                        if loss_metric in validation_loss_lists:
-                            current_validation_metric = np.mean(validation_loss_lists[loss_metric])
-                        log_from_dict(logger, validation_loss_lists, "valid")
+                            if loss_metric in validation_loss_lists:
+                                current_validation_metric = np.mean(validation_loss_lists[loss_metric])
+                            log_from_dict(logger, validation_loss_lists, "valid")
 
-                    # Now run any extra validation steps, independent of the validation dataset.
-                    validation_extras = self._validation_extras(path, self._steps, validation_dataloader)
-                    if loss_metric in validation_extras:
-                        current_validation_metric = validation_extras[loss_metric]
-                    log_from_dict(logger, validation_extras, "valid")
+                        # Now run any extra validation steps, independent of the validation dataset.
+                        validation_extras = self._validation_extras(path, self._steps, validation_dataloader)
+                        if loss_metric in validation_extras:
+                            current_validation_metric = validation_extras[loss_metric]
+                        log_from_dict(logger, validation_extras, "valid")
 
-                    # TODO: evaluation episodes.
-                    if self.eval_env is not None and eval_ep > 0:
-                        eval_metrics = eval_policy(self.eval_env, self, eval_ep, self.eval_dataset)
-                        if loss_metric in eval_metrics:
-                            current_validation_metric = eval_metrics[loss_metric]
-                        log_from_dict(logger, eval_metrics, "eval")
+                        # TODO: evaluation episodes.
+                        if self.eval_env is not None and eval_ep > 0:
+                            eval_metrics = eval_policy(self.eval_env, self, eval_ep, self.eval_dataset)
+                            if loss_metric in eval_metrics:
+                                current_validation_metric = eval_metrics[loss_metric]
+                            log_from_dict(logger, eval_metrics, "eval")
 
-                    if current_validation_metric is None:
-                        pass
-                    elif loss_metric in MAX_VALID_METRICS and current_validation_metric > best_validation_metric:
-                        self.save(path, "best_model")
-                        best_validation_metric = current_validation_metric
-                    elif current_validation_metric < best_validation_metric:
-                        self.save(path, "best_model")
-                        best_validation_metric = current_validation_metric
+                        if current_validation_metric is None:
+                            pass
+                        elif loss_metric in MAX_VALID_METRICS and current_validation_metric > best_validation_metric:
+                            self.save(path, "best_model")
+                            best_validation_metric = current_validation_metric
+                        elif current_validation_metric < best_validation_metric:
+                            self.save(path, "best_model")
+                            best_validation_metric = current_validation_metric
 
-                    # Eval Logger Dump to CSV
-                    logger.dump(step=self._steps, dump_csv=True) # Dump the eval metrics to CSV.
-                    self.save(path, "final_model") # Also save the final model every eval period.
-                    self.train_mode()
+                        # Eval Logger Dump to CSV
+                        logger.dump(step=self._steps, dump_csv=True)  # Dump the eval metrics to CSV.
+                        self.save(path, "final_model")  # Also save the final model every eval period.
+                        self.train_mode()
 
-                # Profiling
-                if profile_freq > 0 and self._steps % profile_freq == 0:
-                    current_time = time.time()
+                    # Profiling
+                    if profile_freq > 0 and self._steps % profile_freq == 0:
+                        current_time = time.time()
 
-                if self._steps >= total_steps:
-                    break
-                
-            epochs += 1
+                    pbar.update(1)
+                    if self._steps >= total_steps:
+                        break
 
-    @abstractmethod
+                epochs += 1
+
+    @abc.abstractmethod
     def _train_step(self, batch):
         '''
         Train the model. Should return a dict of loggable values
         '''
         pass
 
-    @abstractmethod
+    @abc.abstractmethod
     def _validation_step(self, batch):
         '''
         perform a validation step. Should return a dict of loggable values.
