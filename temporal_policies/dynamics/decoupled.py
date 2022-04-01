@@ -1,125 +1,14 @@
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, Optional, Sequence, Type
 
 import torch  # type: ignore
 
 
 from temporal_policies import agents
-from temporal_policies.dynamics import base as dynamics
+from temporal_policies.dynamics import latent as dynamics
+from temporal_policies.networks.dynamics import decoupled
 
 
-class ConcatenatedDynamicsModel(torch.nn.Module):
-    """Dynamics model `T_a` for a single policy `a` constructed from
-    concatenated latent spaces of all policies."""
-
-    def __init__(
-        self,
-        num_policies: int,
-        network_class: Type[torch.nn.Module],
-        network_kwargs: Dict[str, Any] = {},
-    ):
-        """Constructs `num_networks` instances of the given backend network,
-        whose results will be concatenated for the output latent predictions.
-
-        Args:
-            num_policies: Number of policies.
-            network: Backend network.
-            network_kwargs: Backend network arguments.
-        """
-        super().__init__()
-        self._num_policies = num_policies
-        self.models = torch.nn.ModuleList(
-            [network_class(**network_kwargs) for _ in range(num_policies)]
-        )
-
-    def forward(self, latent: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        """Calls all subnetworks and concatenates the results.
-
-        Computes z' = T_a(z, theta_a).
-
-        Args:
-            latent: Current latent state.
-            action: Policy action (for a single policy).
-
-        Returns:
-            Concatenated latent prediction z' for a single policy action.
-        """
-        policy_latents = torch.reshape(
-            latent,
-            (
-                *latent.shape[:-1],
-                self._num_policies,
-                latent.shape[-1] // self._num_policies,
-            ),
-        )
-        next_latents = [
-            model_a(policy_latents[..., i, :], action)
-            for i, model_a in enumerate(self.models)
-        ]
-        next_latents = torch.cat(next_latents, dim=-1)
-        return next_latents
-
-
-# TODO: Reuse for unified dynamics model.
-class DecoupledDynamicsModel(torch.nn.Module):
-    """Network module for the decoupled dynamics model."""
-
-    def __init__(
-        self,
-        policies: List[agents.Agent],
-        network_class: Type[torch.nn.Module],
-        network_kwargs: Dict[str, Any],
-    ):
-        """Constructs `num_networks` instances of ConcatenatedDynamicsModel.
-
-        Args:
-            num_policies: Number of policies.
-            network: Backend network.
-            network_kwargs: Backend network arguments.
-        """
-        super().__init__()
-
-        self._num_policies = len(policies)
-        self.models = torch.nn.ModuleList(
-            [
-                ConcatenatedDynamicsModel(
-                    self._num_policies,
-                    network_class,
-                    dict(
-                        network_kwargs,
-                        action_space=policy.env.action_space,
-                    ),
-                )
-                for policy in policies
-            ]
-        )
-
-    def forward(
-        self,
-        latents: torch.Tensor,
-        policy_indices: torch.Tensor,
-        actions: torch.Tensor,
-    ) -> torch.Tensor:
-        """Predicts the next latent state using separate dynamics model per
-        action.
-
-        Args:
-            latents: Current latent state.
-            policy_indices: Index of executed policy.
-            actions: Policy action.
-
-        Returns:
-            Prediction of next latent state.
-        """
-        next_latents = torch.full_like(latents, float("nan"))
-        for i, policy_model in enumerate(self.models):
-            idx_policy = policy_indices == i
-            next_latents[idx_policy] = policy_model(
-                latents[idx_policy], actions[idx_policy]
-            )
-        return next_latents
-
-
-class DecoupledDynamics(dynamics.DynamicsModel):
+class DecoupledDynamics(dynamics.LatentDynamics):
     """Dynamics model per action per action latent space.
 
     We train A*A dynamics models T_ab of the form:
@@ -131,7 +20,7 @@ class DecoupledDynamics(dynamics.DynamicsModel):
 
     def __init__(
         self,
-        policies: List[agents.Agent],
+        policies: Sequence[agents.RLAgent],
         network_class: Type[torch.nn.Module],
         network_kwargs: Dict[str, Any],
         dataset_class: Type[torch.utils.data.IterableDataset],
@@ -154,20 +43,24 @@ class DecoupledDynamics(dynamics.DynamicsModel):
             scheduler_class: Dynamics model learning rate scheduler class.
             scheduler_class: Kwargs for scheduler class.
         """
+        network = decoupled.DecoupledDynamicsModel(
+            policies=policies,
+            network_class=network_class,
+            network_kwargs=network_kwargs,
+        )
+        optimizer = optimizer_class(self.network.parameters(), **optimizer_kwargs)
+        if scheduler_class is None:
+            scheduler = None
+        else:
+            scheduler = scheduler_class(optimizer=optimizer, **scheduler_kwargs)
+
         super().__init__(
             policies=policies,
-            network_class=DecoupledDynamicsModel,
-            network_kwargs={
-                "policies": policies,
-                "network_class": network_class,
-                "network_kwargs": network_kwargs,
-            },
+            network=network,
             dataset_class=dataset_class,
             dataset_kwargs=dataset_kwargs,
-            optimizer_class=optimizer_class,
-            optimizer_kwargs=optimizer_kwargs,
-            scheduler_class=scheduler_class,
-            scheduler_kwargs=scheduler_kwargs,
+            optimizer=optimizer,
+            scheduler=scheduler,
         )
         self._num_policies = len(policies)
 
@@ -177,25 +70,25 @@ class DecoupledDynamics(dynamics.DynamicsModel):
 
         Args:
             observation: Common observation across all policies.
-            idx_policy: Unused.
+            idx_policy: Index of executed policy.
 
         Returns:
             Concatenated latent state vector of size [Z * A].
         """
         with torch.no_grad():
-            zs = [policy.network.encoder(observation) for policy in self.policies]
+            zs = [policy.encoder(observation) for policy in self.policies]
             z = torch.cat(zs, dim=-1)
         return z
 
     def decode(self, latent: torch.Tensor, idx_policy: torch.Tensor) -> Any:
-        """Extracts the policy observations from the concatenated latent states.
+        """Extracts the policy state from the concatenated latent states.
 
         Args:
             latent: Encoded latent state.
             idx_policy: Index of executed policy.
 
         Returns:
-            Decoded policy observation.
+            Decoded policy state.
         """
         policy_latents = torch.reshape(
             latent, (*latent.shape[:-1], self._num_policies, -1)
