@@ -4,6 +4,7 @@ from typing import (
     Callable,
     Generator,
     Iterator,
+    Optional,
     Sequence,
     Tuple,
     Type,
@@ -30,7 +31,8 @@ def map_structure(
         bool,
         str,
         type(None),
-    )
+    ),
+    skip_type: Optional[Union[Type, Tuple[Type, ...]]] = None,
 ) -> NestedStructure:
     """Applies the function over the nested structure atoms.
 
@@ -41,6 +43,7 @@ def map_structure(
         func: Function applied to the atoms of *args.
         *args: Nested structure arguments of `func`.
         atom_type: Types considered to be atoms in the nested structure.
+        skip_type: Types to be skipped and returned as-is in the nested structure.
 
     Returns:
         Results of func(*args_atoms) in the same nested structure as *args.
@@ -48,6 +51,8 @@ def map_structure(
     arg_0 = args[0]
     if isinstance(arg_0, atom_type):
         return func(*args)
+    elif skip_type is not None and isinstance(arg_0, skip_type):
+        return *args
     elif isinstance(arg_0, dict):
         return {key: map_structure(func, *(arg[key] for arg in args)) for key in arg_0}  # type: ignore
     else:
@@ -66,6 +71,7 @@ def structure_iterator(
         str,
         type(None),
     ),
+    skip_type: Optional[Union[Type, Tuple[Type, ...]]] = None,
 ) -> Iterator:
     """Provides an iterator over the atom values in the flattened nested structure.
 
@@ -82,6 +88,8 @@ def structure_iterator(
     ) -> Generator:
         if isinstance(structure, atom_type):
             yield structure
+        elif skip_type is not None and isinstance(structure, skip_type):
+            pass
         elif isinstance(structure, dict):
             for val in structure.values():
                 for elem in iterate_structure(val):

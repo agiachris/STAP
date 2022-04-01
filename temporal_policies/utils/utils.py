@@ -1,5 +1,9 @@
-import torch
-import numpy as np
+from typing import Tuple, Union
+
+import gym  # type: ignore
+import numpy as np  # type: ignore
+import torch  # type: ignore
+
 
 def to_device(batch, device):
     if isinstance(batch, dict):

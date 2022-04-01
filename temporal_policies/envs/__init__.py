@@ -1,6 +1,4 @@
-import inspect
-
-# Register environment classes here
+from .base import Env
 from .empty import Empty
 from . import pybox2d
 from .pybox2d.base import Box2DBase
@@ -8,6 +6,7 @@ from .pybox2d.base import Box2DBase
 # If we want to register environments in gym.
 # These will be loaded when we import the research package.
 from gym.envs import register
+import inspect
 
 for k, v in vars(pybox2d).items():
     if inspect.isclass(v) and issubclass(v, Box2DBase):
