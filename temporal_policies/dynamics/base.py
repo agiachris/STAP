@@ -1,17 +1,14 @@
 import abc
 import pathlib
-import re
-import sys
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import gym  # type: ignore
-import numpy as np
+import numpy as np  # type: ignore
 import torch  # type: ignore
 import tqdm  # type: ignore
 
-from temporal_policies.algs import base as algorithms
+from temporal_policies.agents import base as agents
 from temporal_policies.utils import logger, nest, trainer, timing, utils
-from temporal_policies import datasets
 
 PrimitiveConfig = Dict[str, Any]
 TaskConfig = List[PrimitiveConfig]
@@ -21,7 +18,7 @@ Batch = nest.NestedStructure
 
 def load_policies(
     task_config: TaskConfig, checkpoint_paths: List[str], device: str = "auto"
-) -> List[algorithms.Algorithm]:
+) -> List[agents.Agent]:
     """Loads the policy checkpoints with deterministic replay buffers to be used
     to train the dynamics model.
 
@@ -33,7 +30,7 @@ def load_policies(
     Returns:
         Ordered list of policies with loaded replay buffers.
     """
-    policies: List[algorithms.Algorithm] = []
+    policies: List[agents.Agent] = []
     for checkpoint_path in checkpoint_paths:
         policy = trainer.load_from_path(checkpoint_path, device=device, strict=True)
         policy.eval_mode()
@@ -48,7 +45,7 @@ class DynamicsModel(abc.ABC):
 
     def __init__(
         self,
-        policies: List[algorithms.Algorithm],
+        policies: List[agents.Agent],
         network_class: Type[torch.nn.Module],
         network_kwargs: Dict[str, Any],
         dataset_class: Type[torch.utils.data.IterableDataset],

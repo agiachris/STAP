@@ -4,7 +4,7 @@ from Box2D import *
 
 from .base import Box2DBase
 from .utils import shape_to_vertices
-from temporal_policies.algs.controllers.siso_control import SISOControl
+from temporal_policies.controllers.siso_control import SISOControl
 
 
 class PushLeft2DControl(Box2DBase):

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 import torch  # type: ignore
 import yaml  # type: ignore
 
-from temporal_policies.algs import dynamics
+from temporal_policies import dynamics
 from temporal_policies.utils.config import Config
 import temporal_policies.envs.pybox2d as pybox2d_envs
 from temporal_policies.utils.trainer import load_from_path

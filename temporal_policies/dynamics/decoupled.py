@@ -3,8 +3,8 @@ from typing import Any, Dict, List, Optional, Type
 import torch  # type: ignore
 
 
-from temporal_policies.algs import base as algorithms
-from temporal_policies.algs.dynamics import base as dynamics
+from temporal_policies import agents
+from temporal_policies.dynamics import base as dynamics
 
 
 class ConcatenatedDynamicsModel(torch.nn.Module):
@@ -65,7 +65,7 @@ class DecoupledDynamicsModel(torch.nn.Module):
 
     def __init__(
         self,
-        policies: List[algorithms.Algorithm],
+        policies: List[agents.Agent],
         network_class: Type[torch.nn.Module],
         network_kwargs: Dict[str, Any],
     ):
@@ -131,7 +131,7 @@ class DecoupledDynamics(dynamics.DynamicsModel):
 
     def __init__(
         self,
-        policies: List[algorithms.Algorithm],
+        policies: List[agents.Agent],
         network_class: Type[torch.nn.Module],
         network_kwargs: Dict[str, Any],
         dataset_class: Type[torch.utils.data.IterableDataset],

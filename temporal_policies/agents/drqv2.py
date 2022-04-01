@@ -2,7 +2,7 @@ import torch  # type: ignore
 import numpy as np  # type: ignore
 import itertools
 
-from .base import Algorithm
+from temporal_policies.agents import base as agents
 from temporal_policies.networks.base import ActorCriticPolicy
 
 
@@ -30,7 +30,7 @@ class TruncatedNormal(torch.distributions.Normal):
         return self._clamp(x)
 
 
-class DRQV2(Algorithm):
+class DRQV2(agents.Agent):
     def __init__(
         self,
         env,

@@ -2,12 +2,12 @@ import torch  # type: ignore
 import numpy as np  # type: ignore
 import itertools
 
-from .base import Algorithm
+from temporal_policies.agents import base as agents
 from temporal_policies.networks.base import ActorCriticPolicy
 from temporal_policies.utils.utils import to_tensor, to_device
 
 
-class TD3(Algorithm):
+class TD3(agents.Agent):
     def __init__(
         self,
         env,

@@ -10,7 +10,7 @@ from PIL import Image
 from .generator import Generator
 from .utils import rigid_body_2d, shape_to_vertices, to_homogenous
 from .visualization import draw_caption
-from temporal_policies.algs.base import Algorithm
+from temporal_policies.agent import Agent
 import temporal_policies.utils.utils as utils
 
 

@@ -30,7 +30,7 @@ def get_env_from_config(config):
 def get_model(config, device="auto"):
     assert isinstance(config, Config)
     config.parse() # Parse the config
-    alg_class = vars(temporal_policies.algs)[config['alg']]
+    alg_class = vars(temporal_policies.agents)[config['alg']]
     dataset_class = None if config['dataset'] is None else vars(temporal_policies.datasets)[config['dataset']]
     network_class = None if config['network'] is None else vars(temporal_policies.networks)[config['network']]
     optim_class = None if config['optim'] is None else vars(torch.optim)[config['optim']]
@@ -71,7 +71,7 @@ def train(config, path, device="auto"):
     
     model = get_model(config, device=device)
     model.path = path
-    assert issubclass(type(model), temporal_policies.algs.base.Algorithm)
+    assert issubclass(type(model), temporal_policies.agents.Agent)
     schedule = None if config['scheduler'] is None else vars(schedules)[config['scheduler']]
     model.train(path, schedule=schedule, schedule_kwargs=config['schedule_kwargs'], **config['train_kwargs'])
     model.dataset.save()

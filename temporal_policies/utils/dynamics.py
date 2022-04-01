@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Type
 import torch  # type: ignore
 
 import temporal_policies
-from temporal_policies.algs import dynamics
+from temporal_policies import dynamics
 
 
 def load_dynamics_model(

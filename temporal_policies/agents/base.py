@@ -42,7 +42,7 @@ def _worker_init_fn(worker_id):
 MAX_VALID_METRICS = {"reward", "accuracy"}
 
 
-class Algorithm(abc.ABC):
+class Agent(abc.ABC):
     def __init__(
         self,
         env,
