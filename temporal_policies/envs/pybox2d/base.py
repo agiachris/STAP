@@ -1,37 +1,39 @@
-import torch
-import numpy as np
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
+
 from gym import Env
-from abc import ABC, abstractmethod
-from skimage import draw
+import numpy as np
 from PIL import Image
+from skimage import draw
+import torch
 
 from .generator import Generator
 from .utils import rigid_body_2d, shape_to_vertices, to_homogenous
 from .visualization import draw_caption
-from temporal_policies.agent import Agent
 import temporal_policies.utils.utils as utils
+from temporal_policies import agents
 
 
 class Box2DBase(ABC, Env, Generator):
-
     @abstractmethod
-    def __init__(self, 
-                 max_episode_steps,
-                 steps_per_action, 
-                 observation_noise=0.0,
-                 time_steps=1.0/60.0, 
-                 vel_iters=10, 
-                 pos_iters=10,
-                 clear_forces=True,
-                 break_on_done=True,
-                 cumulative_reward=0.0,
-                 steps=0,
-                 physics_steps=0,
-                 physics_steps_buffer=0,
-                 buffer_frames=False,
-                 **kwargs):
+    def __init__(
+        self,
+        max_episode_steps,
+        steps_per_action,
+        observation_noise=0.0,
+        time_steps=1.0 / 60.0,
+        vel_iters=10,
+        pos_iters=10,
+        clear_forces=True,
+        break_on_done=True,
+        cumulative_reward=0.0,
+        steps=0,
+        physics_steps=0,
+        physics_steps_buffer=0,
+        buffer_frames=False,
+        **kwargs,
+    ):
         """Box2D environment base class.
 
         args:
@@ -39,7 +41,7 @@ class Box2DBase(ABC, Env, Generator):
             steps_per_action: number of simulation steps per action
             observation_noise: percent noise added to observations
             time_steps: simulation frequency
-            vel_iters: Box2D velocity numerical solver iterations per time step  
+            vel_iters: Box2D velocity numerical solver iterations per time step
             pos_iters: Box2D positional numerical solver iterations per time step
             clear_forces: clear forces upon every Box2D simulation step
             break_on_done: stop simulation at terminal state
@@ -67,29 +69,27 @@ class Box2DBase(ABC, Env, Generator):
         self._frame_buffer = []
         self._setup_spaces()
         self._render_setup()
-        self._eval_mode=False
+        self._eval_mode = False
 
     def _clean_base_kwargs(self):
-        """Clean up base kwargs for future envioronment loading and cloning.
-        """
+        """Clean up base kwargs for future envioronment loading and cloning."""
         assert hasattr(self, "_base_kwargs")
-        if "env" in self._base_kwargs: del self._base_kwargs["env"]
-        if "world" in self._base_kwargs: del self._base_kwargs["world"]
-    
+        if "env" in self._base_kwargs:
+            del self._base_kwargs["env"]
+        if "world" in self._base_kwargs:
+            del self._base_kwargs["world"]
+
     def train_mode(self):
-        """Set environment to train mode.
-        """
+        """Set environment to train mode."""
         self._eval_mode = False
         self._break_on_done = True
         self._physics_steps_buffer = 0
         self._buffer_frames = False
 
-    def eval_mode(self,
-                  break_on_done=True,
-                  physics_steps_buffer=10,
-                  buffer_frames=True):
-        """Set environment to evaluation mode.
-        """
+    def eval_mode(
+        self, break_on_done=True, physics_steps_buffer=10, buffer_frames=True
+    ):
+        """Set environment to evaluation mode."""
         self._eval_mode = True
         self._break_on_done = break_on_done
         self._physics_steps_buffer = physics_steps_buffer
@@ -116,7 +116,7 @@ class Box2DBase(ABC, Env, Generator):
             "mode": "load",
             # GeometryHandler kwargs
             "global_x": env._t_global[0],
-            "global_y": env._t_global[1]
+            "global_y": env._t_global[1],
         }
         env_kwargs.update(deepcopy(kwargs))
         loaded_env = cls(**env_kwargs)
@@ -126,14 +126,14 @@ class Box2DBase(ABC, Env, Generator):
             loaded_env.eval_mode(
                 break_on_done=env._break_on_done,
                 physics_steps_buffer=env._physics_steps_buffer,
-                buffer_frames=env._buffer_frames
+                buffer_frames=env._buffer_frames,
             )
         return loaded_env
 
     @classmethod
     def clone(cls, env, **kwargs):
-        """Clone pre-existing b2World environment. A b2World instance is created 
-        to directly replicate the state of the current environment. 
+        """Clone pre-existing b2World environment. A b2World instance is created
+        to directly replicate the state of the current environment.
 
         args:
             env: unwrapped gym environment of Box2DBase subclass
@@ -151,7 +151,7 @@ class Box2DBase(ABC, Env, Generator):
             "mode": "clone",
             # GeometryHandler kwargs
             "global_x": env._t_global[0],
-            "global_y": env._t_global[1]
+            "global_y": env._t_global[1],
         }
         env_kwargs.update(deepcopy(kwargs))
         loaded_env = cls(**env_kwargs)
@@ -161,18 +161,17 @@ class Box2DBase(ABC, Env, Generator):
             loaded_env.eval_mode(
                 break_on_done=env._break_on_done,
                 physics_steps_buffer=env._physics_steps_buffer,
-                buffer_frames=env._buffer_frames
+                buffer_frames=env._buffer_frames,
             )
         return loaded_env
 
     @abstractmethod
     def reset(self):
-        """Reset environment state.
-        """
+        """Reset environment state."""
         if self.world is not None:
             for body in self.world.bodies:
-                self.world.DestroyBody(body) 
-        
+                self.world.DestroyBody(body)
+
         is_valid_start = False
         while not is_valid_start:
             next(self)
@@ -183,33 +182,38 @@ class Box2DBase(ABC, Env, Generator):
             self._physics_steps = 0
             self._frame_buffer = []
         self._render_setup()
-        
+
         observation = self._get_observation()
         return observation
 
     @abstractmethod
     def step(self):
-        """Take environment steps at self._time_steps frequency.
-        """
+        """Take environment steps at self._time_steps frequency."""
         obs, reward, done, info = self.simulate()
         self._steps += 1
         if self._steps >= self._max_episode_steps:
             done = True
             info["success"] = info.get("success", False)
         return obs, reward, done, info
-    
-    def simulate(self,
-                 time_steps=None, 
-                 clear_forces=None,
-                 break_on_done=None,
-                 accrue_rewards=True,
-                 buffer_frames=None):
+
+    def simulate(
+        self,
+        time_steps=None,
+        clear_forces=None,
+        break_on_done=None,
+        accrue_rewards=True,
+        buffer_frames=None,
+    ):
         # Custom simulation arguments
         time_steps = time_steps if time_steps is not None else self._steps_per_action
         clear_forces = clear_forces if clear_forces is not None else self._clear_forces
-        break_on_done = break_on_done if break_on_done is not None else self._break_on_done
-        buffer_frames = buffer_frames if buffer_frames is not None else self._buffer_frames
-        
+        break_on_done = (
+            break_on_done if break_on_done is not None else self._break_on_done
+        )
+        buffer_frames = (
+            buffer_frames if buffer_frames is not None else self._buffer_frames
+        )
+
         obs = None
         done = False
         reward = 0
@@ -217,23 +221,25 @@ class Box2DBase(ABC, Env, Generator):
         steps = 0
         while steps < time_steps:
             self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
-            if clear_forces: self.world.ClearForces() 
+            if clear_forces:
+                self.world.ClearForces()
 
             # Only accrue rewards for valid states
             is_valid = self._is_valid()
             if accrue_rewards and not done:
-                r = 0 if not is_valid else self._get_reward() 
+                r = 0 if not is_valid else self._get_reward()
                 reward += r
                 self._cumulative_reward += r
 
-            if buffer_frames: self._frame_buffer.append(self.render())
+            if buffer_frames:
+                self._frame_buffer.append(self.render())
             self._physics_steps += 1
             steps += 1
 
             if not done:
                 # Save terminal state
                 is_done = self._is_done()
-                if is_done or not is_valid: 
+                if is_done or not is_valid:
                     done = True
                     obs = self._get_observation()
                     info["success"] = is_done and is_valid and reward > 0
@@ -243,7 +249,7 @@ class Box2DBase(ABC, Env, Generator):
                         steps = 0
                         time_steps = self._physics_steps_buffer
                         clear_forces = True
-        
+
         if not done:
             obs = self._get_observation()
 
@@ -252,14 +258,12 @@ class Box2DBase(ABC, Env, Generator):
 
     @abstractmethod
     def _setup_spaces(self):
-        """Setup observation space, action space, and supporting attributes.
-        """
+        """Setup observation space, action space, and supporting attributes."""
         raise NotImplementedError
-            
+
     @abstractmethod
     def _get_observation(self, obs):
-        """Observation model. Optionally incorporate noise to observations.
-        """
+        """Observation model. Optionally incorporate noise to observations."""
         assert self.observation_space.contains(obs)
         low = self.observation_space.low
         high = self.observation_space.high
@@ -270,26 +274,22 @@ class Box2DBase(ABC, Env, Generator):
 
     @abstractmethod
     def _get_reward(self):
-        """Scalar reward function.
-        """
+        """Scalar reward function."""
         raise NotImplementedError
-    
+
     @abstractmethod
     def _is_done(self):
-        """Returns True if terminal state has been reached.
-        """
+        """Returns True if terminal state has been reached."""
         raise NotImplementedError
 
     @abstractmethod
     def _is_valid_start(self):
-        """Check if start state is valid.
-        """
+        """Check if start state is valid."""
         raise NotImplementedError
-    
+
     @abstractmethod
     def _is_valid(self):
-        """Check if current state is valid.
-        """
+        """Check if current state is valid."""
         raise NotImplementedError
 
     def action_value(self, model, step=False):
@@ -301,9 +301,13 @@ class Box2DBase(ABC, Env, Generator):
             q: Q(s, a) evaluate at the current state and policy predicted action
             output: state, action, cloned environment simulated forward under (s, a)
         """
-        assert issubclass(type(self), Box2DBase), "Must be called from a subclass of envs.pybox2d.base.Box2DBase"
-        assert isinstance(model, Algorithm), "Model argument must be an instance of algs.Base.Algorithm"
-        
+        assert issubclass(
+            type(self), Box2DBase
+        ), "Must be called from a subclass of envs.pybox2d.base.Box2DBase"
+        assert isinstance(
+            model, agents.RLAgent
+        ), "Model argument must be an instance of algs.RLAgent"
+
         # Tensorize state and action
         fmt = model._format_batch
         obs = self._get_observation()
@@ -320,7 +324,7 @@ class Box2DBase(ABC, Env, Generator):
 
         output = {
             "state": utils.to_np(state).squeeze(0),
-            "action": utils.to_np(action).squeeze(0)
+            "action": utils.to_np(action).squeeze(0),
         }
         # Simulate forward cloned environment
         if step:
@@ -345,8 +349,12 @@ class Box2DBase(ABC, Env, Generator):
             qs: Q(s, a) evaluated across action space samples -- np.array (num)
             outputs: interpolated states, actions, action_dims, cloned environments simulated forward under (s, a) pairs
         """
-        assert issubclass(type(self), Box2DBase), "Must be called from a subclass of envs.pybox2d.base.Box2DBase"
-        assert isinstance(model, Algorithm), "Model argument must be an instance of algs.Base.Algorithm"
+        assert issubclass(
+            type(self), Box2DBase
+        ), "Must be called from a subclass of envs.pybox2d.base.Box2DBase"
+        assert isinstance(
+            model, agents.RLAgent
+        ), "Model argument must be an instance of algs.Base.Algorithm"
         assert all(d in list(range(self.action_space.shape[0])) for d in dims)
 
         # Tensorize states and actions
@@ -363,13 +371,16 @@ class Box2DBase(ABC, Env, Generator):
         # Infer action values
         q1s, q2s = model.network.critic(states, actions)
         qs = utils.to_np(torch.min(q1s, q2s))
-        
+
         outputs = defaultdict(list)
-        for state, action, action_dim in zip(utils.to_np(states), utils.to_np(actions), action_dims):
+        for state, action, action_dim in zip(
+            utils.to_np(states), utils.to_np(actions), action_dims
+        ):
             outputs["state"].append(state)
             outputs["action"].append(action)
             outputs["action_dim"].append(action_dim)
-            if not step: continue
+            if not step:
+                continue
             # Simulate forward cloned environments
             env = type(self).clone(self, **self._base_kwargs)
             outputs["env"].append(env)
@@ -392,10 +403,14 @@ class Box2DBase(ABC, Env, Generator):
             qs: Q(s, a) evaluated across state space samples
             outputs: interpolated states, state_dims, actions, cloned environments simulated forward under (s, a) pairs
         """
-        assert issubclass(type(self), Box2DBase), "Must be called from a subclass of envs.pybox2d.base.Box2DBase"
-        assert isinstance(model, Algorithm), "Model argument must be an instance of algs.Base.Algorithm"
+        assert issubclass(
+            type(self), Box2DBase
+        ), "Must be called from a subclass of envs.pybox2d.base.Box2DBase"
+        assert isinstance(
+            model, agents.RLAgent
+        ), "Model argument must be an instance of agents.RLAgent"
         assert all(d in list(range(self.observation_space.shape[0])) for d in dims)
-        
+
         # Tensorize states and actions
         fmt = model._format_batch
         default = self._get_observation()
@@ -415,7 +430,8 @@ class Box2DBase(ABC, Env, Generator):
             outputs["state"].append(state)
             outputs["state_dim"].append(state_dim)
             outputs["action"].append(action)
-            if not step: continue
+            if not step:
+                continue
             # Simulate forward cloned environments
             env = type(self).clone(self, **self._base_kwargs)
             outputs["env"].append(env)
@@ -426,7 +442,7 @@ class Box2DBase(ABC, Env, Generator):
             outputs["info"].append(info)
 
         return qs, outputs
-    
+
     def _interp_actions(self, num, dims, default=None):
         """Linear interpolation of action space across specified dimensions.
 
@@ -442,12 +458,13 @@ class Box2DBase(ABC, Env, Generator):
         mask[dims] = True
 
         # Compute combinations of action components across specified dims
-        low, high = self.action_space.low, self.action_space.high        
-        action_dims = np.linspace(low[mask], high[mask], num, dtype=np.float32) 
+        low, high = self.action_space.low, self.action_space.high
+        action_dims = np.linspace(low[mask], high[mask], num, dtype=np.float32)
         action_dims = np.array(np.meshgrid(*action_dims.T))
         action_dims = action_dims.T.reshape(-1, self.action_space.shape[0])
 
-        if default is None: default = (low + high) * 0.5
+        if default is None:
+            default = (low + high) * 0.5
         actions = np.tile(default, (action_dims.shape[0], 1))
         actions[:, mask] = action_dims.copy()
 
@@ -472,12 +489,13 @@ class Box2DBase(ABC, Env, Generator):
         mask[dims] = True
 
         # Compute combinations of action components across specified dims
-        low, high = self.observation_space.low, self.observation_space.high        
-        state_dims = np.linspace(low[mask], high[mask], num, dtype=np.float32) 
+        low, high = self.observation_space.low, self.observation_space.high
+        state_dims = np.linspace(low[mask], high[mask], num, dtype=np.float32)
         state_dims = np.array(np.meshgrid(*state_dims.T))
         state_dims = state_dims.T.reshape(-1, self.observation_space.shape[0])
 
-        if default is None: default = (low + high) * 0.5
+        if default is None:
+            default = (low + high) * 0.5
         states = np.tile(default, (state_dims.shape[0], 1))
         states[:, mask] = state_dims.copy()
 
@@ -487,27 +505,29 @@ class Box2DBase(ABC, Env, Generator):
         return states, state_dims
 
     def _render_setup(self, mode="human"):
-        """Initialize rendering parameters.
-        """
+        """Initialize rendering parameters."""
         if mode == "human" or mode == "rgb_array":
             # Get image dimensions according the playground size
             workspace = self._get_shape_kwargs("playground")
             (w, h), t = workspace["size"], workspace["t"]
             r = 1 / t
             assert r.is_integer()
-            y_range = int((w + 2*t) * r)
+            y_range = int((w + 2 * t) * r)
             x_range = int((h + t) * r)
             image = np.ones((x_range + 1, y_range + 1, 3), dtype=np.float32) * 255
 
             # Resolve reference frame transforms
-            global_to_workspace = rigid_body_2d(0, -self._t_global[0], -self._t_global[1], r)
-            workspace_to_image = rigid_body_2d(np.pi*0.5, h, w*0.5 + t, r)
+            global_to_workspace = rigid_body_2d(
+                0, -self._t_global[0], -self._t_global[1], r
+            )
+            workspace_to_image = rigid_body_2d(np.pi * 0.5, h, w * 0.5 + t, r)
             global_to_image = workspace_to_image @ global_to_workspace
 
             # Render static world bodies
             static_image = image.copy()
             for object_name in self.env.keys():
-                if self._get_type(object_name) != "static": continue
+                if self._get_type(object_name) != "static":
+                    continue
                 for _, shape_data in self._get_shapes(object_name).items():
                     vertices = to_homogenous(shape_to_vertices(**shape_data))
                     vertices[:, :2] *= r
@@ -520,41 +540,47 @@ class Box2DBase(ABC, Env, Generator):
                         idx_filter = static_mask[x_idx, y_idx]
                         x_idx, y_idx = x_idx[idx_filter], y_idx[idx_filter]
 
-                    static_image[x_idx, y_idx] = self._get_color(object_name)                 
+                    static_image[x_idx, y_idx] = self._get_color(object_name)
 
             # Rendering attributes
             self._r = r
             self._global_to_image = global_to_image
-            image_to_plot = rigid_body_2d(-np.pi*0.5, 0, image.shape[0])
+            image_to_plot = rigid_body_2d(-np.pi * 0.5, 0, image.shape[0])
             self._global_to_plot = image_to_plot @ global_to_image
             self._image = image
             self._static_image = static_image
-    
+
     def render(self, mode="human"):
-        """Render sprites on all 2D bodies and set background to white.
-        """        
+        """Render sprites on all 2D bodies and set background to white."""
         # Render all world shapes
         dynamic_image = self._image.copy()
         for object_name in self.env.keys():
-            if self._get_type(object_name) == "static": continue
+            if self._get_type(object_name) == "static":
+                continue
             for shape_name, shape_data in self._get_shapes(object_name).items():
                 body = self._get_body(object_name, shape_name)
                 position = np.array(body.position, dtype=np.float32)
-                vertices = to_homogenous(shape_to_vertices(np.zeros_like(position), shape_data["box"])).T
-                
+                vertices = to_homogenous(
+                    shape_to_vertices(np.zeros_like(position), shape_data["box"])
+                ).T
+
                 # Must orient vertices by angle about object centroid
                 vertices = rigid_body_2d(body.angle, 0, 0) @ vertices
-                vertices[:2, :] = (vertices[:2, :] + np.expand_dims(position, 1)) * self._r
+                vertices[:2, :] = (
+                    vertices[:2, :] + np.expand_dims(position, 1)
+                ) * self._r
 
                 vertices_px = np.floor(self._global_to_image @ vertices).astype(int)
-                x_idx, y_idx = draw.polygon(vertices_px[0, :], vertices_px[1, :], dynamic_image.shape)
+                x_idx, y_idx = draw.polygon(
+                    vertices_px[0, :], vertices_px[1, :], dynamic_image.shape
+                )
                 dynamic_image[x_idx, y_idx] = self._get_color(object_name)
-        
+
         x_idx, y_idx = np.where(np.min(dynamic_image, axis=2) < 255)
         image = self._static_image.copy()
         image[x_idx, y_idx, :] = dynamic_image[x_idx, y_idx, :]
         image = np.round(image).astype(np.uint8)
-        
+
         if mode == "human":
             width, height = 480, 360
             caption = self._render_caption()
@@ -571,25 +597,21 @@ class Box2DBase(ABC, Env, Generator):
             raise NotImplementedError(f"Rendering for mode {mode} is not suppported.")
 
         image = self._render_util(
-            image, 
-            caption=caption, 
-            width=width, 
-            height=height,
-            dtype=dtype
+            image, caption=caption, width=width, height=height, dtype=dtype
         )
         return image
 
     def _render_util(self, image, caption=None, width=480, height=360, dtype=np.uint8):
-        """Caption and resize image.
-        """
+        """Caption and resize image."""
         image = Image.fromarray(image, "RGB")
-        if width is not None or height is not None: image = image.resize((width, height))
-        if caption: image = draw_caption(np.asarray(image), caption)
+        if width is not None or height is not None:
+            image = image.resize((width, height))
+        if caption:
+            image = draw_caption(np.asarray(image), caption)
         return np.asarray(image, dtype=dtype)
 
     def _render_caption(self):
-        """Return standard caption for the image.
-        """
+        """Return standard caption for the image."""
         caption = f"Env: {type(self).__name__} | Step: {self._steps} | "
         caption += f"Time: {self._physics_steps} | Reward: {self._cumulative_reward}"
         return caption
