@@ -70,6 +70,7 @@ class ActorCriticPolicy(torch.nn.Module):
             if hasattr(self._encoder, "output_space"):
                 observation_space = self._encoder.output_space
         else:
+            # self._encoder = torch.nn.Identity()
             self._encoder = NormalizeObservation(observation_space)
         self._actor = actor_class(observation_space, action_space, **actor_kwargs)
         self._critic = critic_class(observation_space, action_space, **critic_kwargs)

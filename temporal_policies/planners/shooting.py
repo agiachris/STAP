@@ -1,9 +1,12 @@
+import functools
 from typing import Any, Optional, Sequence, Tuple
 
 import numpy as np  # type: ignore
+import torch  # type: ignore
 
 from temporal_policies import agents, dynamics
 from temporal_policies.planners import base as planners
+from temporal_policies.planners import utils
 
 
 class ShootingPlanner(planners.Planner):
@@ -15,6 +18,7 @@ class ShootingPlanner(planners.Planner):
         dynamics: dynamics.Dynamics,
         num_samples: int = 1024,
         eval_policies: Optional[Sequence[agents.Agent]] = None,
+        device: str = "auto",
     ):
         """Constructs the shooting planner.
 
@@ -23,8 +27,9 @@ class ShootingPlanner(planners.Planner):
             dynamics: Dynamics model.
             num_samples: Number of shooting samples.
             eval_policies: Optional policies for evaluation. Default uses `policies`.
+            device: Torch device.
         """
-        super().__init__(policies=policies, dynamics=dynamics)
+        super().__init__(policies=policies, dynamics=dynamics, device=device)
         self._num_samples = num_samples
         self._eval_policies = policies if eval_policies is None else eval_policies
 
@@ -34,7 +39,7 @@ class ShootingPlanner(planners.Planner):
         return self._num_samples
 
     @property
-    def eval_policies(self) -> int:
+    def eval_policies(self) -> Sequence[agents.Agent]:
         """Policies for trajectory evaluation."""
         return self._eval_policies
 
@@ -50,24 +55,37 @@ class ShootingPlanner(planners.Planner):
         Returns:
             2-tuple (actions [T, dim_actions], success_probability).
         """
-        # Roll out trajectories.
-        state = self.dynamics.encode(observation).repeat(self.num_samples, -1)
-        policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
-        states, actions, p_transitions = self.dynamics.rollout(
-            state, action_skeleton, policies
-        )
+        with torch.no_grad():
+            # Get initial state.
+            observation = torch.from_numpy(observation).to(self.dynamics.device)
+            idx_policy = torch.tensor([action_skeleton[0][0]], dtype=torch.int64).to(
+                self.dynamics.device
+            )
+            state = self.dynamics.encode(observation, idx_policy)
+            state = state.repeat(self.num_samples, 1)
 
-        # Evaluate trajectories.
-        value_fns = [
-            self.eval_policies[idx_policy].critic for idx_policy, _ in action_skeleton
-        ]
-        p_success = planners.evaluate_trajectory(
-            value_fns, states, actions, p_transitions
-        )
+            # Roll out trajectories.
+            policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
+            states, actions, p_transitions = self.dynamics.rollout(
+                state, action_skeleton, policies
+            )
 
-        # Select best trajectory.
-        idx_best = p_success.argmax()
-        best_actions = actions[:, idx_best]
-        p_best_success = p_success[idx_best]
+            # Evaluate trajectories.
+            value_fns = [
+                self.eval_policies[idx_policy].critic
+                for idx_policy, _ in action_skeleton
+            ]
+            decode_fns = [
+                functools.partial(self.dynamics.decode, idx_policy=idx_policy)
+                for idx_policy, _ in action_skeleton
+            ]
+            p_success = utils.evaluate_trajectory(
+                value_fns, decode_fns, states, actions, p_transitions
+            )
+
+            # Select best trajectory.
+            idx_best = p_success.argmax()
+            best_actions = actions[:, idx_best].cpu().numpy()
+            p_best_success = p_success[idx_best].cpu().numpy()
 
         return best_actions, p_best_success

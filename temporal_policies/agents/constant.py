@@ -1,10 +1,11 @@
-from typing import Optional
+from typing import Optional, Sequence, Union
 
-import gym  # type: ignore
+import numpy as np  # type: ignore
 import torch  # type: ignore
 
 from temporal_policies.agents import base as agents
-from temporal_policies import networks
+from temporal_policies import envs, networks
+from temporal_policies.utils import spaces
 
 
 class ConstantAgent(agents.Agent):
@@ -12,33 +13,27 @@ class ConstantAgent(agents.Agent):
 
     def __init__(
         self,
-        action: torch.Tensor,
-        state_space: gym.spaces.Space,
-        action_space: Optional[gym.spaces.Space] = None,
-        observation_space: Optional[gym.spaces.Space] = None,
+        env: envs.Env,
+        action: Optional[Union[torch.Tensor, np.ndarray, Sequence[float]]] = None,
+        device: str = "auto",
     ):
         """Constructs the constant agent.
 
         Args:
+            env: Policy env.
             action: Constant action.
-            state_space: State space.
-            action_space: Optional action space. Default inferred from action.
-            observation_space: Optional observation space. Default equal to state space.
+            device: Torch device.
         """
-        if action_space is None:
-            action_space = gym.spaces.Box(
-                low=-float("inf"), high=float("inf"), shape=action.shape, dtype=action.dtype
-            )
-        if observation_space is None:
-            observation_space = state_space
-
-        dim_states = len(state_space.shape)
+        dim_states = len(env.state_space.shape)
+        if action is None:
+            action = spaces.null_tensor(env.action_space)
 
         super().__init__(
-            state_space=state_space,
-            action_space=action_space,
-            observation_space=observation_space,
-            actor=networks.Constant(action, dim=dim_states),
-            critic=networks.Constant(torch.tensor(0.0), dim=dim_states),
-            encoder=torch.nn.Identity,
+            state_space=env.observation_space,
+            action_space=env.action_space,
+            observation_space=env.observation_space,
+            actor=networks.Constant(action, input_dim=dim_states),
+            critic=networks.Constant(0.0, input_dim=dim_states),
+            encoder=torch.nn.Identity(),
+            device=device,
         )

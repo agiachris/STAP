@@ -1,16 +1,11 @@
 import abc
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Optional, Sequence, Tuple, Union
 
 import gym  # type: ignore
 import torch  # type: ignore
 
 from temporal_policies import agents
-from temporal_policies.utils import nest, spaces, tensors
-
-PrimitiveConfig = Dict[str, Any]
-TaskConfig = Sequence[PrimitiveConfig]
-
-Batch = nest.NestedStructure
+from temporal_policies.utils import spaces, tensors
 
 
 class Dynamics(abc.ABC):
@@ -21,6 +16,7 @@ class Dynamics(abc.ABC):
         policies: Sequence[agents.Agent],
         state_space: Optional[gym.spaces.Space] = None,
         action_space: Optional[gym.spaces.Space] = None,
+        device: str = "auto",
     ):
         """Initializes the dynamics model network, dataset, and optimizer.
 
@@ -48,10 +44,12 @@ class Dynamics(abc.ABC):
             ):
                 raise ValueError("All policy action spaces must be boxes.")
             self._action_space = spaces.overlay_boxes(
-                policy.action_space for policy in policies
+                [policy.action_space for policy in policies]
             )
         else:
             self._action_space = action_space
+
+        self.to(device)
 
     @property
     def policies(self) -> Sequence[agents.Agent]:
@@ -71,10 +69,13 @@ class Dynamics(abc.ABC):
     @property
     def device(self) -> torch.device:
         """Torch device."""
-        return self._policies[0].device
+        return self._device
 
-    def to(self, device: torch.device) -> "Dynamics":
+    def to(self, device: Union[str, torch.device]) -> "Dynamics":
         """Transfers networks to device."""
+        self._device = torch.device(tensors.device(device))
+        for policy in self.policies:
+            policy.to(self.device)
         return self
 
     def rollout(
@@ -100,25 +101,32 @@ class Dynamics(abc.ABC):
         if policies is None:
             policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
 
-        squeeze = state.dim == self.state_space.dim
+        squeeze = state.dim == len(self.state_space.shape)
         if squeeze:
             state = state.unsqueeze(0)
-        state = state
 
+        # Initialize variables.
         batch_size = state.shape[0]
         T = len(action_skeleton)
-        states = tensors.null_tensor(self.state_space, (T + 1, batch_size))
+        states = spaces.null_tensor(
+            self.state_space, (T + 1, batch_size), device=self.device
+        )
         states[0] = state
-        actions = tensors.null_tensor(self.action_space, (T, batch_size))
-        p_transitions = torch.ones((T, batch_size), dtype=torch.float32)
+        actions = spaces.null_tensor(
+            self.action_space, (T, batch_size), device=self.device
+        )
+        p_transitions = torch.ones(
+            (T, batch_size), dtype=torch.float32, device=self.device
+        )
 
+        # Rollout.
         for t, (idx_policy, policy_args) in enumerate(action_skeleton):
             policy_state = self.decode(state, idx_policy, policy_args)
-            action = policies[t].actor(policy_state)
-            actions[t, :, : len(action)] = action.cpu()
+            action = policies[t].actor.predict(policy_state)
+            actions[t, :, : action.shape[-1]] = action
 
             state = self.forward(state, idx_policy, action, policy_args)
-            states[t + 1] = state.cpu()
+            states[t + 1] = state
 
         if squeeze:
             states = states.squeeze(dim=1)
@@ -159,7 +167,7 @@ class Dynamics(abc.ABC):
             Encoded observation.
         """
 
-        @tensors.vmap(dim=1)
+        @tensors.vmap(dims=1)
         def _encode(idx_policy: torch.Tensor, observation: Any):
             return self.policies[idx_policy.item()].encoder(observation)
 

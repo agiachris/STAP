@@ -1,10 +1,7 @@
-from typing import Optional
-
-import gym  # type: ignore
 import torch  # type: ignore
 
 from temporal_policies.agents import base as agents
-from temporal_policies import networks
+from temporal_policies import envs, networks
 
 
 class RandomAgent(agents.Agent):
@@ -12,32 +9,25 @@ class RandomAgent(agents.Agent):
 
     def __init__(
         self,
-        state_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
-        observation_space=Optional[gym.spaces.Space],
+        env: envs.Env,
+        device: str = "auto",
     ):
         """Constructs the random agent.
 
         Args:
-            state_space: State space.
-            action_space: Action space.
-            observation_space: Optional observation space. Default equal to state space.
+            env: Policy env.
+            device: Torch device.
         """
-        if not isinstance(action_space, gym.spaces.Box):
-            raise NotImplementedError
-
-        if observation_space is None:
-            observation_space = state_space
-
-        dim_states = len(state_space.shape)
+        dim_states = len(env.observation_space.shape)
 
         super().__init__(
-            state_space=state_space,
-            action_space=action_space,
-            observation_space=observation_space,
+            state_space=env.observation_space,
+            action_space=env.action_space,
+            observation_space=env.observation_space,
             actor=networks.Random(
-                action_space.low, action_space.high, input_dim=dim_states
+                env.action_space.low, env.action_space.high, input_dim=dim_states
             ),
             critic=networks.Constant(torch.tensor(0.0), input_dim=dim_states),
-            encoder=torch.nn.Identity,
+            encoder=torch.nn.Identity(),
+            device=device,
         )

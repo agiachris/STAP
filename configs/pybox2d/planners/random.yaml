@@ -1,0 +1,9 @@
+planner: RandomShootingPlanner
+planner_kwargs:
+  num_samples: 1
+
+env: pybox2d.Sequential2D
+env_kwargs: null
+
+dynamics: RandomDynamics
+dynamics_kwargs: null

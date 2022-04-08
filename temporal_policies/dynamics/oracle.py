@@ -1,7 +1,7 @@
 from typing import Any, Optional, Sequence
 
-import torch  # type: ignore
 import numpy as np  # type: ignore
+import torch  # type: ignore
 
 from temporal_policies import agents, envs
 from temporal_policies.dynamics import base as dynamics
@@ -9,24 +9,24 @@ from temporal_policies.utils import tensors
 
 
 class OracleDynamics(dynamics.Dynamics):
-    """Dynamics wrapper around an environment."""
+    """Dummy dynamics model that uses simulation to get the next state."""
 
-    def __init__(self, policies: Sequence[agents.Agent], env: envs.Env):
+    def __init__(
+        self, policies: Sequence[agents.Agent], env: envs.Env, device: str = "auto"
+    ):
         """Constructs the oracle dynamics wrapper.
 
         Args:
             policies: Ordered list of all policies.
             env: Oracle environment.
+            device: Torch device.
         """
-        super().__init__(policies=policies, state_space=env.state_space)
+        super().__init__(policies=policies, state_space=env.state_space, device=device)
 
         if len(self.state_space.shape) != 1:
             raise NotImplementedError(
                 "tensors.vmap(self.forward) assumes state_space is 1-dimensional."
             )
-
-        if env.state_space != env.observation_space:
-            raise ValueError("Environment state and observation spaces must be the same.")
 
         self._env = env
 
@@ -36,7 +36,7 @@ class OracleDynamics(dynamics.Dynamics):
         return self._env
 
     @tensors.torch_wrap
-    @tensors.vmap(dim=1)
+    @tensors.vmap(dims=1)
     def forward(
         self,
         state: np.ndarray,
@@ -56,28 +56,46 @@ class OracleDynamics(dynamics.Dynamics):
             Next state.
         """
         self.env.set_state(state)
-        next_state, _, _, _ = self.env.step((action, idx_policy, policy_args))
+        action = action[: self.policies[idx_policy].action_space.shape[0]]
+        self.env.step((action, idx_policy, policy_args))
+        next_state = self.env.get_state()
         return next_state
 
-    # def forward(
-    #     self,
-    #     state: torch.Tensor,
-    #     idx_policy: torch.Tensor,
-    #     action: torch.Tensor,
-    #     policy_args: Optional[Any] = None,
-    # ) -> torch.Tensor:
-    #     state = state.cpu().detach().numpy()
-    #     idx_policy = idx_policy.cpu().detach().numpy()
-    #     action = action.cpu().detach().numpy()
-    #     policy_args = tensors.numpy(policy_args)
-    #     if policy_args is not None:
-    #         raise NotImplementedError
-    #
-    #     next_state = np.zeros_like(state)
-    #     for t, (s, i, a) in enumerate(zip(state, idx_policy, action)):
-    #         self.env.set_state(s)
-    #         next_s, _, _, _ = self.env.step((a, i, policy_args))
-    #         next_state[t]
-    #
-    #     next_state = torch.from_numpy(next_state).to(self.device)
-    #     return next_state
+    @tensors.torch_wrap
+    def encode(self, observation: np.ndarray, idx_policy: int) -> np.ndarray:
+        """Returns the current environment state.
+
+        WARNING: This ignores the input observation and instead returns the
+        environment's current ground truth state. Be careful that the state
+        matches the observation as expected.
+        """
+        assert observation.ndim == 1
+        if (observation != self.env.get_observation()).any():
+            raise ValueError("Observation does not match the current env state")
+        return self.env.get_state()
+
+    @tensors.torch_wrap
+    @tensors.vmap(dims=1)
+    def decode(
+        self,
+        state: np.ndarray,
+        idx_policy: int,
+        policy_args: Optional[Any] = None,
+    ) -> np.ndarray:
+        """Returns the encoded state for the policy.
+
+        Args:
+            state: Current state.
+            idx_policy: Index of the executed policy.
+            policy_args: Auxiliary policy arguments.
+
+        Returs:
+            Encoded state for policy.
+        """
+        self.env.set_state(state)
+        observation = self.env.get_observation(idx_policy)
+        with torch.no_grad():
+            observation = torch.from_numpy(observation).to(self.device)
+            policy_state = self.policies[idx_policy].encoder(observation)
+            policy_state = policy_state.cpu().numpy()
+        return policy_state

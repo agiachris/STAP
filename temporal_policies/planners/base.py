@@ -1,47 +1,11 @@
 import abc
-from typing import Any, Iterable, Sequence, Tuple
+from typing import Any, Sequence, Tuple, Union
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
 
 from temporal_policies import agents, dynamics
-
-
-def evaluate_trajectory(
-    value_fns: Iterable[torch.nn.Module],
-    states: torch.Tensor,
-    actions: torch.Tensor,
-    p_transitions: torch.Tensor,
-    q_value: bool = True,
-) -> np.ndarray:
-    """Evaluates probability of success for the given trajectory.
-
-    Args:
-        value_fns: List of T value functions.
-        states: [T + 1, batch_dims, state_dims] trajectory states.
-        actions: [T, batch_dims, state_dims] trajectory actions.
-        p_transitions: [T, batch_dims] transition probabilities.
-        q_value: Whether to use state-action values (True) or state values (False).
-
-    Returns:
-        [batch_dims] Trajectory success probabilities.
-    """
-    # Compute step success probabilities.
-    p_successes = np.zeros_like(p_transitions)
-    if q_value:
-        for t, value_fn in enumerate(value_fns):
-            p_successes[t] = value_fn(states[t], actions[t])
-    else:
-        for t, value_fn in enumerate(value_fns):
-            p_successes[t] = value_fn(states[t])
-
-    # Discard last transition from T-1 to T, since s_T isn't used.
-    p_transitions = p_transitions[:-1]
-
-    # Combine probabilities.
-    log_p_success = np.log(p_successes).sum(axis=0) + np.log(p_transitions).sum(axis=0)
-
-    return np.exp(log_p_success)
+from temporal_policies.utils import tensors
 
 
 class Planner(abc.ABC):
@@ -51,15 +15,18 @@ class Planner(abc.ABC):
         self,
         policies: Sequence[agents.Agent],
         dynamics: dynamics.Dynamics,
+        device: str = "auto",
     ):
         """Constructs the planner.
 
         Args:
             policies: Ordered list of policies.
             dynamics: Dynamics model.
+            device: Torch device.
         """
         self._policies = policies
         self._dynamics = dynamics
+        self.to(device)
 
     @property
     def policies(self) -> Sequence[agents.Agent]:
@@ -70,6 +37,19 @@ class Planner(abc.ABC):
     def dynamics(self) -> dynamics.Dynamics:
         """Dynamics model."""
         return self._dynamics
+
+    @property
+    def device(self) -> torch.device:
+        """Torch device."""
+        return self._device
+
+    def to(self, device: Union[str, torch.device]) -> "Planner":
+        """Transfers networks to device."""
+        self._device = torch.device(tensors.device(device))
+        self._dynamics.to(self.device)
+        for policy in self.policies:
+            policy.to(self.device)
+        return self
 
     @abc.abstractmethod
     def plan(

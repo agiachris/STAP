@@ -1,4 +1,7 @@
-from typing import Any, Dict, Type
+from typing import Any, Dict, Type, Union
+
+from temporal_policies import networks
+from temporal_policies.utils import configs
 
 import torch  # type: ignore
 
@@ -10,7 +13,7 @@ class ConcatenatedDynamics(torch.nn.Module):
     def __init__(
         self,
         num_policies: int,
-        network_class: Type[torch.nn.Module],
+        network_class: Union[str, Type[torch.nn.Module]],
         network_kwargs: Dict[str, Any] = {},
     ):
         """Constructs `num_networks` instances of the given backend network,
@@ -23,6 +26,7 @@ class ConcatenatedDynamics(torch.nn.Module):
         """
         super().__init__()
         self._num_policies = num_policies
+        network_class = configs.get_class(network_class, networks)
         self.models = torch.nn.ModuleList(
             [network_class(**network_kwargs) for _ in range(num_policies)]
         )

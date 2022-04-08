@@ -1,9 +1,11 @@
-import os
-import yaml
-import numpy as np
 from collections import OrderedDict
 from copy import deepcopy
-from Box2D import b2FixtureDef, b2PolygonShape, b2World
+import os
+from typing import Any, Dict, Optional
+
+from Box2D import b2FixtureDef, b2PolygonShape, b2World  # type: ignore
+import numpy as np  # type: ignore
+import yaml  # type: ignore
 
 from .utils import GeometryHandler, sample_random_params
 from .constants import COLORS
@@ -13,8 +15,8 @@ class Generator(GeometryHandler):
     def __init__(
         self,
         config,
-        env=None,
-        world=None,
+        env: Optional[Dict[str, Any]] = None,
+        world: Optional[b2World] = None,
         env_params={},
         rand_params={},
         mode="init",

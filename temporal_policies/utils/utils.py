@@ -1,6 +1,3 @@
-from typing import Tuple, Union
-
-import gym  # type: ignore
 import numpy as np  # type: ignore
 import torch  # type: ignore
 

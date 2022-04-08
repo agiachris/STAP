@@ -1,11 +1,12 @@
-from typing import Any, Dict, Optional, Sequence, Type
+import pathlib
+from typing import Any, Dict, Optional, Sequence, Type, Union
 
 import torch  # type: ignore
 
 
-from temporal_policies import agents
+from temporal_policies import agents, networks
 from temporal_policies.dynamics import latent as dynamics
-from temporal_policies.networks.dynamics import decoupled
+from temporal_policies.utils import spaces
 
 
 class DecoupledDynamics(dynamics.LatentDynamics):
@@ -21,14 +22,18 @@ class DecoupledDynamics(dynamics.LatentDynamics):
     def __init__(
         self,
         policies: Sequence[agents.RLAgent],
-        network_class: Type[torch.nn.Module],
+        network_class: Union[str, Type[torch.nn.Module]],
         network_kwargs: Dict[str, Any],
-        dataset_class: Type[torch.utils.data.IterableDataset],
+        dataset_class: Union[str, Type[torch.utils.data.IterableDataset]],
         dataset_kwargs: Dict[str, Any],
-        optimizer_class: Type[torch.optim.Optimizer],
+        optimizer_class: Union[str, Type[torch.optim.Optimizer]],
         optimizer_kwargs: Dict[str, Any],
-        scheduler_class: Optional[Type[torch.optim.lr_scheduler._LRScheduler]],
-        scheduler_kwargs: Dict[str, Any],
+        scheduler_class: Optional[
+            Union[str, Type[torch.optim.lr_scheduler._LRScheduler]]
+        ] = None,
+        scheduler_kwargs: Dict[str, Any] = {},
+        checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        device: str = "auto",
     ):
         """Initializes the dynamics model network, dataset, and optimizer.
 
@@ -36,33 +41,40 @@ class DecoupledDynamics(dynamics.LatentDynamics):
             policies: Ordered list of all policies.
             network_class: Backend network for decoupled dynamics network.
             network_kwargs: Kwargs for network class.
-            dataset_class: Dynamics model dataset class.
+            dataset: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
-            optimizer_class: Dynamics model optimizer class.
+            optimizer: Dynamics model optimizer class.
             optimizer_kwargs: Kwargs for optimizer class.
-            scheduler_class: Dynamics model learning rate scheduler class.
-            scheduler_class: Kwargs for scheduler class.
+            scheduler: Optional dynamics model learning rate scheduler class.
+            scheduler_kwargs: Kwargs for scheduler class.
+            checkpoint: Dynamics checkpoint.
+            device: Torch device.
         """
-        network = decoupled.DecoupledDynamicsModel(
-            policies=policies,
-            network_class=network_class,
-            network_kwargs=network_kwargs,
+        parent_network_class = networks.dynamics.DecoupledDynamics
+        parent_network_kwargs = {
+            "policies": policies,
+            "network_class": network_class,
+            "network_kwargs": network_kwargs,
+        }
+        state_space = spaces.concatenate_boxes(
+            [policy.state_space for policy in policies]
         )
-        optimizer = optimizer_class(self.network.parameters(), **optimizer_kwargs)
-        if scheduler_class is None:
-            scheduler = None
-        else:
-            scheduler = scheduler_class(optimizer=optimizer, **scheduler_kwargs)
 
         super().__init__(
             policies=policies,
-            network=network,
+            network_class=parent_network_class,
+            network_kwargs=parent_network_kwargs,
             dataset_class=dataset_class,
             dataset_kwargs=dataset_kwargs,
-            optimizer=optimizer,
-            scheduler=scheduler,
+            optimizer_class=optimizer_class,
+            optimizer_kwargs=optimizer_kwargs,
+            scheduler_class=scheduler_class,
+            scheduler_kwargs=scheduler_kwargs,
+            state_space=state_space,
+            action_space=None,
+            checkpoint=checkpoint,
+            device=device,
         )
-        self._num_policies = len(policies)
 
     def encode(self, observation: Any, idx_policy: torch.Tensor) -> torch.Tensor:
         """Encodes the observation as a concatenation of latent states for each
@@ -80,7 +92,12 @@ class DecoupledDynamics(dynamics.LatentDynamics):
             z = torch.cat(zs, dim=-1)
         return z
 
-    def decode(self, latent: torch.Tensor, idx_policy: torch.Tensor) -> Any:
+    def decode(
+        self,
+        latent: torch.Tensor,
+        idx_policy: torch.Tensor,
+        policy_args: Optional[Any] = None,
+    ) -> Any:
         """Extracts the policy state from the concatenated latent states.
 
         Args:
@@ -91,8 +108,11 @@ class DecoupledDynamics(dynamics.LatentDynamics):
             Decoded policy state.
         """
         policy_latents = torch.reshape(
-            latent, (*latent.shape[:-1], self._num_policies, -1)
+            latent, (*latent.shape[:-1], len(self.policies), -1)
         )
+        if isinstance(idx_policy, int):
+            return policy_latents[:, idx_policy]
+
         idx_policy = (
             idx_policy.unsqueeze(-1)
             .unsqueeze(-1)

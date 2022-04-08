@@ -1,14 +1,17 @@
+import functools
 from typing import Any, Sequence, Tuple
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
 
-from temporal_policies import agents, dynamics, utils
+from temporal_policies import agents, dynamics
 from temporal_policies.planners import base as planners
+from temporal_policies.planners import utils
+from temporal_policies.utils import spaces
 
 
 class CEMPlanner(planners.Planner):
-    "Planner using the Improved Cross Entropy Method."""
+    "Planner using the Improved Cross Entropy Method." ""
 
     def __init__(
         self,
@@ -21,6 +24,7 @@ class CEMPlanner(planners.Planner):
         keep_elites_fraction: float = 0.0,
         population_decay: float = 1.0,
         momentum: float = 0.0,
+        device: str = "auto",
     ):
         """Constructs the iCEM planner.
 
@@ -35,8 +39,9 @@ class CEMPlanner(planners.Planner):
             keep_elites_fraction: Fraction of elites to keep between iterations.
             population_decay: Population decay applied after each iteration.
             momentum: Momentum of distribution updates.
+            device: Torch device.
         """
-        super().__init__(policies=policies, dynamics=dynamics)
+        super().__init__(policies=policies, dynamics=dynamics, device=device)
         self._num_iterations = num_iterations
         self._num_samples = num_samples
         self._num_elites = max(2, min(num_elites, self.num_samples // 2))
@@ -105,7 +110,7 @@ class CEMPlanner(planners.Planner):
         mean = states.numpy()
 
         # Scale the standard deviations by the action spaces.
-        std = utils.null_tensor(self.dynamics.action_space, (T,))
+        std = spaces.null_tensor(self.dynamics.action_space, (T,))
         for t, (idx_policy, policy_args) in action_skeleton:
             a = self.policies[idx_policy].action_space
             std[t] = self.standard_deviation * 0.5 * (a.high - a.low)
@@ -126,12 +131,18 @@ class CEMPlanner(planners.Planner):
         """
         num_samples = self.num_samples
 
-        state = self.dynamics.encode(observation).repeat(self.num_samples, -1)
+        state = self.dynamics.encode(observation, action_skeleton[0][0]).repeat(
+            self.num_samples, -1
+        )
 
         # Initialize distribution.
         mean, std = self._compute_initial_distribution(state[0], action_skeleton)
         value_fns = [
             self.policies[idx_policy].critic for idx_policy, _ in action_skeleton
+        ]
+        decode_fns = [
+            functools.partial(self.dynamics.decode, idx_policy=idx_policy)
+            for idx_policy, _ in action_skeleton
         ]
         elites = np.empty((0, *mean.shape), dtype=mean.dtype)
         p_elites = np.empty(0)
@@ -150,8 +161,8 @@ class CEMPlanner(planners.Planner):
             )
 
             # Evaluate trajectories.
-            p_success = planners.evaluate_trajectory(
-                value_fns, states, actions, p_transitions
+            p_success = utils.evaluate_trajectory(
+                value_fns, decode_fns, states, actions, p_transitions
             )
 
             # Append subset of elites from previous iteration.

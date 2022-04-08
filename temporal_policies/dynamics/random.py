@@ -1,4 +1,4 @@
-from typing import Any, Optional, Sequence
+from typing import Any, Optional, Sequence, Union
 
 import torch  # type: ignore
 
@@ -9,27 +9,30 @@ from temporal_policies.dynamics import base as dynamics
 class RandomDynamics(dynamics.Dynamics):
     """Dynamics model that generates random states."""
 
-    def __init__(self, policies: Sequence[agents.Agent]):
+    def __init__(self, policies: Sequence[agents.Agent], device: str = "auto"):
         """Constructs the random dynamics.
 
         Args:
             policies: Ordered list of all policies.
+            device: Torch device.
         """
-        super().__init__(policies=policies)
+        super().__init__(policies=policies, device=device)
 
-        low = torch.from_numpy(self.state_space.low)
-        high = torch.from_numpy(self.state_space.high)
-        dim_states = len(self.state_space.shape)
-        self._network = networks.Random(min=low, max=high, input_dim=dim_states)
+        self._network = networks.Random(
+            min=self.state_space.low,
+            max=self.state_space.high,
+            input_dim=len(self.state_space.shape),
+        )
 
     @property
     def network(self) -> torch.nn.Module:
         """Random network."""
         return self._network
 
-    def to(self, device: torch.device) -> dynamics.Dynamics:
+    def to(self, device: Union[str, torch.device]) -> dynamics.Dynamics:
         """Transfers networks to device."""
-        self.network.to(device)
+        super().to(device)
+        self.network.to(self.device)
         return self
 
     def forward(

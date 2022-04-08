@@ -1,5 +1,5 @@
-import numpy as np
-from gym import spaces
+import numpy as np  # type: ignore
+from gym import spaces  # type: ignore
 
 from .base import Box2DBase
 from .utils import shape_to_vertices
@@ -86,7 +86,7 @@ class PushLeft2DControl(Box2DBase):
             low=low.astype(np.float32), high=high.astype(np.float32)
         )
 
-    def _get_observation(self):
+    def get_observation(self):
         k = 0
         observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
         for object_name in self.env.keys():
@@ -103,7 +103,7 @@ class PushLeft2DControl(Box2DBase):
         box = self._get_shape("item", "block")["box"]
         angle = np.array([self.agent.angle])
         observation[k : k + 5] = np.concatenate((position, box, angle))
-        return super()._get_observation(observation)
+        return super().get_observation(observation)
 
     def _get_reward(self):
         """PushLeft2D reward function.

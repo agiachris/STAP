@@ -1,6 +1,6 @@
-import numpy as np
-from gym import spaces
-from Box2D import b2Vec2
+import numpy as np  # type: ignore
+from gym import spaces  # type: ignore
+from Box2D import b2Vec2  # type: ignore
 
 from .base import Box2DBase
 from .utils import shape_to_vertices
@@ -19,6 +19,7 @@ class PlaceRight2D(Box2DBase):
     def step(self, action):
         """Action components are activated via tanh()."""
         # Act
+        assert (-1 <= action).all() and (action <= 1).all()
         action = action.astype(float)
         low, high = self.action_scale.low, self.action_scale.high
         action = low + (high - low) * (action + 1) * 0.5
@@ -78,7 +79,7 @@ class PlaceRight2D(Box2DBase):
         high = np.concatenate((high, [np.pi * 0.5 + 1e-2]))
         self.observation_space = spaces.Box(low=low, high=high)
 
-    def _get_observation(self):
+    def get_observation(self):
         k = 0
         observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
         for object_name in self.env.keys():
@@ -95,7 +96,7 @@ class PlaceRight2D(Box2DBase):
         box = self._get_shape("item", "block")["box"]
         angle = np.array([self.agent.angle])
         observation[k : k + 5] = np.concatenate((position, box, angle))
-        return super()._get_observation(observation)
+        return super().get_observation(observation)
 
     def _get_reward(self):
         """PlaceRight2D reward function.

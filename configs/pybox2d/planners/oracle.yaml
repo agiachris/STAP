@@ -1,0 +1,9 @@
+planner: ShootingPlanner
+planner_kwargs:
+  num_samples: 128
+
+env: pybox2d.Sequential2D
+env_kwargs: null
+
+dynamics: OracleDynamics
+dynamics_kwargs: null

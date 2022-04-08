@@ -1,40 +1,14 @@
 import pathlib
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Type, Union
 
 import gym  # type: ignore
 import numpy as np  # type: ignore
 import torch  # type: ignore
 import tqdm  # type: ignore
 
-from temporal_policies import agents
+from temporal_policies import agents, datasets, networks
 from temporal_policies.dynamics import base as dynamics
-from temporal_policies.utils import logger, spaces, tensors, trainer, timing
-
-
-def load_policies(
-    task_config: dynamics.TaskConfig,
-    checkpoint_paths: Sequence[str],
-    device: str = "auto",
-) -> List[agents.Agent]:
-    """Loads the policy checkpoints with deterministic replay buffers to be used
-    to train the dynamics model.
-
-    Args:
-        task_config: Ordered list of primitive (policy) configs.
-        checkpoint_paths: Ordered list of policy checkpoints.
-        device: Torch device.
-
-    Returns:
-        Ordered list of policies with loaded replay buffers.
-    """
-    policies: List[agents.Agent] = []
-    for checkpoint_path in checkpoint_paths:
-        policy = trainer.load_from_path(checkpoint_path, device=device, strict=True)
-        policy.eval_mode()
-        policy.setup_datasets()
-        policies.append(policy)
-
-    return policies
+from temporal_policies.utils import configs, logger, spaces, tensors, timing
 
 
 class LatentDynamics(dynamics.Dynamics):
@@ -43,38 +17,70 @@ class LatentDynamics(dynamics.Dynamics):
     def __init__(
         self,
         policies: Sequence[agents.RLAgent],
-        network: torch.nn.Module,
-        dataset_class: Type[torch.utils.data.IterableDataset],
+        network_class: Union[str, Type[torch.nn.Module]],
+        network_kwargs: Dict[str, Any],
+        dataset_class: Union[str, Type[torch.utils.data.IterableDataset]],
         dataset_kwargs: Dict[str, Any],
-        optimizer: torch.optim.Optimizer,
-        scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+        optimizer_class: Union[str, Type[torch.optim.Optimizer]],
+        optimizer_kwargs: Dict[str, Any],
+        scheduler_class: Optional[
+            Union[str, Type[torch.optim.lr_scheduler._LRScheduler]]
+        ] = None,
+        scheduler_kwargs: Dict[str, Any] = {},
         state_space: Optional[gym.spaces.Space] = None,
         action_space: Optional[gym.spaces.Space] = None,
+        checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        device: str = "auto",
     ):
         """Initializes the dynamics model network, dataset, and optimizer.
 
         Args:
             policies: Ordered list of all policies.
-            network: Dynamics model network.
-            dataset_class: Dynamics model dataset class.
+            network_class: Dynamics model network class.
+            network_kwargs: Kwargs for network class.
+            dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
-            optimizer: Dynamics model optimizer.
-            scheduler: Optional dynamics model learning rate scheduler.
+            optimizer_class: Dynamics model optimizer class.
+            optimizer_kwargs: Kwargs for optimizer class.
+            scheduler_class: Optional dynamics model learning rate scheduler class.
+            scheduler_kwargs: Kwargs for scheduler class.
             state_space: Optional state space.
             action_space: Optional action space.
+            checkpoint: Dynamics checkpoint.
+            device: Torch device.
         """
+        network_class = configs.get_class(network_class, networks)
+        self._network = network_class(**network_kwargs)
+
         super().__init__(
-            policies=policies, state_space=state_space, action_space=action_space
+            policies=policies,
+            state_space=state_space,
+            action_space=action_space,
+            device=device,
         )
+
         self._loss = torch.nn.MSELoss()
-        self._network = network.to(self.device)
+
         self._dataset, self._eval_dataset = _construct_datasets(
             policies, dataset_class, dataset_kwargs
         )
-        self._optimizer = optimizer
-        self._scheduler = scheduler
+
+        optimizer_class = configs.get_class(optimizer_class, torch.optim)
+        self._optimizer = optimizer_class(self.network.parameters(), **optimizer_kwargs)
+
+        if scheduler_class is not None:
+            scheduler_class = configs.get_class(
+                scheduler_class, torch.optim.lr_scheduler
+            )
+            self._scheduler = scheduler_class(self.optimizer, **scheduler_kwargs)
+        else:
+            self._scheduler = None
+
         self._steps = 0
         self._epochs = 0
+
+        if checkpoint is not None:
+            self.load(checkpoint, strict=False)
 
     @property
     def optimizer(self) -> torch.optim.Optimizer:
@@ -111,9 +117,10 @@ class LatentDynamics(dynamics.Dynamics):
         """Current epoch."""
         return self._epochs
 
-    def to(self, device: torch.device) -> dynamics.Dynamics:
+    def to(self, device: Union[str, torch.device]) -> dynamics.Dynamics:
         """Transfers networks to device."""
-        self.network.to(device)
+        super().to(device)
+        self.network.to(self.device)
         return self
 
     def train_mode(self) -> None:
@@ -227,7 +234,7 @@ class LatentDynamics(dynamics.Dynamics):
             workers: Number of dataloader workers.
             profile_freq: Profiling frequency.
         """
-        worker_init_fn = agents.rl_agent._worker_init_fn if workers > 0 else None
+        worker_init_fn = agents.rl._worker_init_fn if workers > 0 else None
         pin_memory = self.device.type == "cuda"
         dataloader = torch.utils.data.DataLoader(
             self.dataset,
@@ -281,8 +288,8 @@ class LatentDynamics(dynamics.Dynamics):
 
             # Log.
             if self.steps % log_freq == 0:
-                agents.rl_agent.log_from_dict(log, {"l2_loss": train_losses}, "train")
-                agents.rl_agent.log_from_dict(log, profiler.collect_profiles(), "time")
+                agents.rl.log_from_dict(log, {"l2_loss": train_losses}, "train")
+                agents.rl.log_from_dict(log, profiler.collect_profiles(), "time")
                 log.record("time/epochs", self.epochs)
                 log.record(
                     "time/steps_per_second",
@@ -366,12 +373,12 @@ class LatentDynamics(dynamics.Dynamics):
             "next_observation": batch["next_observation"],
         }
 
-        return tensors.to(batch, self.device)
+        return tensors.to(batch, self.device)  # type: ignore
 
 
 def _construct_datasets(
     policies: Sequence[agents.RLAgent],
-    dataset_class: Type[torch.utils.data.IterableDataset],
+    dataset_class: Union[str, Type[torch.utils.data.IterableDataset]],
     dataset_kwargs: Dict[str, Any],
 ) -> Tuple[torch.utils.data.IterableDataset, torch.utils.data.IterableDataset]:
     """Constructs the dynamics model datasets from the policy replay buffers.
@@ -424,11 +431,15 @@ def _construct_datasets(
     action_space = gym.spaces.Dict(
         {
             "idx_policy": gym.spaces.Discrete(len(policies)),
-            "action": spaces.overlay_boxes(policies),
+            "action": spaces.overlay_boxes(
+                [policy.action_space for policy in policies]
+            ),
         }
     )
 
     # Initialize the dynamics dataset.
+    if isinstance(dataset_class, str):
+        dataset_class = configs.get_class(dataset_class, datasets)
     dataset = dataset_class(observation_space, action_space, **dataset_kwargs)
     dataset.initialize()
     eval_dataset = dataset_class(observation_space, action_space, **dataset_kwargs)
@@ -439,6 +450,7 @@ def _construct_datasets(
 
     for idx_policy, policy in enumerate(policies):
         # Load policy replay buffers.
+        policy.setup_datasets()
         policy.dataset.initialize()
         policy.eval_dataset.initialize()
         policy.dataset.load(max_entries=num_entries_per_policy)

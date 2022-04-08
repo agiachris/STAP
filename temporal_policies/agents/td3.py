@@ -2,6 +2,7 @@ import torch  # type: ignore
 import numpy as np  # type: ignore
 import itertools
 
+from temporal_policies import envs
 from temporal_policies.agents import rl
 from temporal_policies.networks.base import ActorCriticPolicy
 from temporal_policies.utils.utils import to_tensor, to_device
@@ -10,9 +11,7 @@ from temporal_policies.utils.utils import to_tensor, to_device
 class TD3(rl.RLAgent):
     def __init__(
         self,
-        env,
-        network_class,
-        dataset_class,
+        env: envs.Env,
         tau=0.005,
         policy_noise=0.1,
         target_noise=0.2,
@@ -23,7 +22,7 @@ class TD3(rl.RLAgent):
         init_steps=1000,
         **kwargs
     ):
-        super().__init__(env, network_class, dataset_class, **kwargs)
+        super().__init__(env, **kwargs)
         assert isinstance(self.network, ActorCriticPolicy)
         # Save extra parameters
         self.tau = tau
@@ -33,22 +32,22 @@ class TD3(rl.RLAgent):
         self.critic_freq = critic_freq
         self.actor_freq = actor_freq
         self.target_freq = target_freq
-        self.action_range = (self.env.action_space.low, self.env.action_space.high)
+        self.action_range = (env.action_space.low, env.action_space.high)
         self.action_range_tensor = to_device(to_tensor(self.action_range), self.device)
         self.init_steps = init_steps
 
         # Now setup the logging parameters
-        self._current_obs = self.env.reset()
+        self._current_obs = env.reset()
         self._episode_reward = 0
         self._episode_length = 0
         self._num_ep = 0
 
     def setup_network(self, network_class, network_kwargs):
         self.network = network_class(
-            self.env.observation_space, self.env.action_space, **network_kwargs
+            self.observation_space, self.action_space, **network_kwargs
         ).to(self.device)
         self.target_network = network_class(
-            self.env.observation_space, self.env.action_space, **network_kwargs
+            self.observation_space, self.action_space, **network_kwargs
         ).to(self.device)
         self.target_network.load_state_dict(self.network.state_dict())
         for param in self.target_network.parameters():
@@ -107,14 +106,14 @@ class TD3(rl.RLAgent):
 
         return dict(actor_loss=actor_loss.item())
 
-    def _train_step(self, batch):
+    def _train_step(self, env: envs.Env, batch):
         all_metrics = {}
         if self.steps == 0:
             self.dataset.add(
                 observation=self._current_obs
             )  # Store the initial reset observation!
         if self.steps < self.init_steps:
-            action = self.env.action_space.sample()
+            action = env.action_space.sample()
         else:
             self.eval_mode()
             with torch.no_grad():
@@ -122,15 +121,15 @@ class TD3(rl.RLAgent):
             action += self.policy_noise * np.random.randn(action.shape[0])
             self.train_mode()
 
-        next_obs, reward, done, info = self.env.step(action)
+        next_obs, reward, done, info = env.step(action)
         self._episode_length += 1
         self._episode_reward += reward
 
         if "discount" in info:
             discount = info["discount"]
         elif (
-            hasattr(self.env, "_max_episode_stes")
-            and self._episode_length == self.env._max_episode_steps
+            hasattr(env, "_max_episode_stes")
+            and self._episode_length == env._max_episode_steps
         ):
             discount = 1.0
         else:
@@ -152,7 +151,7 @@ class TD3(rl.RLAgent):
             all_metrics["length"] = self._episode_length
             all_metrics["num_ep"] = self._num_ep
             # Reset the environment
-            self._current_obs = self.env.reset()
+            self._current_obs = env.reset()
             self.dataset.add(observation=self._current_obs)  # Add the first timestep
             self._episode_length = 0
             self._episode_reward = 0

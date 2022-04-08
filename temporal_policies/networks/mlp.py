@@ -24,6 +24,10 @@ class ContinuousMLPCritic(nn.Module):
         x = torch.cat((obs, action), dim=-1)
         return [q(x).squeeze(-1) for q in self.qs]
 
+    def predict(self, obs, action):
+        qs = self.forward(obs, action)
+        return torch.min(*qs)
+
 class ContinuousMLPActor(nn.Module):
 
     def __init__(self, observation_space, action_space, hidden_layers=[256, 256], act=nn.ReLU, output_act=nn.Tanh, ortho_init=False):

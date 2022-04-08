@@ -10,8 +10,6 @@ class SAC(rl.RLAgent):
     def __init__(
         self,
         env,
-        network_class,
-        dataset_class,
         tau=0.005,
         init_temperature=0.1,
         critic_freq=1,
@@ -20,10 +18,9 @@ class SAC(rl.RLAgent):
         init_steps=1000,
         **kwargs
     ):
-
         # Save values needed for optim setup.
         self.init_temperature = init_temperature
-        super().__init__(env, network_class, dataset_class, **kwargs)
+        super().__init__(env, **kwargs)
         assert isinstance(self.network, ActorCriticPolicy)
 
         # Save extra parameters
@@ -34,7 +31,7 @@ class SAC(rl.RLAgent):
         self.init_steps = init_steps
 
         # Now setup the logging parameters
-        self._current_obs = self.env.reset()
+        self._current_obs = env.reset()
         self._episode_reward = 0
         self._episode_length = 0
         self._num_ep = 0
@@ -45,10 +42,10 @@ class SAC(rl.RLAgent):
 
     def setup_network(self, network_class, network_kwargs):
         self.network = network_class(
-            self.env.observation_space, self.env.action_space, **network_kwargs
+            self.observation_space, self.action_space, **network_kwargs
         ).to(self.device)
         self.target_network = network_class(
-            self.env.observation_space, self.env.action_space, **network_kwargs
+            self.observation_space, self.action_space, **network_kwargs
         ).to(self.device)
         self.target_network.load_state_dict(self.network.state_dict())
         for param in self.target_network.parameters():
@@ -70,7 +67,7 @@ class SAC(rl.RLAgent):
             np.log(self.init_temperature), dtype=torch.float
         ).to(self.device)
         self.log_alpha.requires_grad = True
-        self.target_entropy = -np.prod(self.env.action_space.low.shape)
+        self.target_entropy = -np.prod(self.action_space.low.shape)
 
         self.optim["log_alpha"] = optim_class([self.log_alpha], **optim_kwargs)
 
@@ -128,29 +125,29 @@ class SAC(rl.RLAgent):
             alpha=self.alpha.detach().item(),
         )
 
-    def _train_step(self, batch):
+    def _train_step(self, env, batch):
         all_metrics = {}
         if self.steps == 0:
             self.dataset.add(
                 observation=self._current_obs
             )  # Store the initial reset observation!
         if self.steps < self.init_steps:
-            action = self.env.action_space.sample()
+            action = self.action_space.sample()
         else:
             self.eval_mode()
             with torch.no_grad():
                 action = self.predict(self._current_obs, sample=True)
             self.train_mode()
 
-        next_obs, reward, done, info = self.env.step(action)
+        next_obs, reward, done, info = env.step(action)
         self._episode_length += 1
         self._episode_reward += reward
 
         if "discount" in info:
             discount = info["discount"]
         elif (
-            hasattr(self.env, "_max_episode_steps")
-            and self._episode_length == self.env._max_episode_steps
+            hasattr(env, "_max_episode_steps")
+            and self._episode_length == env._max_episode_steps
         ):
             discount = 1.0
         else:
@@ -172,7 +169,7 @@ class SAC(rl.RLAgent):
             all_metrics["length"] = self._episode_length
             all_metrics["num_ep"] = self._num_ep
             # Reset the environment
-            self._current_obs = self.env.reset()
+            self._current_obs = env.reset()
             self.dataset.add(observation=self._current_obs)  # Add the first timestep
             self._episode_length = 0
             self._episode_reward = 0

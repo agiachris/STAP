@@ -1,3 +1,3 @@
 from .concatenated import ConcatenatedDynamics
-from .decoupled import DecoupeldDynamics
+from .decoupled import DecoupledDynamics
 from .mlp import MLPDynamics

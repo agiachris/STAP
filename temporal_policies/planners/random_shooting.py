@@ -1,7 +1,7 @@
 from typing import Sequence
 
+from temporal_policies import agents, dynamics, envs
 from temporal_policies.planners import shooting
-from temporal_policies import agents, dynamics
 
 
 class RandomShootingPlanner(shooting.ShootingPlanner):
@@ -12,18 +12,25 @@ class RandomShootingPlanner(shooting.ShootingPlanner):
         self,
         policies: Sequence[agents.Agent],
         dynamics: dynamics.Dynamics,
+        env: envs.Env,  # TODO: Need to add this to factory
         num_samples: int = 1024,
+        device: str = "auto",
     ):
         """Constructs a shooting planner with a random policy.
 
         Args:
             policies: Policies used to evaluate trajectories.
             dynamics: Dynamics model.
+            env: Policy environment
             num_samples: Number of shooting samples.
+            device: Torch device.
         """
         random_policies = [
-            agents.RandomAgent(policy.state_space, policy.action_space)
-            for policy in dynamics.policies
+            agents.RandomAgent(
+                env=env_i,
+                device=policy.device,
+            )
+            for policy, env_i in zip(dynamics.policies, env.envs)
         ]
 
         super().__init__(
@@ -31,4 +38,5 @@ class RandomShootingPlanner(shooting.ShootingPlanner):
             dynamics=dynamics,
             num_samples=num_samples,
             eval_policies=policies,
+            device=device,
         )

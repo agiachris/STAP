@@ -2,11 +2,12 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
 
-from gym import Env
-import numpy as np
-from PIL import Image
-from skimage import draw
-import torch
+import Box2D  # type: ignore
+from gym import Env  # type: ignore
+import numpy as np  # type: ignore
+from PIL import Image  # type: ignore
+from skimage import draw  # type: ignore
+import torch  # type: ignore
 
 from .generator import Generator
 from .utils import rigid_body_2d, shape_to_vertices, to_homogenous
@@ -19,19 +20,19 @@ class Box2DBase(ABC, Env, Generator):
     @abstractmethod
     def __init__(
         self,
-        max_episode_steps,
-        steps_per_action,
-        observation_noise=0.0,
-        time_steps=1.0 / 60.0,
-        vel_iters=10,
-        pos_iters=10,
-        clear_forces=True,
-        break_on_done=True,
-        cumulative_reward=0.0,
-        steps=0,
-        physics_steps=0,
-        physics_steps_buffer=0,
-        buffer_frames=False,
+        max_episode_steps: int,
+        steps_per_action: int,
+        observation_noise: float = 0.0,
+        time_steps: float = 1.0 / 60.0,
+        vel_iters: int = 10,
+        pos_iters: int = 10,
+        clear_forces: bool = True,
+        break_on_done: bool = True,
+        cumulative_reward: float = 0.0,
+        steps: int = 0,
+        physics_steps: int = 0,
+        physics_steps_buffer: int = 0,
+        buffer_frames: bool = False,
         **kwargs,
     ):
         """Box2D environment base class.
@@ -183,7 +184,7 @@ class Box2DBase(ABC, Env, Generator):
             self._frame_buffer = []
         self._render_setup()
 
-        observation = self._get_observation()
+        observation = self.get_observation()
         return observation
 
     @abstractmethod
@@ -241,7 +242,7 @@ class Box2DBase(ABC, Env, Generator):
                 is_done = self._is_done()
                 if is_done or not is_valid:
                     done = True
-                    obs = self._get_observation()
+                    obs = self.get_observation()
                     info["success"] = is_done and is_valid and reward > 0
 
                     # Optionally run extra simulation steps
@@ -251,10 +252,48 @@ class Box2DBase(ABC, Env, Generator):
                         clear_forces = True
 
         if not done:
-            obs = self._get_observation()
+            obs = self.get_observation()
 
         self.world.ClearForces()
         return obs, reward, done, info
+
+    def get_state(self) -> np.ndarray:
+        """Gets the environment state.
+
+        [N * 3] array of mutable body properties (position, angle).
+        """
+        state = []
+        assert self.env is not None
+
+        for object_name in self.env:
+            for shape_name, shape_data in self._get_shapes(object_name).items():
+                body = self._get_body(object_name, shape_name)
+
+                body_state = np.zeros(6, dtype=np.float32)
+                body_state[:2] = body.position
+                body_state[2] = body.angle
+                body_state[3:5] = body.linearVelocity
+                body_state[5] = body.angularVelocity
+
+                state.append(body_state)
+
+        return np.concatenate(state, axis=0)
+
+    def set_state(self, state: np.ndarray) -> bool:
+        """Sets the environment state."""
+        assert self.env is not None
+        iter_state = iter(np.reshape(state, (-1, 6)))
+        for object_name in self.env:
+            for shape_name in self._get_shapes(object_name):
+                body = self._get_body(object_name, shape_name)
+                body_state = next(iter_state).astype(float)
+
+                body.position = Box2D.b2Vec2(*body_state[:2])
+                body.angle = body_state[2]
+                body.linearVelocity = body_state[3:5]
+                body.angularVelocity = body_state[5]
+
+        return True
 
     @abstractmethod
     def _setup_spaces(self):
@@ -262,7 +301,7 @@ class Box2DBase(ABC, Env, Generator):
         raise NotImplementedError
 
     @abstractmethod
-    def _get_observation(self, obs):
+    def get_observation(self, obs):
         """Observation model. Optionally incorporate noise to observations."""
         assert self.observation_space.contains(obs)
         low = self.observation_space.low
@@ -310,7 +349,7 @@ class Box2DBase(ABC, Env, Generator):
 
         # Tensorize state and action
         fmt = model._format_batch
-        obs = self._get_observation()
+        obs = self.get_observation()
         state = fmt(utils.unsqueeze(obs, 0))
         action = model.predict(state, is_batched=True)
 
@@ -359,7 +398,7 @@ class Box2DBase(ABC, Env, Generator):
 
         # Tensorize states and actions
         fmt = model._format_batch
-        obs = self._get_observation()
+        obs = self.get_observation()
         states = fmt(np.tile(utils.unsqueeze(obs, 0), (num, 1)))
         default = model.predict(obs)
         actions, action_dims = self._interp_actions(num, dims, default=default)
@@ -413,7 +452,7 @@ class Box2DBase(ABC, Env, Generator):
 
         # Tensorize states and actions
         fmt = model._format_batch
-        default = self._get_observation()
+        default = self.get_observation()
         states, state_dims = self._interp_states(num, dims, default=default)
         states = fmt(states)
         actions = model.predict(states, is_batched=True)

@@ -52,12 +52,25 @@ def map_structure(
     if isinstance(arg_0, atom_type):
         return func(*args)
     elif skip_type is not None and isinstance(arg_0, skip_type):
-        return *args
+        return arg_0 if len(args) == 1 else args
     elif isinstance(arg_0, dict):
-        return {key: map_structure(func, *(arg[key] for arg in args)) for key in arg_0}  # type: ignore
-    else:
+        return {
+            key: map_structure(
+                func,
+                *(arg[key] for arg in args),  # type: ignore
+                atom_type=atom_type,
+                skip_type=skip_type,
+            )
+            for key in arg_0
+        }
+    elif hasattr(arg_0, "__iter__"):
         iterable_class = type(arg_0)
-        return iterable_class(map_structure(func, *args_i) for args_i in zip(*args))  # type: ignore
+        return iterable_class(
+            map_structure(func, *args_i, atom_type=atom_type, skip_type=skip_type)
+            for args_i in zip(*args)
+        )  # type: ignore
+    else:
+        return arg_0 if len(args) == 1 else args
 
 
 def structure_iterator(
@@ -94,9 +107,11 @@ def structure_iterator(
             for val in structure.values():
                 for elem in iterate_structure(val):
                     yield elem
-        else:
+        elif hasattr(structure, "__iter__"):
             for val in structure:
                 for elem in iterate_structure(val):
                     yield elem
+        else:
+            pass
 
     return iter(iterate_structure(structure))

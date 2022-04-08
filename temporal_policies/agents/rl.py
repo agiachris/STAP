@@ -1,20 +1,19 @@
 import abc
 from collections import defaultdict
-import copy
 import os
 import random
 import pathlib
 import time
+from typing import Any, Dict, Optional, Type, Union
 
-import gym  # type: ignore
 import numpy as np  # type: ignore
 import torch  # type: ignore
 import tqdm  # type: ignore
 
+from temporal_policies import datasets, envs, networks, processors
 from temporal_policies.agents import base as agents
-from temporal_policies.processors.base import IdentityProcessor
 from temporal_policies.utils.logger import Logger
-from temporal_policies.utils import utils
+from temporal_policies.utils import configs, utils
 from temporal_policies.utils.evaluate import eval_policy
 
 
@@ -47,110 +46,116 @@ MAX_VALID_METRICS = {"reward", "accuracy"}
 class RLAgent(agents.Agent):
     def __init__(
         self,
-        env,
-        network_class,
-        dataset_class,
-        network_kwargs={},
-        dataset_kwargs={},
-        eval_dataset_kwargs=None,
-        device="auto",
-        optim_class=torch.optim.Adam,
-        optim_kwargs={"lr": 0.0001},
-        processor_class=None,
-        processor_kwargs={},
-        checkpoint=None,
-        validation_dataset_kwargs=None,
+        env: envs.Env,
+        network_class: Union[str, Type[torch.nn.Module]],
+        network_kwargs: Dict[str, Any],
+        dataset_class: Union[str, Type[torch.utils.data.IterableDataset]],
+        dataset_kwargs: Dict[str, Any],
+        eval_dataset_kwargs: Optional[Dict[str, Any]] = None,
+        optimizer_class: Union[str, Type[torch.optim.Optimizer]] = torch.optim.Adam,
+        optimizer_kwargs: Dict[str, Any] = {"lr": 0.0001},
+        processor_class: Optional[Union[str, Type[processors.Processor]]] = None,
+        processor_kwargs: Dict[str, Any] = {},
+        batch_size: int = 64,
+        checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        device: str = "auto",
         collate_fn=None,
-        batch_size=64,
-        eval_env=None,
-        path=None,
     ):
-
-        # Save relevant values
-        self.env = env
-        self.eval_env = eval_env
-
-        self.dataset_class = dataset_class
+        self.dataset_class = configs.get_class(dataset_class, datasets)
         self.dataset_kwargs = dataset_kwargs
         self.eval_dataset_kwargs = (
             eval_dataset_kwargs
             if eval_dataset_kwargs is not None
             else dict(dataset_kwargs)
         )
-        self.validation_dataset_kwargs = validation_dataset_kwargs
         self.collate_fn = collate_fn
         self.batch_size = batch_size
 
         # setup devices
         if device == "auto":
             device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.device = torch.device(device)
+        self._device = torch.device(device)
 
         # Setup the data preprocessor first. Thus, if we need to reference it in
         # network setup we can.
-        self.setup_processor(processor_class, processor_kwargs)
+        if processor_class is None:
+            processor_class = processors.IdentityProcessor
+        else:
+            processor_class = configs.get_class(processor_class, processors)
+        self.processor = processor_class(
+            env.observation_space, env.action_space, **processor_kwargs
+        )
 
-        # Create the network
+        # self._state_space = env.state_space
+        self._action_space = env.action_space
+        self._observation_space = env.observation_space
+
+        network_class = configs.get_class(network_class, networks)
         self.setup_network(network_class, network_kwargs)
 
         # Create the optimizers
-        self.optim = {}
-        self.setup_optimizers(optim_class, optim_kwargs)
+        self.optim: Dict[str, torch.optim.Optimizer] = {}
+        optimizer_class = configs.get_class(optimizer_class, torch.optim)
+        self.setup_optimizers(optimizer_class, optimizer_kwargs)
 
         # Load a check point if we have one
-        if checkpoint:
+        if checkpoint is not None:
+            self._path = pathlib.Path(checkpoint).parent
             self.load(checkpoint, strict=True)
 
-        self.path = None if path is None else pathlib.Path(path)
-
-    def setup_processor(self, processor_class, processor_kwargs):
-        if processor_class is None:
-            self.processor = IdentityProcessor(
-                self.env.observation_space, self.env.action_space
-            )
-        else:
-            self.processor = processor_class(
-                self.env.observation_space, self.env.action_space, **processor_kwargs
-            )
+        super().__init__(
+            state_space=env.observation_space,
+            action_space=env.action_space,
+            observation_space=env.observation_space,
+            actor=self.network.actor,
+            critic=self.network.critic,
+            encoder=self.network.encoder,
+            device=device,
+        )
 
     def setup_network(self, network_class, network_kwargs):
+        # Create the network
         self.network = network_class(
-            self.env.observation_space, self.env.action_space, **network_kwargs
-        ).to(self.device)
+            self._env.observation_space, self._env.action_space, **network_kwargs
+        )
 
-    def setup_optimizers(self, optim_class, optim_kwargs):
-        # Default optimizer initialization
-        self.optim["network"] = optim_class(self.network.parameters(), **optim_kwargs)
+    def setup_optimizers(self, optimizer_class, optimizer_kwargs):
+        self.optim = {
+            "network": optimizer_class(self.network.parameters(), **optimizer_kwargs)
+        }
 
-    def setup_datasets(self):
+    def setup_datasets(self, path: Optional[pathlib.Path] = None):
         """
         Setup the datasets. Note that this is called only during the learn method and thus doesn't take any arguments.
         Everything must be saved apriori. This is done to ensure that we don't need to load all of the data to load the model.
         """
+        if path is None:
+            path = self._path
         self.dataset = self.dataset_class(
-            observation_space=self.env.observation_space,
-            action_space=self.env.action_space,
-            path=self.path / "train_data",
+            observation_space=self.observation_space,
+            action_space=self.action_space,
+            path=path / "train_data",
             **self.dataset_kwargs,
         )
         self.eval_dataset = self.dataset_class(
-            observation_space=self.env.observation_space,
-            action_space=self.env.action_space,
-            path=self.path / "eval_data",
+            observation_space=self.observation_space,
+            action_space=self.action_space,
+            path=path / "eval_data",
             **self.eval_dataset_kwargs,
         )
         self.eval_dataset.initialize()
-        if self.validation_dataset_kwargs is not None:
-            validation_dataset_kwargs = copy.deepcopy(self.dataset_kwargs)
-            validation_dataset_kwargs.update(self.validation_dataset_kwargs)
-            self.validation_dataset = self.dataset_class(
-                observation_space=self.env.observation_space,
-                action_space=self.env.action_space,
-                path=self.path / "eval_data",
-                **validation_dataset_kwargs,
-            )
-        else:
-            self.validation_dataset = None
+        self.validation_dataset = None
+        # if self.validation_dataset_kwargs is not None:
+        #     validation_dataset_kwargs = copy.deepcopy(self.dataset_kwargs)
+        #     validation_dataset_kwargs.update(self.validation_dataset_kwargs)
+        #     self.validation_dataset = self.dataset_class(
+        #         observation_space=self.observation_space,
+        #         action_space=self.action_space,
+        #         path=path / "eval_data",
+        #         **validation_dataset_kwargs,
+        #     )
+        # else:
+        #     self.validation_dataset = None
 
     def save(self, path, extension):
         """
@@ -206,8 +211,10 @@ class RLAgent(agents.Agent):
 
     def train(
         self,
+        env: envs.Env,
         path,
         total_steps,
+        eval_env: Optional[envs.Env] = None,
         schedule=None,
         schedule_kwargs={},
         log_freq=100,
@@ -227,7 +234,7 @@ class RLAgent(agents.Agent):
         )
 
         # Construct the dataloaders.
-        self.setup_datasets()
+        self.setup_datasets(pathlib.Path(path))
         shuffle = not issubclass(self.dataset_class, torch.utils.data.IterableDataset)
         pin_memory = self.device.type == "cuda"
         worker_init_fn = _worker_init_fn if workers > 0 else None
@@ -295,7 +302,7 @@ class RLAgent(agents.Agent):
                     assert (
                         self.network.training
                     ), "Network was not in training mode and trainstep was called."
-                    losses = self._train_step(batch)
+                    losses = self._train_step(env, batch)
                     for loss_name, loss_value in losses.items():
                         loss_lists[loss_name].append(loss_value)
 
@@ -355,9 +362,9 @@ class RLAgent(agents.Agent):
                         log_from_dict(logger, validation_extras, "valid")
 
                         # TODO: evaluation episodes.
-                        if self.eval_env is not None and eval_ep > 0:
+                        if eval_env is not None and eval_ep > 0:
                             eval_metrics = eval_policy(
-                                self.eval_env, self, eval_ep, self.eval_dataset
+                                eval_env, self, eval_ep, self.eval_dataset
                             )
                             if loss_metric in eval_metrics:
                                 current_validation_metric = eval_metrics[loss_metric]
@@ -395,7 +402,7 @@ class RLAgent(agents.Agent):
                 epochs += 1
 
     @abc.abstractmethod
-    def _train_step(self, batch):
+    def _train_step(self, env: envs.Env, batch):
         """
         Train the model. Should return a dict of loggable values
         """
@@ -452,6 +459,12 @@ class RLAgent(agents.Agent):
             pred = utils.to_np(pred)
         return pred
 
+    def to(self, device: Union[str, torch.device]) -> agents.Agent:
+        """Transfers networks to device."""
+        super().to(device)
+        self.network.to(self.device)
+        return self
+
     @property
     def critic(self) -> torch.nn.Module:
         return self.network.critic
@@ -459,11 +472,3 @@ class RLAgent(agents.Agent):
     @property
     def actor(self) -> torch.nn.Module:
         return self.network.actor
-
-    @property
-    def observation_space(self) -> gym.spaces.Space:
-        return self.env.observation_space
-
-    @property
-    def action_space(self) -> gym.spaces.Space:
-        return self.env.action_space

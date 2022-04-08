@@ -1,5 +1,5 @@
 import abc
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import gym  # type: ignore
 
@@ -15,6 +15,17 @@ class Env(gym.Env, Generic[StateType]):
         return self.observation_space
 
     @abc.abstractmethod
+    def get_state(self) -> StateType:
+        """Gets the environment state."""
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def set_state(self, state: StateType) -> bool:
-        """Sets the state of the environment."""
+        """Sets the environment state."""
+        raise NotImplementedError
+
+    # TODO: Set idx_policy to first arg.
+    @abc.abstractmethod
+    def get_observation(self, *args) -> Any:
+        """Gets an observation for the current environment state."""
         raise NotImplementedError

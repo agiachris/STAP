@@ -1,10 +1,20 @@
+from typing import Union
+
+import numpy as np  # type: ignore
 import torch  # type: ignore
+
+from temporal_policies.utils import tensors
 
 
 class Random(torch.nn.Module):
     """Outputs a uniformly sampled random value."""
 
-    def __init__(self, min: torch.Tensor, max: torch.Tensor, input_dim: int = 1):
+    def __init__(
+        self,
+        min: Union[torch.Tensor, np.ndarray, float, int],
+        max: Union[torch.Tensor, np.ndarray, float, int],
+        input_dim: int = 1,
+    ):
         """Constructs the random network.
 
         Args:
@@ -13,8 +23,8 @@ class Random(torch.nn.Module):
             input_dim: Dimensions of the network's first input.
         """
         super().__init__()
-        self.min = min
-        self.scale = max - min
+        self.min = tensors.to_tensor(min)
+        self.scale = tensors.to_tensor(max - min)
         self.dim = input_dim
 
     def _apply(self, fn):
@@ -29,9 +39,12 @@ class Random(torch.nn.Module):
         Args:
             input: First network input.
         """
-        shape = input.shape[:-self.dim] if self.dim > 0 else input.shape
+        shape = input.shape[: -self.dim] if self.dim > 0 else input.shape
 
-        random = torch.rand(*shape, *self.min.shape)
+        random = torch.rand(*shape, *self.min.shape, device=input.device)
         scaled = self.scale * random + self.min
 
         return scaled
+
+    def predict(self, *args) -> torch.Tensor:
+        return self.forward(*args)

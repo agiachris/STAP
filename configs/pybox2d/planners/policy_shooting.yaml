@@ -1,0 +1,9 @@
+planner: ShootingPlanner
+planner_kwargs:
+  num_samples: 128
+
+agent_configs:
+  - configs/pybox2d/agents/sac.yaml
+  - configs/pybox2d/agents/sac.yaml
+
+dynamics_config: configs/pybox2d/dynamics/decoupled.yaml

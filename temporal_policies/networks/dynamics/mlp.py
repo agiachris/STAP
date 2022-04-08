@@ -1,11 +1,9 @@
 from typing import List
 
-import gym
+import gym  # type: ignore
+import torch  # type: ignore
 
-import torch
-
-from temporal_policies.networks import mlp
-from .common import MLP
+from temporal_policies.networks import common, mlp
 
 
 class MLPDynamics(torch.nn.Module):
@@ -25,7 +23,7 @@ class MLPDynamics(torch.nn.Module):
         ortho_init: bool = False
     ):
         super().__init__()
-        self.mlp = MLP(
+        self.mlp = common.MLP(
             dim_latent + action_space.shape[0],
             dim_latent,
             hidden_layers=hidden_layers,
