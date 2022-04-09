@@ -28,7 +28,7 @@ class OracleCritic(torch.nn.Module):
         """
         self.env.set_state(state)
         _, reward, _, _ = self.env.step(action)
-        return np.array([reward], dtype=np.float32)
+        return np.array(reward, dtype=np.float32)
 
     def predict(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         """Outputs the reward from the given state and action.

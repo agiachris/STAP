@@ -3,7 +3,7 @@ from collections import defaultdict
 from copy import deepcopy
 
 import Box2D  # type: ignore
-from gym import Env  # type: ignore
+import gym  # type: ignore
 import numpy as np  # type: ignore
 from PIL import Image  # type: ignore
 from skimage import draw  # type: ignore
@@ -16,7 +16,7 @@ import temporal_policies.utils.utils as utils
 from temporal_policies import agents
 
 
-class Box2DBase(ABC, Env, Generator):
+class Box2DBase(ABC, gym.Env, Generator):
     @abstractmethod
     def __init__(
         self,
@@ -71,6 +71,23 @@ class Box2DBase(ABC, Env, Generator):
         self._setup_spaces()
         self._render_setup()
         self._eval_mode = False
+
+        # Construct state space.
+        self._num_bodies = sum(
+            len(self._get_shapes(object_name)) for object_name in self.env
+        )
+        ground = self._get_shape("playground", "ground")
+        x, y = ground["position"]
+        workspace = self._get_shape_kwargs("playground")
+        w, h = workspace["size"]
+        low = np.array([x - 0.5 * w, y, -np.pi / 2, -1e3, -1e3, -1e3], dtype=np.float32)
+        high = np.array(
+            [x + 0.5 * w, y + h, np.pi / 2, 1e3, 1e3, 1e3], dtype=np.float32
+        )
+        self._state_space = gym.spaces.Box(
+            low=np.tile(low, self.num_bodies),
+            high=np.tile(high, self.num_bodies),
+        )
 
     def _clean_base_kwargs(self):
         """Clean up base kwargs for future envioronment loading and cloning."""
@@ -256,6 +273,16 @@ class Box2DBase(ABC, Env, Generator):
 
         self.world.ClearForces()
         return obs, reward, done, info
+
+    @property
+    def state_space(self) -> gym.spaces.Box:
+        """State space."""
+        return self._state_space
+
+    @property
+    def num_bodies(self) -> int:
+        """Number of environment bodies."""
+        return self._num_bodies
 
     def get_state(self) -> np.ndarray:
         """Gets the environment state.

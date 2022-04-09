@@ -47,7 +47,7 @@ class DynamicsFactory(configs.Factory):
         if issubclass(self.cls, dynamics.LatentDynamics):
             self.kwargs["checkpoint"] = checkpoint
 
-        # # Make sure env is always up to date.
+        # Make sure env is always up to date.
         self._env_factory: Optional[envs.EnvFactory] = None
         if issubclass(self.cls, dynamics.OracleDynamics):
             if env_factory is None:
@@ -59,10 +59,10 @@ class DynamicsFactory(configs.Factory):
     def _add_env_factory_hook(
         self, env_factory: envs.EnvFactory, dynamics_model: dynamics.Dynamics
     ) -> None:
+        """Makes sure OracleDynamics env is always up to date."""
         if not isinstance(dynamics_model, dynamics.OracleDynamics):
             return
 
-        # Make sure OracleDynamics env is always up to date.
         env_factory.add_post_hook(
             functools.partial(dynamics.OracleDynamics.env.__set__, dynamics_model)  # type: ignore
         )

@@ -2,6 +2,7 @@
 from .base import Agent
 from .constant import ConstantAgent
 from .drqv2 import DRQV2
+from .oracle import OracleAgent
 from .rl import RLAgent
 from .random import RandomAgent
 from .sac import SAC

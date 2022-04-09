@@ -70,10 +70,41 @@ class AgentFactory(configs.Factory):
         if "checkpoint" not in self.kwargs and issubclass(self.cls, agents.RLAgent):
             self.kwargs["checkpoint"] = checkpoint
 
-        if env is None:
+        if env is None and not issubclass(self.cls, agents.OracleAgent):
             assert env_factory is not None
             env = env_factory.get_instance()
         self.kwargs["env"] = env
+
+        # Make sure env is always up to date.
+        self._env_factory: Optional[envs.EnvFactory] = None
+        if issubclass(self.cls, agents.OracleAgent):
+            if env_factory is None:
+                raise ValueError("env_factory must not be None for OracleAgent")
+            self._env_factory = env_factory
+
+        self.add_post_hook(functools.partial(self._add_env_factory_hook, env_factory))
+
+    def _add_env_factory_hook(
+        self, env_factory: envs.EnvFactory, policy: agents.Agent,
+    ) -> None:
+        """Makes sure OracleAgent env is always up to date."""
+        if not isinstance(policy, agents.OracleAgent):
+            return
+
+        env_factory.add_post_hook(
+            functools.partial(agents.OracleAgent.env.__set__, policy)  # type: ignore
+        )
+
+    def __call__(self, *args, **kwargs) -> agents.Agent:
+        """Creates a Dynamics instance.
+
+        *args and **kwargs are transferred directly to the Agent constructor.
+        AgentFactory automatically handles the env and checkpoint arguments.
+        """
+        if "env" not in kwargs and self._env_factory is not None:
+            kwargs["env"] = self._env_factory.get_instance()
+
+        return super().__call__(*args, **kwargs)
 
 
 def load(

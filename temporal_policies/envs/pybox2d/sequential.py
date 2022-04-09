@@ -30,27 +30,8 @@ class Sequential2D(envs.Env):
                 env.reset()
             else:
                 env = env_factory.cls.load(env, **env_factory.kwargs)
+                env_factory.run_post_hooks(env)
             self._envs.append(env)
-
-        base_env = self._envs[0]
-        assert base_env.env is not None
-        self._num_bodies = sum(
-            len(self._envs[0]._get_shapes(object_name)) for object_name in base_env.env
-        )
-
-        # Construct state space.
-        ground = base_env._get_shape("playground", "ground")
-        x, y = ground["position"]
-        workspace = base_env._get_shape_kwargs("playground")
-        w, h = workspace["size"]
-        low = np.array([x - 0.5 * w, y, -np.pi / 2, -1e3, -1e3, -1e3], dtype=np.float32)
-        high = np.array(
-            [x + 0.5 * w, y + h, np.pi / 2, 1e3, 1e3, 1e3], dtype=np.float32
-        )
-        self._state_space = gym.spaces.Box(
-            low=np.tile(low, self.num_bodies),
-            high=np.tile(high, self.num_bodies),
-        )
 
     @property
     def envs(self) -> List[pybox2d.Box2DBase]:
@@ -60,12 +41,8 @@ class Sequential2D(envs.Env):
     @property
     def state_space(self) -> gym.spaces.Box:
         """State space."""
-        return self._state_space
-
-    @property
-    def num_bodies(self) -> int:
-        """Number of environment bodies."""
-        return self._num_bodies
+        base_env = self.envs[0]
+        return base_env.get_state()
 
     def get_state(self) -> np.ndarray:
         """Gets the environment state.
@@ -95,7 +72,6 @@ class Sequential2D(envs.Env):
         Returns:
             4-tuple (observation, reward, done, info).
         """
-        # TODO: Debug.
         action, idx_policy, policy_args = action
         return self.envs[idx_policy].step(action)
 
