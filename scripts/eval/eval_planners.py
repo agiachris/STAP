@@ -88,9 +88,9 @@ def main(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--config", "--planner_config", "--planner", "-c", help="Path to planner config"
+        "--config", "--planner-config", "--planner", "-c", help="Path to planner config"
     )
-    parser.add_argument("--env_config", "--env", "-e", help="Path to env config")
+    parser.add_argument("--env-config", "--env", "-e", help="Path to env config")
     parser.add_argument(
         "--policy-checkpoints", "-p", nargs="+", help="Policy checkpoints"
     )

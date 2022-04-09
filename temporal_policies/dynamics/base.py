@@ -139,7 +139,7 @@ class Dynamics(abc.ABC):
     def forward(
         self,
         state: torch.Tensor,
-        idx_policy: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
         action: torch.Tensor,
         policy_args: Optional[Any] = None,
     ) -> torch.Tensor:
@@ -156,7 +156,9 @@ class Dynamics(abc.ABC):
         """
         raise NotImplementedError
 
-    def encode(self, observation: Any, idx_policy: torch.Tensor) -> torch.Tensor:
+    def encode(
+        self, observation: Any, idx_policy: Union[int, torch.Tensor]
+    ) -> torch.Tensor:
         """Encodes the observation into a dynamics state.
 
         Args:
@@ -168,15 +170,17 @@ class Dynamics(abc.ABC):
         """
 
         @tensors.vmap(dims=1)
-        def _encode(idx_policy: torch.Tensor, observation: Any):
-            return self.policies[idx_policy.item()].encoder(observation)
+        def _encode(idx_policy: Union[int, torch.Tensor], observation: Any):
+            if isinstance(idx_policy, torch.Tensor):
+                idx_policy = idx_policy.item()
+            return self.policies[idx_policy].encoder(observation)
 
         return _encode(idx_policy, observation)
 
     def decode(
         self,
         state: torch.Tensor,
-        idx_policy: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
         policy_args: Optional[Any] = None,
     ) -> Any:
         """Decodes the dynamics state into policy states.

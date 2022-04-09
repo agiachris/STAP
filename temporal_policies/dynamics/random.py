@@ -24,6 +24,8 @@ class RandomDynamics(dynamics.Dynamics):
             input_dim=len(self.state_space.shape),
         )
 
+        self.to(self.device)
+
     @property
     def network(self) -> torch.nn.Module:
         """Random network."""
@@ -32,7 +34,10 @@ class RandomDynamics(dynamics.Dynamics):
     def to(self, device: Union[str, torch.device]) -> dynamics.Dynamics:
         """Transfers networks to device."""
         super().to(device)
-        self.network.to(self.device)
+        try:
+            self.network.to(self.device)
+        except AttributeError:
+            pass
         return self
 
     def forward(

@@ -58,9 +58,7 @@ class ShootingPlanner(planners.Planner):
         with torch.no_grad():
             # Get initial state.
             observation = torch.from_numpy(observation).to(self.dynamics.device)
-            idx_policy = torch.tensor([action_skeleton[0][0]], dtype=torch.int64).to(
-                self.dynamics.device
-            )
+            idx_policy = action_skeleton[0][0]
             state = self.dynamics.encode(observation, idx_policy)
             state = state.repeat(self.num_samples, 1)
 

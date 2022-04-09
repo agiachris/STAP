@@ -38,10 +38,10 @@ class AgentFactory(configs.Factory):
         """
         if checkpoint is not None:
             ckpt_agent_config = agents.load_config(checkpoint)
+            ckpt_env_config = envs.load_config(checkpoint)
             if agent_config is None:
                 agent_config = ckpt_agent_config
             if env is None and env_factory is None:
-                ckpt_env_config = envs.load_config(checkpoint)
                 env = envs.EnvFactory(ckpt_env_config)()
 
         if agent_config is None:
@@ -59,6 +59,7 @@ class AgentFactory(configs.Factory):
                 )
             if (
                 env_factory is not None
+                and ckpt_env_config is not None
                 and env_factory.config["env"] != ckpt_env_config["env"]
             ):
                 raise ValueError(
@@ -66,43 +67,13 @@ class AgentFactory(configs.Factory):
                     f"env [{ckpt_env_config['env']}] must be the same"
                 )
 
-        self._checkpoint = None if checkpoint is None else pathlib.Path(checkpoint)
+        if "checkpoint" not in self.kwargs and issubclass(self.cls, agents.RLAgent):
+            self.kwargs["checkpoint"] = checkpoint
 
-        self._env = env
-        if env_factory is not None:
-            env_factory.add_post_hook(
-                functools.partial(AgentFactory.env.__set__, self)  # type: ignore
-            )
-
-    @property
-    def env(self) -> envs.Env:
-        """Last generated env."""
-        if self._env is None:
-            raise RuntimeError("Need to call EnvFactory before calling AgentFactory.")
-        return self._env
-
-    @env.setter
-    def env(self, env: envs.Env) -> None:
-        """Sets the last generated env."""
-        self._env = env
-
-    @property
-    def checkpoint(self) -> Optional[pathlib.Path]:
-        return self._checkpoint
-
-    def __call__(self, *args, **kwargs) -> agents.Agent:
-        """Creates an Agent instance.
-
-        *args and **kwargs are transferred directly to the Agent constructor.
-        AgentFactory automatically handles the env and checkpoint arguments.
-        """
-        if "env" not in kwargs:
-            kwargs["env"] = self.env
-
-        if "checkpoint" not in kwargs and issubclass(self.cls, agents.RLAgent):
-            kwargs["checkpoint"] = self.checkpoint
-
-        return super().__call__(*args, **kwargs)
+        if env is None:
+            assert env_factory is not None
+            env = env_factory.get_instance()
+        self.kwargs["env"] = env
 
 
 def load(

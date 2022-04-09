@@ -32,14 +32,12 @@ def to_tensor(
         x: Scalar or array.
 
     Returns:
-        Tensor with at least 1 dimension (non-scalar).
+        Tensor.
     """
     if isinstance(x, torch.Tensor):
         return x
     elif isinstance(x, np.ndarray):
         return torch.from_numpy(x)
-    elif isinstance(x, (float, int)):
-        return torch.tensor([x])
     else:
         return torch.tensor(x)
 

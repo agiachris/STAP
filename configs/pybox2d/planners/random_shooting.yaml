@@ -2,8 +2,9 @@ planner: RandomShootingPlanner
 planner_kwargs:
   num_samples: 128
 
-env: pybox2d.Sequential2D
-env_kwargs: null
+agent_configs:
+  - agent: RandomAgent
+  - agent: RandomAgent
 
-dynamics: OracleDynamics
-dynamics_kwargs: null
+dynamics_config:
+  dynamics: OracleDynamics

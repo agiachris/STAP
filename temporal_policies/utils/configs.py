@@ -164,6 +164,7 @@ class Factory(Generic[T]):
         self._config = config
         self._cls = parse_class(config, key, module)
         self._kwargs = parse_kwargs(config, f"{key}_kwargs")
+        self._last_instance = None
         self._post_hooks: List[Callable[[T], None]] = []
 
     @property
@@ -180,6 +181,18 @@ class Factory(Generic[T]):
     def kwargs(self) -> Dict[str, Any]:
         """Parsed class kwargs."""
         return self._kwargs
+
+    @property
+    def last_instance(self) -> Optional[T]:
+        """Last created instance."""
+        return self._last_instance
+
+    def get_instance(self, *args, **kwargs) -> T:
+        """Gets the last created instance or creates a new one."""
+        if self.last_instance is None:
+            self.__call__(*args, **kwargs)
+        assert self.last_instance is not None
+        return self.last_instance
 
     def add_post_hook(self, post_hook: Callable[[T], Any]):
         """Adds a callback function to call when this factory is called.
@@ -200,6 +213,9 @@ class Factory(Generic[T]):
             Class instance.
         """
         instance = self.cls(*args, **kwargs, **self.kwargs)
+
+        self._last_instance = instance
         for post_hook in self._post_hooks:
             post_hook(instance)
+
         return instance

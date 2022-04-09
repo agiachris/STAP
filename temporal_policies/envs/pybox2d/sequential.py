@@ -1,31 +1,30 @@
 import itertools
 import pathlib
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, List, Sequence
 
 import gym  # type: ignore
 import imageio  # type: ignore
 import numpy as np  # type: ignore
 
-from temporal_policies import envs
+from temporal_policies.envs import base as envs
+from temporal_policies.envs import utils
 from temporal_policies.envs.pybox2d import base as pybox2d
 
 
 class Sequential2D(envs.Env):
     """Wrapper around primtive envs for sequential tasks."""
 
-    def __init__(self, env_configs: Sequence[Union[str, pathlib.Path, Dict[str, Any]]]):
+    def __init__(self, env_factories: Sequence[utils.EnvFactory]):
         """Constructs the primtive envs.
 
         Args:
-            env_configs: Ordered list of env configs.
-            **kwargs: Box2DBase args.
+            env_factories: Ordered list of primitive env factories.
         """
         super().__init__()
 
         # Construct primitive envs.
         self._envs = []
-        for idx_policy, env_config in enumerate(env_configs):
-            env_factory = envs.EnvFactory(env_config)
+        for idx_policy, env_factory in enumerate(env_factories):
             if idx_policy == 0:
                 env = env_factory()
                 env.reset()

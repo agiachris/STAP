@@ -38,6 +38,10 @@ class Constant(torch.nn.Module):
             input: First network input.
         """
         shape = input.shape[: -self.dim] if self.dim > 0 else input.shape
+
+        if self.constant.dim() == 0:
+            return self.constant.expand(*shape)
+
         return self.constant.expand(*shape, -1)
 
     def predict(self, input: torch.Tensor, *args) -> torch.Tensor:

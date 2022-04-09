@@ -27,7 +27,7 @@ class RandomAgent(agents.Agent):
             actor=networks.Random(
                 env.action_space.low, env.action_space.high, input_dim=dim_states
             ),
-            critic=networks.Constant(torch.tensor(0.0), input_dim=dim_states),
+            critic=networks.Constant(0.0, input_dim=dim_states),
             encoder=torch.nn.Identity(),
             device=device,
         )

@@ -35,52 +35,46 @@ class DynamicsFactory(configs.Factory):
 
         super().__init__(dynamics_config, "dynamics", dynamics)
 
-        if self.config["dynamics"] != ckpt_config["dynamics"]:
+        if (
+            checkpoint is not None
+            and self.config["dynamics"] != ckpt_config["dynamics"]
+        ):
             raise ValueError(
                 f"Config dynamics [{self.config['dynamics']}] and checkpoint"
                 f"dynamics [{ckpt_config['dynamics']}] must be the same"
             )
 
-        self._checkpoint = None if checkpoint is None else pathlib.Path(checkpoint)
+        if issubclass(self.cls, dynamics.LatentDynamics):
+            self.kwargs["checkpoint"] = checkpoint
 
-        self._env: Optional[envs.Env] = None
+        # # Make sure env is always up to date.
+        self._env_factory: Optional[envs.EnvFactory] = None
         if issubclass(self.cls, dynamics.OracleDynamics):
             if env_factory is None:
                 raise ValueError("env_factory must not be None for OracleDynamics")
-            env_factory.add_post_hook(
-                functools.partial(DynamicsFactory.env.__set__, self)  # type: ignore
-            )
+            self._env_factory = env_factory
 
-    @property
-    def env(self) -> Optional[envs.Env]:
-        """Last generated env."""
-        if self._env is None and issubclass(self.cls, dynamics.OracleDynamics):
-            raise RuntimeError(
-                "Need to call EnvFactory before calling DynamicsFactory."
-            )
-        return self._env
+        self.add_post_hook(functools.partial(self._add_env_factory_hook, env_factory))
 
-    @env.setter
-    def env(self, env: envs.Env) -> None:
-        """Sets the last generated env."""
-        self._env = env
+    def _add_env_factory_hook(
+        self, env_factory: envs.EnvFactory, dynamics_model: dynamics.Dynamics
+    ) -> None:
+        if not isinstance(dynamics_model, dynamics.OracleDynamics):
+            return
 
-    @property
-    def checkpoint(self) -> Optional[pathlib.Path]:
-        """Dynamics checkpoint path."""
-        return self._checkpoint
+        # Make sure OracleDynamics env is always up to date.
+        env_factory.add_post_hook(
+            functools.partial(dynamics.OracleDynamics.env.__set__, dynamics_model)  # type: ignore
+        )
 
-    def __call__(self, *args, **kwargs) -> envs.Env:
+    def __call__(self, *args, **kwargs) -> dynamics.Dynamics:
         """Creates a Dynamics instance.
 
         *args and **kwargs are transferred directly to the Dynamics constructor.
         DynamicsFactory automatically handles the env and checkpoint arguments.
         """
-        if "env" not in kwargs and issubclass(self.cls, dynamics.OracleDynamics):
-            kwargs["env"] = self.env
-
-        if "checkpoint" not in kwargs and issubclass(self.cls, dynamics.LatentDynamics):
-            kwargs["checkpoint"] = self.checkpoint
+        if "env" not in kwargs and self._env_factory is not None:
+            kwargs["env"] = self._env_factory.get_instance()
 
         return super().__call__(*args, **kwargs)
 
@@ -186,7 +180,7 @@ def load_config(path: Union[str, pathlib.Path]) -> Dict[str, Any]:
 
 
 def load_policies(
-    task_config: dynamics.TaskConfig,
+    task_config,
     checkpoint_paths: Sequence[str],
     device: str = "auto",
 ) -> List[agents.Agent]:

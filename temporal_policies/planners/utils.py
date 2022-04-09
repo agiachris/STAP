@@ -1,3 +1,4 @@
+import functools
 import pathlib
 from typing import Any, Dict, Optional, Iterable, Sequence, Tuple, Union
 
@@ -28,57 +29,40 @@ class PlannerFactory(configs.Factory):
         """
         super().__init__(planner_config, "planner", planners)
 
-        # Create factories.
-        self._env_factory = env_factory
         if policy_checkpoints is None:
-            # Defer creation of agent factories until an env is available.
-            self.__agent_factories: Optional[Sequence[agents.AgentFactory]] = None
-            env_factory.add_post_hook(self._create_agent_factories)
-        else:
-            # Create agent factories from checkpoints.
-            self.__agent_factories = [
-                agents.AgentFactory(agent_config=agent_config, checkpoint=ckpt)
-                for agent_config, ckpt in zip(
-                    self.config["agent_configs"], policy_checkpoints
-                )
-            ]
+            policy_checkpoints = [None] * len(self.config["agent_configs"])
+
+        self._agent_factories = [
+            agents.AgentFactory(
+                agent_config=agent_config,
+                env_factory=agent_env_factory,
+                checkpoint=ckpt,
+            )
+            for agent_config, agent_env_factory, ckpt in zip(
+                self.config["agent_configs"],
+                env_factory.env_factories,
+                policy_checkpoints,
+            )
+        ]
 
         self._dynamics_factory = dynamics.DynamicsFactory(
-            self.config["dynamics_config"],
-            env_factory,
-            dynamics_checkpoint,
+            dynamics_config=self.config["dynamics_config"],
+            env_factory=env_factory,
+            checkpoint=dynamics_checkpoint,
         )
 
-    @property
-    def _agent_factories(self) -> Sequence[agents.AgentFactory]:
-        """Agent factories."""
-        if self.__agent_factories is None:
-            raise RuntimeError("Need to call EnvFactory before calling PlannerFactory.")
-        return self.__agent_factories
-
-    def _create_agent_factories(self, env: envs.Env) -> None:
-        """Creates the agent factories with the given env.
-
-        Args:
-            env: Sequential env.
-        """
-        self.__agent_factories = [
-            agents.AgentFactory(agent_config=agent_config, env=agent_env)
-            for agent_config, agent_env in zip(self.config["agent_configs"], env.envs)
-        ]
+        # Preemptively initialize env.
+        if issubclass(self.cls, planners.RandomShootingPlanner):
+            self.kwargs["env"] = env_factory.get_instance()
 
     def __call__(self, *args, **kwargs) -> planners.Planner:
         """Creates a Planner instance.
 
         *args and **kwargs are transferred directly to the Planner constructor.
-        PlannerFactory automatically handles the policies, dynamics, and env
-        arguments.
+        PlannerFactory automatically handles the policies, dynamics, env, and
+        device arguments.
         """
-        if "env" not in kwargs and issubclass(self.cls, planners.RandomShootingPlanner):
-            kwargs["env"] = self._dynamics_factory.env
-
         device = kwargs.get("device", self.kwargs.get("device", "auto"))
-        kwargs["device"] = device
 
         policies = [
             agent_factory(device=device) for agent_factory in self._agent_factories
@@ -87,6 +71,7 @@ class PlannerFactory(configs.Factory):
 
         kwargs["policies"] = policies
         kwargs["dynamics"] = dynamics_model
+        kwargs["device"] = device
 
         return super().__call__(*args, **kwargs)
 

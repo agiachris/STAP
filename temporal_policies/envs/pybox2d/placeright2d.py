@@ -74,9 +74,9 @@ class PlaceRight2D(Box2DBase):
         #     high=np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
         # )
         low = np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps)
-        low = np.concatenate((low, [-np.pi * 0.5 - 1e-2]))
+        low = np.concatenate((low, [-np.pi * 0.5 - 1e-2]), dtype=np.float32)
         high = np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
-        high = np.concatenate((high, [np.pi * 0.5 + 1e-2]))
+        high = np.concatenate((high, [np.pi * 0.5 + 1e-2]), dtype=np.float32)
         self.observation_space = spaces.Box(low=low, high=high)
 
     def get_observation(self):

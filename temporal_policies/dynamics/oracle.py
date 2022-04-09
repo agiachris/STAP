@@ -35,6 +35,11 @@ class OracleDynamics(dynamics.Dynamics):
         """Oracle environment."""
         return self._env
 
+    @env.setter
+    def env(self, env: envs.Env) -> None:
+        """Updates the oracle environment."""
+        self._env = env
+
     @tensors.torch_wrap
     @tensors.vmap(dims=1)
     def forward(
@@ -70,7 +75,8 @@ class OracleDynamics(dynamics.Dynamics):
         matches the observation as expected.
         """
         assert observation.ndim == 1
-        if (observation != self.env.get_observation()).any():
+        if (observation != self.env.get_observation(idx_policy)).any():
+            # May happen if self.env is not updated by the dynamics factory.
             raise ValueError("Observation does not match the current env state")
         return self.env.get_state()
 

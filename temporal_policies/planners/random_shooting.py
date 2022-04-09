@@ -12,7 +12,7 @@ class RandomShootingPlanner(shooting.ShootingPlanner):
         self,
         policies: Sequence[agents.Agent],
         dynamics: dynamics.Dynamics,
-        env: envs.Env,  # TODO: Need to add this to factory
+        env: envs.Env,
         num_samples: int = 1024,
         device: str = "auto",
     ):
