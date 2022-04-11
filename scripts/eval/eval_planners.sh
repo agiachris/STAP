@@ -17,6 +17,12 @@ function eval_planner {
     ${CMD}
 }
 
+PLANNER_CONFIG=configs/pybox2d/planners/policy_cem.yaml
+ENV_CONFIG=configs/pybox2d/envs/placeright_pushleft.yaml
+POLICY_CHECKPOINTS="models/placeright/final_model.pt models/pushleft/final_model.pt"
+DYNAMICS_CHECKPOINT="models/placeright_pushleft/final_model.pt"
+eval_planner
+
 PLANNER_CONFIG=configs/pybox2d/planners/policy_shooting.yaml
 ENV_CONFIG=configs/pybox2d/envs/placeright_pushleft.yaml
 POLICY_CHECKPOINTS="models/placeright/final_model.pt models/pushleft/final_model.pt"
@@ -47,7 +53,7 @@ POLICY_CHECKPOINTS=""
 DYNAMICS_CHECKPOINT=""
 eval_planner
 
-PLANNER_CONFIG=configs/pybox2d/planners/random.yaml 
+PLANNER_CONFIG=configs/pybox2d/planners/random.yaml
 ENV_CONFIG=configs/pybox2d/envs/placeright_pushleft.yaml
 POLICY_CHECKPOINTS=""
 DYNAMICS_CHECKPOINT=""

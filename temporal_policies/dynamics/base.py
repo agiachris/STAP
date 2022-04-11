@@ -78,11 +78,13 @@ class Dynamics(abc.ABC):
             policy.to(self.device)
         return self
 
+    @tensors.batch(dims=1)
     def rollout(
         self,
         state: torch.Tensor,
         action_skeleton: Sequence[Tuple[int, Any]],
         policies: Optional[Sequence[agents.Agent]] = None,
+        time_index: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Rolls out trajectories according to the action skeleton.
 
@@ -90,48 +92,42 @@ class Dynamics(abc.ABC):
             state: Start state (supports up to one batch dimension for now).
             action_skeleton: List of (idx_policy, policy_args) 2-tuples.
             policies: Optional policies to use. Otherwise uses `self.policies`.
+            time_index: True if policies are indexed by time instead of idx_policy.
 
         Returns:
             3-tuple (
-                states [T + 1, batch_size],
-                actions [T, batch_size],
-                p_transitions [T, batch_size],
+                states [batch_size, T + 1],
+                actions [batch_size, T],
+                p_transitions [batch_size, T],
             ).
         """
         if policies is None:
             policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
-
-        squeeze = state.dim == len(self.state_space.shape)
-        if squeeze:
-            state = state.unsqueeze(0)
+            time_index = False
 
         # Initialize variables.
         batch_size = state.shape[0]
         T = len(action_skeleton)
         states = spaces.null_tensor(
-            self.state_space, (T + 1, batch_size), device=self.device
+            self.state_space, (batch_size, T + 1), device=self.device
         )
-        states[0] = state
+        states[:, 0] = state
         actions = spaces.null_tensor(
-            self.action_space, (T, batch_size), device=self.device
+            self.action_space, (batch_size, T), device=self.device
         )
         p_transitions = torch.ones(
-            (T, batch_size), dtype=torch.float32, device=self.device
+            (batch_size, T), dtype=torch.float32, device=self.device
         )
 
         # Rollout.
         for t, (idx_policy, policy_args) in enumerate(action_skeleton):
             policy_state = self.decode(state, idx_policy, policy_args)
-            action = policies[t].actor.predict(policy_state)
-            actions[t, :, : action.shape[-1]] = action
+            policy = policies[t] if time_index else policies[idx_policy]
+            action = policy.actor.predict(policy_state)
+            actions[:, t, : action.shape[-1]] = action
 
             state = self.forward(state, idx_policy, action, policy_args)
-            states[t + 1] = state
-
-        if squeeze:
-            states = states.squeeze(dim=1)
-            actions = actions.squeeze(dim=1)
-            p_transitions = p_transitions.squeeze(dim=1)
+            states[:, t + 1] = state
 
         return states, actions, p_transitions
 

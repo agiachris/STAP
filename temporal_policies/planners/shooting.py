@@ -83,7 +83,7 @@ class ShootingPlanner(planners.Planner):
 
             # Select best trajectory.
             idx_best = p_success.argmax()
-            best_actions = actions[:, idx_best].cpu().numpy()
+            best_actions = actions[idx_best].cpu().numpy()
             p_best_success = p_success[idx_best].cpu().numpy()
 
         return best_actions, p_best_success

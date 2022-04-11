@@ -6,7 +6,7 @@ import numpy as np  # type: ignore
 import torch  # type: ignore
 
 from temporal_policies import agents, dynamics, envs, planners
-from temporal_policies.utils import configs
+from temporal_policies.utils import configs, tensors
 
 
 class PlannerFactory(configs.Factory):
@@ -104,6 +104,7 @@ def load(
     return planner_factory(device=device)
 
 
+@tensors.batch(dims=1)
 def evaluate_trajectory(
     value_fns: Iterable[torch.nn.Module],
     decode_fns: Iterable[torch.nn.Module],
@@ -117,9 +118,9 @@ def evaluate_trajectory(
     Args:
         value_fns: List of T value functions.
         decoders: List of T decoders.
-        states: [T + 1, batch_dims, state_dims] trajectory states.
-        actions: [T, batch_dims, state_dims] trajectory actions.
-        p_transitions: [T, batch_dims] transition probabilities.
+        states: [batch_dims, T + 1, state_dims] trajectory states.
+        actions: [batch_dims, T, state_dims] trajectory actions.
+        p_transitions: [batch_dims, T] transition probabilities.
         q_value: Whether to use state-action values (True) or state values (False).
 
     Returns:
@@ -129,21 +130,21 @@ def evaluate_trajectory(
     p_successes = torch.zeros_like(p_transitions)
     if q_value:
         for t, (value_fn, decode_fn) in enumerate(zip(value_fns, decode_fns)):
-            state_t = decode_fn(states[t])
-            dim_action = torch.sum(~torch.isnan(actions[t, 0])).cpu().item()
-            p_successes[t] = value_fn.predict(state_t, actions[t, :, :dim_action])
+            state_t = decode_fn(states[:, t])
+            dim_action = torch.sum(~torch.isnan(actions[0, t])).cpu().item()
+            p_successes[:, t] = value_fn.predict(state_t, actions[:, t, :dim_action])
     else:
         for t, value_fn in enumerate(value_fns):
-            state_t = decode_fn(states[t])
-            p_successes[t] = value_fn.predict(states[t])
+            state_t = decode_fn(states[:, t])
+            p_successes[:, t] = value_fn.predict(state_t)
     p_successes = torch.clip(p_successes, min=0, max=1)
 
     # Discard last transition from T-1 to T, since s_T isn't used.
-    p_transitions = p_transitions[:-1]
+    p_transitions = p_transitions[:, :-1]
 
     # Combine probabilities.
-    log_p_success = torch.log(p_successes).sum(dim=0)
-    log_p_success += torch.log(p_transitions).sum(dim=0)
+    log_p_success = torch.log(p_successes).sum(dim=-1)
+    log_p_success += torch.log(p_transitions).sum(dim=-1)
 
     return torch.exp(log_p_success)
 

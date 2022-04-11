@@ -37,6 +37,9 @@ class Constant(torch.nn.Module):
         Args:
             input: First network input.
         """
+        if input.dim() == self.dim:
+            return self.constant
+
         shape = input.shape[: -self.dim] if self.dim > 0 else input.shape
 
         if self.constant.dim() == 0:

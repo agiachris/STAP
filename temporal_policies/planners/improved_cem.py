@@ -106,12 +106,13 @@ class CEMPlanner(planners.Planner):
         T = len(action_skeleton)
 
         # Roll out a trajectory.
-        states, _, _ = self.dynamics.rollout(state, action_skeleton)
-        mean = states.numpy()
+        policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
+        _, actions, _ = self.dynamics.rollout(state, action_skeleton, policies)
+        mean = actions.cpu().numpy()
 
         # Scale the standard deviations by the action spaces.
-        std = spaces.null_tensor(self.dynamics.action_space, (T,))
-        for t, (idx_policy, policy_args) in action_skeleton:
+        std = spaces.null_tensor(self.dynamics.action_space, (T,)).numpy()
+        for t, (idx_policy, policy_args) in enumerate(action_skeleton):
             a = self.policies[idx_policy].action_space
             std[t] = self.standard_deviation * 0.5 * (a.high - a.low)
 
@@ -131,68 +132,94 @@ class CEMPlanner(planners.Planner):
         """
         num_samples = self.num_samples
 
-        state = self.dynamics.encode(observation, action_skeleton[0][0]).repeat(
-            self.num_samples, -1
-        )
+        # Get initial state.
+        with torch.no_grad():
+            observation = torch.from_numpy(observation).to(self.dynamics.device)
+            idx_policy = action_skeleton[0][0]
+            state = self.dynamics.encode(observation, idx_policy)
+            state = state.repeat(self.num_samples, 1)
 
-        # Initialize distribution.
-        mean, std = self._compute_initial_distribution(state[0], action_skeleton)
-        value_fns = [
-            self.policies[idx_policy].critic for idx_policy, _ in action_skeleton
-        ]
-        decode_fns = [
-            functools.partial(self.dynamics.decode, idx_policy=idx_policy)
-            for idx_policy, _ in action_skeleton
-        ]
-        elites = np.empty((0, *mean.shape), dtype=mean.dtype)
-        p_elites = np.empty(0)
+            # Initialize distribution.
+            mean, std = self._compute_initial_distribution(state[0], action_skeleton)
+            value_fns = [
+                self.policies[idx_policy].critic for idx_policy, _ in action_skeleton
+            ]
+            decode_fns = [
+                functools.partial(self.dynamics.decode, idx_policy=idx_policy)
+                for idx_policy, _ in action_skeleton
+            ]
+            elites = np.empty((0, *mean.shape), dtype=mean.dtype)
+            p_elites = np.empty(0)
 
-        best_actions = None
-        p_best_success = -float("inf")
+            best_actions = None
+            p_best_success = -float("inf")
 
-        for _ in range(self.num_iterations):
-            # Sample from distribution.
-            samples = mean + std * np.randon.randn(*mean.shape)
+            for _ in range(self.num_iterations):
+                # Sample from distribution.
+                samples = mean + std * np.random.randn(
+                    self.num_samples, *mean.shape
+                ).astype(np.float32)
+                for t, (idx_policy, policy_args) in enumerate(action_skeleton):
+                    action_space = self.policies[idx_policy].action_space
+                    action_shape = action_space.shape[0]
+                    samples[:, t, :action_shape] = np.clip(
+                        samples[:, t, :action_shape],
+                        action_space.low,
+                        action_space.high,
+                    )
 
-            # Roll out trajectories.
-            policies = [agents.ConstantAgent(action) for action in samples]
-            states, actions, p_transitions = self.dynamics.rollout(
-                state, action_skeleton, policies
-            )
+                # Roll out trajectories.
+                policies = [
+                    agents.ConstantAgent(
+                        action=samples[
+                            :, t, : self.policies[idx_policy].action_space.shape[0]
+                        ],
+                        action_space=self.policies[idx_policy].action_space,
+                        observation_space=self.policies[idx_policy].observation_space,
+                    )
+                    for t, (idx_policy, policy_args) in enumerate(action_skeleton)
+                ]
+                states, actions, p_transitions = self.dynamics.rollout(
+                    state, action_skeleton, policies
+                )
 
-            # Evaluate trajectories.
-            p_success = utils.evaluate_trajectory(
-                value_fns, decode_fns, states, actions, p_transitions
-            )
+                # Evaluate trajectories.
+                p_success = utils.evaluate_trajectory(
+                    value_fns, decode_fns, states, actions, p_transitions
+                )
 
-            # Append subset of elites from previous iteration.
-            samples = np.concatenate(
-                (samples, elites[: self.num_elites_to_keep]), axis=0
-            )
-            p_success = np.concatenate(
-                (p_success, p_elites[: self.num_elites_to_keep]), axis=0
-            )
+                # Convert to numpy.
+                actions = actions.cpu().numpy()
+                p_success = p_success.cpu().numpy()
 
-            # Sort trajectories in descending order of success probability.
-            idx_sorted = np.argsort(p_success)[::-1]
-            samples = samples[idx_sorted]
-            p_success = p_success[idx_sorted]
+                # Append subset of elites from previous iteration.
+                samples = np.concatenate(
+                    (samples, elites[: self.num_elites_to_keep]), axis=0
+                )
+                p_success = np.concatenate(
+                    (p_success, p_elites[: self.num_elites_to_keep]), axis=0
+                )
 
-            # Compute elites.
-            elites = samples[: self.num_elites]
-            p_elites = p_success[: self.num_elites]
+                # Sort trajectories in descending order of success probability.
+                idx_sorted = np.argsort(p_success)[::-1]
+                samples = samples[idx_sorted]
+                p_success = p_success[idx_sorted]
 
-            # Track best action.
-            if p_success[0] > p_best_success:
-                p_best_success = p_success[0]
-                best_actions = actions[:, idx_sorted[0]]
+                # Compute elites.
+                elites = samples[: self.num_elites]
+                p_elites = p_success[: self.num_elites]
 
-            # Update distribution.
-            mean = self.momentum * mean + (1 - self.momentum) * elites.mean(axis=0)
-            std = self.momentum * std + (1 - self.momentum) * elites.std(axis=0)
+                # Track best action.
+                if p_success[0] > p_best_success:
+                    p_best_success = p_success[0]
+                    best_actions = actions[idx_sorted[0]]
 
-            # Decay population size.
-            num_samples = int(self.population_decay * num_samples + 0.5)
-            num_samples = max(num_samples, 2 * self.num_elites)
+                # Update distribution.
+                mean = self.momentum * mean + (1 - self.momentum) * elites.mean(axis=0)
+                std = self.momentum * std + (1 - self.momentum) * elites.std(axis=0)
+
+                # Decay population size.
+                num_samples = int(self.population_decay * num_samples + 0.5)
+                num_samples = max(num_samples, 2 * self.num_elites)
 
         return best_actions, p_best_success

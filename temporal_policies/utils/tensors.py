@@ -42,6 +42,27 @@ def to_tensor(
         return torch.tensor(x)
 
 
+def dim(
+    x: Union[torch.Tensor, np.ndarray, Sequence[float], Sequence[int], float, int]
+) -> torch.Tensor:
+    """Gets the number of dimensions of x.
+
+    Args:
+        x: Scalar or array.
+
+    Returns:
+        Number of dimensions.
+    """
+    if isinstance(x, torch.Tensor):
+        return x.dim()
+    elif isinstance(x, np.ndarray):
+        return x.ndim
+    elif isinstance(x, (float, int)):
+        return 0
+    else:
+        return 1
+
+
 def map_structure(
     func: Callable,
     *args: nest.NestedStructure,
@@ -193,7 +214,7 @@ def vmap(dims: int) -> Callable:
     """Decorator that vectorizes functions.
 
     Args:
-        dims: Number of dimensions of the first function input.
+        dims: Number of dimensions of the first tensor function input.
         func: Function to vectorize.
 
     Returns:
@@ -249,5 +270,42 @@ def vmap(dims: int) -> Callable:
             return results
 
         return vectorized_func
+
+    return _vmap
+
+
+def batch(dims: int) -> Callable:
+    """Decorator that ensures function inputs have at least one batch dimension.
+
+    If original arguments are not batched, returned results will also not have a batch.
+
+    Args:
+        dims: Number of dimensions of the first tensor function input.
+        func: Function to vectorize.
+
+    Returns:
+        Flexible batch function.
+    """
+
+    def _vmap(func: Callable) -> Callable:
+        def batched_func(*args, **kwargs):
+            try:
+                arr = next(structure_iterator((args, kwargs)))
+            except StopIteration:
+                is_batch = False
+            else:
+                arr_dim = arr.dim() if isinstance(arr, torch.Tensor) else arr.ndim
+                is_batch = arr_dim != dims
+
+                if is_batch:
+                    return func(*args, **kwargs)
+
+                args, kwargs = map_structure(lambda x: x.unsqueeze(0), (args, kwargs))
+                results = func(*args, **kwargs)
+                results = map_structure(lambda x: x.squeeze(0), results)
+
+                return results
+
+        return batched_func
 
     return _vmap
