@@ -54,7 +54,7 @@ class Planner(abc.ABC):
     @abc.abstractmethod
     def plan(
         self, observation: Any, action_skeleton: Sequence[Tuple[int, Any]]
-    ) -> Tuple[np.ndarray, float]:
+    ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray]:
         """Plans a sequence of actions following the given action skeleton.
 
         Args:
@@ -62,6 +62,11 @@ class Planner(abc.ABC):
             action_skeleton: List of (idx_policy, policy_args) 2-tuples.
 
         Returns:
-            2-tuple (actions [T, dim_actions], success_probability).
+            4-tuple (
+                actions [T, dim_actions],
+                success_probability,
+                visited actions [num_visited, T, dim_actions],
+                visited success_probability [num_visited])
+            ).
         """
         pass

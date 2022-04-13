@@ -1,6 +1,7 @@
-planner: RandomShootingPlanner
+planner: CEMPlanner
 planner_kwargs:
-  num_samples: 1
+  num_samples: 16
+  num_iterations: 8
 
 agent_configs:
   - configs/pybox2d/agents/sac.yaml

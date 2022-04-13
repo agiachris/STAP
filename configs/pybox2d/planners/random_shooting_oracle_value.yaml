@@ -1,12 +1,13 @@
-planner: ShootingPlanner
+planner: RandomShootingPlanner
 planner_kwargs:
   num_samples: 128
 
 agent_configs:
-  - agent: GaussianAgent
+  - agent: OracleAgent
     agent_kwargs:
       agent_config: configs/pybox2d/agents/sac.yaml
-      std: 0.5
-  - configs/pybox2d/agents/sac.yaml
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config: configs/pybox2d/agents/sac.yaml
 
 dynamics_config: configs/pybox2d/dynamics/decoupled.yaml

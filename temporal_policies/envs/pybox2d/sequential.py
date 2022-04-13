@@ -103,7 +103,7 @@ class Sequential2D(envs.Env):
             stop: Stop recording after saving.
         """
         frames = list(
-            itertools.chain.from_iterable([env._frame_buffer for env in self.envs])
+            itertools.chain.from_iterable([env._frame_buffer[::3] for env in self.envs])
         )
         imageio.mimsave(path, frames)
         if stop:

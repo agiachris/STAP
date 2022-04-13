@@ -61,9 +61,8 @@ class LatentDynamics(dynamics.Dynamics):
 
         self._loss = torch.nn.MSELoss()
 
-        self._dataset, self._eval_dataset = _construct_datasets(
-            policies, dataset_class, dataset_kwargs
-        )
+        self._dataset_class = dataset_class
+        self._dataset_kwargs = dataset_kwargs
 
         optimizer_class = configs.get_class(optimizer_class, torch.optim)
         self._optimizer = optimizer_class(self.network.parameters(), **optimizer_kwargs)
@@ -210,6 +209,15 @@ class LatentDynamics(dynamics.Dynamics):
             for key, val in self.optimizer.items():
                 val.load_state_dict(ckpt["optim"][key])
 
+    def setup_datasets(
+        self,
+    ) -> Tuple[torch.utils.data.IterableDataset, torch.utils.data.IterableDataset]:
+        """Set up train and eval datasets."""
+        self._dataset, self._eval_dataset = _construct_datasets(
+            self.policies, self._dataset_class, self._dataset_kwargs  # type: ignore
+        )
+        return self._dataset, self._eval_dataset
+
     def train(
         self,
         path: str,
@@ -236,6 +244,7 @@ class LatentDynamics(dynamics.Dynamics):
         """
         worker_init_fn = agents.rl._worker_init_fn if workers > 0 else None
         pin_memory = self.device.type == "cuda"
+        self.setup_datasets()
         dataloader = torch.utils.data.DataLoader(
             self.dataset,
             batch_size=None,

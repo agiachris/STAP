@@ -8,4 +8,5 @@ from . import dynamics
 from . import encoders
 from .dynamics import MLPDynamics
 from .constant import Constant
+from .gaussian import Gaussian
 from .random import Random

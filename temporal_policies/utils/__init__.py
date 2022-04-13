@@ -2,6 +2,7 @@ from . import configs
 from . import evaluate
 from . import logger
 from . import nest
+from . import random
 from . import schedules
 from . import spaces
 from . import tensors

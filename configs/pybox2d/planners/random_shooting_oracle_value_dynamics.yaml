@@ -1,0 +1,14 @@
+planner: RandomShootingPlanner
+planner_kwargs:
+  num_samples: 128
+
+agent_configs:
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config: configs/pybox2d/agents/sac.yaml
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config: configs/pybox2d/agents/sac.yaml
+
+dynamics_config:
+  dynamics: OracleDynamics

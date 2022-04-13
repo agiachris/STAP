@@ -77,3 +77,19 @@ def concatenate_boxes(spaces: Sequence[gym.spaces.Box]) -> gym.spaces.Box:
     high = np.concatenate([space.high for space in spaces], axis=0)
     shape = np.array([space.shape for space in spaces]).sum(axis=0)
     return gym.spaces.Box(low=low, high=high, shape=shape)
+
+
+def normalize(x: np.ndarray, space: gym.spaces.Box) -> np.ndarray:
+    assert (space.low <= x).all() and (x <= space.high).all()
+    return (x - space.low) / (space.high - space.low)
+
+
+def unnormalize(x: np.ndarray, space: gym.spaces.Box) -> np.ndarray:
+    assert (0 <= x).all() and (x <= 1).all()
+    return (space.high - space.low) * x + space.low
+
+
+def transform(
+    x: np.ndarray, from_space: gym.spaces.Box, to_space: gym.spaces.Box
+) -> np.ndarray:
+    return unnormalize(normalize(x, from_space), to_space)

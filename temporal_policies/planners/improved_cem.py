@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Sequence, Tuple
+from typing import Any, List, Sequence, Tuple
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -17,6 +17,7 @@ class CEMPlanner(planners.Planner):
         self,
         policies: Sequence[agents.Agent],
         dynamics: dynamics.Dynamics,
+        random_initialization: bool = False,
         num_iterations: int = 8,
         num_samples: int = 128,
         num_elites: int = 16,
@@ -31,6 +32,7 @@ class CEMPlanner(planners.Planner):
         Args:
             policies: Policies used to evaluate trajecotries.
             dynamics: Dynamics model.
+            random_initialization: Whether to initialize randomly or with the policies.
             num_iterations: Number of CEM iterations.
             num_samples: Number of samples to generate per CEM iteration.
             num_elites: Number of elites to select from population.
@@ -42,6 +44,7 @@ class CEMPlanner(planners.Planner):
             device: Torch device.
         """
         super().__init__(policies=policies, dynamics=dynamics, device=device)
+        self._random_initialization = random_initialization
         self._num_iterations = num_iterations
         self._num_samples = num_samples
         self._num_elites = max(2, min(num_elites, self.num_samples // 2))
@@ -105,8 +108,20 @@ class CEMPlanner(planners.Planner):
         """
         T = len(action_skeleton)
 
+        if self._random_initialization:
+            policies: List[agents.Agent] = []
+            for idx_policy, _ in action_skeleton:
+                policy = self.policies[idx_policy]
+                random_policy = agents.RandomAgent(
+                    action_space=policy.action_space,
+                    observation_space=policy.observation_space,
+                    device=policy.device,
+                )
+                policies.append(random_policy)
+        else:
+            policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
+
         # Roll out a trajectory.
-        policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
         _, actions, _ = self.dynamics.rollout(state, action_skeleton, policies)
         mean = actions.cpu().numpy()
 
@@ -120,7 +135,7 @@ class CEMPlanner(planners.Planner):
 
     def plan(
         self, observation: Any, action_skeleton: Sequence[Tuple[int, Any]]
-    ) -> Tuple[np.ndarray, float]:
+    ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray]:
         """Runs `num_iterations` of CEM.
 
         Args:
@@ -128,9 +143,27 @@ class CEMPlanner(planners.Planner):
             action_skeleton: List of (idx_policy, policy_args) 2-tuples.
 
         Returns:
-            2-tuple (actions [T, dim_actions], success_probability).
+            4-tuple (
+                actions [T, dim_actions],
+                success_probability,
+                visited actions [num_visited, T, dim_actions],
+                visited success_probability [num_visited])
+            ).
         """
         num_samples = self.num_samples
+
+        best_actions = None
+        p_best_success = -np.float32(float("inf"))
+        visited_actions = []
+        p_visited_success = []
+
+        value_fns = [
+            self.policies[idx_policy].critic for idx_policy, _ in action_skeleton
+        ]
+        decode_fns = [
+            functools.partial(self.dynamics.decode, idx_policy=idx_policy)
+            for idx_policy, _ in action_skeleton
+        ]
 
         # Get initial state.
         with torch.no_grad():
@@ -141,18 +174,8 @@ class CEMPlanner(planners.Planner):
 
             # Initialize distribution.
             mean, std = self._compute_initial_distribution(state[0], action_skeleton)
-            value_fns = [
-                self.policies[idx_policy].critic for idx_policy, _ in action_skeleton
-            ]
-            decode_fns = [
-                functools.partial(self.dynamics.decode, idx_policy=idx_policy)
-                for idx_policy, _ in action_skeleton
-            ]
             elites = np.empty((0, *mean.shape), dtype=mean.dtype)
-            p_elites = np.empty(0)
-
-            best_actions = None
-            p_best_success = -float("inf")
+            p_elites = np.empty(0, dtype=np.float32)
 
             for _ in range(self.num_iterations):
                 # Sample from distribution.
@@ -191,6 +214,8 @@ class CEMPlanner(planners.Planner):
                 # Convert to numpy.
                 actions = actions.cpu().numpy()
                 p_success = p_success.cpu().numpy()
+                visited_actions.append(actions)
+                p_visited_success.append(p_success)
 
                 # Append subset of elites from previous iteration.
                 samples = np.concatenate(
@@ -222,4 +247,7 @@ class CEMPlanner(planners.Planner):
                 num_samples = int(self.population_decay * num_samples + 0.5)
                 num_samples = max(num_samples, 2 * self.num_elites)
 
-        return best_actions, p_best_success
+        visited_actions = np.concatenate(visited_actions, axis=0)
+        p_visited_success = np.concatenate(p_visited_success, axis=0)
+
+        return best_actions, p_best_success, visited_actions, p_visited_success

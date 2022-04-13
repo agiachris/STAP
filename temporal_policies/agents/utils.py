@@ -51,7 +51,13 @@ class AgentFactory(configs.Factory):
 
         super().__init__(agent_config, "agent", agents)
 
-        if checkpoint is not None:
+        self._agent_factory = None
+        if issubclass(self.cls, agents.WrapperAgent):
+            self._agent_factory = AgentFactory(
+                self.kwargs["agent_config"], env, env_factory, checkpoint
+            )
+            del self.kwargs["agent_config"]
+        elif checkpoint is not None:
             if self.config["agent"] != ckpt_agent_config["agent"]:
                 raise ValueError(
                     f"Config agent [{self.config['agent']}] and checkpoint "
@@ -85,7 +91,9 @@ class AgentFactory(configs.Factory):
         self.add_post_hook(functools.partial(self._add_env_factory_hook, env_factory))
 
     def _add_env_factory_hook(
-        self, env_factory: envs.EnvFactory, policy: agents.Agent,
+        self,
+        env_factory: envs.EnvFactory,
+        policy: agents.Agent,
     ) -> None:
         """Makes sure OracleAgent env is always up to date."""
         if not isinstance(policy, agents.OracleAgent):
@@ -103,6 +111,8 @@ class AgentFactory(configs.Factory):
         """
         if "env" not in kwargs and self._env_factory is not None:
             kwargs["env"] = self._env_factory.get_instance()
+        if "policy" not in kwargs and self._agent_factory is not None:
+            kwargs["policy"] = self._agent_factory(*args, **kwargs)
 
         return super().__call__(*args, **kwargs)
 

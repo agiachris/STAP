@@ -27,6 +27,7 @@ class ShootingPlanner(planners.Planner):
             dynamics: Dynamics model.
             num_samples: Number of shooting samples.
             eval_policies: Optional policies for evaluation. Default uses `policies`.
+            policy_noise: Optional noise to apply to the policy during shooting.
             device: Torch device.
         """
         super().__init__(policies=policies, dynamics=dynamics, device=device)
@@ -45,7 +46,7 @@ class ShootingPlanner(planners.Planner):
 
     def plan(
         self, observation: Any, action_skeleton: Sequence[Tuple[int, Any]]
-    ) -> Tuple[np.ndarray, float]:
+    ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray]:
         """Generates `num_samples` trajectories and picks the best one.
 
         Args:
@@ -53,7 +54,12 @@ class ShootingPlanner(planners.Planner):
             action_skeleton: List of (idx_policy, policy_args) 2-tuples.
 
         Returns:
-            2-tuple (actions [T, dim_actions], success_probability).
+            4-tuple (
+                actions [T, dim_actions],
+                success_probability,
+                visited actions [num_visited, T, dim_actions],
+                visited success_probability [num_visited])
+            ).
         """
         with torch.no_grad():
             # Get initial state.
@@ -81,9 +87,13 @@ class ShootingPlanner(planners.Planner):
                 value_fns, decode_fns, states, actions, p_transitions
             )
 
+            # Convert to numpy.
+            actions = actions.cpu().numpy()
+            p_success = p_success.cpu().numpy()
+
             # Select best trajectory.
             idx_best = p_success.argmax()
-            best_actions = actions[idx_best].cpu().numpy()
-            p_best_success = p_success[idx_best].cpu().numpy()
+            best_actions = actions[idx_best]
+            p_best_success = p_success[idx_best]
 
-        return best_actions, p_best_success
+        return best_actions, p_best_success, actions, p_success

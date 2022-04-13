@@ -1,4 +1,3 @@
-import functools
 import pathlib
 from typing import Any, Dict, Optional, Iterable, Sequence, Tuple, Union
 
@@ -130,13 +129,14 @@ def evaluate_trajectory(
     p_successes = torch.zeros_like(p_transitions)
     if q_value:
         for t, (value_fn, decode_fn) in enumerate(zip(value_fns, decode_fns)):
-            state_t = decode_fn(states[:, t])
+            policy_state = decode_fn(states[:, t])
             dim_action = torch.sum(~torch.isnan(actions[0, t])).cpu().item()
-            p_successes[:, t] = value_fn.predict(state_t, actions[:, t, :dim_action])
+            action = actions[:, t, :dim_action]
+            p_successes[:, t] = value_fn.predict(policy_state, action)
     else:
         for t, value_fn in enumerate(value_fns):
-            state_t = decode_fn(states[:, t])
-            p_successes[:, t] = value_fn.predict(state_t)
+            policy_state = decode_fn(states[:, t])
+            p_successes[:, t] = value_fn.predict(policy_state)
     p_successes = torch.clip(p_successes, min=0, max=1)
 
     # Discard last transition from T-1 to T, since s_T isn't used.

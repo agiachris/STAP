@@ -6,7 +6,7 @@ import torch  # type: ignore
 
 from temporal_policies import agents, networks
 from temporal_policies.dynamics import latent as dynamics
-from temporal_policies.utils import spaces
+from temporal_policies.utils import spaces, tensors
 
 
 class DecoupledDynamics(dynamics.LatentDynamics):
@@ -92,6 +92,7 @@ class DecoupledDynamics(dynamics.LatentDynamics):
             z = torch.cat(zs, dim=-1)
         return z
 
+    @tensors.batch(dims=1)
     def decode(
         self,
         latent: torch.Tensor,
