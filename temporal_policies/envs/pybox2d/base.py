@@ -319,6 +319,8 @@ class Box2DBase(ABC, gym.Env, Generator):
                 body.angle = body_state[2]
                 body.linearVelocity = body_state[3:5]
                 body.angularVelocity = body_state[5]
+        assert self.world is not None
+        self.world.ClearForces()
 
         return True
 

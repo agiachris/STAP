@@ -8,6 +8,7 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 import numpy as np  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
 import torch  # type: ignore
+import tqdm  # type: ignore
 
 from temporal_policies import agents, envs, planners
 from temporal_policies.utils import random, spaces, timing
@@ -191,7 +192,7 @@ def main(args: argparse.Namespace) -> None:
 
     action_skeleton = [(0, None), (1, None)]
 
-    for i in range(args.num_eval):
+    for i in tqdm.tqdm(range(args.num_eval)):
         if args.seed is not None:
             random.seed(i)
 
@@ -224,10 +225,11 @@ def main(args: argparse.Namespace) -> None:
             path=path / f"values_{i}.png",
             title=f"{pathlib.Path(args.config).stem}: {t_planner:0.2f}s",
         )
-        print("success:", rewards.prod())
-        print("predicted success:", p_success)
-        print(actions)
-        print("time:", t_planner)
+        if args.verbose:
+            print("success:", rewards.prod())
+            print("predicted success:", p_success)
+            print(actions)
+            print("time:", t_planner)
 
         with open(path / f"results_{i}.npz", "wb") as f:
             save_dict = {
@@ -264,6 +266,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--path", default="plots", help="Path for output plots")
     parser.add_argument("--seed", type=int, help="Random seed")
+    parser.add_argument("--verbose", type=int, default=1, help="Print debug messages")
     args = parser.parse_args()
 
     main(args)

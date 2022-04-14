@@ -21,8 +21,13 @@ class PushLeft2D(Box2DBase):
         action = action.astype(float)
         low, high = self.action_scale.low, self.action_scale.high
         action = low + (high - low) * (action + 1) * 0.5
-        self.agent.ApplyForce((action[0], 0), self.agent.position, wake=True)
+
+        # Step once to let world settle.
+        self.world.ClearForces()
+        self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
+
         # Simulate
+        self.agent.ApplyForce((action[0], 0), self.agent.position, wake=True)
         return super().step()
 
     def _setup_spaces(self):

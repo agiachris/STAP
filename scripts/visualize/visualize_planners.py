@@ -67,6 +67,8 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         "Ground truth success": [],
         "Num sampled": [],
         "Time": [],
+        "Position": [],
+        "Angle": [],
     }
     for method, method_results in results.items():
         for result in method_results:
@@ -77,6 +79,8 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
             df_plans["Ground truth success"].append(result["rewards"].prod())
             df_plans["Num sampled"].append(result["p_visited_success"].shape[0])
             df_plans["Time"].append(result["t_planner"].item())
+            df_plans["Position"].append(result["scaled_actions"][0, 0])
+            df_plans["Angle"].append(result["scaled_actions"][0, 1])
 
     df_samples: Dict[str, List[Any]] = {
         "Method": [],
@@ -93,9 +97,12 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
             df_samples["Method"] += [get_method_label(method)] * num_samples
             df_samples["Value"] += [get_value_label(method)] * num_samples
             df_samples["Dynamics"] += [get_dynamics_label(method)] * num_samples
-            df_samples["Predicted success"] += result["p_visited_success"].tolist()
-            df_samples["Position"] += actions[:, 0].tolist()
-            df_samples["Angle"] += actions[:, 1].tolist()
+
+            # np.ndarray.tolist() converts to float64. Use list comprehension to
+            # preserve data type.
+            df_samples["Predicted success"] += [x for x in result["p_visited_success"]]
+            df_samples["Position"] += [x for x in actions[:, 0]]
+            df_samples["Angle"] += [x for x in actions[:, 1]]
 
     return pd.DataFrame(df_plans), pd.DataFrame(df_samples)
 
@@ -104,27 +111,33 @@ def plot_planning_results(
     df_plans: pd.DataFrame, df_samples: pd.DataFrame, path: Union[str, pathlib.Path]
 ) -> None:
     def barplot(ax: plt.Axes, df_plans: pd.DataFrame, **kwargs) -> plt.Axes:
-        num_methods = len(df_plans["Method"].unique())
-
         sns.barplot(ax=ax, data=df_plans, **kwargs)
         ax.set_xticklabels(
             [label.get_text().replace(" ", "\n") for label in ax.get_xticklabels()]
         )
         ax.get_legend().remove()
         ax.set_xlabel("")
-        palette = sns.color_palette()
-        for idx_bar, bar in enumerate(ax.patches):
+        ax.set_axisbelow(True)
+        ax.grid(axis="y")
+
+        # Change colors and shift bars.
+        num_methods = len(df_plans["Method"].unique())
+        for idx_bar, (bar, line) in enumerate(zip(ax.patches, ax.lines)):
             idx_method = idx_bar % num_methods
             idx_value_dynamics = idx_bar // num_methods
 
+            # Compute color.
             a = idx_value_dynamics * 0.4 if idx_value_dynamics < 3 else 0
-            color = 0.8 * np.array(palette[idx_method])
+            color = 0.8 * np.array(sns.color_palette()[idx_method])
             color = (1 - a) * color + a * np.ones(3)
 
+            # Compute position.
             dx = 0.1 if idx_value_dynamics < 3 else -0.3
 
+            # Modify plot.
             bar.set_color(color)
             bar.set_x(bar.get_x() + dx)
+            line.set_xdata(line.get_xdata() + dx)
 
     df_plans = df_plans.copy()
     df_plans["Value / Dynamics"] = df_plans.apply(
@@ -134,14 +147,24 @@ def plot_planning_results(
         df_plans["Predicted success"] - df_plans["Ground truth success"]
     )
 
+    # Change Random method's value function to oracle.
+    idx_random = df_plans["Method"] == "Random"
+    df_plans.loc[idx_random, "Predicted success"] = 0.0
+    df_plans.loc[idx_random, "Predicted success error"] = 0.0
+
     df_samples = df_samples.copy()
     df_samples["Value / Dynamics"] = df_samples.apply(
         lambda x: f"{x['Value']} / {x['Dynamics']}", axis=1
     )
-    prop_success = df_samples.groupby(["Method", "Value / Dynamics"])[
-        "Predicted success"
-    ].apply(lambda x: (x > 0.5).sum() / len(x))
-    df_success = prop_success.to_frame(name="Predicted success > 0.5").reset_index()
+
+    # Change Random method's value function to oracle.
+    idx_samples_random = df_samples["Method"] == "Random"
+    assert idx_random.sum() == idx_samples_random.sum()
+    df_samples.loc[idx_samples_random, "Predicted success"] = df_plans[
+        "Ground truth success"
+    ][idx_random].to_numpy()
+
+    df_samples["Predicted success > 0.5"] = df_samples["Predicted success"] > 0.5
 
     fig, axes = plt.subplots(2, 3, figsize=(12, 6))
 
@@ -166,68 +189,79 @@ def plot_planning_results(
 
     ax = axes[1, 1]
     barplot(ax, df_plans, x="Method", y="Num sampled", hue="Value / Dynamics")
-    ax.set_title("Planning samples")
+    ax.set_title("Sample quantity")
     ax.set_ylabel("# samples")
 
     ax = axes[1, 2]
     barplot(
-        ax, df_success, x="Method", y="Predicted success > 0.5", hue="Value / Dynamics"
+        ax, df_samples, x="Method", y="Predicted success > 0.5", hue="Value / Dynamics"
     )
-    ax.set_title("Predicted success > 0.5")
-    ax.set_ylabel("Proportion")
+    ax.set_title("Sample quality")
+    ax.set_ylabel("Predicted success > 0.5")
 
     patches = [
         matplotlib.patches.Patch(color=np.full(3, 0.4 + i * 0.25), label=label)
         for i, label in enumerate(df_plans["Value / Dynamics"].unique()[:-1])
     ]
-    axes[0, 2].legend(handles=patches, loc="upper right")
+    axes[0, 2].legend(title="Value / Dynamics", handles=patches, loc="upper right")
 
     fig.suptitle("Planning results")
 
     fig.tight_layout()
     fig.savefig(
-        pathlib.Path(path) / "planning_results.pdf",
+        pathlib.Path(path) / "planning_results.png",
         bbox_inches="tight",
-        pad_inches=0,
+        pad_inches=0.03,
         transparent=True,
     )
     plt.close(fig)
 
 
-def plot_sample_statistics(
-    df_samples: pd.DataFrame, path: Union[str, pathlib.Path]
+def plot_action_statistics(
+    df_plans: pd.DataFrame, df_samples: pd.DataFrame, path: Union[str, pathlib.Path]
 ) -> None:
-    df_samples = df_samples[
-        (df_samples["Value"] != "Oracle") & (df_samples["Dynamics"] != "Oracle")
+    df_plans = df_plans[
+        (df_plans["Value"] != "Oracle")
+        & (df_plans["Dynamics"] != "Oracle")
+        & (df_plans["Method"] != "Random")
     ]
-    df_samples["Method"] = df_samples.apply(
-        lambda x: f"{x['Method']}: {x['Value']} / {x['Dynamics']}", axis=1
+    df_samples = df_samples[
+        (df_samples["Value"] != "Oracle")
+        & (df_samples["Dynamics"] != "Oracle")
+        & (df_samples["Method"] != "Random")
+    ]
+
+    fig, axes = plt.subplots(2, 2, figsize=(10, 8))
+
+    ax = axes[0, 0]
+    sns.kdeplot(
+        ax=ax, x="Position", hue="Method", data=df_samples, bw_adjust=0.75, cut=0
     )
-    print(df_samples)
-    # df_samples["Value / Dynamics"] = df_samples.apply(
-    #     lambda x: f"{x['Value']} / {x['Dynamics']}", axis=1
-    # )
-
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-
-    ax = axes[0]
-    sns.kdeplot(ax=ax, x="Position", hue="Method", data=df_samples, cut=0, legend=False)
-    ax.set_title("Position")
+    ax.set_title("Sampled Positions")
     ax.set_xlabel("Position [m]")
 
-    ax = axes[1]
-    sns.kdeplot(ax=ax, x="Angle", hue="Method", data=df_samples, cut=0)
-    ax.set_title("Angle")
+    ax = axes[0, 1]
+    sns.kdeplot(ax=ax, x="Angle", hue="Method", data=df_samples, bw_adjust=0.75, cut=0)
+    ax.set_title("Sampled Angles")
     ax.set_xlabel("Angle [rad]")
-    # plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
 
-    fig.suptitle("Sample statistics")
+    ax = axes[1, 0]
+    sns.kdeplot(ax=ax, x="Position", hue="Method", data=df_plans, bw_adjust=0.75, cut=0)
+    ax.set_title("Planned Positions")
+    ax.set_xlabel("Position [m]")
+
+    ax = axes[1, 1]
+    sns.kdeplot(ax=ax, x="Angle", hue="Method", data=df_plans, bw_adjust=0.75, cut=0)
+    ax.set_title("Planned Angles")
+    ax.set_xlabel("Angle [rad]")
+
+    fig.suptitle("Action statistics")
 
     fig.tight_layout()
     fig.savefig(
-        pathlib.Path(path) / "sample_statistics.pdf",
+        pathlib.Path(path) / "action_statistics.png",
         bbox_inches="tight",
-        pad_inches=0,
+        pad_inches=0.03,
         transparent=True,
     )
     plt.close(fig)
@@ -241,7 +275,7 @@ def main(args: argparse.Namespace) -> None:
     print(df_samples, "\n")
 
     plot_planning_results(df_plans, df_samples, args.path)
-    plot_sample_statistics(df_samples, args.path)
+    plot_action_statistics(df_plans, df_samples, args.path)
 
 
 if __name__ == "__main__":

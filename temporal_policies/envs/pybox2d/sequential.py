@@ -90,10 +90,16 @@ class Sequential2D(envs.Env):
         for env in self.envs:
             env._buffer_frames = True
 
-    def record_stop(self) -> None:
+    def record_pause(self) -> None:
         """Stops recording."""
         for env in self.envs:
             env._buffer_frames = False
+
+    def record_stop(self) -> None:
+        """Stops recording."""
+        self.record_pause()
+        for env in self.envs:
+            env._frame_buffer.clear()
 
     def record_save(self, path: pathlib.Path, stop: bool = False) -> None:
         """Saves the recording to a file.

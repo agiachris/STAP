@@ -26,6 +26,11 @@ class PlaceRight2D(Box2DBase):
         self.agent.position = b2Vec2(action[0], self.agent.position[1])
         self.agent.angle = action[1]
         self.agent.fixedRotation = True
+
+        # Step once to let world settle.
+        self.world.ClearForces()
+        self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
+
         # Simulate
         return super().step()
 

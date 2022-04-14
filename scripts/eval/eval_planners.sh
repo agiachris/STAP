@@ -2,6 +2,8 @@
 
 set -e
 
+DEBUG=0
+
 function eval_planner {
     ARGS=""
     ARGS="${ARGS} --planner-config ${PLANNER_CONFIG}"
@@ -13,8 +15,15 @@ function eval_planner {
         ARGS="${ARGS} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
     ARGS="${ARGS} --seed 0"
-    ARGS="${ARGS} --num-eval 100"
-    ARGS="${ARGS} --path plots/pybox2d"
+    if [[ $DEBUG -ne 0 ]]; then
+        ARGS="${ARGS} --num-eval 1"
+        ARGS="${ARGS} --path plots/pybox2d_debug"
+        ARGS="${ARGS} --verbose 1"
+    else
+        ARGS="${ARGS} --num-eval 100"
+        ARGS="${ARGS} --path plots/pybox2d"
+        ARGS="${ARGS} --verbose 0"
+    fi
     CMD="python scripts/eval/eval_planners.py ${ARGS}"
     echo ""
     echo "${CMD}"

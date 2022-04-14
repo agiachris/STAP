@@ -27,6 +27,10 @@ class PushLeft2DControl(Box2DBase):
             ref=action.item(), y=self.agent.position[0], scale=float(self.agent.mass)
         )
 
+        # Step once to let world settle.
+        self.world.ClearForces()
+        self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
+
         # Simulate
         done = False
         reward = 0
