@@ -209,7 +209,7 @@ def plot_planning_results(
 
     fig.tight_layout()
     fig.savefig(
-        pathlib.Path(path) / "planning_results.png",
+        pathlib.Path(path) / "planning_results.pdf",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,
@@ -259,7 +259,7 @@ def plot_action_statistics(
 
     fig.tight_layout()
     fig.savefig(
-        pathlib.Path(path) / "action_statistics.png",
+        pathlib.Path(path) / "action_statistics.pdf",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,

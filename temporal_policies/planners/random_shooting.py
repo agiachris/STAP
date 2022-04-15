@@ -32,6 +32,8 @@ class RandomShootingPlanner(shooting.ShootingPlanner):
             )
             for policy, env_i in zip(dynamics.policies, env.envs)
         ]
+        # TODO: Make sure last timestep with no dependencies are not random.
+        random_policies[-1] = policies[-1]
 
         super().__init__(
             policies=random_policies,
