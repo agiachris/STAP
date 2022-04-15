@@ -319,8 +319,13 @@ class Box2DBase(ABC, gym.Env, Generator):
                 body.angle = body_state[2]
                 body.linearVelocity = body_state[3:5]
                 body.angularVelocity = body_state[5]
+                body.awake = True
         assert self.world is not None
         self.world.ClearForces()
+
+        self._cumulative_reward = 0.0
+        self._steps = 0
+        self._physics_steps = 0
 
         return True
 

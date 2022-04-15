@@ -58,7 +58,6 @@ class Sequential2D(envs.Env):
             env._cumulative_reward = 0.0
             env._steps = 0
             env._physics_steps = 0
-            # env._frame_buffer = []
 
         base_env = self.envs[0]
         return base_env.set_state(state)

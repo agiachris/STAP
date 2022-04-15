@@ -210,6 +210,7 @@ class Generator(GeometryHandler):
             userData=userData,
             **kwargs,
         )
+        body.sleepingAllowed = False
         return body
 
     @staticmethod

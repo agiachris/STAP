@@ -11,17 +11,15 @@ class OracleAgent(wrapper.WrapperAgent):
         self,
         env: envs.Env,
         policy: Optional[base.Agent] = None,
-        # action: Optional[Union[torch.Tensor, np.ndarray, Sequence[float]]] = None,
         device: str = "auto",
     ):
         """Constructs the oracle agent.
 
-        If action is specified, the agent's actor will always output it.
-        Otherwise, the actor will output random actions.
+        The oracle agent's actor will use the given policy's actor.
 
         Args:
             env: Policy env.
-            action: Optional constant action.
+            policy: Policy whose actor will be used.
             device: Torch device.
         """
         if policy is None:

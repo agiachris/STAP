@@ -119,7 +119,8 @@ def visualize(
         ax.set_yticks(np.linspace(action_space.low[1], action_space.high[1], 5))
 
     if num_grid_steps is None:
-        if all(isinstance(policy, agents.OracleAgent) for policy in planner.policies):
+        eval_policies = planner.eval_policies if isinstance(planner, planners.ShootingPlanner) else planner.policies
+        if isinstance(eval_policies[0], agents.OracleAgent):
             num_grid_steps = 10
         else:
             num_grid_steps = 40
