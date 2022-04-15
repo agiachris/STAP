@@ -50,16 +50,12 @@ class PlannerFactory(configs.Factory):
             checkpoint=dynamics_checkpoint,
         )
 
-        # Preemptively initialize env.
-        if issubclass(self.cls, planners.RandomShootingPlanner):
-            self.kwargs["env"] = env_factory.get_instance()
-
     def __call__(self, *args, **kwargs) -> planners.Planner:
         """Creates a Planner instance.
 
         *args and **kwargs are transferred directly to the Planner constructor.
-        PlannerFactory automatically handles the policies, dynamics, env, and
-        device arguments.
+        PlannerFactory automatically handles the policies, dynamics, and device
+        arguments.
         """
         device = kwargs.get("device", self.kwargs.get("device", "auto"))
 

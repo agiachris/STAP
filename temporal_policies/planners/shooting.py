@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Sequence, Tuple
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -17,7 +17,6 @@ class ShootingPlanner(planners.Planner):
         policies: Sequence[agents.Agent],
         dynamics: dynamics.Dynamics,
         num_samples: int = 1024,
-        eval_policies: Optional[Sequence[agents.Agent]] = None,
         device: str = "auto",
     ):
         """Constructs the shooting planner.
@@ -26,23 +25,15 @@ class ShootingPlanner(planners.Planner):
             policies: Policies used to generate trajectories.
             dynamics: Dynamics model.
             num_samples: Number of shooting samples.
-            eval_policies: Optional policies for evaluation. Default uses `policies`.
-            policy_noise: Optional noise to apply to the policy during shooting.
             device: Torch device.
         """
         super().__init__(policies=policies, dynamics=dynamics, device=device)
         self._num_samples = num_samples
-        self._eval_policies = policies if eval_policies is None else eval_policies
 
     @property
     def num_samples(self) -> int:
         """Number of shooting samples."""
         return self._num_samples
-
-    @property
-    def eval_policies(self) -> Sequence[agents.Agent]:
-        """Policies for trajectory evaluation."""
-        return self._eval_policies
 
     def plan(
         self, observation: Any, action_skeleton: Sequence[Tuple[int, Any]]
@@ -76,8 +67,7 @@ class ShootingPlanner(planners.Planner):
 
             # Evaluate trajectories.
             value_fns = [
-                self.eval_policies[idx_policy].critic
-                for idx_policy, _ in action_skeleton
+                self.policies[idx_policy].critic for idx_policy, _ in action_skeleton
             ]
             decode_fns = [
                 functools.partial(self.dynamics.decode, idx_policy=idx_policy)

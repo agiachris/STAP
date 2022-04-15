@@ -1,5 +1,5 @@
 import functools
-from typing import Any, List, Sequence, Tuple
+from typing import Any, Sequence, Tuple
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -11,13 +11,12 @@ from temporal_policies.utils import spaces
 
 
 class CEMPlanner(planners.Planner):
-    "Planner using the Improved Cross Entropy Method." ""
+    """Planner using the Improved Cross Entropy Method."""
 
     def __init__(
         self,
         policies: Sequence[agents.Agent],
         dynamics: dynamics.Dynamics,
-        random_initialization: bool = False,
         num_iterations: int = 8,
         num_samples: int = 128,
         num_elites: int = 16,
@@ -32,7 +31,6 @@ class CEMPlanner(planners.Planner):
         Args:
             policies: Policies used to evaluate trajecotries.
             dynamics: Dynamics model.
-            random_initialization: Whether to initialize randomly or with the policies.
             num_iterations: Number of CEM iterations.
             num_samples: Number of samples to generate per CEM iteration.
             num_elites: Number of elites to select from population.
@@ -44,7 +42,6 @@ class CEMPlanner(planners.Planner):
             device: Torch device.
         """
         super().__init__(policies=policies, dynamics=dynamics, device=device)
-        self._random_initialization = random_initialization
         self._num_iterations = num_iterations
         self._num_samples = num_samples
         self._num_elites = max(2, min(num_elites, self.num_samples // 2))
@@ -108,20 +105,8 @@ class CEMPlanner(planners.Planner):
         """
         T = len(action_skeleton)
 
-        if self._random_initialization:
-            policies: List[agents.Agent] = []
-            for idx_policy, _ in action_skeleton:
-                policy = self.policies[idx_policy]
-                random_policy = agents.RandomAgent(
-                    action_space=policy.action_space,
-                    observation_space=policy.observation_space,
-                    device=policy.device,
-                )
-                policies.append(random_policy)
-        else:
-            policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
-
         # Roll out a trajectory.
+        policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
         _, actions, _ = self.dynamics.rollout(state, action_skeleton, policies)
         mean = actions.cpu().numpy()
 

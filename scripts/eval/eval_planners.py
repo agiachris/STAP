@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt  # type: ignore
 import torch  # type: ignore
 import tqdm  # type: ignore
 
-from temporal_policies import agents, envs, planners
+from temporal_policies import agents, envs, planners, networks
 from temporal_policies.utils import random, spaces, timing
 
 
@@ -46,12 +46,9 @@ def evaluate_critic_functions(
     env: envs.Env,
     num_grid_steps: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    if isinstance(planner, planners.ShootingPlanner):
-        policies = planner.eval_policies
-    else:
-        policies = planner.policies
-
-    plot_policies = create_plot_policies(env, policies, action_skeleton, num_grid_steps)
+    plot_policies = create_plot_policies(
+        env, planner.policies, action_skeleton, num_grid_steps
+    )
 
     observation = env.get_observation(action_skeleton[0][0])
     with torch.no_grad():
@@ -72,7 +69,9 @@ def evaluate_critic_functions(
             )
             dim_action = torch.sum(~torch.isnan(actions[0, t])).cpu().item()
             action = actions[:, t, :dim_action]
-            q_values[:, t] = policies[idx_policy].critic.predict(policy_state, action)
+            q_values[:, t] = planner.policies[idx_policy].critic.predict(
+                policy_state, action
+            )
 
     return q_values.cpu().numpy(), actions.cpu().numpy()
 
@@ -85,7 +84,7 @@ def visualize(
     p_success: np.ndarray,
     rewards: np.ndarray,
     path: Union[str, pathlib.Path],
-    num_grid_steps: Optional[int] = None,
+    num_grid_steps: int = 40,
     title: Optional[str] = None,
 ) -> None:
     def tick_labels(value: float, pos: float, dim: int) -> str:
@@ -117,13 +116,6 @@ def visualize(
         ax.yaxis.set_major_formatter(plt.FuncFormatter(ytick_labels))
         ax.set_xticks(np.linspace(action_space.low[0], action_space.high[0], 5))
         ax.set_yticks(np.linspace(action_space.low[1], action_space.high[1], 5))
-
-    if num_grid_steps is None:
-        eval_policies = planner.eval_policies if isinstance(planner, planners.ShootingPlanner) else planner.policies
-        if isinstance(eval_policies[0], agents.OracleAgent):
-            num_grid_steps = 10
-        else:
-            num_grid_steps = 40
 
     q_values, grid_actions = evaluate_critic_functions(
         planner, action_skeleton, env, num_grid_steps
