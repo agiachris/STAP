@@ -6,7 +6,6 @@ Examples are as follows:
 '''
 import temporal_policies
 import torch
-from temporal_policies.utils.utils import fetch_from_dict
 
 class Processor(object):
     '''
@@ -24,6 +23,9 @@ class Processor(object):
 
     def unprocess(self, batch):
         raise NotImplementedError
+
+    def to(self, device):
+        pass
 
     @property
     def supports_gpu(self):

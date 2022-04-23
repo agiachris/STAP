@@ -6,4 +6,5 @@ from . import envs
 from . import networks
 from . import planners
 from . import processors
+from . import schedulers
 from . import utils

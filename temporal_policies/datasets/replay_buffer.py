@@ -11,7 +11,7 @@ import numpy as np  # type: ignore
 import torch  # type: ignore
 import tqdm  # type: ignore
 
-from temporal_policies.utils import nest
+from temporal_policies.utils import nest, spaces
 
 Batch = nest.NestedStructure
 
@@ -29,11 +29,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self,
         observation_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
+        path: Optional[Union[str, pathlib.Path]] = None,
         capacity: int = 100000,
         batch_size: Optional[int] = None,
         sample_strategy: Union[str, SampleStrategy] = "uniform",
         nstep: int = 1,
-        path: Optional[Union[str, pathlib.Path]] = None,
         save_frequency: Optional[int] = None,
     ):
         """Stores the configuration parameters for the replay buffer.
@@ -44,11 +44,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         Args:
             observation_space: Observation space.
             action_space: Action space.
+            path: Optional location of replay buffer on disk.
             capacity: Replay buffer capacity.
             batch_size: Sample batch size.
             sample_strategy: Sample strategy.
             nstep: Number of steps between sample and next observation.
-            path: Optional location of replay buffer on disk.
             save_frequency: Frequency of optional automatic saving to disk.
         """
         self._observation_space = observation_space
@@ -67,6 +67,16 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         if save_frequency is not None and save_frequency <= 0:
             save_frequency = None
         self._save_frequency = save_frequency
+
+    @property
+    def observation_space(self) -> gym.spaces.Space:
+        """Batch observation space."""
+        return self._observation_space
+
+    @property
+    def action_space(self) -> gym.spaces.Space:
+        """Batch action space."""
+        return self._action_space
 
     @property
     def capacity(self) -> int:
@@ -92,6 +102,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
     def path(self) -> Optional[pathlib.Path]:
         """Location of replay buffer on disk."""
         return self._path
+
+    @path.setter
+    def path(self, path: Union[str, pathlib.Path]) -> None:
+        """Sets the location fo replay buffer on disk."""
+        self._path = pathlib.Path(path)
 
     @property
     def save_frequency(self) -> Optional[int]:
@@ -127,7 +142,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             raise RuntimeError("Need to run ReplayBuffer.initialize() first.")
 
     def initialize(self) -> None:
-        """Initializes the buffers."""
+        """Initializes the worker buffers."""
 
         # Set up only once.
         if hasattr(self, "_worker_buffers"):
@@ -154,24 +169,9 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         Returns:
             Batch dict with observation, action, reward, discount, done fields.
         """
-
-        def create_buffer(space: gym.spaces.Space, capacity: int):
-            if isinstance(space, gym.spaces.Discrete):
-                return np.full(capacity, space.start - 1, dtype=np.int64)
-            elif isinstance(space, gym.spaces.Box):
-                return np.full(
-                    (capacity, *space.shape), float("nan"), dtype=space.dtype
-                )
-            elif isinstance(space, gym.spaces.Tuple):
-                return tuple(create_buffer(s, capacity) for s in space)
-            elif isinstance(space, gym.spaces.Dict):
-                return {key: create_buffer(s, capacity) for key, s in space.items()}
-            else:
-                raise ValueError("Invalid space provided")
-
         return {
-            "observation": create_buffer(self._observation_space, size),
-            "action": create_buffer(self._action_space, size),
+            "observation": spaces.null(self.observation_space, size),
+            "action": spaces.null(self.action_space, size),
             "reward": np.full(size, float("nan"), dtype=np.float32),
             "discount": np.full(size, float("nan"), dtype=np.float32),
             "done": np.zeros(size, dtype=bool),
@@ -552,6 +552,7 @@ def _wrap_get(
 
 
 if __name__ == "__main__":
+    # Simple tests.
     observation_space = gym.spaces.Box(low=np.full(2, 0), high=np.full(2, 1))
     action_space = gym.spaces.Box(low=0, high=1, shape=(1,))
     replay_buffer = ReplayBuffer(
