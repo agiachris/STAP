@@ -1,4 +1,4 @@
-dynamics: DecoupledDynamics
+dynamics: SharedDynamics
 dynamics_kwargs:
   network_class: MLPDynamics
   network_kwargs:

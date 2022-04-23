@@ -148,9 +148,9 @@ def plot_planning_results(
     )
 
     # Change Random method's value function to oracle.
-    idx_random = df_plans["Method"] == "Random"
-    df_plans.loc[idx_random, "Predicted success"] = 0.0
-    df_plans.loc[idx_random, "Predicted success error"] = 0.0
+    # idx_random = df_plans["Method"] == "Random"
+    # df_plans.loc[idx_random, "Predicted success"] = 0.0
+    # df_plans.loc[idx_random, "Predicted success error"] = 0.0
 
     df_samples = df_samples.copy()
     df_samples["Value / Dynamics"] = df_samples.apply(
@@ -158,11 +158,11 @@ def plot_planning_results(
     )
 
     # Change Random method's value function to oracle.
-    idx_samples_random = df_samples["Method"] == "Random"
-    assert idx_random.sum() == idx_samples_random.sum()
-    df_samples.loc[idx_samples_random, "Predicted success"] = df_plans[
-        "Ground truth success"
-    ][idx_random].to_numpy()
+    # idx_samples_random = df_samples["Method"] == "Random"
+    # assert idx_random.sum() == idx_samples_random.sum()
+    # df_samples.loc[idx_samples_random, "Predicted success"] = df_plans[
+    #     "Ground truth success"
+    # ][idx_random].to_numpy()
 
     df_samples["Predicted success > 0.5"] = df_samples["Predicted success"] > 0.5
 
@@ -209,7 +209,7 @@ def plot_planning_results(
 
     fig.tight_layout()
     fig.savefig(
-        pathlib.Path(path) / "planning_results.pdf",
+        pathlib.Path(path) / "planning_results.png",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,
@@ -259,7 +259,7 @@ def plot_action_statistics(
 
     fig.tight_layout()
     fig.savefig(
-        pathlib.Path(path) / "action_statistics.pdf",
+        pathlib.Path(path) / "action_statistics.png",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,

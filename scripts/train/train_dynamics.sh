@@ -1,9 +1,34 @@
 #!/bin/bash
 
-#python scripts/train.py -c configs/pybox2d/placeright2d/sac.yaml -p models/placeright2d
-#python scripts/train.py -c configs/pybox2d/pushleft2dcontrol/sac.yaml -p models/pushleft2dcontrol
-#python scripts/train.py -c configs/pybox2d/placeright2d/sac_rand.yaml -p models/placeright2d_rand
-#python scripts/train.py -c configs/pybox2d/pushleft2dcontrol/sac_rand.yaml -p models/pushleft2dcontrol_rand
+set -e
 
-#python scripts/train/train_dynamics.py -c configs/pybox2d/dynamics/decoupled.yaml --exec-config configs/pybox2d/exec/placeright2d_pushleft2dcontrol/policy.yaml -p models/placeright2d_pushleft2dcontrol --policy-checkpoints models/placeright2d/final_model.pt models/pushleft2dcontrol/final_model.pt
-python scripts/train/train_dynamics.py -c configs/pybox2d/dynamics/decoupled.yaml --exec-config configs/pybox2d/exec/placeright2d_pushleft2dcontrol/policy.yaml -p models/placeright2d_pushleft2dcontrol_rand --policy-checkpoints models/placeright2d_rand/final_model.pt models/pushleft2dcontrol_rand/final_model.pt
+function run_cmd {
+    echo ""
+    echo "${CMD}"
+    if [[ `hostname` == "sc.stanford.edu" ]]; then
+        sbatch scripts/train/train_dynamics_juno.sh "${CMD}"
+    else
+        ${CMD}
+    fi
+}
+
+function train_dynamics {
+    args=""
+    args="${args} --trainer-config ${TRAINER_CONFIG}"
+    args="${args} --dynamics-config ${DYNAMICS_CONFIG}"
+    if [ ! -z "${POLICY_CHECKPOINTS}" ]; then
+        args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS}"
+    fi
+    args="${args} --path models/${EXP_NAME}"
+    args="${args} --seed 0"
+    # args="${args} --overwrite"
+
+    CMD="python scripts/train/train_dynamics.py ${args}"
+    run_cmd
+}
+
+EXP_NAME="decoupled"
+TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
+DYNAMICS_CONFIG="configs/pybox2d/dynamics/decoupled.yaml"
+POLICY_CHECKPOINTS="models/placeright/final_model.pt models/pushleft/final_model.pt"
+train_dynamics

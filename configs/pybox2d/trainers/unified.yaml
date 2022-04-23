@@ -1,0 +1,13 @@
+trainer: UnifiedTrainer
+trainer_kwargs:
+  dynamics_trainer_config: configs/pybox2d/trainers/dynamics.yaml
+  agent_trainer_configs:
+    - configs/pybox2d/trainers/agent.yaml
+    - configs/pybox2d/trainers/agent.yaml
+
+  num_pretrain_steps: 1000
+  num_train_steps: 250000
+  num_eval_steps: 100
+  eval_freq: 1000
+  log_freq: 250
+  profile_freq: 50

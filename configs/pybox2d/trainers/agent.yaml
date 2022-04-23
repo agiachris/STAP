@@ -1,0 +1,19 @@
+trainer: AgentTrainer
+trainer_kwargs:
+  dataset_class: ReplayBuffer
+  dataset_kwargs:
+    capacity: 1000000
+    batch_size: 1024
+    sample_strategy: uniform
+    save_frequency: 1000
+
+  optimizer_class: Adam
+  optimizer_kwargs:
+    lr: 0.0001
+
+  num_pretrain_steps: 1000
+  num_train_steps: 250000
+  num_eval_episodes: 100
+  eval_freq: 1000
+  log_freq: 250
+  profile_freq: 50

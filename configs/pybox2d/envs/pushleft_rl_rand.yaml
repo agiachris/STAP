@@ -1,5 +1,6 @@
 env: pybox2d.PushLeft2D
 env_kwargs:
+  name: pushleft_rl_rand
   max_episode_steps: 50
   steps_per_action: 5
   config: configs/pybox2d/envs/obstacle.yaml
