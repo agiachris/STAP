@@ -1,4 +1,4 @@
-from typing import Any, Callable, Iterator, List, Sequence, Tuple, Type, Union
+from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -141,7 +141,9 @@ def numpy(structure: nest.NestedStructure) -> nest.NestedStructure:
     )
 
 
-def from_numpy(structure: nest.NestedStructure) -> nest.NestedStructure:
+def from_numpy(
+    structure: nest.NestedStructure, device: Optional[torch.device] = None
+) -> nest.NestedStructure:
     """Converts the nested structure to Torch tensors.
 
     Args:
@@ -150,7 +152,24 @@ def from_numpy(structure: nest.NestedStructure) -> nest.NestedStructure:
     Returns:
         Tensor structure.
     """
-    return map_structure(lambda x: torch.from_numpy(x), structure, atom_type=np.ndarray)
+    if device is None:
+        return map_structure(
+            lambda x: torch.from_numpy(x), structure, atom_type=np.ndarray
+        )
+    return map_structure(
+        lambda x: torch.from_numpy(x).to(device), structure, atom_type=np.ndarray
+    )
+
+
+def unsqueeze(structure: nest.NestedStructure, dim: int):
+    def _unsqueeze(x: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
+        if isinstance(x, np.ndarray):
+            return np.expand_dims(x, dim)
+        elif isinstance(x, torch.Tensor):
+            return x.unsqueeze(dim)
+        return x
+
+    return map_structure(_unsqueeze, structure)
 
 
 # TODO: Handle device.

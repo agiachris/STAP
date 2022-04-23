@@ -163,7 +163,8 @@ class Factory(Generic[T]):
 
         self._config = config
         self._cls = parse_class(config, key, module)
-        self._kwargs = parse_kwargs(config, f"{key}_kwargs")
+        self._kwargs = dict(parse_kwargs(config, f"{key}_kwargs"))
+        self._key = key
         self._last_instance: Optional[T] = None
         self._post_hooks: List[Callable[[T], None]] = []
 
@@ -187,8 +188,26 @@ class Factory(Generic[T]):
         """Last created instance."""
         return self._last_instance
 
+    def save_config(self, path: Union[str, pathlib.Path]) -> None:
+        """Saves the config to path.
+
+        Args:
+            path: Directory where config will be saved.
+        """
+        path = pathlib.Path(path)
+        with open(path / f"{self._key}_config.yaml", "w") as f:
+            yaml.dump(self.config, f)
+
     def get_instance(self, *args, **kwargs) -> T:
-        """Gets the last created instance or creates a new one."""
+        """Gets the last created instance or creates a new one with the given args.
+
+        Args:
+            *args: Constructor args.
+            **kwargs: Constructor kwargs.
+
+        Returns:
+            Last created instance.
+        """
         if self.last_instance is None:
             self.__call__(*args, **kwargs)
         assert self.last_instance is not None
@@ -203,7 +222,11 @@ class Factory(Generic[T]):
         self._post_hooks.append(post_hook)
 
     def run_post_hooks(self, instance: T) -> None:
-        """Runs the post hooks."""
+        """Runs the post hooks.
+
+        Args:
+            instance: Instance to pass to the post hooks.
+        """
         self._last_instance = instance
         for post_hook in self._post_hooks:
             post_hook(instance)

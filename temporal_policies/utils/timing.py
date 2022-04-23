@@ -1,6 +1,6 @@
 import collections
 import time
-from typing import Dict, List
+from typing import Dict, List, Sequence
 
 import numpy as np  # type: ignore
 
@@ -10,6 +10,10 @@ class Timer:
 
     def __init__(self):
         self._tics = {}
+
+    def keys(self) -> Sequence[str]:
+        """Timer keys."""
+        return self._tics.keys()
 
     def tic(self, key: str) -> float:
         """Starts timing for the given key.
@@ -43,6 +47,19 @@ class Timer:
 class Profiler(Timer):
     """Profiler to keep track of average time interval for different keys."""
 
+    class ProfilerContext:
+        """Context manager for timing code inside a `with` block."""
+
+        def __init__(self, profiler: "Profiler", key: str):
+            self.profiler = profiler
+            self.key = key
+
+        def __enter__(self) -> float:
+            return self.profiler.tic(self.key)
+
+        def __exit__(self, type, value, traceback) -> None:
+            self.profiler.toc(self.key)
+
     def __init__(self, disabled: bool = False):
         """Initializes the profiler with the given status.
 
@@ -54,11 +71,11 @@ class Profiler(Timer):
         self._tictocs: Dict[str, List[float]] = collections.defaultdict(list)
 
     def disable(self) -> None:
-        """Disable the profiler so that tic and toc do nothing."""
+        """Disables the profiler so that tic and toc do nothing."""
         self._disabled = True
 
     def enable(self) -> None:
-        """Enable the profiler."""
+        """Enables the profiler."""
         self._disabled = False
 
     def tic(self, key: str) -> float:
@@ -90,6 +107,17 @@ class Profiler(Timer):
         self._tictocs[key].append(tictoc)
         return tictoc
 
+    def profile(self, key: str) -> ProfilerContext:
+        """Times the code inside a `with` block for the given key.
+
+        Args:
+            key: Time interval key.
+
+        Returns:
+            Profiler context.
+        """
+        return Profiler.ProfilerContext(self, key)
+
     def compute_average(self, key: str, reset: bool = False) -> float:
         """Computes the average time interval for the given key.
 
@@ -112,5 +140,7 @@ class Profiler(Timer):
             Dict mapping from key to average time interval.
         """
         return {
-            key: self.compute_average(key, reset=True) for key in self._tictocs.keys()
+            key: self.compute_average(key, reset=True)
+            for key, tictoc in self._tictocs.items()
+            if len(tictoc) > 0
         }

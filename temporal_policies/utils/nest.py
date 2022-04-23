@@ -91,6 +91,7 @@ def structure_iterator(
     Args:
         structure: Nested structure.
         atom_type: Types considered to be atoms in the nested structure.
+        skip_type: Types to be skipped and returned as-is in the nested structure.
 
     Returns:
         Iterator over the atom values in the flattened nested structure.

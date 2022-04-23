@@ -1,0 +1,105 @@
+from typing import Any, Dict, List
+
+import numpy as np  # type: ignore
+
+from temporal_policies.utils import nest
+
+
+METRIC_CHOICE_FNS = {
+    "accuracy": max,
+    "reward": max,
+    "success": max,
+    "loss": min,
+    "l2_loss": min,
+    "q_loss": min,
+    "q1_loss": min,
+    "q2_loss": min,
+    "target_q": max,
+    "length": min,
+}
+
+METRIC_AGGREGATION_FNS = {
+    "accuracy": np.mean,
+    "reward": np.sum,
+    "success": lambda x: x[-1],
+    "loss": np.mean,
+    "l2_loss": np.mean,
+    "q_loss": np.mean,
+    "q1_loss": np.mean,
+    "q2_loss": np.mean,
+    "target_q": np.mean,
+    "length": np.sum,
+}
+
+
+def init_metric(metric: str) -> float:
+    """Returns the initial value for the metric.
+
+    Args:
+        metric: Metric type.
+
+    Returns:
+        inf for min metrics, -inf for max metrics.
+    """
+    a = -float("inf")
+    b = float("inf")
+    return b if METRIC_CHOICE_FNS[metric](a, b) == a else a
+
+
+def best_metric(metric: str, *values) -> float:
+    """Returns the best metric value.
+
+    Args:
+        metric: Metric type.
+        values: Values to compare.
+
+    Returns:
+        Min or max value depending on the metric.
+    """
+    return METRIC_CHOICE_FNS[metric](*values)
+
+
+def aggregate_metric(metric: str, values: np.ndarray) -> float:
+    """Aggregates the metric values.
+
+    Args:
+        metric: Metric type.
+        values: Values to aggregate.
+
+    Returns:
+        Aggregated value.
+    """
+    return METRIC_AGGREGATION_FNS[metric](values)
+
+
+def aggregate_metrics(metrics_list: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Aggregates a list of metric value dicts.
+
+    Args:
+        metric_list: List of metric value dicts.
+
+    Returns:
+        Aggregated metric value dict.
+    """
+    metrics = collect_metrics(metrics_list)
+    aggregated_metrics = {
+        metric: aggregate_metric(metric, values) for metric, values in metrics.items()
+    }
+    return aggregated_metrics
+
+
+def collect_metrics(metrics_list: List[Dict[str, Any]]) -> Dict[str, np.ndarray]:
+    """Transforms a list of metric value dicts to a dict of metric value arrays.
+
+    Args:
+        metric_list: List of metric value dicts.
+
+    Returns:
+        Dict of metric value arrays.
+    """
+    metrics: Dict[str, np.ndarray] = nest.map_structure(
+        lambda *args: np.array(args),
+        *metrics_list,
+        atom_type=(float, int, bool),
+    )  # type: ignore
+    return metrics
