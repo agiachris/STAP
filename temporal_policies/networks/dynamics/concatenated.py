@@ -1,19 +1,22 @@
 from typing import Any, Dict, Type, Union
 
 from temporal_policies import networks
+from temporal_policies.networks.dynamics.base import PolicyDynamics
 from temporal_policies.utils import configs
 
+import gym  # type: ignore
 import torch  # type: ignore
 
 
-class ConcatenatedDynamics(torch.nn.Module):
-    """Dynamics model `T_a` for a single policy `a` constructed from
+class ConcatenatedDynamics(PolicyDynamics):
+    """Dynamics model for the action space of a single policy, constructed from
     concatenated latent spaces of all policies."""
 
     def __init__(
         self,
+        action_space: gym.spaces.Space,
         num_policies: int,
-        network_class: Union[str, Type[torch.nn.Module]],
+        network_class: Union[str, Type[PolicyDynamics]],
         network_kwargs: Dict[str, Any] = {},
     ):
         """Constructs `num_networks` instances of the given backend network,
@@ -28,13 +31,16 @@ class ConcatenatedDynamics(torch.nn.Module):
         self._num_policies = num_policies
         network_class = configs.get_class(network_class, networks)
         self.models = torch.nn.ModuleList(
-            [network_class(**network_kwargs) for _ in range(num_policies)]
+            [
+                network_class(action_space=action_space, **network_kwargs)
+                for _ in range(num_policies)
+            ]
         )
 
     def forward(self, latent: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         """Calls all subnetworks and concatenates the results.
 
-        Computes z' = T_a(z, theta_a).
+        Computes z' = T_{idx_policy}(z, a).
 
         Args:
             latent: Current latent state.

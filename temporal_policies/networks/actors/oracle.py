@@ -2,18 +2,20 @@ import numpy as np  # type: ignore
 import torch  # type: ignore
 
 from temporal_policies import agents, envs
+from temporal_policies.networks.actors.base import Actor
 from temporal_policies.utils import tensors
 
 
-class OracleActor(torch.nn.Module):
-    """Dummy actor that returns ground truth rewards from simulation."""
+class OracleActor(Actor):
+    """Wrapper actor that converts ground truth states to observations before
+    passing to the child actor."""
 
     def __init__(self, env: envs.Env, policy: agents.Agent):
         """Constructs the oracle actor.
 
         Args:
             env: Env for simulation.
-            agent: Actor policy for oracle.
+            policy: Child actor policy.
         """
         super().__init__()
         self.env = env
@@ -28,22 +30,26 @@ class OracleActor(torch.nn.Module):
         return self.env.get_observation()
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
-        """Outputs the prediction from the child policy.
+        """Outputs the predicted distribution from the child policy.
 
         Args:
             state: Environment state.
-            action: Action.
+
+        Returns:
+            Action distribution.
         """
         observation = self._get_observation(state)
         policy_state = self.encoder(observation)
         return self.actor(policy_state)
 
     def predict(self, state: torch.Tensor) -> torch.Tensor:
-        """Outputs the reward from the given state and action.
+        """Outputs the prediction from the child policy.
 
         Args:
             state: Environment state.
-            action: Action.
+
+        Returns:
+            Action.
         """
         observation = self._get_observation(state)
         policy_state = self.encoder(observation)

@@ -3,10 +3,11 @@ from typing import List
 import gym  # type: ignore
 import torch  # type: ignore
 
-from temporal_policies.networks import common, mlp
+from temporal_policies.networks.dynamics.base import PolicyDynamics
+from temporal_policies.networks.mlp import MLP, weight_init
 
 
-class MLPDynamics(torch.nn.Module):
+class MLPDynamics(PolicyDynamics):
     """Basic MLP for the dynamics model that concatenates the latent vector and policy
     parameters as input.
 
@@ -20,15 +21,15 @@ class MLPDynamics(torch.nn.Module):
         hidden_layers: List[int] = [256, 256],
         act: torch.nn.Module = torch.nn.ReLU,
         output_act: torch.nn.Module = None,
-        ortho_init: bool = False
+        ortho_init: bool = False,
     ):
         super().__init__()
-        self.mlp = common.MLP(
+        self.mlp = MLP(
             dim_latent + action_space.shape[0],
             dim_latent,
             hidden_layers=hidden_layers,
             act=act,
-            output_act=output_act
+            output_act=output_act,
         )
         self.dim_latent = dim_latent
         if isinstance(action_space, gym.spaces.Box):
@@ -39,7 +40,7 @@ class MLPDynamics(torch.nn.Module):
             raise NotImplementedError()
 
         if ortho_init:
-            self.apply(mlp.weight_init)
+            self.apply(weight_init)
 
     def _apply(self, fn):
         super()._apply(fn)
@@ -47,9 +48,7 @@ class MLPDynamics(torch.nn.Module):
         self.action_range = fn(self.action_range)
         return self
 
-    def forward(
-        self, latent: torch.Tensor, action: torch.Tensor
-    ) -> torch.Tensor:
-        action = (action[..., :self.action_dim] - self.action_mid) / self.action_range
+    def forward(self, latent: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+        action = (action[..., : self.action_dim] - self.action_mid) / self.action_range
 
         return self.mlp(torch.cat((latent, action), dim=-1))

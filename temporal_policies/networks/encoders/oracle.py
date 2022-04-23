@@ -1,11 +1,11 @@
 import numpy as np  # type: ignore
-import torch  # type: ignore
 
 from temporal_policies import envs
+from temporal_policies.networks.encoders.base import Encoder
 from temporal_policies.utils import tensors
 
 
-class OracleEncoder(torch.nn.Module):
+class OracleEncoder(Encoder):
     """Dummy encoder that returns the ground truth environment state.
 
     For use with the OracleAgent.
@@ -15,8 +15,7 @@ class OracleEncoder(torch.nn.Module):
         """Constructs the constant network.
 
         Args:
-            constant: Constant output.
-            input_dim: Dimensions of the network's first input.
+            env: Gym environment.
         """
         super().__init__()
         self.env = env
