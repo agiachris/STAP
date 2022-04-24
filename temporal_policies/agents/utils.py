@@ -1,5 +1,4 @@
 import copy
-import functools
 import importlib
 import os
 import pathlib
@@ -12,138 +11,93 @@ import torch  # type: ignore
 import yaml  # type: ignore
 
 import temporal_policies
-from temporal_policies import agents, envs
-from temporal_policies.utils import configs, schedules
+from temporal_policies import agents, envs, schedulers
+from temporal_policies.utils import configs
 
 
 class AgentFactory(configs.Factory):
+    """Agent factory."""
+
     def __init__(
         self,
-        agent_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
+        config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
         env: Optional[envs.Env] = None,
-        env_factory: Optional[envs.EnvFactory] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        device: str = "auto",
     ):
-        """Creates the agent factory from an agent_config or checkpoint.
+        """Creates the agent factory from an agent config or checkpoint.
 
         Args:
-            agent_config: Optional agent config path or dict. Must be set if
+            config: Optional agent config path or dict. Must be set if
                 checkpoint is None.
-            env: Optional env. One of env, env_factory, and checkpoint must not
-                be None.
-            env_factory: Optional env factory. One of env, env_factory, and
-                checkpoint must not be None.
-            checkpoint: Policy checkpoint path. One of env, env_factory, and
-                checkpoint must not be None.
+            env: Optional env. Either env or checkpoint must be specified.
+            checkpoint: Policy checkpoint path. Either env or checkpoint must be
+                specified.
+            device: Torch device.
         """
         if checkpoint is not None:
-            ckpt_agent_config = agents.load_config(checkpoint)
-            ckpt_env_config = envs.load_config(checkpoint)
-            if agent_config is None:
-                agent_config = ckpt_agent_config
-            if env is None and env_factory is None:
+            ckpt_agent_config = load_config(checkpoint)
+            if config is None:
+                config = ckpt_agent_config
+            if env is None:
+                ckpt_env_config = envs.load_config(checkpoint)
                 env = envs.EnvFactory(ckpt_env_config)()
 
-        if agent_config is None:
-            raise ValueError("Either agent_config or checkpoint must be specified")
-        if env is None and env_factory is None:
-            raise ValueError("One of env, env_factory, or checkpoint must be specified")
+        if config is None:
+            raise ValueError("Either config or checkpoint must be specified")
+        if env is None:
+            raise ValueError("Either env or checkpoint must be specified")
 
-        super().__init__(agent_config, "agent", agents)
+        super().__init__(config, "agent", agents)
 
-        self._agent_factory = None
         if issubclass(self.cls, agents.WrapperAgent):
-            self._agent_factory = AgentFactory(
-                self.kwargs["agent_config"], env, env_factory, checkpoint
+            agent_factory = AgentFactory(
+                self.kwargs["agent_config"], env, checkpoint, device
             )
             del self.kwargs["agent_config"]
+            self.kwargs["policy"] = agent_factory()
         elif checkpoint is not None:
             if self.config["agent"] != ckpt_agent_config["agent"]:
                 raise ValueError(
                     f"Config agent [{self.config['agent']}] and checkpoint "
                     f"agent [{ckpt_agent_config['agent']}] must be the same"
                 )
-            if (
-                env_factory is not None
-                and ckpt_env_config is not None
-                and env_factory.config["env"] != ckpt_env_config["env"]
-            ):
-                raise ValueError(
-                    f"Config env [{env_factory.config['env']}] and checkpoint "
-                    f"env [{ckpt_env_config['env']}] must be the same"
-                )
 
-        if "checkpoint" not in self.kwargs and issubclass(self.cls, agents.RLAgent):
+        if issubclass(self.cls, agents.RLAgent):
             self.kwargs["checkpoint"] = checkpoint
 
-        if env is None and not issubclass(self.cls, agents.OracleAgent):
-            assert env_factory is not None
-            env = env_factory.get_instance()
         self.kwargs["env"] = env
-
-        # Make sure env is always up to date.
-        self._env_factory: Optional[envs.EnvFactory] = None
-        if issubclass(self.cls, agents.OracleAgent):
-            if env_factory is None:
-                raise ValueError("env_factory must not be None for OracleAgent")
-            self._env_factory = env_factory
-
-        self.add_post_hook(functools.partial(self._add_env_factory_hook, env_factory))
-
-    def _add_env_factory_hook(
-        self,
-        env_factory: envs.EnvFactory,
-        policy: agents.Agent,
-    ) -> None:
-        """Makes sure OracleAgent env is always up to date."""
-        if not isinstance(policy, agents.OracleAgent):
-            return
-
-        env_factory.add_post_hook(
-            functools.partial(agents.OracleAgent.env.__set__, policy)  # type: ignore
-        )
-
-    def __call__(self, *args, **kwargs) -> agents.Agent:
-        """Creates a Dynamics instance.
-
-        *args and **kwargs are transferred directly to the Agent constructor.
-        AgentFactory automatically handles the env and checkpoint arguments.
-        """
-        if "env" not in kwargs and self._env_factory is not None:
-            kwargs["env"] = self._env_factory.get_instance()
-        if "policy" not in kwargs and self._agent_factory is not None:
-            kwargs["policy"] = self._agent_factory(*args, **kwargs)
-
-        return super().__call__(*args, **kwargs)
+        self.kwargs["device"] = device
 
 
 def load(
-    agent_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
-    env_factory: Optional[envs.EnvFactory] = None,
-    checkpoint: Optional[str] = None,
+    config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
+    env: Optional[envs.Env] = None,
+    checkpoint: Optional[Union[str, pathlib.Path]] = None,
     device: str = "auto",
+    **kwargs,
 ) -> agents.Agent:
-    """Loads the agent from an agent_config or checkpoint.
+    """Loads the agent from an agent config or checkpoint.
 
     Args:
-        agent_config: Optional agent config path or dict. Must be set if
-            checkpoint is None.
-        env: Optional env. One of env, env_factory, and checkpoint must not
-            be None.
-        env_factory: Optional env factory. One of env, env_factory, and
-            checkpoint must not be None.
-        checkpoint: Policy checkpoint path. One of env, env_factory, and
-            checkpoint must not be None.
+        config: Optional agent config path or dict. Must be set if checkpoint is
+            None.
+        env: Optional env. Either env or checkpoint must be specified.
+        checkpoint: Policy checkpoint path. Either env or checkpoint must be
+            specified.
+        device: Torch device.
+        kwargs: Optional agent constructor kwargs.
 
     Returns:
         Agent instance.
     """
     agent_factory = AgentFactory(
-        agent_config=agent_config,
-        env_factory=env_factory,
+        config=config,
+        env=env,
         checkpoint=checkpoint,
+        device=device,
     )
-    return agent_factory(device=device)
+    return agent_factory(**kwargs)
 
 
 def load_config(path: Union[str, pathlib.Path]) -> Dict[str, Any]:
@@ -253,7 +207,7 @@ def train(config, path, device="auto"):
     model.path = path
     assert issubclass(type(model), temporal_policies.agents.Agent)
     schedule = (
-        None if config["scheduler"] is None else vars(schedules)[config["scheduler"]]
+        None if config["scheduler"] is None else vars(schedulers)[config["scheduler"]]
     )
     model.train(
         path,

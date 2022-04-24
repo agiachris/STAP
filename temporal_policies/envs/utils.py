@@ -12,7 +12,7 @@ class EnvFactory(configs.Factory):
         self,
         config: Union[str, pathlib.Path, Dict[str, Any]],
     ):
-        """Creates the env factory from an env_config.
+        """Creates the env factory from an env config or policy checkpoint.
 
         Args:
             config: Env config path or dict.
@@ -33,24 +33,12 @@ class EnvFactory(configs.Factory):
         return self.kwargs["env_factories"]
 
 
-def load_config(path: Union[str, pathlib.Path]) -> Dict[str, Any]:
-    """Loads an env config from path.
-
-    Args:
-        path: Path to the config, config directory, or checkpoint.
-
-    Returns:
-        Env config dict.
-    """
-    return configs.load_config(path, "env")
-
-
 def load(
     config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
     **kwargs,
 ) -> envs.Env:
-    """Loads the agent from an agent_config or checkpoint.
+    """Loads the agent from an env config or policy checkpoint.
 
     Args:
         config: Optional env config path or dict. Must be set if checkpoint is
@@ -68,3 +56,15 @@ def load(
 
     env_factory = EnvFactory(config)
     return env_factory(**kwargs)
+
+
+def load_config(path: Union[str, pathlib.Path]) -> Dict[str, Any]:
+    """Loads an env config from path.
+
+    Args:
+        path: Path to the config, config directory, or checkpoint.
+
+    Returns:
+        Env config dict.
+    """
+    return configs.load_config(path, "env")

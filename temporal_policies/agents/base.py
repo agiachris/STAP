@@ -3,6 +3,7 @@ from typing import Union
 import gym  # type: ignore
 import torch  # type: ignore
 
+from temporal_policies import networks
 from temporal_policies.utils import tensors
 
 
@@ -14,15 +15,14 @@ class Agent:
         state_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
         observation_space: gym.spaces.Space,
-        actor: torch.nn.Module,
-        critic: torch.nn.Module,
-        encoder: torch.nn.Module,
+        actor: networks.actors.Actor,
+        critic: networks.critics.Critic,
+        encoder: networks.encoders.Encoder,
         device: str = "auto",
     ):
         """Assigns the required properties of the Agent.
 
         Args:
-            env: Policy env.
             state_space: Policy state space (encoder output, actor/critic input).
             action_space: Action space (actor output).
             observation_space: Observation space (encoder input).
@@ -55,18 +55,18 @@ class Agent:
         return self._observation_space
 
     @property
-    def actor(self) -> torch.nn.Module:
+    def actor(self) -> networks.actors.Actor:
         """Actor network that takes as input a state and outputs an action."""
         return self._actor
 
     @property
-    def critic(self) -> torch.nn.Module:
+    def critic(self) -> networks.critics.Critic:
         """Critic network that takes as input a state/action and outputs a
         success probability."""
         return self._critic
 
     @property
-    def encoder(self) -> torch.nn.Module:
+    def encoder(self) -> networks.encoders.Encoder:
         """Encoder network that encodes observations into states."""
         return self._encoder
 
@@ -76,9 +76,21 @@ class Agent:
         return self._device
 
     def to(self, device: Union[str, torch.device]) -> "Agent":
-        """Transfer networks to a device."""
+        """Transfers networks to a device."""
         self._device = tensors.device(device)
         self.actor.to(self.device)
         self.critic.to(self.device)
         self.encoder.to(self.device)
         return self
+
+    def train_mode(self) -> None:
+        """Switches the networks to train mode."""
+        self.actor.train()
+        self.critic.train()
+        self.encoder.train()
+
+    def eval_mode(self) -> None:
+        """Switches the networks to eval mode."""
+        self.actor.eval()
+        self.critic.eval()
+        self.encoder.eval()

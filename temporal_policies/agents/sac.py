@@ -1,221 +1,308 @@
+import itertools
+import pathlib
+from typing import Any, Dict, Optional, Tuple, Type, Union
+
 import torch  # type: ignore
 import numpy as np  # type: ignore
-import itertools
 
+from temporal_policies.agents import base as agents
 from temporal_policies.agents import rl
-from temporal_policies.networks.base import ActorCriticPolicy
+from temporal_policies import envs, networks
+from temporal_policies.utils import configs
 
 
 class SAC(rl.RLAgent):
+    """Soft actor critic."""
+
     def __init__(
         self,
-        env,
-        tau=0.005,
-        init_temperature=0.1,
-        critic_freq=1,
-        actor_freq=2,
-        target_freq=2,
-        init_steps=1000,
-        **kwargs
+        env: envs.Env,
+        actor_class: Union[str, Type[networks.actors.Actor]],
+        actor_kwargs: Dict[str, Any],
+        critic_class: Union[str, Type[networks.critics.Critic]],
+        critic_kwargs: Dict[str, Any],
+        encoder_class: Union[
+            str, Type[networks.encoders.Encoder]
+        ] = networks.encoders.NormalizeObservation,
+        encoder_kwargs: Dict[str, Any] = {},
+        checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        device: str = "auto",
+        tau: float = 0.005,
+        initial_temperature: float = 0.1,
+        critic_update_freq: int = 1,
+        actor_update_freq: int = 2,
+        target_update_freq: int = 2,
     ):
-        # Save values needed for optim setup.
-        self.init_temperature = init_temperature
-        super().__init__(env, **kwargs)
-        assert isinstance(self.network, ActorCriticPolicy)
+        """Constructs the SAC agent from config parameters.
 
-        # Save extra parameters
+        Args:
+            env: Agent env.
+            actor_class: Actor class.
+            actor_kwargs: Actor kwargs.
+            critic_class: Critic class.
+            critic_kwargs: Critic kwargs.
+            encoder_class: Encoder class.
+            encoder_kwargs: Encoder kwargs.
+            checkpoint: Optional policy checkpoint.
+            device: Torch device.
+            tau: Weighting factor for target update. tau=1.0 replaces the target
+                network completely.
+            initial_temperature: Initial learning temperature.
+            critic_update_freq: Critic update frequency.
+            actor_update_freq: Actor update frequency.
+            target_update_freq: Target update frequency.
+        """
+
+        actor_class = configs.get_class(actor_class, networks)
+        actor = actor_class(env.observation_space, env.action_space, **actor_kwargs)
+
+        critic_class = configs.get_class(critic_class, networks)
+        critic = critic_class(env.observation_space, env.action_space, **critic_kwargs)
+
+        encoder_class = configs.get_class(encoder_class, networks)
+        encoder = encoder_class(env.observation_space, **encoder_kwargs)
+
+        target_critic = critic_class(
+            env.observation_space, env.action_space, **critic_kwargs
+        )
+        target_critic.load_state_dict(critic.state_dict())
+        for param in target_critic.parameters():
+            param.requires_grad = False
+        target_critic.eval()
+
+        target_encoder = encoder_class(env.observation_space, **encoder_kwargs)
+        target_encoder.load_state_dict(encoder.state_dict())
+        for param in target_encoder.parameters():
+            param.requires_grad = False
+        target_encoder.eval()
+
+        self._log_alpha = torch.tensor(
+            np.log(initial_temperature), dtype=torch.float, requires_grad=True
+        )
+        self._target_critic = target_critic
+        self._target_encoder = target_encoder
+
+        super().__init__(
+            env=env,
+            actor=actor,
+            critic=critic,
+            encoder=encoder,
+            checkpoint=checkpoint,
+            device=device,
+        )
+
+        self.target_entropy = -np.prod(self.action_space.shape)
         self.tau = tau
-        self.critic_freq = critic_freq
-        self.actor_freq = actor_freq
-        self.target_freq = target_freq
-        self.init_steps = init_steps
-
-        # Now setup the logging parameters
-        self._current_obs = env.reset()
-        self._episode_reward = 0
-        self._episode_length = 0
-        self._num_ep = 0
+        self.critic_update_freq = critic_update_freq
+        self.actor_update_freq = actor_update_freq
+        self.target_update_freq = target_update_freq
 
     @property
-    def alpha(self):
+    def log_alpha(self) -> torch.Tensor:
+        """Log learning temperature."""
+        return self._log_alpha
+
+    @property
+    def alpha(self) -> torch.Tensor:
+        """Learning temperature."""
         return self.log_alpha.exp()
 
-    def setup_network(self, network_class, network_kwargs):
-        self.network = network_class(
-            self.observation_space, self.action_space, **network_kwargs
-        ).to(self.device)
-        self.target_network = network_class(
-            self.observation_space, self.action_space, **network_kwargs
-        ).to(self.device)
-        self.target_network.load_state_dict(self.network.state_dict())
-        for param in self.target_network.parameters():
-            param.requires_grad = False
+    @property
+    def target_critic(self) -> torch.nn.Module:
+        """Target critic."""
+        return self._target_critic
 
-    def setup_optimizers(self, optim_class, optim_kwargs):
-        # Default optimizer initialization
-        self.optim["actor"] = optim_class(
-            self.network.actor.parameters(), **optim_kwargs
-        )
-        # Update the encoder with the critic.
-        critic_params = itertools.chain(
-            self.network.critic.parameters(), self.network.encoder.parameters()
-        )
-        self.optim["critic"] = optim_class(critic_params, **optim_kwargs)
+    @property
+    def target_encoder(self) -> torch.nn.Module:
+        """Target encoder."""
+        return self._target_encoder
 
-        # Setup the learned entropy coefficients. This has to be done first so its present in the setup_optim call.
-        self.log_alpha = torch.tensor(
-            np.log(self.init_temperature), dtype=torch.float
-        ).to(self.device)
-        self.log_alpha.requires_grad = True
-        self.target_entropy = -np.prod(self.action_space.low.shape)
+    def to(self, device: Union[str, torch.device]) -> agents.Agent:
+        """Transfers networks to device."""
+        super().to(device)
+        self.target_critic.to(self.device)
+        self.target_encoder.to(self.device)
+        self.log_alpha.to(self.device)
+        return self
 
-        self.optim["log_alpha"] = optim_class([self.log_alpha], **optim_kwargs)
+    def compute_critic_loss(
+        self,
+        observation: Any,
+        action: torch.Tensor,
+        reward: torch.Tensor,
+        next_observation: Any,
+        discount: float,
+    ) -> Tuple[torch.Tensor, Dict[str, float]]:
+        """Computes the critic loss.
 
-    def _update_critic(self, batch):
+        Args:
+            observation: Batch observation.
+            action: Batch action.
+            reward: Batch reward.
+            next_observation: Batch next observation.
+            discount: Batch discount.
+
+        Returns:
+            2-tuple (critic loss, loss metrics).
+        """
         with torch.no_grad():
-            dist = self.network.actor(batch["next_observation"])
+            dist = self.actor(next_observation)
             next_action = dist.rsample()
             log_prob = dist.log_prob(next_action).sum(dim=-1)
-            target_q1, target_q2 = self.target_network.critic(
-                batch["next_observation"], next_action
-            )
+            target_q1, target_q2 = self.target_critic(next_observation, next_action)
             target_v = torch.min(target_q1, target_q2) - self.alpha.detach() * log_prob
-            target_q = batch["reward"] + batch["discount"] * target_v
+            target_q = reward + discount * target_v
 
-        q1, q2 = self.network.critic(batch["observation"], batch["action"])
+        q1, q2 = self.critic(observation, action)
         q1_loss = torch.nn.functional.mse_loss(q1, target_q)
         q2_loss = torch.nn.functional.mse_loss(q2, target_q)
         q_loss = q1_loss + q2_loss
 
-        self.optim["critic"].zero_grad(set_to_none=True)
-        q_loss.backward()
-        self.optim["critic"].step()
+        metrics = {
+            "q1_loss": q1_loss.item(),
+            "q2_loss": q2_loss.item(),
+            "q_loss": q_loss.item(),
+            "target_q": target_q.mean().item(),
+        }
 
-        return dict(
-            q1_loss=q1_loss.item(),
-            q2_loss=q2_loss.item(),
-            q_loss=q_loss.item(),
-            target_q=target_q.mean().item(),
-        )
+        return q_loss, metrics
 
-    def _update_actor_and_alpha(self, batch):
-        obs = batch["observation"].detach()  # Detach the encoder so it isn't updated.
-        dist = self.network.actor(obs)
+    def compute_actor_and_alpha_loss(
+        self, observation: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, float]]:
+        """Computes the actor and learning temperature loss.
+
+        Args:
+            observation: Batch observation.
+
+        Returns:
+            2-tuple (actor loss, alpha loss, loss metrics).
+        """
+        obs = observation.detach()  # Detach the encoder so it isn't updated.
+        dist = self.actor(obs)
         action = dist.rsample()
         log_prob = dist.log_prob(action).sum(dim=-1)
-        q1, q2 = self.network.critic(obs, action)
+        q1, q2 = self.critic(obs, action)
         q = torch.min(q1, q2)
         actor_loss = (self.alpha.detach() * log_prob - q).mean()
 
-        self.optim["actor"].zero_grad(set_to_none=True)
-        actor_loss.backward()
-        self.optim["actor"].step()
-        entropy = -log_prob.mean()
-
-        # Update the learned temperature
-        self.optim["log_alpha"].zero_grad(set_to_none=True)
         alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
-        alpha_loss.backward()
-        self.optim["log_alpha"].step()
 
-        return dict(
-            actor_loss=actor_loss.item(),
-            entropy=entropy.item(),
-            alpha_loss=alpha_loss.item(),
-            alpha=self.alpha.detach().item(),
-        )
+        metrics = {
+            "actor_loss": actor_loss.item(),
+            "entropy": -log_prob.mean().item(),
+            "alpha_loss": alpha_loss.item(),
+            "alpha": self.alpha.item(),
+        }
 
-    def _train_step(self, env, batch):
-        all_metrics = {}
-        if self.steps == 0:
-            self.dataset.add(
-                observation=self._current_obs
-            )  # Store the initial reset observation!
-        if self.steps < self.init_steps:
-            action = self.action_space.sample()
-        else:
-            self.eval_mode()
-            with torch.no_grad():
-                action = self.predict(self._current_obs, sample=True)
-            self.train_mode()
+        return actor_loss, alpha_loss, metrics
 
-        next_obs, reward, done, info = env.step(action)
-        self._episode_length += 1
-        self._episode_reward += reward
+    def create_optimizers(
+        self,
+        optimizer_class: Type[torch.optim.Optimizer],
+        optimizer_kwargs: Dict[str, Any],
+    ) -> Dict[str, torch.optim.Optimizer]:
+        """Sets up the agent optimizers.
 
-        if "discount" in info:
-            discount = info["discount"]
-        elif (
-            hasattr(env, "_max_episode_steps")
-            and self._episode_length == env._max_episode_steps
-        ):
-            discount = 1.0
-        else:
-            discount = 1 - float(done)
+        This function is called by the agent trainer, since the optimizer class
+        is only required during training.
 
-        # Store the consequences.
-        self.dataset.add(
-            action=action,
-            reward=reward,
-            next_observation=next_obs,
-            discount=discount,
-            done=done,
-        )
+        Args:
+            optimizer_class: Optimizer class.
+            optimizer_kwargs: Optimizer kwargs.
 
-        if done:
-            self._num_ep += 1
-            # update metrics
-            all_metrics["reward"] = self._episode_reward
-            all_metrics["length"] = self._episode_length
-            all_metrics["num_ep"] = self._num_ep
-            # Reset the environment
-            self._current_obs = env.reset()
-            self.dataset.add(observation=self._current_obs)  # Add the first timestep
-            self._episode_length = 0
-            self._episode_reward = 0
-        else:
-            self._current_obs = next_obs
+        Returns:
+            Dict of optimizers for all trainable networks.
+        """
+        optimizers = {
+            "actor": optimizer_class(self.actor.parameters(), **optimizer_kwargs),
+            "critic": optimizer_class(
+                itertools.chain(self.critic.parameters(), self.encoder.parameters()),
+                **optimizer_kwargs,
+            ),
+            "log_alpha": optimizer_class([self.log_alpha], **optimizer_kwargs),
+        }
+        return optimizers
 
-        if self.steps < self.init_steps or "observation" not in batch:
-            return all_metrics
+    def train_step(
+        self,
+        step: int,
+        batch: Dict[str, Any],
+        optimizers: Dict[str, torch.optim.Optimizer],
+        schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
+    ) -> Dict[str, Any]:
+        """Performs a single training step.
 
-        updating_critic = self.steps % self.critic_freq == 0
-        updating_actor = self.steps % self.actor_freq == 0
+        Args:
+            step: Step index.
+            batch: Training batch.
+            optimizers: Optimizers created in `RLAgent.create_optimizers()`.
+            schedulers: Schedulers with the same keys as `optimizers`.
+
+        Returns:
+            Dict of loggable training metrics.
+        """
+        updating_critic = step % self.critic_update_freq == 0
+        updating_actor = step % self.actor_update_freq == 0
+        updating_target = step % self.target_update_freq == 0
 
         if updating_actor or updating_critic:
-            batch["observation"] = self.network.encoder(batch["observation"])
+            batch["observation"] = self.encoder(batch["observation"])
             with torch.no_grad():
-                batch["next_observation"] = self.target_network.encoder(
+                batch["next_observation"] = self.target_encoder(
                     batch["next_observation"]
                 )
 
+        metrics = {}
         if updating_critic:
-            metrics = self._update_critic(batch)
-            all_metrics.update(metrics)
+            q_loss, critic_metrics = self.compute_critic_loss(**batch)
+
+            optimizers["critic"].zero_grad(set_to_none=True)
+            q_loss.backward()
+            optimizers["critic"].step()
+            schedulers["critic"].step()
+
+            metrics.update(critic_metrics)
 
         if updating_actor:
-            metrics = self._update_actor_and_alpha(batch)
-            all_metrics.update(metrics)
+            actor_loss, alpha_loss, actor_metrics = self.compute_actor_and_alpha_loss(
+                batch["observation"]
+            )
 
-        if self.steps % self.target_freq == 0:
-            # Only update the critic and encoder for speed. Ignore the actor.
+            optimizers["actor"].zero_grad(set_to_none=True)
+            actor_loss.backward()
+            optimizers["actor"].step()
+            schedulers["actor"].step()
+
+            optimizers["log_alpha"].zero_grad(set_to_none=True)
+            alpha_loss.backward()
+            optimizers["log_alpha"].step()
+            schedulers["log_alpha"].step()
+
+            metrics.update(actor_metrics)
+
+        if updating_target:
             with torch.no_grad():
-                for param, target_param in zip(
-                    self.network.encoder.parameters(),
-                    self.target_network.encoder.parameters(),
-                ):
-                    target_param.data.copy_(
-                        self.tau * param.data + (1 - self.tau) * target_param.data
-                    )
-                for param, target_param in zip(
-                    self.network.critic.parameters(),
-                    self.target_network.critic.parameters(),
-                ):
-                    target_param.data.copy_(
-                        self.tau * param.data + (1 - self.tau) * target_param.data
-                    )
+                _update_params(
+                    source=self.encoder, target=self.target_encoder, tau=self.tau
+                )
+                _update_params(
+                    source=self.critic, target=self.target_critic, tau=self.tau
+                )
 
-        return all_metrics
+        return metrics
 
-    def _validation_step(self, batch):
-        raise NotImplementedError("RL Algorithm does not have a validation dataset.")
+
+def _update_params(source: torch.nn.Module, target: torch.nn.Module, tau: float) -> None:
+    """Updates the target parameters towards the source parameters.
+
+    Args:
+        source: Source network.
+        target: Target network.
+        tau: Weight of target update. tau=1.0 sets the target equal to the
+            source, and tau=0.0 performs no update.
+    """
+    for source_params, target_params in zip(source.parameters(), target.parameters()):
+        target_params.data.copy_(
+            tau * source_params.data + (1 - tau) * target_params.data
+        )
