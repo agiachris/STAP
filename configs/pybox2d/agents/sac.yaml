@@ -6,13 +6,13 @@ agent_kwargs:
   actor_update_freq: 1
   target_update_freq: 2
 
-  actor_class: DiagonalGaussianMLPActor
+  actor_class: actors.DiagonalGaussianMLPActor
   actor_kwargs:
     hidden_layers: [256, 256]
     log_std_bounds: [-5, 2]
     ortho_init: true
 
-  critic_class: ContinuousMLPCritic
+  critic_class: critics.ContinuousMLPCritic
   critic_kwargs:
     hidden_layers: [256, 256]
     num_q_fns: 2

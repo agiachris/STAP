@@ -3,14 +3,14 @@ import pathlib
 from typing import Any, Dict, IO, Optional, Union
 
 import numpy as np  # type: ignore
-import torch  # type: ignore
+from torch.utils import tensorboard  # type: ignore
 
 
 class Logger(object):
     def __init__(self, path: Union[str, pathlib.Path]):
         self.path = pathlib.Path(path)
 
-        self._writer = torch.utils.tensorboard.SummaryWriter(log_dir=path)
+        self._writer = tensorboard.SummaryWriter(log_dir=path)
         self._csv_writer: Optional[csv.DictWriter] = None
         self._csv_file: Optional[IO] = None
 

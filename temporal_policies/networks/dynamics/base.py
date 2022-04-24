@@ -3,7 +3,7 @@ from typing import Any, Dict, Sequence, Type, Union
 
 import torch  # type: ignore
 
-from temporal_policies import agents, networks
+from temporal_policies import networks
 from temporal_policies.utils import configs
 
 
@@ -12,7 +12,7 @@ class Dynamics(torch.nn.Module):
 
     def __init__(
         self,
-        policies: Sequence[agents.Agent],
+        policies: Sequence,
         network_class: Union[str, Type["PolicyDynamics"]],
         network_kwargs: Dict[str, Any],
     ):
