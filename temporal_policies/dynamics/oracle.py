@@ -12,7 +12,7 @@ class OracleDynamics(dynamics.Dynamics):
     """Dummy dynamics model that uses simulation to get the next state."""
 
     def __init__(
-        self, policies: Sequence[agents.Agent], env: envs.Env, device: str = "auto"
+        self, policies: Sequence[agents.Agent], env: envs.SequentialEnv, device: str = "auto"
     ):
         """Constructs the oracle dynamics wrapper.
 
@@ -31,12 +31,12 @@ class OracleDynamics(dynamics.Dynamics):
         self._env = env
 
     @property
-    def env(self) -> envs.Env:
+    def env(self) -> envs.SequentialEnv:
         """Oracle environment."""
         return self._env
 
     @env.setter
-    def env(self, env: envs.Env) -> None:
+    def env(self, env: envs.SequentialEnv) -> None:
         """Updates the oracle environment."""
         self._env = env
 
@@ -63,7 +63,7 @@ class OracleDynamics(dynamics.Dynamics):
         self.env.set_state(state)
         action = action[: self.policies[idx_policy].action_space.shape[0]]
         self.env.step((action, idx_policy, policy_args))
-        next_state = self.env.get_state()
+        next_state: np.ndarray = self.env.get_state()
         return next_state
 
     @tensors.torch_wrap

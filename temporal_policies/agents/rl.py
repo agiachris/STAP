@@ -53,7 +53,7 @@ class RLAgent(Agent, abc.ABC):
     def load_state_dict(
         self, state_dict: Dict[str, Dict[str, torch.Tensor]], strict: bool = True
     ) -> None:
-        """Loads the model state from the state_dict.
+        """Loads the agent state dict.
 
         Args:
             state_dict: Torch state dict.
@@ -121,7 +121,7 @@ class RLAgent(Agent, abc.ABC):
         """Performs a single training step.
 
         Args:
-            step: Step index.
+            step: Training step.
             batch: Training batch.
             optimizers: Optimizers created in `RLAgent.create_optimizers()`.
             schedulers: Schedulers with the same keys as `optimizers`.

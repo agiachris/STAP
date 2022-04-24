@@ -5,11 +5,11 @@ import torch  # type: ignore
 
 
 from temporal_policies import agents, networks
-from temporal_policies.dynamics import latent as dynamics
+from temporal_policies.dynamics.latent import LatentDynamics
 from temporal_policies.utils import spaces, tensors
 
 
-class DecoupledDynamics(dynamics.LatentDynamics):
+class DecoupledDynamics(LatentDynamics):
     """Dynamics model per action per action latent space.
 
     We train A*A dynamics models T_ab of the form:
@@ -22,16 +22,8 @@ class DecoupledDynamics(dynamics.LatentDynamics):
     def __init__(
         self,
         policies: Sequence[agents.RLAgent],
-        network_class: Union[str, Type[torch.nn.Module]],
+        network_class: Union[str, Type[networks.dynamics.PolicyDynamics]],
         network_kwargs: Dict[str, Any],
-        dataset_class: Union[str, Type[torch.utils.data.IterableDataset]],
-        dataset_kwargs: Dict[str, Any],
-        optimizer_class: Union[str, Type[torch.optim.Optimizer]],
-        optimizer_kwargs: Dict[str, Any],
-        scheduler_class: Optional[
-            Union[str, Type[torch.optim.lr_scheduler._LRScheduler]]
-        ] = None,
-        scheduler_kwargs: Dict[str, Any] = {},
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -41,20 +33,18 @@ class DecoupledDynamics(dynamics.LatentDynamics):
             policies: Ordered list of all policies.
             network_class: Backend network for decoupled dynamics network.
             network_kwargs: Kwargs for network class.
-            dataset: Dynamics model dataset class or class name.
-            dataset_kwargs: Kwargs for dataset class.
-            optimizer: Dynamics model optimizer class.
-            optimizer_kwargs: Kwargs for optimizer class.
-            scheduler: Optional dynamics model learning rate scheduler class.
-            scheduler_kwargs: Kwargs for scheduler class.
             checkpoint: Dynamics checkpoint.
             device: Torch device.
         """
-        parent_network_class = networks.dynamics.DecoupledDynamics
+        parent_network_class = networks.dynamics.Dynamics
         parent_network_kwargs = {
             "policies": policies,
-            "network_class": network_class,
-            "network_kwargs": network_kwargs,
+            "network_class": networks.dynamics.ConcatenatedDynamics,
+            "network_kwargs": {
+                "num_policies": len(policies),
+                "network_class": network_class,
+                "network_kwargs": network_kwargs,
+            },
         }
         state_space = spaces.concatenate_boxes(
             [policy.state_space for policy in policies]
@@ -64,19 +54,13 @@ class DecoupledDynamics(dynamics.LatentDynamics):
             policies=policies,
             network_class=parent_network_class,
             network_kwargs=parent_network_kwargs,
-            dataset_class=dataset_class,
-            dataset_kwargs=dataset_kwargs,
-            optimizer_class=optimizer_class,
-            optimizer_kwargs=optimizer_kwargs,
-            scheduler_class=scheduler_class,
-            scheduler_kwargs=scheduler_kwargs,
             state_space=state_space,
             action_space=None,
             checkpoint=checkpoint,
             device=device,
         )
 
-    def encode(self, observation: Any, idx_policy: torch.Tensor) -> torch.Tensor:
+    def encode(self, observation: Any, idx_policy: Union[int, torch.Tensor]) -> torch.Tensor:
         """Encodes the observation as a concatenation of latent states for each
         policy.
 
@@ -96,7 +80,7 @@ class DecoupledDynamics(dynamics.LatentDynamics):
     def decode(
         self,
         latent: torch.Tensor,
-        idx_policy: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
         policy_args: Optional[Any] = None,
     ) -> Any:
         """Extracts the policy state from the concatenated latent states.
@@ -104,6 +88,7 @@ class DecoupledDynamics(dynamics.LatentDynamics):
         Args:
             latent: Encoded latent state.
             idx_policy: Index of executed policy.
+            policy_args: Auxiliary policy args.
 
         Returns:
             Decoded policy state.

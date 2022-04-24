@@ -1,5 +1,7 @@
 # temporal-policies outputs
+archive/
 models/
+juno
 plots/
 
 # Byte-compiled / optimized / DLL files

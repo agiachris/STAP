@@ -13,90 +13,84 @@ class PlannerFactory(configs.Factory):
 
     def __init__(
         self,
-        planner_config: Union[str, pathlib.Path, Dict[str, Any]],
-        env_factory: envs.EnvFactory,
-        policy_checkpoints: Optional[Sequence[Optional[str]]] = None,
-        dynamics_checkpoint: Optional[str] = None,
+        config: Union[str, pathlib.Path, Dict[str, Any]],
+        env: envs.SequentialEnv,
+        policy_checkpoints: Optional[
+            Sequence[Optional[Union[str, pathlib.Path]]]
+        ] = None,
+        dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        device: str = "auto",
     ):
         """Creates the planner factory from a planner_config.
 
         Args:
-            planner_config: Planner config path or dict.
-            env_factory: Env factory.
+            config: Planner config path or dict.
+            env: Sequential env.
             policy_checkpoints: Policy checkpoint paths if required.
             dynamics_checkpoint: Dynamics checkpoint path if required.
+            device: Torch device.
         """
-        super().__init__(planner_config, "planner", planners)
+        super().__init__(config, "planner", planners)
 
+        # TODO: Get agent_configs from the checkpoint.
         if policy_checkpoints is None:
             policy_checkpoints = [None] * len(self.config["agent_configs"])
 
-        self._agent_factories = [
-            agents.AgentFactory(
-                agent_config=agent_config,
-                env_factory=agent_env_factory,
+        policies = [
+            agents.load(
+                config=agent_config,
+                env=policy_env,
                 checkpoint=ckpt,
             )
-            for agent_config, agent_env_factory, ckpt in zip(
+            for agent_config, policy_env, ckpt in zip(
                 self.config["agent_configs"],
-                env_factory.env_factories,
+                env.envs,
                 policy_checkpoints,
             )
         ]
 
-        self._dynamics_factory = dynamics.DynamicsFactory(
-            dynamics_config=self.config["dynamics_config"],
-            env_factory=env_factory,
+        dynamics_model = dynamics.load(
+            config=self.config["dynamics_config"],
             checkpoint=dynamics_checkpoint,
+            policies=policies,
+            env=env,
+            device=device,
         )
 
-    def __call__(self, *args, **kwargs) -> planners.Planner:
-        """Creates a Planner instance.
-
-        *args and **kwargs are transferred directly to the Planner constructor.
-        PlannerFactory automatically handles the policies, dynamics, and device
-        arguments.
-        """
-        device = kwargs.get("device", self.kwargs.get("device", "auto"))
-
-        policies = [
-            agent_factory(device=device) for agent_factory in self._agent_factories
-        ]
-        dynamics_model = self._dynamics_factory(policies=policies, device=device)
-
-        kwargs["policies"] = policies
-        kwargs["dynamics"] = dynamics_model
-        kwargs["device"] = device
-
-        return super().__call__(*args, **kwargs)
+        self.kwargs["policies"] = policies
+        self.kwargs["dynamics"] = dynamics_model
+        self.kwargs["device"] = device
 
 
 def load(
-    planner_config: Union[str, pathlib.Path, Dict[str, Any]],
-    env_factory: envs.EnvFactory,
-    policy_checkpoints: Optional[Sequence[Optional[str]]] = None,
-    dynamics_checkpoint: Optional[str] = None,
+    config: Union[str, pathlib.Path, Dict[str, Any]],
+    env: envs.SequentialEnv,
+    policy_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
+    dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     device: str = "auto",
+    **kwargs,
 ) -> planners.Planner:
-    """Loads the planner from a planner_config.
+    """Loads the planner from config.
 
     Args:
-        planner_config: Planner config path or dict.
-        env_factory: Env factory.
+        config: Planner config path or dict.
+        env: Sequential env.
         policy_checkpoints: Policy checkpoint paths if required.
         dynamics_checkpoint: Dynamics checkpoint path if required.
         device: Torch device.
+        **kwargs: Planner constructor kwargs.
 
     Returns:
         Planner instance.
     """
     planner_factory = PlannerFactory(
-        planner_config=planner_config,
-        env_factory=env_factory,
+        config=config,
+        env=env,
         policy_checkpoints=policy_checkpoints,
         dynamics_checkpoint=dynamics_checkpoint,
+        device=device,
     )
-    return planner_factory(device=device)
+    return planner_factory(**kwargs)
 
 
 @tensors.batch(dims=1)
@@ -146,7 +140,7 @@ def evaluate_trajectory(
 
 
 def evaluate_plan(
-    env: envs.Env,
+    env: envs.SequentialEnv,
     action_skeleton: Sequence[Tuple[int, Any]],
     state: np.ndarray,
     actions: np.ndarray,
@@ -179,38 +173,3 @@ def evaluate_plan(
         env.record_save(gif_path, stop=True)
 
     return rewards
-
-    # eval_planner, _ = planners.load(
-    #     planner_config={
-    #         "planner": "ShootingPlanner",
-    #         "planner_kwargs": {"num_samples": 1},
-    #         "env": "pybox2d.Sequential2D",
-    #         "dynamics": "OracleDynamics",
-    #     },
-    #     policy_checkpoints=args.policy_checkpoints,
-    #     dynamics_checkpoint=args.dynamics_checkpoint,
-    #     device=args.device,
-    # )
-    # assert isinstance(eval_planner, planners.ShootingPlanner)
-    # assert isinstance(eval_planner.dynamics, dynamics.OracleDynamics)
-    # eval_dynamics: dynamics.OracleDynamics = eval_planner.dynamics
-    #
-    # # Evaluate.
-    # policies = [
-    #     agents.ConstantAgent(
-    #         action,
-    #         env.envs[idx_policy],
-    #         # policy.state_space,
-    #         policy.action_space,
-    #         # policy.observation_space,
-    #         device=device,
-    #     )
-    #     for action, policy, (idx_policy, _) in zip(actions, planner.policies, action_skeleton)
-    # ]
-    # env.reset()
-    # env.set_state(state)
-    # eval_dynamics._env = env
-    # eval_dynamics._policies = policies
-    # eval_planner._policies = policies
-    # eval_planner._eval_policies = policies
-    # eval_actions, success = eval_planner.plan(observation, action_skeleton)

@@ -14,6 +14,10 @@ METRIC_CHOICE_FNS = {
     "q_loss": min,
     "q1_loss": min,
     "q2_loss": min,
+    "actor_loss": min,
+    "alpha_loss": min,
+    "entropy": min,
+    "alpha": min,
     "target_q": max,
     "length": min,
 }
@@ -27,6 +31,10 @@ METRIC_AGGREGATION_FNS = {
     "q_loss": np.mean,
     "q1_loss": np.mean,
     "q2_loss": np.mean,
+    "actor_loss": np.mean,
+    "alpha_loss": np.mean,
+    "entropy": np.mean,
+    "alpha": np.mean,
     "target_q": np.mean,
     "length": np.sum,
 }
