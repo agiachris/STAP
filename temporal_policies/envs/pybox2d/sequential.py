@@ -1,17 +1,15 @@
 import itertools
 import pathlib
-from typing import Any, List, Sequence
+from typing import Any, Sequence
 
-import gym  # type: ignore
 import imageio  # type: ignore
 import numpy as np  # type: ignore
 
-from temporal_policies.envs import base as envs
+from temporal_policies.envs.base import SequentialEnv
 from temporal_policies.envs import utils
-from temporal_policies.envs.pybox2d import base as pybox2d
 
 
-class Sequential2D(envs.Env):
+class Sequential2D(SequentialEnv):
     """Wrapper around primtive envs for sequential tasks."""
 
     def __init__(self, env_factories: Sequence[utils.EnvFactory]):
@@ -33,24 +31,7 @@ class Sequential2D(envs.Env):
                 env_factory.run_post_hooks(env)
             self._envs.append(env)
 
-    @property
-    def envs(self) -> List[pybox2d.Box2DBase]:
-        """Primtive envs."""
-        return self._envs
-
-    @property
-    def state_space(self) -> gym.spaces.Box:
-        """State space."""
-        base_env = self.envs[0]
-        return base_env.get_state()
-
-    def get_state(self) -> np.ndarray:
-        """Gets the environment state.
-
-        [N * 3] array of mutable body properties (position, angle).
-        """
-        base_env = self.envs[0]
-        return base_env.get_state()
+        self._name = "_".join([env.name for env in self.envs])
 
     def set_state(self, state: np.ndarray) -> bool:
         """Sets the environment state."""
@@ -59,30 +40,20 @@ class Sequential2D(envs.Env):
             env._steps = 0
             env._physics_steps = 0
 
-        base_env = self.envs[0]
-        return base_env.set_state(state)
+        return super().set_state(state)
 
-    def step(self, action):
-        """Executes the step corresponding to the policy index.
-
-        Args:
-            action: 3-tuple (action, idx_policy, policy_args).
-
-        Returns:
-            4-tuple (observation, reward, done, info).
-        """
-        action, idx_policy, policy_args = action
-        return self.envs[idx_policy].step(action)
-
-    def reset(self) -> None:
+    def reset(self, idx_policy: int) -> Any:
         """Resets the environment."""
-        for env in self.envs:
-            env.reset()
+        observation = super().reset(idx_policy)
+        for i, env in enumerate(self.envs):
+            if i == idx_policy:
+                continue
+            env._cumulative_reward = 0.0
+            env._steps = 0
+            env._physics_steps = 0
+            env._render_setup()
 
-    def get_observation(self, *args) -> Any:
-        """Gets an observation for the current state of the environment."""
-        idx_policy = args[0]
-        return self.envs[idx_policy].get_observation()
+        return observation
 
     def record_start(self) -> None:
         """Starts recording."""

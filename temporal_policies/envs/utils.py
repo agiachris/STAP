@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from temporal_policies import envs
 from temporal_policies.utils import configs
@@ -10,14 +10,14 @@ class EnvFactory(configs.Factory):
 
     def __init__(
         self,
-        env_config: Union[str, pathlib.Path, Dict[str, Any]],
+        config: Union[str, pathlib.Path, Dict[str, Any]],
     ):
         """Creates the env factory from an env_config.
 
         Args:
-            env_config: Env config path or dict.
+            config: Env config path or dict.
         """
-        super().__init__(env_config, "env", envs)
+        super().__init__(config, "env", envs)
 
         if issubclass(self.cls, envs.pybox2d.Sequential2D):
             self.kwargs["env_factories"] = [
@@ -43,3 +43,28 @@ def load_config(path: Union[str, pathlib.Path]) -> Dict[str, Any]:
         Env config dict.
     """
     return configs.load_config(path, "env")
+
+
+def load(
+    config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
+    checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    **kwargs,
+) -> envs.Env:
+    """Loads the agent from an agent_config or checkpoint.
+
+    Args:
+        config: Optional env config path or dict. Must be set if checkpoint is
+            None.
+        checkpoint: Optional policy checkpoint path.
+        kwargs: Additional env constructor kwargs.
+
+    Returns:
+        Env instance.
+    """
+    if config is None:
+        if checkpoint is None:
+            raise ValueError("Env config or checkpoint must be specified")
+        config = load_config(checkpoint)
+
+    env_factory = EnvFactory(config)
+    return env_factory(**kwargs)

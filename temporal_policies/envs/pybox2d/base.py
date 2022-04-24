@@ -12,14 +12,15 @@ import torch  # type: ignore
 from .generator import Generator
 from .utils import rigid_body_2d, shape_to_vertices, to_homogenous
 from .visualization import draw_caption
-import temporal_policies.utils.utils as utils
 from temporal_policies import agents
+from temporal_policies.utils import tensors
 
 
 class Box2DBase(ABC, gym.Env, Generator):
     @abstractmethod
     def __init__(
         self,
+        name: str,
         max_episode_steps: int,
         steps_per_action: int,
         observation_noise: float = 0.0,
@@ -53,6 +54,7 @@ class Box2DBase(ABC, gym.Env, Generator):
             buffer_frames: save frames rendered at each timestep to buffer
         """
         Generator.__init__(self, **kwargs)
+        self.name = name
         self._max_episode_steps = max_episode_steps
         self._steps_per_action = steps_per_action
         self._observation_noise = observation_noise
@@ -139,7 +141,7 @@ class Box2DBase(ABC, gym.Env, Generator):
         env_kwargs.update(deepcopy(kwargs))
         loaded_env = cls(**env_kwargs)
         loaded_env._clean_base_kwargs()
-        loaded_env._frame_buffer = deepcopy(env._frame_buffer)
+        # loaded_env._frame_buffer = deepcopy(env._frame_buffer)
         if env._eval_mode:
             loaded_env.eval_mode(
                 break_on_done=env._break_on_done,
@@ -384,7 +386,7 @@ class Box2DBase(ABC, gym.Env, Generator):
         # Tensorize state and action
         fmt = model._format_batch
         obs = self.get_observation()
-        state = fmt(utils.unsqueeze(obs, 0))
+        state = fmt(tensors.unsqueeze(obs, 0))
         action = model.predict(state, is_batched=True)
 
         assert state.size(0) == action.size(0)
@@ -393,11 +395,11 @@ class Box2DBase(ABC, gym.Env, Generator):
 
         # Infer action values
         q1, q2 = model.network.critic(state, action)
-        q = utils.to_np(torch.min(q1, q2)).item()
+        q = tensors.numpy(torch.min(q1, q2)).item()
 
         output = {
-            "state": utils.to_np(state).squeeze(0),
-            "action": utils.to_np(action).squeeze(0),
+            "state": tensors.numpy(state).squeeze(0),
+            "action": tensors.numpy(action).squeeze(0),
         }
         # Simulate forward cloned environment
         if step:
@@ -433,7 +435,7 @@ class Box2DBase(ABC, gym.Env, Generator):
         # Tensorize states and actions
         fmt = model._format_batch
         obs = self.get_observation()
-        states = fmt(np.tile(utils.unsqueeze(obs, 0), (num, 1)))
+        states = fmt(np.tile(tensors.unsqueeze(obs, 0), (num, 1)))
         default = model.predict(obs)
         actions, action_dims = self._interp_actions(num, dims, default=default)
         actions = fmt(actions)
@@ -443,11 +445,11 @@ class Box2DBase(ABC, gym.Env, Generator):
 
         # Infer action values
         q1s, q2s = model.network.critic(states, actions)
-        qs = utils.to_np(torch.min(q1s, q2s))
+        qs = tensors.numpy(torch.min(q1s, q2s))
 
         outputs = defaultdict(list)
         for state, action, action_dim in zip(
-            utils.to_np(states), utils.to_np(actions), action_dims
+            tensors.numpy(states), tensors.numpy(actions), action_dims
         ):
             outputs["state"].append(state)
             outputs["action"].append(action)
@@ -496,7 +498,7 @@ class Box2DBase(ABC, gym.Env, Generator):
 
         # Infer action values
         q1s, q2s = model.network.critic(states, actions)
-        qs = utils.to_np(torch.min(q1s, q2s))
+        qs = tensors.numpy(torch.min(q1s, q2s))
 
         outputs = defaultdict(list)
         for state, state_dim, action in zip(states, state_dims, actions):
