@@ -64,7 +64,7 @@ class RLAgent(Agent, abc.ABC):
         self.encoder.load_state_dict(state_dict["encoder"], strict=strict)
 
     def state_dict(self) -> Dict[str, Dict[str, torch.Tensor]]:
-        """Gets the model state dicts."""
+        """Gets the agent state dicts."""
         return {
             "critic": self.critic.state_dict(),
             "actor": self.actor.state_dict(),
@@ -127,6 +127,6 @@ class RLAgent(Agent, abc.ABC):
             schedulers: Schedulers with the same keys as `optimizers`.
 
         Returns:
-            Dict of loggable training metrics.
+            Dict of training metrics for logging.
         """
         pass

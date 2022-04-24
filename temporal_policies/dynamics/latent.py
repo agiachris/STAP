@@ -188,7 +188,7 @@ class LatentDynamics(Dynamics):
         optimizers: Dict[str, torch.optim.Optimizer],
         schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
     ) -> Dict[str, float]:
-        """Executes one training step.
+        """Performs a single training step.
 
         Args:
             step: Training step.
@@ -197,7 +197,7 @@ class LatentDynamics(Dynamics):
             schedulers: Schedulers with the same keys as `optimizers`.
 
         Returns:
-            Computed loss.
+            Dict of training metrics for logging.
         """
         loss, metrics = self.compute_loss(**batch)
 
