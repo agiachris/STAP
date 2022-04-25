@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 
 import numpy as np  # type: ignore
 
-from temporal_policies.utils import nest
+from temporal_policies.utils import nest, typing
 
 
 METRIC_CHOICE_FNS = {
@@ -105,9 +105,9 @@ def collect_metrics(metrics_list: List[Dict[str, Any]]) -> Dict[str, np.ndarray]
     Returns:
         Dict of metric value arrays.
     """
-    metrics: Dict[str, np.ndarray] = nest.map_structure(
+    metrics = nest.map_structure(
         lambda *args: np.array(args),
         *metrics_list,
-        atom_type=(float, int, bool),
-    )  # type: ignore
+        atom_type=typing.scalars,
+    )
     return metrics

@@ -3,8 +3,9 @@ from typing import Generator, Optional, Sequence, Union
 
 import numpy as np  # type: ignore
 
-from temporal_policies.datasets.replay_buffer import Batch, ReplayBuffer
+from temporal_policies.datasets.replay_buffer import ReplayBuffer, StorageBatch
 from temporal_policies.utils import tensors, spaces
+from temporal_policies.utils.typing import Batch, ObsType, WrappedBatch
 
 
 class StratifiedReplayBuffer(ReplayBuffer):
@@ -79,13 +80,13 @@ class StratifiedReplayBuffer(ReplayBuffer):
 
     def add(
         self,
-        observation: Optional[Batch] = None,
-        action: Optional[Batch] = None,
+        observation: Optional[ObsType] = None,
+        action: Optional[np.ndarray] = None,
         reward: Optional[Union[np.ndarray, float]] = None,
-        next_observation: Optional[Batch] = None,
+        next_observation: Optional[ObsType] = None,
         discount: Optional[Union[np.ndarray, float]] = None,
         done: Optional[Union[np.ndarray, bool]] = None,
-        batch: Optional[Batch] = None,
+        batch: Optional[StorageBatch] = None,
         max_entries: Optional[int] = None,
     ) -> int:
         """Stratified replay buffer cannot be modified."""
@@ -95,7 +96,7 @@ class StratifiedReplayBuffer(ReplayBuffer):
         self,
         sample_strategy: Optional[ReplayBuffer.SampleStrategy] = None,
         batch_size: Optional[int] = None,
-    ) -> Optional[Batch]:
+    ) -> Optional[WrappedBatch]:
         """Samples a batch from the replay buffer.
 
         An equal number of samples are taken from the child replay buffers, with
@@ -127,15 +128,26 @@ class StratifiedReplayBuffer(ReplayBuffer):
             rb.sample(sample_strategy, buffer_batch_size)
             for (rb, buffer_batch_size) in zip(self.replay_buffers, buffer_batch_sizes)
         ]
+        stratified_batches = []
         for idx_replay_buffer, batch in enumerate(batches):
-            assert isinstance(batch, dict) and isinstance(batch["action"], np.ndarray)
-            batch["action"] = spaces.pad_null(batch["action"], self.action_space)
-            batch["idx_replay_buffer"] = np.full_like(
-                batch["discount"], idx_replay_buffer, dtype=int
+            if batch is None:
+                return None
+            stratified_batch = WrappedBatch(
+                observation=batch["observation"],
+                action=spaces.pad_null(batch["action"], self.action_space),
+                reward=batch["reward"],
+                next_observation=batch["next_observation"],
+                discount=batch["discount"],
+                idx_replay_buffer=np.full_like(
+                    batch["discount"], idx_replay_buffer, dtype=int
+                ),
             )
-        batch = tensors.map_structure(lambda *xs: np.concatenate(xs, axis=0), *batches)
+            stratified_batches.append(stratified_batch)
+        stratified_batch = tensors.map_structure(
+            lambda *xs: np.concatenate(xs, axis=0), *stratified_batches
+        )
 
-        return batch
+        return stratified_batch
 
     def load(
         self, path: Optional[pathlib.Path] = None, max_entries: Optional[int] = None

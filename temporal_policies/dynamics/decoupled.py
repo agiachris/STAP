@@ -7,6 +7,7 @@ import torch  # type: ignore
 from temporal_policies import agents, networks
 from temporal_policies.dynamics.latent import LatentDynamics
 from temporal_policies.utils import spaces, tensors
+from temporal_policies.utils.typing import ObsType
 
 
 class DecoupledDynamics(LatentDynamics):
@@ -60,7 +61,7 @@ class DecoupledDynamics(LatentDynamics):
             device=device,
         )
 
-    def encode(self, observation: Any, idx_policy: Union[int, torch.Tensor]) -> torch.Tensor:
+    def encode(self, observation: ObsType, idx_policy: Union[int, torch.Tensor]) -> torch.Tensor:
         """Encodes the observation as a concatenation of latent states for each
         policy.
 
@@ -82,7 +83,7 @@ class DecoupledDynamics(LatentDynamics):
         latent: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
         policy_args: Optional[Any] = None,
-    ) -> Any:
+    ) -> torch.Tensor:
         """Extracts the policy state from the concatenated latent states.
 
         Args:

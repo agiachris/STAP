@@ -11,9 +11,10 @@ from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.dynamics import DynamicsTrainer
 from temporal_policies.trainers.utils import load as load_trainer
 from temporal_policies.utils import spaces, tensors
+from temporal_policies.utils.typing import Batch, WrappedBatch
 
 
-class UnifiedTrainer(Trainer):
+class UnifiedTrainer(Trainer[None, WrappedBatch, None]):
     """Unified agents and dynamics trainer."""
 
     def __init__(
@@ -69,21 +70,23 @@ class UnifiedTrainer(Trainer):
             "profile_freq": profile_freq,
         }
 
-        agent_trainers = []
+        agent_trainers: List[AgentTrainer] = []
         for agent_trainer_config, agent in zip(
             agent_trainer_configs, dynamics.policies
         ):
             assert isinstance(agent, agents.RLAgent)
-            agent_trainer: AgentTrainer = load_trainer(  # type: ignore
+            agent_trainer = load_trainer(
                 path=path,
                 config=agent_trainer_config,
                 agent=agent,
                 device=device,
                 **agent_trainer_kwargs,  # type: ignore
             )
+            if not isinstance(agent_trainer, AgentTrainer):
+                raise ValueError("Checkpoint trainer must be an AgentTrainer instance")
             agent_trainers.append(agent_trainer)
 
-        dynamics_trainer: DynamicsTrainer = load_trainer(  # type: ignore
+        dynamics_trainer = load_trainer(
             path=path,
             config=dynamics_trainer_config,
             dynamics=dynamics,
@@ -91,10 +94,13 @@ class UnifiedTrainer(Trainer):
             device=device,
             **dynamics_trainer_kwargs,  # type: ignore
         )
+        if not isinstance(dynamics_trainer, DynamicsTrainer):
+            raise ValueError("Checkpoint trainer must be a DynamicsTrainer instance")
 
         self._agent_trainers = agent_trainers
-        self._dynamics_trainer = dynamics_trainer
-        self._trainers: List[Trainer] = agent_trainers + [dynamics_trainer]  # type: ignore
+        self._dynamics_trainer: DynamicsTrainer = dynamics_trainer
+        self._trainers: Sequence[Trainer] = list(agent_trainers)
+        self._trainers.append(dynamics_trainer)
         if len(set(trainer.name for trainer in self.trainers)) != len(self.trainers):
             trainer_names = [trainer.name for trainer in self.trainers]
             raise ValueError(f"All trainer names must be unique:\n{trainer_names}")
@@ -120,14 +126,9 @@ class UnifiedTrainer(Trainer):
         return self._dynamics_trainer
 
     @property
-    def trainers(self) -> List[Trainer]:
+    def trainers(self) -> Sequence[Trainer]:
         """Combined list of agent and dynamics trainers."""
         return self._trainers
-
-    @property
-    def agents(self) -> List[agents.RLAgent]:
-        """Agent being trained."""
-        return self.dynamics.policies  # type: ignore
 
     def increment_step(self):
         """Increments the training step for all trainers."""
@@ -228,7 +229,7 @@ class UnifiedTrainer(Trainer):
             trainer.profile_step()
 
     def train_step(  # type: ignore
-        self, step: int, batch: Dict[str, Any]
+        self, step: int, batch: WrappedBatch
     ) -> Dict[str, Dict[str, float]]:
         """Performs a single training step.
 
@@ -246,7 +247,7 @@ class UnifiedTrainer(Trainer):
         train_metrics = {}
         for idx_policy, agent_trainer in enumerate(self.agent_trainers):
             idx_batch = batch["idx_replay_buffer"] == idx_policy
-            agent_batch: Dict[str, Any] = tensors.map_structure(  # type: ignore
+            agent_batch: Batch = tensors.map_structure(  # type: ignore
                 lambda x: x[idx_batch],
                 {key: val for key, val in batch.items() if key != "idx_replay_buffer"},
             )

@@ -9,9 +9,10 @@ from temporal_policies import agents, datasets, envs, processors
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.utils import configs, metrics, tensors
+from temporal_policies.utils.typing import Batch
 
 
-class AgentTrainer(Trainer):
+class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     """Agent trainer."""
 
     def __init__(
@@ -206,7 +207,7 @@ class AgentTrainer(Trainer):
             collect_metrics = self.collect_step(random=True)
             self.increment_step()
 
-    def train_step(self, step: int, batch: Dict[str, Any]) -> Dict[str, float]:
+    def train_step(self, step: int, batch: Batch) -> Dict[str, float]:
         """Performs a single training step.
 
         Args:

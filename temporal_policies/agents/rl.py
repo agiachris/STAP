@@ -1,14 +1,14 @@
-import abc
 import pathlib
-from typing import Any, Dict, Optional, Type, Union
+from typing import Dict, Optional, Union
 
 import torch  # type: ignore
 
 from temporal_policies import envs, networks
 from temporal_policies.agents.base import Agent
+from temporal_policies.utils.typing import Model, Batch
 
 
-class RLAgent(Agent, abc.ABC):
+class RLAgent(Agent, Model[Batch]):
     """RL agent base class."""
 
     def __init__(
@@ -90,43 +90,3 @@ class RLAgent(Agent, abc.ABC):
         """
         torch.save(self.state_dict(), pathlib.Path(path) / f"{name}.pt")
 
-    @abc.abstractmethod
-    def create_optimizers(
-        self,
-        optimizer_class: Type[torch.optim.Optimizer],
-        optimizer_kwargs: Dict[str, Any],
-    ) -> Dict[str, torch.optim.Optimizer]:
-        """Sets up the agent optimizers.
-
-        This function is called by the agent trainer, since the optimizer class
-        is only required during training.
-
-        Args:
-            optimizer_class: Optimizer class.
-            optimizer_kwargs: Optimizer kwargs.
-
-        Returns:
-            Dict of optimizers for all trainable networks.
-        """
-        pass
-
-    @abc.abstractmethod
-    def train_step(
-        self,
-        step: int,
-        batch: Dict[str, Any],
-        optimizers: Dict[str, torch.optim.Optimizer],
-        schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
-    ) -> Dict[str, Any]:
-        """Performs a single training step.
-
-        Args:
-            step: Training step.
-            batch: Training batch.
-            optimizers: Optimizers created in `RLAgent.create_optimizers()`.
-            schedulers: Schedulers with the same keys as `optimizers`.
-
-        Returns:
-            Dict of training metrics for logging.
-        """
-        pass

@@ -4,7 +4,7 @@ import datetime
 import enum
 import functools
 import pathlib
-from typing import Generator, Optional, Sequence, Union
+from typing import Generator, Generic, Optional, Sequence, TypedDict, Union
 
 import gym  # type: ignore
 import numpy as np  # type: ignore
@@ -12,11 +12,18 @@ import torch  # type: ignore
 import tqdm  # type: ignore
 
 from temporal_policies.utils import nest, spaces
+from temporal_policies.utils.typing import Batch, ObsType
 
-Batch = nest.NestedStructure
+
+class StorageBatch(TypedDict, Generic[ObsType]):
+    observation: ObsType
+    action: np.ndarray
+    reward: np.ndarray
+    discount: np.ndarray
+    done: np.ndarray
 
 
-class ReplayBuffer(torch.utils.data.IterableDataset):
+class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
     """Replay buffer class."""
 
     class SampleStrategy(enum.Enum):
@@ -160,7 +167,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self._worker_idx = 0
         self._worker_idx_checkpoint = 0
 
-    def create_default_batch(self, size: int) -> Batch:
+    def create_default_batch(self, size: int) -> StorageBatch:
         """Creates a batch of the specified size with default values.
 
         Args:
@@ -179,13 +186,13 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
 
     def add(
         self,
-        observation: Optional[Batch] = None,
-        action: Optional[Batch] = None,
+        observation: Optional[ObsType] = None,
+        action: Optional[np.ndarray] = None,
         reward: Optional[Union[np.ndarray, float]] = None,
-        next_observation: Optional[Batch] = None,
+        next_observation: Optional[ObsType] = None,
         discount: Optional[Union[np.ndarray, float]] = None,
         done: Optional[Union[np.ndarray, bool]] = None,
-        batch: Optional[Batch] = None,
+        batch: Optional[StorageBatch] = None,
         max_entries: Optional[int] = None,
     ) -> int:
         """Adds an experience tuple to the replay buffer.
@@ -236,8 +243,9 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 batch_size = 1
 
             batch = self.create_default_batch(batch_size)
-            batch["observation"] = observation  # type: ignore
+            batch["observation"] = observation
         elif batch is None:
+            assert next_observation is not None
             batch = {
                 "observation": next_observation,
                 "action": action,
@@ -327,7 +335,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         else:
             valid_indices = np.nonzero(valid_samples)[0]
             if len(valid_indices) == 0:
-                return {}
+                return None
             idx_sample = np.random.choice(valid_indices, size=batch_size)
 
         # Assemble sample dict.
@@ -353,13 +361,13 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             reward += discount * self.worker_buffers["reward"][idx_sample_i]
             discount *= self.worker_buffers["discount"][idx_sample_i]
 
-        return {
-            "observation": observation,
-            "action": action,
-            "reward": reward,
-            "next_observation": next_observation,
-            "discount": discount,
-        }
+        return Batch(
+            observation=observation,
+            action=action,
+            reward=reward,
+            next_observation=next_observation,
+            discount=discount,
+        )
 
     def load(
         self, path: Optional[pathlib.Path] = None, max_entries: Optional[int] = None
@@ -384,7 +392,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         )
         for checkpoint_path in tqdm.tqdm(checkpoint_paths):
             with open(checkpoint_path, "rb") as f:
-                checkpoint = dict(np.load(f))
+                checkpoint: StorageBatch = dict(np.load(f))  # type: ignore
             num_added = self.add(batch=checkpoint, max_entries=max_entries)
             num_loaded += num_added
 
@@ -555,7 +563,7 @@ if __name__ == "__main__":
     # Simple tests.
     observation_space = gym.spaces.Box(low=np.full(2, 0), high=np.full(2, 1))
     action_space = gym.spaces.Box(low=0, high=1, shape=(1,))
-    replay_buffer = ReplayBuffer(
+    replay_buffer = ReplayBuffer[np.ndarray](
         observation_space, action_space, capacity=5, batch_size=4
     )
 

@@ -6,6 +6,7 @@ import torch  # type: ignore
 
 from temporal_policies import agents, networks
 from temporal_policies.dynamics.latent import LatentDynamics
+from temporal_policies.utils.typing import ObsType
 
 
 class SharedDynamics(LatentDynamics):
@@ -56,7 +57,7 @@ class SharedDynamics(LatentDynamics):
         )
 
     def encode(
-        self, observation: Any, idx_policy: Union[int, torch.Tensor]
+        self, observation: ObsType, idx_policy: Union[int, torch.Tensor]
     ) -> torch.Tensor:
         """Encodes the observation using the first policy's encoder.
 

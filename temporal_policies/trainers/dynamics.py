@@ -10,10 +10,11 @@ from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.utils import load as load_trainer
-from temporal_policies.utils import configs
+from temporal_policies.utils import configs, tensors
+from temporal_policies.utils.typing import WrappedBatch, DynamicsBatch
 
 
-class DynamicsTrainer(Trainer):
+class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBatch]):
     """Dynamics trainer."""
 
     def __init__(
@@ -145,7 +146,7 @@ class DynamicsTrainer(Trainer):
         """Dynamics model being trained."""
         return self.model
 
-    def process_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+    def process_batch(self, batch: WrappedBatch) -> DynamicsBatch:
         """Formats the replay buffer batch for the dynamics model.
 
         Args:
@@ -154,13 +155,13 @@ class DynamicsTrainer(Trainer):
         Returns:
             Dict with (observation, idx_policy, action, next_observation).
         """
-        batch = {
-            "observation": batch["observation"],
-            "idx_policy": batch["idx_replay_buffer"],
-            "action": batch["action"],
-            "next_observation": batch["next_observation"],
-        }
-        return super().process_batch(batch)
+        dynamics_batch = DynamicsBatch(
+            observation=batch["observation"],
+            idx_policy=batch["idx_replay_buffer"],
+            action=batch["action"],
+            next_observation=batch["next_observation"],
+        )
+        return tensors.to(dynamics_batch, self.device)
 
     def evaluate(self) -> List[Dict[str, np.ndarray]]:
         """Evaluates the model.

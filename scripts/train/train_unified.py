@@ -21,9 +21,7 @@ def train(
     seed: Optional[int] = None,
 ) -> None:
     if resume:
-        trainer_factory = trainers.TrainerFactory(
-            checkpoint=path, device=device  # type: ignore
-        )
+        trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
         print("[scripts.train.train_policy] Resuming trainer config:")
         pprint(trainer_factory.config)
 

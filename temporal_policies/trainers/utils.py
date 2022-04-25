@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, Sequence, Union
 
 from temporal_policies import agents, dynamics, trainers
 from temporal_policies.dynamics import load as load_dynamics
-from temporal_policies.dynamics import load_policy_checkpoints
+from temporal_policies.dynamics import LatentDynamics, load_policy_checkpoints
 from temporal_policies.utils import configs
 
 
@@ -12,7 +12,7 @@ class TrainerFactory(configs.Factory):
 
     def __init__(
         self,
-        path: Union[str, pathlib.Path],
+        path: Optional[Union[str, pathlib.Path]] = None,
         config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
         agent: Optional[agents.RLAgent] = None,
         dynamics: Optional[dynamics.LatentDynamics] = None,
@@ -49,13 +49,20 @@ class TrainerFactory(configs.Factory):
             if agent is None:
                 if checkpoint is None:
                     raise ValueError("Either agent or checkpoint must be specified")
-                agent = agents.load(checkpoint=checkpoint, device=device)  # type: ignore
+                ckpt_agent = agents.load(checkpoint=checkpoint, device=device)
+                if not isinstance(ckpt_agent, agents.RLAgent):
+                    raise ValueError("Checkpoint agent must be an RLAgent instance")
+                agent = ckpt_agent
+
             self.kwargs["agent"] = agent
         elif issubclass(self.cls, (trainers.DynamicsTrainer, trainers.UnifiedTrainer)):
             if dynamics is None:
                 if checkpoint is None:
                     raise ValueError("Either dynamics or checkpoint must be specified")
-                dynamics = load_dynamics(checkpoint=checkpoint, device=device)  # type: ignore
+                ckpt_dynamics = load_dynamics(checkpoint=checkpoint, device=device)
+                if not isinstance(load_dynamics, LatentDynamics):
+                    raise ValueError("Checkpoint dynamics must be a LatentDynamics instance")
+                dynamics = ckpt_dynamics
 
             self.kwargs["dynamics"] = dynamics
 
@@ -81,13 +88,15 @@ class TrainerFactory(configs.Factory):
                     f"trainer [{ckpt_config['trainer']}] must be the same"
                 )
             self.kwargs["checkpoint"] = checkpoint
+            self.kwargs["path"] = pathlib.Path(checkpoint).parent
+        else:
+            self.kwargs["path"] = path
 
-        self.kwargs["path"] = path
         self.kwargs["device"] = device
 
 
 def load(
-    path: Union[str, pathlib.Path],
+    path: Optional[Union[str, pathlib.Path]] = None,
     config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     agent: Optional[agents.RLAgent] = None,
     dynamics: Optional[dynamics.LatentDynamics] = None,

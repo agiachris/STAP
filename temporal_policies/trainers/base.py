@@ -1,7 +1,7 @@
 import abc
 import pathlib
 import random
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Generic, List, Mapping, Optional, TypeVar, Union
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -9,9 +9,14 @@ import tqdm  # type: ignore
 
 from temporal_policies import processors
 from temporal_policies.utils import logging, metrics, tensors, timing
+from temporal_policies.utils.typing import ModelType
 
 
-class Trainer(abc.ABC):
+DatasetBatchType = TypeVar("DatasetBatchType")
+ModelBatchType = TypeVar("ModelBatchType", bound=Mapping)
+
+
+class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
     """Base trainer class."""
 
     def __init__(
@@ -89,7 +94,7 @@ class Trainer(abc.ABC):
             self.load(checkpoint, strict=True)
 
     @property
-    def model(self) -> torch.nn.Module:
+    def model(self) -> ModelType:
         """Training model."""
         return self._model
 
@@ -247,7 +252,7 @@ class Trainer(abc.ABC):
         self.processor.eval()
         self.model.eval_mode()
 
-    def process_batch(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+    def process_batch(self, batch: DatasetBatchType) -> ModelBatchType:
         """Processes replay buffer batch for training.
 
         Args:
@@ -256,7 +261,7 @@ class Trainer(abc.ABC):
         Returns:
             Processed batch.
         """
-        return tensors.to(batch, self.device)  # type: ignore
+        return tensors.to(batch, self.device)
 
     def get_time_metrics(self) -> Dict[str, float]:
         """Gets time metrics for logging."""
@@ -284,7 +289,7 @@ class Trainer(abc.ABC):
         else:
             self.profiler.disable()
 
-    def train_step(self, step: int, batch: Dict[str, Any]) -> Dict[str, float]:
+    def train_step(self, step: int, batch: DatasetBatchType) -> Dict[str, float]:
         """Performs a single training step.
 
         Args:
@@ -295,8 +300,10 @@ class Trainer(abc.ABC):
             Dict of training metrics for logging.
         """
         with self.profiler.profile("train"):
-            batch = self.process_batch(batch)
-            return self.model.train_step(step, batch, self.optimizers, self.schedulers)
+            model_batch = self.process_batch(batch)
+            return self.model.train_step(
+                step, model_batch, self.optimizers, self.schedulers
+            )
 
     def log_step(self, metrics_list: List[Dict[str, float]]) -> List[Dict[str, float]]:
         """Logs the metrics to Tensorboard if enabled for the current step.
@@ -354,6 +361,7 @@ class Trainer(abc.ABC):
         Returns:
             Torch dataloader.
         """
+
         def _worker_init_fn(worker_id: int) -> None:
             seed = np.random.get_state()[1][0] + worker_id
             np.random.seed(seed)

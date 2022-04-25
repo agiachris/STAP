@@ -3,7 +3,7 @@ from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Typ
 import numpy as np  # type: ignore
 import torch  # type: ignore
 
-from temporal_policies.utils import nest
+from temporal_policies.utils import nest, typing
 
 
 def device(device: Union[str, torch.device] = "auto") -> torch.device:
@@ -24,7 +24,7 @@ def device(device: Union[str, torch.device] = "auto") -> torch.device:
 
 
 def to_tensor(
-    x: Union[torch.Tensor, np.ndarray, Sequence[float], Sequence[int], float, int]
+    x: Union[torch.Tensor, np.ndarray, Sequence[float], Sequence[int], typing.Scalar]
 ) -> torch.Tensor:
     """Converts the scalar or array to a tensor.
 
@@ -43,7 +43,7 @@ def to_tensor(
 
 
 def dim(
-    x: Union[torch.Tensor, np.ndarray, Sequence[float], Sequence[int], float, int]
+    x: Union[torch.Tensor, np.ndarray, Sequence[float], Sequence[int], typing.Scalar]
 ) -> torch.Tensor:
     """Gets the number of dimensions of x.
 
@@ -65,9 +65,9 @@ def dim(
 
 def map_structure(
     func: Callable,
-    *args: nest.NestedStructure,
-    atom_type: Union[Type, Tuple[Type, ...]] = (torch.Tensor, np.ndarray),
-) -> nest.NestedStructure:
+    *args,
+    atom_type: Union[Type, Tuple[Type, ...]] = (torch.Tensor, np.ndarray)
+):
     """Maps the function over the structure containing either Torch tensors or Numpy
     arrays.
 
@@ -80,13 +80,12 @@ def map_structure(
         func,
         *args,
         atom_type=atom_type,
-        skip_type=(np.ndarray, torch.Tensor, float, int, bool, str, type(None)),
+        skip_type=(np.ndarray, torch.Tensor, *typing.scalars, str, type(None)),
     )
 
 
 def structure_iterator(
-    structure: nest.NestedStructure,
-    atom_type: Union[Type, Tuple[Type, ...]] = (torch.Tensor, np.ndarray),
+    structure, atom_type: Union[Type, Tuple[Type, ...]] = (torch.Tensor, np.ndarray)
 ) -> Iterator:
     """Provides an iterator over the Torch tensors or Numpy arrays in the nested
     structure.
@@ -101,11 +100,11 @@ def structure_iterator(
     return nest.structure_iterator(
         structure,
         atom_type=atom_type,
-        skip_type=(np.ndarray, torch.Tensor, float, int, bool, str, type(None)),
+        skip_type=(np.ndarray, torch.Tensor, *typing.scalars, str, type(None)),
     )
 
 
-def to(structure: nest.NestedStructure, device: torch.device) -> nest.NestedStructure:
+def to(structure, device: torch.device):
     """Moves the nested structure to the given device.
 
     Numpy arrays are converted to Torch tensors first.
@@ -118,7 +117,7 @@ def to(structure: nest.NestedStructure, device: torch.device) -> nest.NestedStru
         Transferred structure.
     """
 
-    def _to(x: nest.StructureAtom) -> Union[nest.StructureAtom, torch.Tensor]:
+    def _to(x):
         if isinstance(x, torch.Tensor):
             return x.to(device)
         else:
@@ -127,7 +126,7 @@ def to(structure: nest.NestedStructure, device: torch.device) -> nest.NestedStru
     return map_structure(_to, structure)
 
 
-def numpy(structure: nest.NestedStructure) -> nest.NestedStructure:
+def numpy(structure):
     """Converts the nested structure to Numpy arrays.
 
     Args:
@@ -141,9 +140,7 @@ def numpy(structure: nest.NestedStructure) -> nest.NestedStructure:
     )
 
 
-def from_numpy(
-    structure: nest.NestedStructure, device: Optional[torch.device] = None
-) -> nest.NestedStructure:
+def from_numpy(structure, device: Optional[torch.device] = None):
     """Converts the nested structure to Torch tensors.
 
     Args:
@@ -161,8 +158,10 @@ def from_numpy(
     )
 
 
-def unsqueeze(structure: nest.NestedStructure, dim: int):
-    def _unsqueeze(x: Union[torch.Tensor, np.ndarray]) -> Union[torch.Tensor, np.ndarray]:
+def unsqueeze(structure, dim: int):
+    def _unsqueeze(
+        x: Union[torch.Tensor, np.ndarray]
+    ) -> Union[torch.Tensor, np.ndarray]:
         if isinstance(x, np.ndarray):
             return np.expand_dims(x, dim)
         elif isinstance(x, torch.Tensor):

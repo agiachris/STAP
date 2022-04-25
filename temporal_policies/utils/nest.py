@@ -1,39 +1,22 @@
-from typing import (
-    Any,
-    Dict,
-    Callable,
-    Generator,
-    Iterator,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Callable, Generator, Iterator, Optional, Tuple, Type, Union
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
 
-# mypy doesn't support recursive types, so we define two levels of recursion.
-StructureAtom = Any
-Structure = Union[StructureAtom, Dict[str, StructureAtom], Sequence[StructureAtom]]
-NestedStructure = Union[Structure, Dict[str, Structure], Sequence[Structure]]
+from temporal_policies.utils import typing
 
 
 def map_structure(
     func: Callable,
-    *args: NestedStructure,
+    *args,
     atom_type: Union[Type, Tuple[Type, ...]] = (
-        np.ndarray,
         torch.Tensor,
-        float,
-        int,
-        bool,
-        str,
+        np.ndarray,
+        *typing.scalars,
         type(None),
     ),
     skip_type: Optional[Union[Type, Tuple[Type, ...]]] = None,
-) -> NestedStructure:
+):
     """Applies the function over the nested structure atoms.
 
     Works like tensorflow.nest.map_structure():
@@ -57,7 +40,7 @@ def map_structure(
         return {
             key: map_structure(
                 func,
-                *(arg[key] for arg in args),  # type: ignore
+                *(arg[key] for arg in args),
                 atom_type=atom_type,
                 skip_type=skip_type,
             )
@@ -68,20 +51,17 @@ def map_structure(
         return iterable_class(
             map_structure(func, *args_i, atom_type=atom_type, skip_type=skip_type)
             for args_i in zip(*args)
-        )  # type: ignore
+        )
     else:
         return arg_0 if len(args) == 1 else args
 
 
 def structure_iterator(
-    structure: NestedStructure,
+    structure,
     atom_type: Union[Type, Tuple[Type, ...]] = (
-        np.ndarray,
         torch.Tensor,
-        float,
-        int,
-        bool,
-        str,
+        np.ndarray,
+        *typing.scalars,
         type(None),
     ),
     skip_type: Optional[Union[Type, Tuple[Type, ...]]] = None,
@@ -98,7 +78,7 @@ def structure_iterator(
     """
 
     def iterate_structure(
-        structure: NestedStructure,
+        structure,
     ) -> Generator:
         if isinstance(structure, atom_type):
             yield structure

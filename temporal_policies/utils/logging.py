@@ -67,5 +67,16 @@ class Logger(object):
                 self._csv_writer.writeheader()
             assert self._csv_file is not None
 
-            self._csv_writer.writerow(self._flushed)
+            try:
+                self._csv_writer.writerow(self._flushed)
+            except ValueError:
+                # Recreate csv headers.
+                self._csv_file.close()
+                self._csv_file = open(self.path / "log.csv", "w")
+                self._csv_writer = csv.DictWriter(
+                    self._csv_file, fieldnames=list(self._staged.keys())
+                )
+                self._csv_writer.writeheader()
+            self._csv_writer.writeheader()
+
             self._csv_file.flush()

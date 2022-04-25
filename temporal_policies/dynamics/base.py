@@ -1,14 +1,15 @@
 import abc
-from typing import Any, Optional, Sequence, Tuple, Union
+from typing import Any, Generic, Optional, Sequence, Tuple, Union
 
 import gym  # type: ignore
 import torch  # type: ignore
 
 from temporal_policies import agents
 from temporal_policies.utils import spaces, tensors
+from temporal_policies.utils.typing import ObsType
 
 
-class Dynamics(abc.ABC):
+class Dynamics(abc.ABC, Generic[ObsType]):
     """Base dynamics class."""
 
     def __init__(
@@ -153,7 +154,7 @@ class Dynamics(abc.ABC):
         raise NotImplementedError
 
     def encode(
-        self, observation: Any, idx_policy: Union[int, torch.Tensor]
+        self, observation: ObsType, idx_policy: Union[int, torch.Tensor]
     ) -> torch.Tensor:
         """Encodes the observation into a dynamics state.
 
@@ -178,7 +179,7 @@ class Dynamics(abc.ABC):
         state: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
         policy_args: Optional[Any] = None,
-    ) -> Any:
+    ) -> torch.Tensor:
         """Decodes the dynamics state into policy states.
 
         Args:

@@ -7,9 +7,10 @@ import torch  # type: ignore
 from temporal_policies import agents, networks
 from temporal_policies.dynamics.base import Dynamics
 from temporal_policies.utils import configs
+from temporal_policies.utils.typing import DynamicsBatch, Model
 
 
-class LatentDynamics(Dynamics):
+class LatentDynamics(Dynamics, Model[DynamicsBatch]):
     """Base dynamics class."""
 
     def __init__(
@@ -184,7 +185,7 @@ class LatentDynamics(Dynamics):
     def train_step(
         self,
         step: int,
-        batch: Dict[str, Any],
+        batch: DynamicsBatch,
         optimizers: Dict[str, torch.optim.Optimizer],
         schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
     ) -> Dict[str, float]:
