@@ -74,17 +74,25 @@ class PlaceRight2D(Box2DBase):
         )
         self._observation_bodies = all_bodies - redundant_bodies
         reps = len(self._observation_bodies) + 1
-        # self.observation_space = spaces.Box(
-        #     low=np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps),
-        #     high=np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
-        # )
-        low = np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps)
-        low = np.concatenate((low, [-np.pi * 0.5 - 1e-2]), dtype=np.float32)
-        high = np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
-        high = np.concatenate((high, [np.pi * 0.5 + 1e-2]), dtype=np.float32)
-        self.observation_space = spaces.Box(low=low, high=high)
+        if self._image_observation:
+            self.observation_space = spaces.Box(
+                -3.0, 3.0, shape=(3, 64, 64), dtype=np.float32
+            )
+        else:
+            # self.observation_space = spaces.Box(
+            #     low=np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps),
+            #     high=np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
+            # )
+            low = np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps)
+            low = np.concatenate((low, [-np.pi * 0.5 - 1e-2]), dtype=np.float32)
+            high = np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
+            high = np.concatenate((high, [np.pi * 0.5 + 1e-2]), dtype=np.float32)
+            self.observation_space = spaces.Box(low=low, high=high)
 
     def get_observation(self):
+        if self._image_observation:
+            return super().get_observation()
+
         k = 0
         observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
         for object_name in self.env.keys():

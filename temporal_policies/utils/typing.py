@@ -13,7 +13,7 @@ ObsType = TypeVar("ObsType")
 BatchType = TypeVar("BatchType", bound=Mapping)
 
 
-class Model(Generic[BatchType], abc.ABC):
+class Model(abc.ABC, Generic[BatchType]):
     @abc.abstractmethod
     def create_optimizers(
         self,

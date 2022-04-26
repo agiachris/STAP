@@ -68,8 +68,16 @@ class SharedDynamics(LatentDynamics):
         Returns:
             Encoded latent state vector.
         """
-        # Assume all encoders are the same.
-        # [B, O] => [B, Z].
-        policy_latent = self.policies[0].encoder(observation)
+        if isinstance(idx_policy, int):
+            # [B, O] => [B, Z].
+            return self.policies[idx_policy].encoder(observation)
+
+        # [B, O] => [A, B, Z].
+        policy_latents = torch.stack(
+            [policy.encoder(observation) for policy in self.policies], dim=0
+        )
+
+        # [A, B, Z], [B] => [B, Z].
+        policy_latent = torch.index_select(policy_latents, 0, idx_policy)
 
         return policy_latent

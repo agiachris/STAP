@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
+from typing import Optional
 
 import Box2D  # type: ignore
 import gym  # type: ignore
@@ -23,6 +24,7 @@ class Box2DBase(ABC, gym.Env, Generator):
         name: str,
         max_episode_steps: int,
         steps_per_action: int,
+        image_observation: bool = False,
         observation_noise: float = 0.0,
         time_steps: float = 1.0 / 60.0,
         vel_iters: int = 10,
@@ -39,8 +41,10 @@ class Box2DBase(ABC, gym.Env, Generator):
         """Box2D environment base class.
 
         args:
+            name: Environment name
             max_episode_steps: maximum number per episode
             steps_per_action: number of simulation steps per action
+            image_observation: Whether to use image or low-dimensional state observations
             observation_noise: percent noise added to observations
             time_steps: simulation frequency
             vel_iters: Box2D velocity numerical solver iterations per time step
@@ -57,6 +61,7 @@ class Box2DBase(ABC, gym.Env, Generator):
         self.name = name
         self._max_episode_steps = max_episode_steps
         self._steps_per_action = steps_per_action
+        self._image_observation = image_observation
         self._observation_noise = observation_noise
         self._time_steps = time_steps
         self._vel_iters = vel_iters
@@ -337,8 +342,16 @@ class Box2DBase(ABC, gym.Env, Generator):
         raise NotImplementedError
 
     @abstractmethod
-    def get_observation(self, obs):
+    def get_observation(self, obs: Optional[np.ndarray] = None):
         """Observation model. Optionally incorporate noise to observations."""
+        if self._image_observation:
+            img_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            img_stddev = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+            img = self.render(mode="rgb_array")
+            img = (img.astype(np.float32) / 255 - img_mean) / img_stddev
+            img = np.moveaxis(img, 2, 0)
+            return img
+
         assert self.observation_space.contains(obs)
         low = self.observation_space.low
         high = self.observation_space.high
@@ -661,7 +674,7 @@ class Box2DBase(ABC, gym.Env, Generator):
             caption = self._render_caption()
             dtype = np.uint8
         elif mode == "rgb_array":
-            width, height = 84, 84
+            width, height = 64, 64
             caption = None
             dtype = np.float32
         elif mode == "default":

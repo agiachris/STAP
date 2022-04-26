@@ -12,7 +12,7 @@ from temporal_policies.utils import logging, metrics, tensors, timing
 from temporal_policies.utils.typing import ModelType
 
 
-DatasetBatchType = TypeVar("DatasetBatchType")
+DatasetBatchType = TypeVar("DatasetBatchType", bound=Mapping)
 ModelBatchType = TypeVar("ModelBatchType", bound=Mapping)
 
 

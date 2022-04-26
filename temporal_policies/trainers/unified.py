@@ -14,7 +14,7 @@ from temporal_policies.utils import spaces, tensors
 from temporal_policies.utils.typing import Batch, WrappedBatch
 
 
-class UnifiedTrainer(Trainer[None, WrappedBatch, None]):
+class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
     """Unified agents and dynamics trainer."""
 
     def __init__(

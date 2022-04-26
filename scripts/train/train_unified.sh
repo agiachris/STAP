@@ -23,15 +23,15 @@ function train_unified {
     fi
     args="${args} --path models/${EXP_NAME}"
     args="${args} --seed 0"
-    # args="${args} --overwrite"
+    args="${args} --overwrite"
 
     CMD="python scripts/train/train_unified.py ${args}"
     run_cmd
 }
 
-EXP_NAME="unified"
+EXP_NAME="20220425/unified"
 TRAINER_CONFIG="configs/pybox2d/trainers/unified.yaml"
-DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
-AGENT_CONFIGS="configs/pybox2d/agents/sac.yaml configs/pybox2d/agents/sac.yaml"
-ENV_CONFIGS="configs/pybox2d/envs/placeright.yaml configs/pybox2d/envs/pushleft.yaml"
+DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared_img.yaml"
+AGENT_CONFIGS="configs/pybox2d/agents/sac_img.yaml configs/pybox2d/agents/sac_img.yaml"
+ENV_CONFIGS="configs/pybox2d/envs/placeright_img.yaml configs/pybox2d/envs/pushleft_img.yaml"
 train_unified

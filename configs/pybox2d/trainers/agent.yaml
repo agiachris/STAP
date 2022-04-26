@@ -2,7 +2,7 @@ trainer: AgentTrainer
 trainer_kwargs:
   dataset_class: ReplayBuffer
   dataset_kwargs:
-    capacity: 1000000
+    capacity: 100000
     batch_size: 1024
     sample_strategy: uniform
     save_frequency: 1000

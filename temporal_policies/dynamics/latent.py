@@ -7,10 +7,10 @@ import torch  # type: ignore
 from temporal_policies import agents, networks
 from temporal_policies.dynamics.base import Dynamics
 from temporal_policies.utils import configs
-from temporal_policies.utils.typing import DynamicsBatch, Model
+from temporal_policies.utils.typing import DynamicsBatch, Model, ObsType
 
 
-class LatentDynamics(Dynamics, Model[DynamicsBatch]):
+class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
     """Base dynamics class."""
 
     def __init__(
