@@ -1,9 +1,0 @@
-{
-    "planner": "CrossEntropyMethod",
-    "planner_kwargs": {
-        "samples": [5, 10],
-        "elites": [2, 5],
-        "iterations": [5, 10, 20],
-        "standard_deviation": [0.5, 1.0]
-    }
-}
