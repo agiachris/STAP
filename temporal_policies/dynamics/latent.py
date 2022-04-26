@@ -149,9 +149,9 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
 
     def compute_loss(
         self,
-        observation: Any,
+        observation: ObsType,
         idx_policy: Union[int, torch.Tensor],
-        action: Sequence[torch.Tensor],
+        action: torch.Tensor,
         next_observation: torch.Tensor,
     ) -> Tuple[torch.Tensor, Dict[str, float]]:
         """Computes the L2 loss between the predicted next latent and the latent
@@ -205,7 +205,7 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
         Returns:
             Dict of training metrics for logging.
         """
-        loss, metrics = self.compute_loss(**batch)
+        loss, metrics = self.compute_loss(**batch)  # type: ignore
 
         optimizers["dynamics"].zero_grad()
         loss.backward()

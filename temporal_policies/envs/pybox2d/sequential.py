@@ -1,6 +1,6 @@
 import itertools
 import pathlib
-from typing import Any, Sequence
+from typing import Sequence
 
 import imageio  # type: ignore
 import numpy as np  # type: ignore
@@ -9,7 +9,7 @@ from temporal_policies.envs.base import SequentialEnv
 from temporal_policies.envs import utils
 
 
-class Sequential2D(SequentialEnv):
+class Sequential2D(SequentialEnv[np.ndarray, np.ndarray, np.ndarray]):
     """Wrapper around primtive envs for sequential tasks."""
 
     def __init__(self, env_factories: Sequence[utils.EnvFactory]):
@@ -18,10 +18,8 @@ class Sequential2D(SequentialEnv):
         Args:
             env_factories: Ordered list of primitive env factories.
         """
-        super().__init__()
-
         # Construct primitive envs.
-        self._envs = []
+        envs = []
         for idx_policy, env_factory in enumerate(env_factories):
             if idx_policy == 0:
                 env = env_factory()
@@ -29,9 +27,9 @@ class Sequential2D(SequentialEnv):
             else:
                 env = env_factory.cls.load(env, **env_factory.kwargs)
                 env_factory.run_post_hooks(env)
-            self._envs.append(env)
+            envs.append(env)
 
-        self._name = "_".join([env.name for env in self.envs])
+        super().__init__(envs)
 
     def set_state(self, state: np.ndarray) -> bool:
         """Sets the environment state."""
@@ -42,7 +40,7 @@ class Sequential2D(SequentialEnv):
 
         return super().set_state(state)
 
-    def reset(self, idx_policy: int) -> Any:
+    def reset(self, idx_policy: int) -> np.ndarray:
         """Resets the environment."""
         observation = super().reset(idx_policy)
         for i, env in enumerate(self.envs):

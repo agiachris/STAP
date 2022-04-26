@@ -9,7 +9,9 @@ scalars = (np.generic, float, int, bool)
 
 
 ArrayType = TypeVar("ArrayType", np.ndarray, torch.Tensor)
+StateType = TypeVar("StateType")
 ObsType = TypeVar("ObsType")
+ActType = TypeVar("ActType")
 BatchType = TypeVar("BatchType", bound=Mapping)
 
 

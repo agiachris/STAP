@@ -242,9 +242,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     with torch.no_grad():
                         observation = tensors.from_numpy(observation, self.device)
                         action = self.agent.actor.predict(
-                            self.agent.encoder(observation)
+                            self.agent.encoder(observation.unsqueeze(0))
                         )
-                        action = action.cpu().numpy()
+                        action = action.squeeze(0).cpu().numpy()
 
                     observation, reward, done, info = self.env.step(action)
                     self.eval_dataset.add(

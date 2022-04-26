@@ -45,6 +45,10 @@ def train(
 
         # Assign all policies to the same encoder.
         policies = [agent_factory() for agent_factory in agent_factories]
+        for policy in policies[1:]:
+            del policy._encoder
+            policy._encoder = policies[0].encoder
+
         dynamics_factory = dynamics.DynamicsFactory(
             config=dynamics_config,
             policies=policies,

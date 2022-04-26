@@ -5,7 +5,7 @@ from temporal_policies import envs
 from temporal_policies.utils import configs
 
 
-class EnvFactory(configs.Factory):
+class EnvFactory(configs.Factory[envs.Env]):
     """Env factory."""
 
     def __init__(
@@ -32,10 +32,33 @@ class EnvFactory(configs.Factory):
             raise AttributeError("Only Sequential2D has attribute env_factories")
         return self.kwargs["env_factories"]
 
+    def __call__(self, *args, multiprocess: bool = False, **kwargs) -> envs.Env:
+        """Creates an env instance.
+
+        Args:
+            *args: Env constructor args.
+            multiprocess: Whether to wrap the env in a ProcessEnv.
+            **kwargs: Env constructor kwargs.
+
+        Returns:
+            Env instance.
+        """
+        if multiprocess:
+            merged_kwargs = dict(self.kwargs)
+            merged_kwargs.update(kwargs)
+            instance = envs.ProcessEnv(self.cls, *args, **kwargs)
+
+            self.run_post_hooks(instance)
+
+            return instance
+
+        return super().__call__(*args, **kwargs)
+
 
 def load(
     config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    multiprocess: bool = False,
     **kwargs,
 ) -> envs.Env:
     """Loads the agent from an env config or policy checkpoint.
@@ -44,6 +67,7 @@ def load(
         config: Optional env config path or dict. Must be set if checkpoint is
             None.
         checkpoint: Optional policy checkpoint path.
+        multiprocess: Whether to run the env in a separate process.
         kwargs: Additional env constructor kwargs.
 
     Returns:
@@ -55,7 +79,7 @@ def load(
         config = load_config(checkpoint)
 
     env_factory = EnvFactory(config)
-    return env_factory(**kwargs)
+    return env_factory(multiprocess=multiprocess, **kwargs)
 
 
 def load_config(path: Union[str, pathlib.Path]) -> Dict[str, Any]:

@@ -1,22 +1,18 @@
 import abc
-from typing import Any, Generic, List, Optional, TypeVar
+import inspect
+import multiprocessing
+from typing import Any, Dict, Generic, List, Optional, Tuple, Type, Union
 
 import gym  # type: ignore
 
-StateType = TypeVar("StateType")
+from temporal_policies.utils.typing import StateType, ObsType, ActType
 
 
-class Env(gym.Env, Generic[StateType]):
+class Env(gym.Env[ObsType, ActType], Generic[StateType, ActType, ObsType]):
     """Base env class with a separate state space for dynamics."""
 
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def state_space(self) -> gym.spaces.Space[StateType]:
-        """State space."""
-        return self.observation_space
+    name: str
+    state_space: gym.spaces.Space[StateType]
 
     @abc.abstractmethod
     def get_state(self) -> StateType:
@@ -30,24 +26,26 @@ class Env(gym.Env, Generic[StateType]):
 
     # TODO: Set idx_policy to first arg.
     @abc.abstractmethod
-    def get_observation(self) -> Any:
+    def get_observation(self) -> ObsType:
         """Gets an observation for the current environment state."""
         raise NotImplementedError
 
 
-class SequentialEnv(Env):
+class SequentialEnv(
+    Env[StateType, Tuple[ActType, int, Any], ObsType],
+    Generic[StateType, ActType, ObsType],
+):
     """Wrapper around a sequence of child envs."""
+
+    def __init__(self, envs: List[Env]):
+        self._envs = envs
+        self.state_space = self.envs[0].state_space
+        self.name = "_".join([env.name for env in self.envs])
 
     @property
     def envs(self) -> List[Env]:
         """Primtive envs."""
         return self._envs
-
-    @property
-    def state_space(self) -> gym.spaces.Box:
-        """State space."""
-        base_env = self.envs[0]
-        return base_env.get_state()
 
     def get_state(self) -> StateType:
         """Gets the environment state."""
@@ -59,13 +57,15 @@ class SequentialEnv(Env):
         base_env = self.envs[0]
         return base_env.set_state(state)
 
-    def get_observation(self, idx_policy: Optional[int] = None) -> Any:
+    def get_observation(self, idx_policy: Optional[int] = None) -> ObsType:
         """Gets an observation for the current state of the environment."""
         if idx_policy is None:
             idx_policy = 0
         return self.envs[idx_policy].get_observation()
 
-    def step(self, action):
+    def step(
+        self, action: Tuple[ActType, int, Any]
+    ) -> Tuple[ObsType, float, bool, Dict]:
         """Executes the step corresponding to the policy index.
 
         Args:
@@ -74,8 +74,83 @@ class SequentialEnv(Env):
         Returns:
             4-tuple (observation, reward, done, info).
         """
-        action, idx_policy, policy_args = action
-        return self.envs[idx_policy].step(action)
+        env_action, idx_policy, policy_args = action
+        return self.envs[idx_policy].step(env_action)
 
-    def reset(self, idx_policy: int) -> Any:
+    def reset(self, idx_policy: int) -> ObsType:
         return self.envs[idx_policy].reset()
+
+
+class ProcessEnv(Env):
+    """Creates the env in a separate process."""
+
+    def __init__(self, env_class: Type[Env], env_kwargs: Dict[str, Any]):
+        parent_conn, child_conn = multiprocessing.Pipe()
+        self._conn = parent_conn
+
+        self._process = multiprocessing.Process(
+            target=ProcessEnv._run_env_process, args=(child_conn, env_class, env_kwargs)
+        )
+        self._process.start()
+
+        self._name = self._call("name")
+        self.state_space = self._call("state_space")
+        self.action_space = self._call("action_space")
+        self.observation_space = self._call("observation_space")
+
+    def _call(self, method: str, *args, **kwargs):
+        self._conn.send((method, args, kwargs))
+        return self._conn.recv()
+
+    def get_state(self) -> StateType:
+        return self._call("get_state")
+
+    def set_state(self, state: StateType) -> bool:
+        return self._call("set_state")
+
+    def get_observation(self) -> ObsType:
+        return self._call("get_observation")
+
+    def step(self, action: ActType) -> Tuple[ObsType, float, bool, Dict]:
+        return self._call("step", action)
+
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        return_info: bool = False,
+        options: Optional[dict] = None
+    ) -> Union[ObsType, Tuple[ObsType, Dict]]:
+        return self._call("reset", seed=seed, return_info=return_info, options=options)
+
+    def render(self, mode: str = "human"):
+        return self._call("render", mode)
+
+    def close(self):
+        result = self._call("close")
+        self._process.join()
+        return result
+
+    def __del__(self):
+        self.close()
+        super().__del__()
+
+    def _run_env_process(
+        conn: multiprocessing.connection.Connection,
+        env_class: Type[Env],
+        env_kwargs: Dict[str, Any],
+    ) -> None:
+        env = env_class(**env_kwargs)
+        while True:
+            method, args, kwargs = conn.recv()
+
+            attr = getattr(env, method)
+            if inspect.ismethod(attr):
+                result = attr(*args, **kwargs)
+            else:
+                result = attr
+
+            conn.send(result)
+
+            if method == "close":
+                break

@@ -91,7 +91,7 @@ class Box2DBase(ABC, gym.Env, Generator):
         high = np.array(
             [x + 0.5 * w, y + h, np.pi / 2, 1e3, 1e3, 1e3], dtype=np.float32
         )
-        self._state_space = gym.spaces.Box(
+        self.state_space = gym.spaces.Box(
             low=np.tile(low, self.num_bodies),
             high=np.tile(high, self.num_bodies),
         )
@@ -280,11 +280,6 @@ class Box2DBase(ABC, gym.Env, Generator):
 
         self.world.ClearForces()
         return obs, reward, done, info
-
-    @property
-    def state_space(self) -> gym.spaces.Box:
-        """State space."""
-        return self._state_space
 
     @property
     def num_bodies(self) -> int:

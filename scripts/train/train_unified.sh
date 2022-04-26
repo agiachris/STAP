@@ -29,7 +29,7 @@ function train_unified {
     run_cmd
 }
 
-EXP_NAME="20220425/unified"
+EXP_NAME="20220426/unified"
 TRAINER_CONFIG="configs/pybox2d/trainers/unified.yaml"
 DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
 AGENT_CONFIGS="configs/pybox2d/agents/sac_img.yaml configs/pybox2d/agents/sac_img.yaml"
