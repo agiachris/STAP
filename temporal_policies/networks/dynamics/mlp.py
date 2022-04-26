@@ -16,14 +16,15 @@ class MLPDynamics(PolicyDynamics):
 
     def __init__(
         self,
+        state_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
-        dim_latent: int,
         hidden_layers: List[int] = [256, 256],
         act: torch.nn.Module = torch.nn.ReLU,
         output_act: torch.nn.Module = None,
         ortho_init: bool = False,
     ):
         super().__init__()
+        dim_latent = state_space.shape[0]
         self.mlp = MLP(
             dim_latent + action_space.shape[0],
             dim_latent,

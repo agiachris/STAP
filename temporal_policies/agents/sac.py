@@ -52,29 +52,28 @@ class SAC(rl.RLAgent):
             actor_update_freq: Actor update frequency.
             target_update_freq: Target update frequency.
         """
-
-        actor_class = configs.get_class(actor_class, networks)
-        actor = actor_class(env.observation_space, env.action_space, **actor_kwargs)
-
-        critic_class = configs.get_class(critic_class, networks)
-        critic = critic_class(env.observation_space, env.action_space, **critic_kwargs)
-
         encoder_class = configs.get_class(encoder_class, networks)
         encoder = encoder_class(env.observation_space, **encoder_kwargs)
 
-        target_critic = critic_class(
-            env.observation_space, env.action_space, **critic_kwargs
-        )
-        target_critic.load_state_dict(critic.state_dict())
-        for param in target_critic.parameters():
-            param.requires_grad = False
-        target_critic.eval()
+        actor_class = configs.get_class(actor_class, networks)
+        actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)
+
+        critic_class = configs.get_class(critic_class, networks)
+        critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)
 
         target_encoder = encoder_class(env.observation_space, **encoder_kwargs)
         target_encoder.load_state_dict(encoder.state_dict())
         for param in target_encoder.parameters():
             param.requires_grad = False
         target_encoder.eval()
+
+        target_critic = critic_class(
+            target_encoder.state_space, env.action_space, **critic_kwargs
+        )
+        target_critic.load_state_dict(critic.state_dict())
+        for param in target_critic.parameters():
+            param.requires_grad = False
+        target_critic.eval()
 
         self._log_alpha = torch.tensor(
             np.log(initial_temperature), dtype=torch.float, requires_grad=True

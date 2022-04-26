@@ -28,7 +28,11 @@ class Dynamics(torch.nn.Module):
         network_class = configs.get_class(network_class, networks)
         self.models = torch.nn.ModuleList(
             [
-                network_class(action_space=policy.action_space, **network_kwargs)
+                network_class(
+                    state_space=policy.state_space,
+                    action_space=policy.action_space,
+                    **network_kwargs
+                )
                 for policy in policies
             ]
         )

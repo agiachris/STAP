@@ -128,7 +128,7 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
     def forward(
         self,
         state: torch.Tensor,
-        idx_policy: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
         action: Sequence[torch.Tensor],
         policy_args: Optional[Any] = None,
     ) -> torch.Tensor:
@@ -150,7 +150,7 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
     def compute_loss(
         self,
         observation: Any,
-        idx_policy: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
         action: Sequence[torch.Tensor],
         next_observation: torch.Tensor,
     ) -> Tuple[torch.Tensor, Dict[str, float]]:
@@ -167,13 +167,18 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
             L2 loss.
         """
         # Predict next latent state.
+        # [B, 3, H, W], [B] => [B, Z].
         latent = self.encode(observation, idx_policy)
+
+        # [B, Z], [B], [B, A] => [B, Z].
         next_latent_pred = self.forward(latent, idx_policy, action)
 
         # Encode next latent state.
+        # [B, 3, H, W], [B] => [B, Z].
         next_latent = self.encode(next_observation, idx_policy)
 
         # Compute L2 loss.
+        # [B, Z], [B, Z] => [1].
         l2_loss = torch.nn.functional.mse_loss(next_latent_pred, next_latent)
 
         metrics = {

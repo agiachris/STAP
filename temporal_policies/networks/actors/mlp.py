@@ -7,7 +7,7 @@ from temporal_policies.networks.utils import SquashedNormal
 class ContinuousMLPActor(torch.nn.Module):
     def __init__(
         self,
-        observation_space,
+        state_space,
         action_space,
         hidden_layers=[256, 256],
         act=torch.nn.ReLU,
@@ -16,7 +16,7 @@ class ContinuousMLPActor(torch.nn.Module):
     ):
         super().__init__()
         self.mlp = MLP(
-            observation_space.shape[0],
+            state_space.shape[0],
             action_space.shape[0],
             hidden_layers=hidden_layers,
             act=act,
@@ -32,7 +32,7 @@ class ContinuousMLPActor(torch.nn.Module):
 class DiagonalGaussianMLPActor(torch.nn.Module):
     def __init__(
         self,
-        observation_space,
+        state_space,
         action_space,
         hidden_layers=[256, 256],
         act=torch.nn.ReLU,
@@ -44,7 +44,7 @@ class DiagonalGaussianMLPActor(torch.nn.Module):
         if log_std_bounds is not None:
             assert log_std_bounds[0] < log_std_bounds[1]
         self.mlp = MLP(
-            observation_space.shape[0],
+            state_space.shape[0],
             2 * action_space.shape[0],
             hidden_layers=hidden_layers,
             act=act,

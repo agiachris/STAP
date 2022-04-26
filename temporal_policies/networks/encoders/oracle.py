@@ -12,13 +12,12 @@ class OracleEncoder(Encoder):
     """
 
     def __init__(self, env: envs.Env):
-        """Constructs the constant network.
+        """Constructs the oracle encoder.
 
         Args:
             env: Gym environment.
         """
-        super().__init__()
-        self.env = env
+        super().__init__(env, env.state_space)
 
     @tensors.torch_wrap
     @tensors.vmap(dims=1)

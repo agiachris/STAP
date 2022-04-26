@@ -2,6 +2,5 @@ dynamics: SharedDynamics
 dynamics_kwargs:
   network_class: dynamics.MLPDynamics
   network_kwargs:
-    dim_latent: 17
     hidden_layers: [256, 256]
     ortho_init: true

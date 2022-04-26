@@ -31,7 +31,7 @@ function train_unified {
 
 EXP_NAME="20220425/unified"
 TRAINER_CONFIG="configs/pybox2d/trainers/unified.yaml"
-DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared_img.yaml"
+DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
 AGENT_CONFIGS="configs/pybox2d/agents/sac_img.yaml configs/pybox2d/agents/sac_img.yaml"
 ENV_CONFIGS="configs/pybox2d/envs/placeright_img.yaml configs/pybox2d/envs/pushleft_img.yaml"
 train_unified

@@ -14,6 +14,7 @@ class ConcatenatedDynamics(PolicyDynamics):
 
     def __init__(
         self,
+        state_space: gym.spaces.Space,
         action_space: gym.spaces.Space,
         num_policies: int,
         network_class: Union[str, Type[PolicyDynamics]],
@@ -32,7 +33,9 @@ class ConcatenatedDynamics(PolicyDynamics):
         network_class = configs.get_class(network_class, networks)
         self.models = torch.nn.ModuleList(
             [
-                network_class(action_space=action_space, **network_kwargs)
+                network_class(
+                    state_space=state_space, action_space=action_space, **network_kwargs
+                )
                 for _ in range(num_policies)
             ]
         )

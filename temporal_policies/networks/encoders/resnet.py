@@ -1,5 +1,8 @@
+import gym  # type: ignore
+import numpy as np  # type: ignore
 import torch  # type: ignore
 
+from temporal_policies import envs
 from temporal_policies.networks.encoders.base import Encoder
 
 
@@ -8,13 +11,27 @@ class ResNet(Encoder):
 
     def __init__(
         self,
-        env,
+        env: envs.Env,
         out_features: int,
         variant: str = "resnet18",
         pretrained: bool = True,
         freeze: bool = False,
     ):
-        super().__init__()
+        state_space = gym.spaces.Box(
+            low=-float("inf"),
+            high=float("inf"),
+            shape=(out_features,),
+            dtype=np.float32,
+        )
+        super().__init__(env, state_space)
+
+        if variant in ("resnet18", "resnet34"):
+            dim_conv4_out = 256
+        elif variant in ("resnet50", "resnet101", "resnet152"):
+            dim_conv4_out = 1024
+        else:
+            raise NotImplementedError
+
         resnet = torch.hub.load(
             "pytorch/vision:v0.10.0", variant, pretrained=pretrained
         )
@@ -30,10 +47,16 @@ class ResNet(Encoder):
         self.avgpool = torch.nn.AdaptiveAvgPool2d((1, 1))
 
         # Output required feature dimensions.
-        self.fc = torch.nn.Linear(512, out_features)
+        self.fc = torch.nn.Linear(dim_conv4_out, out_features)
 
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
+        # [B, 3, H, W] => [B, 512, H / 16, W / 16].
         x = self.features(observation)
-        x = self.avgpool(x)
+
+        # [B, 512, H / 16, W / 16] => [B, conv4_out].
+        x = self.avgpool(x).squeeze(-1).squeeze(-1)
+
+        # [B, conv4_out, 1, 1] => [B, out_features].
         x = self.fc(x)
+
         return x

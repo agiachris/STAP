@@ -31,7 +31,7 @@ class RLAgent(Agent, Model[Batch]):
             device: Torch device.
         """
         super().__init__(
-            state_space=env.observation_space,
+            state_space=encoder.state_space,
             action_space=env.action_space,
             observation_space=env.observation_space,
             actor=actor,
