@@ -84,7 +84,7 @@ class PushLeft2DControl(Box2DBase):
 
         if self._image_observation:
             self.observation_space = spaces.Box(
-                -3.0, 3.0, shape=(3, 64, 64), dtype=np.float32
+                0, 255, shape=(64, 64, 3), dtype=np.uint8
             )
         else:
             low = np.tile(np.array([x_min, y_min, w_min, h_min]), reps)

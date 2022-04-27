@@ -49,7 +49,20 @@ class ResNet(Encoder):
         # Output required feature dimensions.
         self.fc = torch.nn.Linear(dim_conv4_out, out_features)
 
+        self.img_mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32)
+        self.img_stddev = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32)
+
+    def _apply(self, fn):
+        super()._apply(fn)
+        self.img_mean = fn(self.img_mean)
+        self.img_stddev = fn(self.img_stddev)
+        return self
+
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
+        if observation.dtype == torch.uint8:
+            observation = torch.moveaxis(observation, 2, 0)
+            observation = (observation.float() / 255 - self.img_mean) / self.img_stddev
+
         # [B, 3, H, W] => [B, 512, H / 16, W / 16].
         x = self.features(observation)
 

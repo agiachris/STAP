@@ -340,11 +340,7 @@ class Box2DBase(ABC, gym.Env, Generator):
     def get_observation(self, obs: Optional[np.ndarray] = None):
         """Observation model. Optionally incorporate noise to observations."""
         if self._image_observation:
-            img_mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-            img_stddev = np.array([0.229, 0.224, 0.225], dtype=np.float32)
             img = self.render(mode="rgb_array")
-            img = (img.astype(np.float32) / 255 - img_mean) / img_stddev
-            img = np.moveaxis(img, 2, 0)
             return img
 
         assert self.observation_space.contains(obs)

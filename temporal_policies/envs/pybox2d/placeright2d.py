@@ -76,7 +76,7 @@ class PlaceRight2D(Box2DBase):
         reps = len(self._observation_bodies) + 1
         if self._image_observation:
             self.observation_space = spaces.Box(
-                -3.0, 3.0, shape=(3, 64, 64), dtype=np.float32
+                0, 255, shape=(64, 64, 3), dtype=np.uint8
             )
         else:
             # self.observation_space = spaces.Box(
