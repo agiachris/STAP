@@ -81,12 +81,12 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                     "One of agent_trainers or policy_checkpoints must be specified"
                 )
             agent_trainers = []
-            for checkpoint in policy_checkpoints:
-                path = pathlib.Path(checkpoint)
-                if path.is_file():
-                    path = path.parent
-                checkpoint = path / "train_checkpoint.pt"
-                agent_trainer = load_trainer(path, checkpoint=checkpoint)
+            for policy_checkpoint in policy_checkpoints:
+                policy_path = pathlib.Path(policy_checkpoint)
+                if policy_path.is_file():
+                    policy_path = policy_path.parent
+                policy_checkpoint = policy_path / "train_checkpoint.pt"
+                agent_trainer = load_trainer(checkpoint=policy_checkpoint)
                 assert isinstance(agent_trainer, AgentTrainer)
                 agent_trainers.append(agent_trainer)
 

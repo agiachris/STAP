@@ -42,6 +42,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
         sample_strategy: Union[str, SampleStrategy] = "uniform",
         nstep: int = 1,
         save_frequency: Optional[int] = None,
+        num_load_entries: Optional[int] = None,
     ):
         """Stores the configuration parameters for the replay buffer.
 
@@ -57,6 +58,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
             sample_strategy: Sample strategy.
             nstep: Number of steps between sample and next observation.
             save_frequency: Frequency of optional automatic saving to disk.
+            load_checkpoint: Load data checkpoints if available at path.
         """
         self._observation_space = observation_space
         self._action_space = action_space
@@ -74,6 +76,18 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
         if save_frequency is not None and save_frequency <= 0:
             save_frequency = None
         self._save_frequency = save_frequency
+
+        if self.path is not None and self.path.exists():
+            if num_load_entries is None:
+                num_load_entries = capacity
+            if num_load_entries > 0:
+                # TODO: Support multiple workers.
+                self.initialize()
+                self.load(self.path, num_load_entries)
+            else:
+                for file in self.path.iterdir():
+                    file.unlink()
+            # TODO: Clear data not loaded
 
     @property
     def observation_space(self) -> gym.spaces.Space:

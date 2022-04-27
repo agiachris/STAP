@@ -77,7 +77,7 @@ class TrainerFactory(configs.Factory):
                         )
                     policy_checkpoints = load_policy_checkpoints(checkpoint)
 
-                    self.kwargs["policy_checkpoints"] = policy_checkpoints
+                self.kwargs["policy_checkpoints"] = policy_checkpoints
         else:
             raise NotImplementedError
 
@@ -88,7 +88,7 @@ class TrainerFactory(configs.Factory):
                     f"trainer [{ckpt_config['trainer']}] must be the same"
                 )
             self.kwargs["checkpoint"] = checkpoint
-            self.kwargs["path"] = pathlib.Path(checkpoint).parent
+            self.kwargs["path"] = pathlib.Path(checkpoint).parent.parent
         else:
             self.kwargs["path"] = path
 

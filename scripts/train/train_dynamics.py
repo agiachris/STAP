@@ -21,10 +21,11 @@ def train(
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
-        trainer = trainer_factory()
 
         print("[scripts.train.train_dynamics] Resuming trainer config:")
         pprint(trainer_factory.config)
+
+        trainer = trainer_factory()
     else:
         if seed is not None:
             random.seed(seed)
@@ -39,12 +40,6 @@ def train(
             policy_checkpoints=policy_checkpoints,
             device=device,
         )
-        trainer = trainer_factory()
-
-        trainer.path.mkdir(parents=True, exist_ok=overwrite)
-        configs.save_git_hash(trainer.path)
-        trainer_factory.save_config(trainer.path)
-        dynamics_factory.save_config(trainer.path)
 
         print("[scripts.train.train_dynamics] Trainer config:")
         pprint(trainer_factory.config)
@@ -53,6 +48,13 @@ def train(
         print("\n[scripts.train.train_dynamics] Policy checkpoints:")
         pprint(policy_checkpoints)
         print("")
+
+        trainer = trainer_factory()
+
+        trainer.path.mkdir(parents=True, exist_ok=overwrite)
+        configs.save_git_hash(trainer.path)
+        trainer_factory.save_config(trainer.path)
+        dynamics_factory.save_config(trainer.path)
 
     trainer.train()
 
