@@ -6,7 +6,7 @@ function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]]; then
-        sbatch scripts/train/train_unified_juno.sh "${CMD}"
+        sbatch scripts/train/train_juno.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -23,7 +23,7 @@ function train_unified {
     fi
     args="${args} --path models/${EXP_NAME}"
     args="${args} --seed 0"
-    args="${args} --overwrite"
+    # args="${args} --overwrite"
 
     CMD="python scripts/train/train_unified.py ${args}"
     run_cmd

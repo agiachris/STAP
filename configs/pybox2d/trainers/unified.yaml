@@ -6,7 +6,7 @@ trainer_kwargs:
     - configs/pybox2d/trainers/agent.yaml
 
   num_pretrain_steps: 1000
-  num_train_steps: 250000
+  num_train_steps: 30000
   num_eval_steps: 100
   eval_freq: 1000
   log_freq: 250

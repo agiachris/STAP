@@ -6,7 +6,7 @@ function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]]; then
-        sbatch scripts/train/train_policies_juno.sh "${CMD}"
+        sbatch scripts/train/train_juno.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -25,14 +25,14 @@ function train_policy {
     run_cmd
 }
 
-EXP_NAME="decoupled"
+EXP_NAME="20220426/decoupled"
+
 TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
-AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
-ENV_CONFIG="configs/pybox2d/envs/placeright.yaml"
+AGENT_CONFIG="configs/pybox2d/agents/sac_img.yaml"
+ENV_CONFIG="configs/pybox2d/envs/placeright_img.yaml"
 train_policy
 
-EXP_NAME="decoupled"
 TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
-AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
-ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
+AGENT_CONFIG="configs/pybox2d/agents/sac_img.yaml"
+ENV_CONFIG="configs/pybox2d/envs/pushleft_img.yaml"
 train_policy

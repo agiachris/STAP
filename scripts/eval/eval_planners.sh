@@ -25,11 +25,11 @@ function eval_planner {
     args="${args} --seed 0"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 1"
-        args="${args} --path plots/pybox2d_debug"
+        args="${args} --path plots/${EXP_NAME}_debug"
         args="${args} --verbose 1"
     else
         args="${args} --num-eval 100"
-        args="${args} --path plots/pybox2d"
+        args="${args} --path plots/${EXP_NAME}"
         args="${args} --verbose 0"
     fi
     CMD="python scripts/eval/eval_planners.py ${args}"
@@ -46,7 +46,7 @@ function visualize_results {
 
 # Setup.
 
-DEBUG=0
+DEBUG=1
 
 declare -a PLANNERS=(
 # Q-value / Latent dynamics.
@@ -60,32 +60,34 @@ declare -a PLANNERS=(
     # "policy_shooting_oracle_value"
     # "random_shooting_oracle_value"
 # Q-value / Oracle dynamics.
-    "policy_cem_oracle_dynamics"
-    "random_cem_oracle_dynamics"
-    "policy_shooting_oracle_dynamics"
-    "random_shooting_oracle_dynamics"
+    # "policy_cem_oracle_dynamics"
+    # "random_cem_oracle_dynamics"
+    # "policy_shooting_oracle_dynamics"
+    # "random_shooting_oracle_dynamics"
 # Oracle value / Oracle dynamics.
-    "policy_cem_oracle_value_dynamics"
-    "random_cem_oracle_value_dynamics"
-    "policy_shooting_oracle_value_dynamics"
-    "random_shooting_oracle_value_dynamics"
+    # "policy_cem_oracle_value_dynamics"
+    # "random_cem_oracle_value_dynamics"
+    # "policy_shooting_oracle_value_dynamics"
+    # "random_shooting_oracle_value_dynamics"
 # Random.
     "random"
 )
 
 # Evaluate planners.
 
+for EXP_NAME in "20220426/unified 20220426/decoupled"; do
 for planner in "${PLANNERS[@]}"; do
-    ENV_CONFIG=configs/pybox2d/envs/placeright_pushleft.yaml
-    POLICY_CHECKPOINTS="models/placeright/final_model.pt models/pushleft/final_model.pt"
-    if [[ "${planner}" == *_oracle_*dynamics ]]; then
+    ENV_CONFIG=configs/pybox2d/envs/placeright_pushleft_img.yaml
+    POLICY_CHECKPOINTS="models/${EXP_NAME}/placeright_img/final_model.pt models/${EXP_NAME}/pushleft_img/final_model.pt"
+    if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
         DYNAMICS_CHECKPOINT=""
     else
-        DYNAMICS_CHECKPOINT="models/placeright_pushleft/final_model.pt"
+        DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics/final_model.pt"
     fi
     PLANNER_CONFIG="configs/pybox2d/planners/${planner}.yaml"
 
     eval_planner
+done
 done
 
 if [[ `hostname` == "sc.stanford.edu" ]]; then

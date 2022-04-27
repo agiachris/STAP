@@ -6,7 +6,7 @@ function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]]; then
-        sbatch scripts/train/train_dynamics_juno.sh "${CMD}"
+        sbatch scripts/train/train_juno.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -27,8 +27,9 @@ function train_dynamics {
     run_cmd
 }
 
-EXP_NAME="decoupled"
+EXP_NAME="20220426/decoupled"
+
 TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybox2d/dynamics/decoupled.yaml"
-POLICY_CHECKPOINTS="models/placeright/final_model.pt models/pushleft/final_model.pt"
+POLICY_CHECKPOINTS="models/${EXP_NAME}/placeright_img/final_model.pt models/${EXP_NAME}/pushleft_img/final_model.pt"
 train_dynamics
