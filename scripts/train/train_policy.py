@@ -21,6 +21,7 @@ def train(
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
+        trainer = trainer_factory()
 
         print("[scripts.train.train_policy] Resuming trainer config:")
         pprint(trainer_factory.config)
@@ -38,13 +39,13 @@ def train(
         trainer_factory = trainers.TrainerFactory(
             path=path, config=trainer_config, agent=agent_factory(), device=device
         )
+        trainer = trainer_factory()
 
-        path = pathlib.Path(path)
-        path.mkdir(parents=True, exist_ok=overwrite)
-        configs.save_git_hash(path)
-        trainer_factory.save_config(path)
-        agent_factory.save_config(path)
-        env_factory.save_config(path)
+        trainer.path.mkdir(parents=True, exist_ok=overwrite)
+        configs.save_git_hash(trainer.path)
+        trainer_factory.save_config(trainer.path)
+        agent_factory.save_config(trainer.path)
+        env_factory.save_config(trainer.path)
 
         print("[scripts.train.train_policy] Trainer config:")
         pprint(trainer_factory.config)
@@ -54,7 +55,6 @@ def train(
         pprint(env_factory.config)
         print("")
 
-    trainer = trainer_factory()
     trainer.train()
 
 

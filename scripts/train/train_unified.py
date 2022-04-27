@@ -22,10 +22,10 @@ def train(
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
+        trainer = trainer_factory()
+
         print("[scripts.train.train_policy] Resuming trainer config:")
         pprint(trainer_factory.config)
-
-        trainer = trainer_factory()
     else:
         if seed is not None:
             random.seed(seed)
@@ -57,15 +57,12 @@ def train(
         trainer_factory = trainers.TrainerFactory(
             path=path, config=trainer_config, dynamics=dynamics_factory(), device=device
         )
-
-        path = pathlib.Path(path)
-        path.mkdir(parents=True, exist_ok=overwrite)
-        configs.save_git_hash(path)
-        trainer_factory.save_config(path)
-        dynamics_factory.save_config(path)
-
         trainer = trainer_factory()
 
+        trainer.path.mkdir(parents=True, exist_ok=overwrite)
+        configs.save_git_hash(trainer.path)
+        trainer_factory.save_config(trainer.path)
+        dynamics_factory.save_config(trainer.dynamics_trainer.path)
         for agent_factory, env_factory, agent_trainer in zip(
             agent_factories, env_factories, trainer.agent_trainers
         ):
