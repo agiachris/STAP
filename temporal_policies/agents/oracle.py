@@ -26,9 +26,9 @@ class OracleAgent(wrapper.WrapperAgent):
             policy = random.RandomAgent(env)
 
         super().__init__(
-            state_space=env.state_space,
-            action_space=env.action_space,
-            observation_space=env.observation_space,
+            state_space=policy.state_space,
+            action_space=policy.action_space,
+            observation_space=policy.observation_space,
             actor=networks.actors.OracleActor(env, policy),
             critic=networks.critics.OracleCritic(env),
             encoder=networks.encoders.OracleEncoder(env),
@@ -48,4 +48,4 @@ class OracleAgent(wrapper.WrapperAgent):
         self._env = env
         self.actor.env = env
         self.critic.env = env
-        self.encoder.env = env
+        self.encoder._env = env

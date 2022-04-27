@@ -239,11 +239,6 @@ def evaluate_planners(
             path=path / f"values_{i}.png",
             title=f"{pathlib.Path(config).stem}: {t_planner:0.2f}s",
         )
-        if verbose:
-            print("success:", rewards.prod())
-            print("predicted success:", p_success)
-            print(actions)
-            print("time:", t_planner)
 
         with open(path / f"results_{i}.npz", "wb") as f:
             save_dict = {
