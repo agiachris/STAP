@@ -182,8 +182,7 @@ class CEMPlanner(planners.Planner):
                         action=samples[
                             :, t, : self.policies[idx_policy].action_space.shape[0]
                         ],
-                        action_space=self.policies[idx_policy].action_space,
-                        observation_space=self.policies[idx_policy].observation_space,
+                        policy=self.policies[idx_policy],
                     )
                     for t, (idx_policy, policy_args) in enumerate(action_skeleton)
                 ]

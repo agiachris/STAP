@@ -19,8 +19,15 @@ class OracleEncoder(Encoder):
         """
         super().__init__(env, env.state_space)
 
+        @tensors.vmap(dims=len(self.env.observation_space.shape))
+        def forward(observation: np.ndarray) -> np.ndarray:
+            if (observation != self.env.get_observation()).any():
+                raise ValueError("Observation does not match the current env state")
+            return self.env.get_state()
+
+        self._forward = forward
+
     @tensors.torch_wrap
-    @tensors.vmap(dims=1)
     def forward(self, observation: np.ndarray) -> np.ndarray:
         """Returns the current environment state.
 
@@ -28,6 +35,4 @@ class OracleEncoder(Encoder):
         environment's current ground truth state. Be careful that the state
         matches the observation as expected.
         """
-        if (observation != self.env.get_observation()).any():
-            raise ValueError("Observation does not match the current env state")
-        return self.env.get_state()
+        return self._forward(observation)

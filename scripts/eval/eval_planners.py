@@ -15,7 +15,7 @@ from temporal_policies.utils import random, spaces, timing
 
 
 def create_grid_policies(
-    env: envs.Env,
+    env: envs.SequentialEnv,
     policies: Sequence[agents.Agent],
     action_skeleton: Sequence[Tuple[int, Any]],
     grid_resolution: int,
@@ -33,7 +33,9 @@ def create_grid_policies(
         )
         actions = np.stack(actions, axis=-1).reshape(-1, action_space.shape[0])
 
-        grid_policies.append(agents.ConstantAgent(env=policy_env, action=actions))
+        grid_policies.append(
+            agents.ConstantAgent(action=actions, policy=policies[idx_policy])
+        )
 
     grid_policies.append(policies[-1])
 
@@ -43,7 +45,7 @@ def create_grid_policies(
 def evaluate_critic_functions(
     planner: planners.Planner,
     action_skeleton: Sequence[Tuple[int, Any]],
-    env: envs.Env,
+    env: envs.SequentialEnv,
     grid_resolution: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
     grid_policies = create_grid_policies(
@@ -148,7 +150,9 @@ def plot_critic_functions(
 
 
 def scale_actions(
-    actions: np.ndarray, env: envs.Env, action_skeleton: Sequence[Tuple[int, Any]]
+    actions: np.ndarray,
+    env: envs.SequentialEnv,
+    action_skeleton: Sequence[Tuple[int, Any]],
 ) -> np.ndarray:
     scaled_actions = actions.copy()
     for t, (idx_policy, policy_args) in enumerate(action_skeleton):

@@ -4,6 +4,7 @@ import torch  # type: ignore
 
 from temporal_policies import envs
 from temporal_policies.networks.encoders.base import Encoder
+from temporal_policies.utils import tensors
 
 
 class ResNet(Encoder):
@@ -50,7 +51,9 @@ class ResNet(Encoder):
         self.fc = torch.nn.Linear(dim_conv4_out, out_features)
 
         self.img_mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32)
+        self.img_mean = self.img_mean.unsqueeze(-1).unsqueeze(-1)
         self.img_stddev = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32)
+        self.img_stddev = self.img_stddev.unsqueeze(-1).unsqueeze(-1)
 
     def _apply(self, fn):
         super()._apply(fn)
@@ -59,8 +62,19 @@ class ResNet(Encoder):
         return self
 
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
+        # Make sure input has one batch dimension.
+        if observation.dim() < 4:
+            squeeze = True
+            observation = observation.unsqueeze(0)
+        else:
+            squeeze = False
+
+        # [B, H, W, 3] => [B, 3, H, W].
+        if observation.shape[-1] == 3:
+            observation = torch.moveaxis(observation, -1, -3)
+
+        # Normalize pixels.
         if observation.dtype == torch.uint8:
-            observation = torch.moveaxis(observation, 2, 0)
             observation = (observation.float() / 255 - self.img_mean) / self.img_stddev
 
         # [B, 3, H, W] => [B, 512, H / 16, W / 16].
@@ -71,5 +85,9 @@ class ResNet(Encoder):
 
         # [B, conv4_out, 1, 1] => [B, out_features].
         x = self.fc(x)
+
+        # Restore original input dimensions.
+        if squeeze:
+            x = x.squeeze(0)
 
         return x

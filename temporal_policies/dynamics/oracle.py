@@ -74,8 +74,9 @@ class OracleDynamics(dynamics.Dynamics):
         environment's current ground truth state. Be careful that the state
         matches the observation as expected.
         """
-        assert observation.ndim == 1
-        if (observation != self.env.get_observation(idx_policy)).any():
+        env_observation = self.env.get_observation(idx_policy)
+        assert observation.ndim == env_observation.ndim
+        if (observation != env_observation).any():
             # May happen if self.env is not updated by the dynamics factory.
             raise ValueError("Observation does not match the current env state")
         return self.env.get_state()

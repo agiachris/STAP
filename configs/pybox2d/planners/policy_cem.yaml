@@ -4,7 +4,7 @@ planner_kwargs:
   num_iterations: 8
 
 agent_configs:
-  - configs/pybox2d/agents/sac.yaml
-  - configs/pybox2d/agents/sac.yaml
+  - "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
 
-dynamics_config: configs/pybox2d/dynamics/decoupled.yaml
+dynamics_config: "{DYNAMICS_CONFIG}"

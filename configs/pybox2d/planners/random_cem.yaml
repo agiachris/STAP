@@ -6,7 +6,7 @@ planner_kwargs:
 agent_configs:
   - agent: RandomAgent
     agent_kwargs:
-      agent_config: configs/pybox2d/agents/sac.yaml
-  - configs/pybox2d/agents/sac.yaml
+      agent_config: "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
 
-dynamics_config: configs/pybox2d/dynamics/decoupled.yaml
+dynamics_config: "{DYNAMICS_CONFIG}"

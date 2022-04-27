@@ -667,7 +667,7 @@ class Box2DBase(ABC, gym.Env, Generator):
         elif mode == "rgb_array":
             width, height = 64, 64
             caption = None
-            dtype = np.float32
+            dtype = np.uint8
         elif mode == "default":
             width, height = None, None
             caption = None

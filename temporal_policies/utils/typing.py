@@ -1,4 +1,5 @@
 import abc
+import pathlib
 from typing import Any, Dict, Generic, Mapping, Type, TypedDict, TypeVar, Union
 
 import numpy as np  # type: ignore
@@ -32,6 +33,30 @@ class Model(abc.ABC, Generic[BatchType]):
         optimizers: Dict[str, torch.optim.Optimizer],
         schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
     ) -> Dict[str, Any]:
+        pass
+
+    @abc.abstractmethod
+    def state_dict(self) -> Dict[str, Any]:
+        pass
+
+    @abc.abstractmethod
+    def load_state_dict(self, state_dict: Dict[str, Any], strict: bool = True) -> None:
+        pass
+
+    @abc.abstractmethod
+    def save(self, path: Union[str, pathlib.Path], name: str) -> None:
+        pass
+
+    @abc.abstractmethod
+    def to(self, device: Union[str, torch.device]) -> "Model":
+        pass
+
+    @abc.abstractmethod
+    def train_mode(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    def eval_mode(self) -> None:
         pass
 
 

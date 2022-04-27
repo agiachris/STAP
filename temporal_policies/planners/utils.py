@@ -1,8 +1,9 @@
 import pathlib
-from typing import Any, Dict, Optional, Iterable, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Iterable, List, Sequence, Tuple, Union
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
+import yaml  # type: ignore
 
 from temporal_policies import agents, dynamics, envs, planners
 from temporal_policies.utils import configs, tensors
@@ -30,11 +31,39 @@ class PlannerFactory(configs.Factory):
             dynamics_checkpoint: Dynamics checkpoint path if required.
             device: Torch device.
         """
+
+        def replace_config(config, old: str, new: str):
+            config_yaml = yaml.dump(config)
+            config_yaml = config_yaml.replace(old, new)
+            config = yaml.safe_load(config_yaml)
+            return config
+
         super().__init__(config, "planner", planners)
 
-        # TODO: Get agent_configs from the checkpoint.
         if policy_checkpoints is None:
             policy_checkpoints = [None] * len(self.config["agent_configs"])
+        else:
+            # Get agent configs from checkpoints.
+            for idx_policy, policy_checkpoint in enumerate(policy_checkpoints):
+                if policy_checkpoint is None:
+                    continue
+                agent_config = str(
+                    pathlib.Path(policy_checkpoint).parent / "agent_config.yaml"
+                )
+                self.config["agent_configs"][idx_policy] = replace_config(
+                    self.config["agent_configs"][idx_policy],
+                    "{AGENT_CONFIG}",
+                    agent_config,
+                )
+
+        # Get dynamics config from checkpoint.
+        if dynamics_checkpoint is not None:
+            dynamics_config = str(
+                pathlib.Path(dynamics_checkpoint).parent / "dynamics_config.yaml"
+            )
+            self.config["dynamics_config"] = replace_config(
+                self.config["dynamics_config"], "{DYNAMICS_CONFIG}", dynamics_config
+            )
 
         policies = [
             agents.load(
@@ -49,10 +78,20 @@ class PlannerFactory(configs.Factory):
             )
         ]
 
+        # Make sure all policy checkpoints are not None for dynamics.
+        dynamics_policy_checkpoints: Optional[List[Union[str, pathlib.Path]]] = []
+        for policy_checkpoint in policy_checkpoints:
+            if policy_checkpoint is None:
+                dynamics_policy_checkpoints = None
+                break
+            assert dynamics_policy_checkpoints is not None
+            dynamics_policy_checkpoints.append(policy_checkpoint)
+
         dynamics_model = dynamics.load(
             config=self.config["dynamics_config"],
             checkpoint=dynamics_checkpoint,
             policies=policies,
+            policy_checkpoints=dynamics_policy_checkpoints,
             env=env,
             device=device,
         )

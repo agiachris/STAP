@@ -5,9 +5,9 @@ planner_kwargs:
 agent_configs:
   - agent: GaussianAgent
     agent_kwargs:
-      agent_config: configs/pybox2d/agents/sac.yaml
+      agent_config: "{AGENT_CONFIG}"
       std: 0.5
-  - configs/pybox2d/agents/sac.yaml
+  - "{AGENT_CONFIG}"
 
 dynamics_config:
   dynamics: OracleDynamics
