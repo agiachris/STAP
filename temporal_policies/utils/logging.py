@@ -10,7 +10,7 @@ class Logger(object):
     def __init__(self, path: Union[str, pathlib.Path]):
         self.path = pathlib.Path(path)
 
-        self._writer = tensorboard.SummaryWriter(log_dir=path)
+        self._writer: Optional[tensorboard.SummaryWriter] = None
         self._csv_writer: Optional[csv.DictWriter] = None
         self._csv_file: Optional[IO] = None
 
@@ -51,6 +51,9 @@ class Logger(object):
             step: Training step.
             dump_csv: Whether to write the log to a CSV file.
         """
+        if self._writer is None:
+            self._writer = tensorboard.SummaryWriter(log_dir=self.path)
+
         for key, value in self._staged.items():
             self._writer.add_scalar(key, value, step)
         self._writer.flush()
