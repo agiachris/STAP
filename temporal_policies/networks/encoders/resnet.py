@@ -47,6 +47,7 @@ class ResNet(Encoder):
         self.avgpool = torch.nn.AdaptiveAvgPool2d((1, 1))
 
         # Output required feature dimensions.
+        assert dim_conv4_out == out_features
         # if dim_conv4_out != out_features:
         #     self.fc = torch.nn.Linear(dim_conv4_out, out_features)
         # else:

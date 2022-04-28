@@ -8,7 +8,7 @@ agent_kwargs:
 
   encoder_class: encoders.ResNet
   encoder_kwargs:
-    out_features: 512
+    out_features: 256
     variant: resnet18
     pretrained: True
     freeze: True
