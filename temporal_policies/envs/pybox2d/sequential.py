@@ -46,6 +46,10 @@ class Sequential2D(SequentialEnv[np.ndarray, np.ndarray, np.ndarray]):
         for i, env in enumerate(self.envs):
             if i == idx_policy:
                 continue
+            env.env = self.envs[idx_policy].env
+            env.world = self.envs[idx_policy].world
+            env._t_global = self.envs[idx_policy]._t_global.copy()
+            env._setup_spaces()
             env._cumulative_reward = 0.0
             env._steps = 0
             env._physics_steps = 0
