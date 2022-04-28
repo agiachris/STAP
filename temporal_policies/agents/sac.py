@@ -53,7 +53,8 @@ class SAC(rl.RLAgent):
             target_update_freq: Target update frequency.
         """
         encoder_class = configs.get_class(encoder_class, networks)
-        encoder = encoder_class(env.observation_space, **encoder_kwargs)
+        encoder_kwargs = dict(env=env, **encoder_kwargs)
+        encoder = encoder_class(**encoder_kwargs)
 
         actor_class = configs.get_class(actor_class, networks)
         actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)
@@ -61,7 +62,7 @@ class SAC(rl.RLAgent):
         critic_class = configs.get_class(critic_class, networks)
         critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)
 
-        target_encoder = encoder_class(env.observation_space, **encoder_kwargs)
+        target_encoder = encoder_class(**encoder_kwargs)
         target_encoder.load_state_dict(encoder.state_dict())
         for param in target_encoder.parameters():
             param.requires_grad = False

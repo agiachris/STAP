@@ -17,7 +17,9 @@ class OracleEncoder(Encoder):
         Args:
             env: Gym environment.
         """
-        super().__init__(env, env.state_space)
+        super().__init__(env.state_space)
+
+        self.env = env
 
         @tensors.vmap(dims=len(self.env.observation_space.shape))
         def forward(observation: np.ndarray) -> np.ndarray:

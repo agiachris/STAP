@@ -1,14 +1,21 @@
 import gym  # type: ignore
+import numpy as np  # type: ignore
 import torch  # type: ignore
 
+from temporal_policies import envs
 from temporal_policies.networks.encoders import Encoder
 
 
 class NormalizeObservation(Encoder):
     """Normalizes observation to the range (-0.5, 0.5)."""
 
-    def __init__(self, observation_space: gym.spaces.Space):
-        super().__init__()
+    def __init__(self, env: envs.Env):
+        observation_space = env.observation_space
+        state_space = gym.spaces.Box(
+            low=-0.5, high=0.5, shape=observation_space.shape, dtype=np.float32
+        )
+        super().__init__(state_space)
+
         self.observation_mid = torch.from_numpy(
             (observation_space.low + observation_space.high) / 2
         )

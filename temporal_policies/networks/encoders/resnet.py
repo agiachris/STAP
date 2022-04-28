@@ -23,7 +23,7 @@ class ResNet(Encoder):
             shape=(out_features,),
             dtype=np.float32,
         )
-        super().__init__(env, state_space)
+        super().__init__(state_space)
 
         if variant in ("resnet18", "resnet34"):
             dim_conv4_out = 256

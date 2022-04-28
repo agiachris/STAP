@@ -3,24 +3,23 @@ import abc
 import gym  # type: ignore
 import torch  # type: ignore
 
-from temporal_policies import envs
-
 
 class Encoder(torch.nn.Module, abc.ABC):
     """Base critic class."""
 
-    def __init__(self, env: envs.Env, state_space: gym.spaces.Space):
+    def __init__(self, state_space: gym.spaces.Space):
+        """Sets up the encoder spaces.
+
+        Args:
+            state_space: Policy latent state space.
+        """
         super().__init__()
 
-        self._env = env
         self._state_space = state_space
 
     @property
-    def env(self) -> envs.Env:
-        return self._env
-
-    @property
     def state_space(self) -> gym.spaces.Space:
+        """Policy latent state space."""
         return self._state_space
 
     @abc.abstractmethod
