@@ -2,7 +2,7 @@
 
 import argparse
 import pathlib
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import matplotlib  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
@@ -110,7 +110,12 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
 def plot_planning_results(
     df_plans: pd.DataFrame, df_samples: pd.DataFrame, path: Union[str, pathlib.Path]
 ) -> None:
-    def barplot(ax: plt.Axes, df_plans: pd.DataFrame, **kwargs) -> plt.Axes:
+    def barplot(
+        ax: plt.Axes,
+        df_plans: pd.DataFrame,
+        ylim: Optional[Tuple[float, float]] = None,
+        **kwargs,
+    ) -> plt.Axes:
         sns.barplot(ax=ax, data=df_plans, **kwargs)
         ax.set_xticklabels(
             [label.get_text().replace(" ", "\n") for label in ax.get_xticklabels()]
@@ -119,6 +124,8 @@ def plot_planning_results(
         ax.set_xlabel("")
         ax.set_axisbelow(True)
         ax.grid(axis="y")
+        if ylim is not None:
+            ax.set_ylim(*ylim)
 
         # Change colors and shift bars.
         num_methods = len(df_plans["Method"].unique())
@@ -169,21 +176,40 @@ def plot_planning_results(
     fig, axes = plt.subplots(2, 3, figsize=(12, 6))
 
     ax = axes[0, 0]
-    barplot(ax, df_plans, x="Method", y="Ground truth success", hue="Value / Dynamics")
+    barplot(
+        ax,
+        df_plans,
+        x="Method",
+        y="Ground truth success",
+        hue="Value / Dynamics",
+        ylim=(0.0, 1.0),
+    )
     ax.set_title("Ground truth success")
 
     ax = axes[0, 1]
-    barplot(ax, df_plans, x="Method", y="Predicted success", hue="Value / Dynamics")
+    barplot(
+        ax,
+        df_plans,
+        x="Method",
+        y="Predicted success",
+        hue="Value / Dynamics",
+        ylim=(0.0, 1.0),
+    )
     ax.set_title("Predicted success")
 
     ax = axes[0, 2]
     barplot(
-        ax, df_plans, x="Method", y="Predicted success error", hue="Value / Dynamics"
+        ax,
+        df_plans,
+        x="Method",
+        y="Predicted success error",
+        hue="Value / Dynamics",
+        ylim=(-0.8, 0.5),
     )
     ax.set_title("Predicted success error")
 
     ax = axes[1, 0]
-    barplot(ax, df_plans, x="Method", y="Time", hue="Value / Dynamics")
+    barplot(ax, df_plans, x="Method", y="Time", hue="Value / Dynamics", ylim=(0, 50))
     ax.set_title("Planning time")
     ax.set_ylabel("Time [s]")
 
@@ -194,7 +220,12 @@ def plot_planning_results(
 
     ax = axes[1, 2]
     barplot(
-        ax, df_samples, x="Method", y="Predicted success > 0.5", hue="Value / Dynamics"
+        ax,
+        df_samples,
+        x="Method",
+        y="Predicted success > 0.5",
+        hue="Value / Dynamics",
+        ylim=(0, 0.4),
     )
     ax.set_title("Sample quality")
     ax.set_ylabel("Predicted success > 0.5")
@@ -205,11 +236,12 @@ def plot_planning_results(
     ]
     axes[0, 2].legend(title="Value / Dynamics", handles=patches, loc="upper right")
 
-    fig.suptitle("Planning results")
+    path = pathlib.Path(path)
+    fig.suptitle(f"{path.name} planning results")
 
     fig.tight_layout()
     fig.savefig(
-        pathlib.Path(path) / "planning_results.png",
+        path / "planning_results.png",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,
@@ -255,11 +287,12 @@ def plot_action_statistics(
     ax.set_title("Planned Angles")
     ax.set_xlabel("Angle [rad]")
 
-    fig.suptitle("Action statistics")
+    path = pathlib.Path(path)
+    fig.suptitle(f"{path.name} action statistics")
 
     fig.tight_layout()
     fig.savefig(
-        pathlib.Path(path) / "action_statistics.png",
+        path / "action_statistics.png",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,
