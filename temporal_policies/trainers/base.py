@@ -61,7 +61,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             num_data_workers: Number of workers to use for dataloader.
         """
         self._path = pathlib.Path(path)
-        self.name = self._path.name
+        self.name = self.path.name
         self._model = model
         self._dataset = dataset
         self._eval_dataset = eval_dataset
@@ -305,12 +305,15 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
                 step, model_batch, self.optimizers, self.schedulers
             )
 
-    def log_step(self, metrics_list: List[Dict[str, float]]) -> List[Dict[str, float]]:
+    def log_step(
+        self, metrics_list: List[Dict[str, float]], stage: str = "train"
+    ) -> List[Dict[str, float]]:
         """Logs the metrics to Tensorboard if enabled for the current step.
 
         Args:
             metrics_list: List of metric dicts accumulated since the last
                 log_step.
+            stage: "train" or "pretrain".
 
         Returns:
             List of metric dicts which haven't been logged yet.
@@ -319,7 +322,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             return metrics_list
 
         log_metrics = metrics.collect_metrics(metrics_list)
-        self.log.log("train", log_metrics)
+        self.log.log(stage, log_metrics)
         self.log.log("time", self.get_time_metrics())
         self.log.log("lr", self.get_lr_metrics())
         self.log.flush(step=self.step)
@@ -395,9 +398,12 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         metrics_list = []
         dataloader = self.create_dataloader(self.dataset, self.num_data_workers)
         batches = iter(dataloader)
-        for _ in tqdm.tqdm(
-            range(self.step, self.num_pretrain_steps + self.num_train_steps)
-        ):
+        pbar = tqdm.tqdm(
+            range(self.step, self.num_pretrain_steps + self.num_train_steps),
+            desc=f"Train {self.name}",
+            dynamic_ncols=True,
+        )
+        for _ in pbar:
             self.profile_step()
 
             # Get next batch.
@@ -411,6 +417,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
 
             # Train step.
             train_metrics = self.train_step(self.step, batch)
+            pbar.set_postfix({self.eval_metric: train_metrics[self.eval_metric]})
 
             # Log.
             metrics_list.append(train_metrics)

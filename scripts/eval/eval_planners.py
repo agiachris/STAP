@@ -197,7 +197,7 @@ def evaluate_planners(
 
     action_skeleton = [(0, None), (1, None)]
 
-    for i in tqdm.tqdm(range(num_eval)):
+    for i in tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True):
         if seed is not None:
             random.seed(i)
 

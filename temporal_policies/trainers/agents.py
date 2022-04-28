@@ -203,8 +203,19 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
     def pretrain(self) -> None:
         """Runs the pretrain phase."""
-        for _ in tqdm.tqdm(range(self.step, self.num_pretrain_steps)):
+        pbar = tqdm.tqdm(
+            range(self.step, self.num_pretrain_steps),
+            desc=f"Pretrain {self.name}",
+            dynamic_ncols=True,
+        )
+        metrics_list = []
+        for _ in pbar:
             collect_metrics = self.collect_step(random=True)
+            pbar.set_postfix({self.eval_metric: collect_metrics[self.eval_metric]})
+
+            metrics_list.append(collect_metrics)
+            metrics_list = self.log_step(metrics_list, stage="pretrain")
+
             self.increment_step()
 
     def train_step(self, step: int, batch: Batch) -> Dict[str, float]:
@@ -232,7 +243,12 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
         with self.profiler.profile("evaluate"):
             metrics_list = []
-            for i in tqdm.tqdm(range(self.num_eval_steps)):
+            pbar = tqdm.tqdm(
+                range(self.num_eval_steps),
+                desc=f"Eval {self.name}",
+                dynamic_ncols=True,
+            )
+            for _ in pbar:
                 observation = self.env.reset()
                 self.eval_dataset.add(observation=observation)
 
@@ -266,6 +282,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
                 episode_metrics = metrics.aggregate_metrics(step_metrics_list)
                 metrics_list.append(episode_metrics)
+                pbar.set_postfix({self.eval_metric: episode_metrics[self.eval_metric]})
 
             self.eval_dataset.save()
 

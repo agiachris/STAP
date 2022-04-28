@@ -97,6 +97,9 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         if not isinstance(dynamics_trainer, DynamicsTrainer):
             raise ValueError("Checkpoint trainer must be a DynamicsTrainer instance")
 
+        self._path = pathlib.Path(path)
+        self.name = self.path.name
+
         self._agent_trainers = agent_trainers
         self._dynamics_trainer: DynamicsTrainer = dynamics_trainer
         self._trainers: Sequence[Trainer] = list(agent_trainers)
@@ -219,8 +222,29 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
     def pretrain(self) -> None:
         """Runs the pretrain phase for each agent."""
-        for step in tqdm.tqdm(range(self.step, self.num_pretrain_steps)):
+        pbar = tqdm.tqdm(
+            range(self.step, self.num_pretrain_steps),
+            desc=f"Pretrain {self.name}",
+            dynamic_ncols=True,
+        )
+        metrics_list: Dict[str, List[Dict[str, float]]] = {
+            trainer.name: [] for trainer in self.trainers
+        }
+        for step in pbar:
             collect_metrics = self.collect_step(random=True)
+            pbar.set_postfix(
+                {
+                    f"{trainer.name}/{trainer.eval_metric}": collect_metrics[
+                        trainer.name
+                    ][trainer.eval_metric]
+                    for trainer in self.agent_trainers
+                }
+            )
+
+            for key, collect_metric in collect_metrics.items():
+                metrics_list[key].append(collect_metric)
+            metrics_list = self.log_step(metrics_list, stage="pretrain")
+
             self.increment_step()
 
     def profile_step(self) -> None:
@@ -265,19 +289,22 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         }
 
     def log_step(  # type: ignore
-        self, metrics_list: Dict[str, List[Dict[str, float]]]
+        self,
+        metrics_list: Dict[str, List[Dict[str, float]]],
+        stage: str = "train",
     ) -> Dict[str, List[Dict[str, float]]]:
         """Logs the metrics to Tensorboard if enabled for the current step.
 
         Args:
             metrics_list: List of metric dicts for each trainer accumulated
                 since the last log_step.
+            stage: "train" or "pretrain".
 
         Returns:
             List of metric dicts for each trainer which haven't been logged yet.
         """
         metrics_list = {
-            trainer.name: trainer.log_step(metrics_list[trainer.name])
+            trainer.name: trainer.log_step(metrics_list[trainer.name], stage=stage)
             for trainer in self.trainers
         }
         return metrics_list
@@ -312,9 +339,12 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
             self.dynamics_trainer.dataset, self.dynamics_trainer.num_data_workers
         )
         batches = iter(dataloader)
-        for _ in tqdm.tqdm(
-            range(self.step, self.num_pretrain_steps + self.num_train_steps)
-        ):
+        pbar = tqdm.tqdm(
+            range(self.step, self.num_pretrain_steps + self.num_train_steps),
+            desc=f"Train {self.name}",
+            dynamic_ncols=True,
+        )
+        for _ in pbar:
             self.profile_step()
 
             # Get next batch.
@@ -328,6 +358,14 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
             # Train step.
             train_metrics = self.train_step(self.step, batch)
+            pbar.set_postfix(
+                {
+                    f"{trainer.name}/{trainer.eval_metric}": train_metrics[
+                        trainer.name
+                    ][trainer.eval_metric]
+                    for trainer in self.trainers
+                }
+            )
 
             # Log.
             for key, train_metric in train_metrics.items():

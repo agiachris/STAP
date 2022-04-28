@@ -404,7 +404,8 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
         checkpoint_paths = sorted(
             path.iterdir(), key=lambda f: tuple(map(int, f.stem.split("_")[:-1]))
         )
-        for checkpoint_path in tqdm.tqdm(checkpoint_paths):
+        pbar = tqdm.tqdm(checkpoint_paths, desc=f"Load {path}", dynamic_ncols=True)
+        for checkpoint_path in pbar:
             with open(checkpoint_path, "rb") as f:
                 checkpoint: StorageBatch = dict(np.load(f))  # type: ignore
             num_added = self.add(batch=checkpoint, max_entries=max_entries)

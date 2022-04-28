@@ -27,7 +27,7 @@ function train_dynamics {
     run_cmd
 }
 
-EXP_NAME="20220426/decoupled"
+EXP_NAME="20220427/decoupled"
 
 TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybox2d/dynamics/decoupled.yaml"

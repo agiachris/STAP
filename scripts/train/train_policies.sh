@@ -25,7 +25,7 @@ function train_policy {
     run_cmd
 }
 
-EXP_NAME="20220426/decoupled"
+EXP_NAME="20220427/decoupled"
 
 TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybox2d/agents/sac_img.yaml"

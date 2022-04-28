@@ -74,6 +74,10 @@ def train(
         trainer = trainer_factory()
 
         trainer.path.mkdir(parents=True, exist_ok=overwrite)
+        for agent_trainer in trainer.agent_trainers:
+            agent_trainer.path.mkdir(parents=True, exist_ok=overwrite)
+        trainer.dynamics_trainer.path.mkdir(parents=True, exist_ok=overwrite)
+
         configs.save_git_hash(trainer.path)
         trainer_factory.save_config(trainer.path)
         dynamics_factory.save_config(trainer.dynamics_trainer.path)

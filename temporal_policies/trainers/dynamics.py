@@ -102,7 +102,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         processor = processor_class(
             dynamics.policies[0].observation_space,
             dynamics.action_space,
-            **processor_kwargs
+            **processor_kwargs,
         )
 
         optimizer_class = configs.get_class(optimizer_class, torch.optim)
@@ -175,15 +175,21 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         self.eval_mode()
 
         eval_metrics_list = []
-        for eval_step, batch in enumerate(tqdm.tqdm(self._eval_dataloader)):
+        pbar = tqdm.tqdm(
+            self._eval_dataloader,
+            desc=f"Eval {self.name}",
+            dynamic_ncols=True,
+        )
+        for eval_step, batch in enumerate(pbar):
             if eval_step == self.num_eval_steps:
                 break
 
             with torch.no_grad():
                 batch = self.process_batch(batch)
-                loss, metrics = self.dynamics.compute_loss(**batch)
+                loss, eval_metrics = self.dynamics.compute_loss(**batch)
 
-            eval_metrics_list.append(metrics)
+            pbar.set_postfix({self.eval_metric: eval_metrics[self.eval_metric]})
+            eval_metrics_list.append(eval_metrics)
 
         self.train_mode()
 
