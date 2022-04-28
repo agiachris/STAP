@@ -4,7 +4,6 @@ import torch  # type: ignore
 
 from temporal_policies import envs
 from temporal_policies.networks.encoders.base import Encoder
-from temporal_policies.utils import tensors
 
 
 class ResNet(Encoder):
@@ -48,7 +47,10 @@ class ResNet(Encoder):
         self.avgpool = torch.nn.AdaptiveAvgPool2d((1, 1))
 
         # Output required feature dimensions.
-        self.fc = torch.nn.Linear(dim_conv4_out, out_features)
+        # if dim_conv4_out != out_features:
+        #     self.fc = torch.nn.Linear(dim_conv4_out, out_features)
+        # else:
+        #     self.fc = torch.nn.Identity()
 
         self.img_mean = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32)
         self.img_mean = self.img_mean.unsqueeze(-1).unsqueeze(-1)
@@ -84,7 +86,7 @@ class ResNet(Encoder):
         x = self.avgpool(x).squeeze(-1).squeeze(-1)
 
         # [B, conv4_out, 1, 1] => [B, out_features].
-        x = self.fc(x)
+        # x = self.fc(x)
 
         # Restore original input dimensions.
         if squeeze:

@@ -58,6 +58,11 @@ class StratifiedReplayBuffer(ReplayBuffer):
         return len(self.replay_buffers)
 
     @property
+    def size(self) -> int:
+        """Total number of entries added to the child replay buffers."""
+        return sum(replay_buffer.size for replay_buffer in self.replay_buffers)
+
+    @property
     def path(self) -> Optional[pathlib.Path]:
         """Stratified replay buffer has no path."""
         raise NotImplementedError

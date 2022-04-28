@@ -29,6 +29,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         num_train_steps: int = 100000,
         num_eval_steps: int = 100,
         eval_freq: int = 1000,
+        checkpoint_freq: int = 10000,
         log_freq: int = 100,
         profile_freq: Optional[int] = None,
     ):
@@ -49,6 +50,8 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
                 dynamics trianer configs.
             eval_freq: Evaluation frequency. Overrides agent and dynamics
                 trainer configs.
+            checkpoint_freq: Checkpoint frequency (separate from latest/best
+                eval checkpoints).
             log_freq: Logging frequency. Overrides agent and dynamics trainer
                 configs.
             profile_freq: Profiling frequency. Overrides agent and dynamics
@@ -112,6 +115,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         self.num_train_steps = num_train_steps
         self.num_eval_steps = num_eval_steps
         self.eval_freq = eval_freq
+        self.checkpoint_freq = checkpoint_freq
         self.log_freq = log_freq
         self.profile_freq = profile_freq
 
@@ -329,6 +333,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
         # Pretrain.
         self.pretrain()
+        assert self.step >= self.num_pretrain_steps
 
         # Train.
         self.train_mode()
@@ -340,11 +345,11 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         )
         batches = iter(dataloader)
         pbar = tqdm.tqdm(
-            range(self.step, self.num_pretrain_steps + self.num_train_steps),
+            range(self.step - self.num_pretrain_steps, self.num_train_steps),
             desc=f"Train {self.name}",
             dynamic_ncols=True,
         )
-        for _ in pbar:
+        for train_step in pbar:
             self.profile_step()
 
             # Get next batch.
@@ -373,7 +378,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
             metrics_list = self.log_step(metrics_list)
 
             # Evaluate.
-            if self.step % self.eval_freq == 0:
+            if train_step % self.eval_freq == 0:
                 for trainer in self.trainers:
                     trainer.profiler.enable()
                 eval_metrics_list = self.evaluate()

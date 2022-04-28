@@ -40,6 +40,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         num_train_steps: int = 100000,
         num_eval_episodes: int = 100,
         eval_freq: int = 1000,
+        checkpoint_freq: int = 10000,
         log_freq: int = 100,
         profile_freq: Optional[int] = None,
         eval_metric: str = "reward",
@@ -65,6 +66,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             num_train_steps: Number of steps to train.
             num_eval_episodes: Number of episodes per evaluation.
             eval_freq: Evaluation frequency.
+            checkpoint_freq: Checkpoint frequency (separate from latest/best
+                eval checkpoints).
             log_freq: Logging frequency.
             profile_freq: Profiling frequency.
             eval_metric: Metric to use for evaluation.
@@ -127,6 +130,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             num_train_steps=num_train_steps,
             num_eval_steps=num_eval_episodes,
             eval_freq=eval_freq,
+            checkpoint_freq=checkpoint_freq,
             log_freq=log_freq,
             profile_freq=profile_freq,
             eval_metric=eval_metric,

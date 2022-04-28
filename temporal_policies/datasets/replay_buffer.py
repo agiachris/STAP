@@ -105,6 +105,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
         return self._capacity
 
     @property
+    def size(self) -> int:
+        """Number of entries added to the replay buffer."""
+        return self._worker_idx
+
+    @property
     def batch_size(self) -> Optional[int]:
         """Sample batch size."""
         return self._batch_size

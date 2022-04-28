@@ -40,6 +40,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         num_train_steps: int = 100000,
         num_eval_steps: int = 100,
         eval_freq: int = 1000,
+        checkpoint_freq: int = 10000,
         log_freq: int = 100,
         profile_freq: Optional[int] = None,
         eval_metric: str = "l2_loss",
@@ -67,6 +68,8 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             num_train_steps: Number of steps to train.
             num_eval_steps: Number of steps per evaluation.
             eval_freq: Evaluation frequency.
+            checkpoint_freq: Checkpoint frequency (separate from latest/best
+                eval checkpoints).
             log_freq: Logging frequency.
             profile_freq: Profiling frequency.
             eval_metric: Metric to use for evaluation.
@@ -133,6 +136,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             num_train_steps=num_train_steps,
             num_eval_steps=num_eval_steps,
             eval_freq=eval_freq,
+            checkpoint_freq=checkpoint_freq,
             log_freq=log_freq,
             profile_freq=profile_freq,
             eval_metric=eval_metric,

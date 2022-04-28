@@ -34,6 +34,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         num_train_steps: int,
         num_eval_steps: int,
         eval_freq: int,
+        checkpoint_freq: int,
         log_freq: int,
         profile_freq: Optional[int],
         eval_metric: str,
@@ -55,6 +56,8 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             num_train_steps: Number of steps to train.
             num_eval_steps: Number of steps per evaluation.
             eval_freq: Evaluation frequency.
+            checkpoint_freq: Checkpoint frequency (separate from latest/best
+                eval checkpoints).
             log_freq: Logging frequency.
             profile_freq: Profiling frequency.
             eval_metric: Metric to use for evaluation.
@@ -74,6 +77,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         self.num_train_steps = num_train_steps
         self.num_eval_steps = num_eval_steps
         self.eval_freq = eval_freq
+        self.checkpoint_freq = checkpoint_freq
         self.log_freq = log_freq
         self.profile_freq = profile_freq
         self.num_data_workers = num_data_workers
@@ -179,6 +183,8 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             "step": self.step,
             "epoch": self.epoch,
             "best_eval_score": self.best_eval_score,
+            "dataset_size": self.dataset.size,
+            "eval_dataset_size": self.eval_dataset.size,
         }
         state_dict["optimizers"] = {
             key: optimizer.state_dict() for key, optimizer in self.optimizers.items()
@@ -339,7 +345,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         eval_metrics = metrics.collect_metrics(eval_metrics_list)
         self.log.log("eval", eval_metrics)
         self.log.flush(step=self.step, dump_csv=True)
-        self.save(self.path, "train_checkpoint")
+        self.save(self.path, "final_trainer")
         self.model.save(self.path, "final_model")
 
         # Save best model.
@@ -350,6 +356,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         )
         if is_eval_better:
             self._best_eval_score = eval_score
+            self.save(self.path, "best_trainer")
             self.model.save(self.path, "best_model")
 
     def create_dataloader(
@@ -392,6 +399,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
 
         # Pretrain.
         self.pretrain()
+        assert self.step >= self.num_pretrain_steps
 
         # Train.
         self.train_mode()
@@ -399,11 +407,11 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         dataloader = self.create_dataloader(self.dataset, self.num_data_workers)
         batches = iter(dataloader)
         pbar = tqdm.tqdm(
-            range(self.step, self.num_pretrain_steps + self.num_train_steps),
+            range(self.step - self.num_pretrain_steps, self.num_train_steps),
             desc=f"Train {self.name}",
             dynamic_ncols=True,
         )
-        for _ in pbar:
+        for train_step in pbar:
             self.profile_step()
 
             # Get next batch.
@@ -424,10 +432,15 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             metrics_list = self.log_step(metrics_list)
 
             # Evaluate.
-            if self.step % self.eval_freq == 0:
+            if train_step % self.eval_freq == 0:
                 self.profiler.enable()
                 eval_metrics_list = self.evaluate()
                 self.post_evaluate_step(eval_metrics_list)
+
+            # Checkpoint.
+            if train_step % self.checkpoint_freq == 0:
+                self.save(self.path, f"ckpt_trainer_{train_step}")
+                self.model.save(self.path, f"ckpt_model_{train_step}")
 
             self.increment_step()
 

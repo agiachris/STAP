@@ -25,7 +25,19 @@ function train_policy {
     run_cmd
 }
 
-EXP_NAME="20220427/decoupled"
+EXP_NAME="20220428/decoupled_state"
+
+TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
+AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
+ENV_CONFIG="configs/pybox2d/envs/placeright.yaml"
+train_policy
+
+TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
+AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
+ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
+train_policy
+
+EXP_NAME="20220428/decoupled_img"
 
 TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybox2d/agents/sac_img.yaml"
