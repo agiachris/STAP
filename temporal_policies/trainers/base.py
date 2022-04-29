@@ -64,7 +64,6 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             num_data_workers: Number of workers to use for dataloader.
         """
         self._path = pathlib.Path(path)
-        self.name = self.path.name
         self._model = model
         self._dataset = dataset
         self._eval_dataset = eval_dataset
@@ -96,6 +95,11 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
 
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
+
+    @property
+    def name(self) -> str:
+        """Trainer name, equivalent to the last subdirectory in the path."""
+        return self.path.name
 
     @property
     def model(self) -> ModelType:
@@ -240,6 +244,8 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         path = pathlib.Path(checkpoint).parent
         self.dataset.path = path / "train_data"
         self.eval_dataset.path = path / "eval_data"
+        self.dataset.load(max_entries=state_dict["dataset_size"])
+        self.eval_dataset.load(max_entries=state_dict["eval_dataset_size"])
 
     def to(self, device: Union[str, torch.device]) -> "Trainer":
         """Transfer networks to a device."""
@@ -394,17 +400,21 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
 
     def train(self) -> None:
         """Trains the model."""
-        self.dataset.initialize()
+        dataloader = self.create_dataloader(self.dataset, self.num_data_workers)
         self.eval_dataset.initialize()
 
         # Pretrain.
         self.pretrain()
         assert self.step >= self.num_pretrain_steps
 
+        # Evaluate.
+        self.profiler.enable()
+        eval_metrics_list = self.evaluate()
+        self.post_evaluate_step(eval_metrics_list)
+
         # Train.
         self.train_mode()
         metrics_list = []
-        dataloader = self.create_dataloader(self.dataset, self.num_data_workers)
         batches = iter(dataloader)
         pbar = tqdm.tqdm(
             range(self.step - self.num_pretrain_steps, self.num_train_steps),
@@ -431,18 +441,19 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             metrics_list.append(train_metrics)
             metrics_list = self.log_step(metrics_list)
 
+            self.increment_step()
+            eval_step = train_step + 1
+
             # Evaluate.
-            if train_step % self.eval_freq == 0:
+            if eval_step % self.eval_freq == 0:
                 self.profiler.enable()
                 eval_metrics_list = self.evaluate()
                 self.post_evaluate_step(eval_metrics_list)
 
             # Checkpoint.
-            if train_step % self.checkpoint_freq == 0:
-                self.save(self.path, f"ckpt_trainer_{train_step}")
-                self.model.save(self.path, f"ckpt_model_{train_step}")
-
-            self.increment_step()
+            if eval_step % self.checkpoint_freq == 0:
+                self.save(self.path, f"ckpt_trainer_{eval_step}")
+                self.model.save(self.path, f"ckpt_model_{eval_step}")
 
     @abc.abstractmethod
     def evaluate(self) -> List[Dict[str, np.ndarray]]:

@@ -30,9 +30,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         processor_kwargs: Dict[str, Any] = {},
         optimizer_class: Union[str, Type[torch.optim.Optimizer]] = torch.optim.Adam,
         optimizer_kwargs: Dict[str, Any] = {"lr": 1e-3},
-        scheduler_class: Optional[
-            Union[str, Type[torch.optim.lr_scheduler._LRScheduler]]
-        ] = None,
+        scheduler_class: Union[
+            str, Type[torch.optim.lr_scheduler._LRScheduler]
+        ] = DummyScheduler,
         scheduler_kwargs: Dict[str, Any] = {},
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
@@ -85,9 +85,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         )
 
         if eval_dataset_kwargs is None:
-            eval_dataset_kwargs = dict(dataset_kwargs)
-        else:
-            eval_dataset_kwargs = dict(eval_dataset_kwargs)
+            eval_dataset_kwargs = dataset_kwargs
+        eval_dataset_kwargs = dict(eval_dataset_kwargs)
         eval_dataset_kwargs["save_frequency"] = None
         eval_dataset_kwargs["path"] = path / "eval_data"
         eval_dataset = dataset_class(
@@ -95,7 +94,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             action_space=agent.action_space,
             **eval_dataset_kwargs,
         )
-        eval_dataset.path = path / "eval_data"
 
         processor_class = configs.get_class(processor_class, processors)
         processor = processor_class(
@@ -105,12 +103,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         optimizer_class = configs.get_class(optimizer_class, torch.optim)
         optimizers = agent.create_optimizers(optimizer_class, optimizer_kwargs)
 
-        if scheduler_class is None:
-            scheduler_class = DummyScheduler
-        else:
-            scheduler_class = configs.get_class(
-                scheduler_class, torch.optim.lr_scheduler
-            )
+        scheduler_class = configs.get_class(scheduler_class, torch.optim.lr_scheduler)
         schedulers = {
             key: scheduler_class(optimizer, **scheduler_kwargs)
             for key, optimizer in optimizers.items()

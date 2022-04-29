@@ -29,9 +29,9 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         processor_kwargs: Dict[str, Any] = {},
         optimizer_class: Union[str, Type[torch.optim.Optimizer]] = torch.optim.Adam,
         optimizer_kwargs: Dict[str, Any] = {"lr": 1e-3},
-        scheduler_class: Optional[
-            Union[str, Type[torch.optim.lr_scheduler._LRScheduler]]
-        ] = None,
+        scheduler_class: Union[
+            str, Type[torch.optim.lr_scheduler._LRScheduler]
+        ] = DummyScheduler,
         scheduler_kwargs: Dict[str, Any] = {},
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
@@ -85,11 +85,15 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                 )
             agent_trainers = []
             for policy_checkpoint in policy_checkpoints:
-                policy_path = pathlib.Path(policy_checkpoint)
-                if policy_path.is_file():
-                    policy_path = policy_path.parent
-                policy_checkpoint = policy_path / "train_checkpoint.pt"
-                agent_trainer = load_trainer(checkpoint=policy_checkpoint)
+                policy_checkpoint = pathlib.Path(policy_checkpoint)
+                if policy_checkpoint.is_file():
+                    trainer_checkpoint = (
+                        policy_checkpoint.parent
+                        / policy_checkpoint.name.replace("model", "trainer")
+                    )
+                else:
+                    trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
+                agent_trainer = load_trainer(checkpoint=trainer_checkpoint)
                 assert isinstance(agent_trainer, AgentTrainer)
                 agent_trainers.append(agent_trainer)
 
@@ -111,12 +115,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         optimizer_class = configs.get_class(optimizer_class, torch.optim)
         optimizers = dynamics.create_optimizers(optimizer_class, optimizer_kwargs)
 
-        if scheduler_class is None:
-            scheduler_class = DummyScheduler
-        else:
-            scheduler_class = configs.get_class(
-                scheduler_class, torch.optim.lr_scheduler
-            )
+        scheduler_class = configs.get_class(scheduler_class, torch.optim.lr_scheduler)
         schedulers = {
             key: scheduler_class(optimizer, **scheduler_kwargs)
             for key, optimizer in optimizers.items()

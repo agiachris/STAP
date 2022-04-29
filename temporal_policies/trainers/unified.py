@@ -101,7 +101,6 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
             raise ValueError("Checkpoint trainer must be a DynamicsTrainer instance")
 
         self._path = pathlib.Path(path)
-        self.name = self.path.name
 
         self._agent_trainers = agent_trainers
         self._dynamics_trainer: DynamicsTrainer = dynamics_trainer
@@ -327,22 +326,26 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
     def train(self) -> None:
         """Trains the agents and dynamics together."""
-        for trainer in self.trainers:
-            trainer.dataset.initialize()
-            trainer.eval_dataset.initialize()
+        dataloader = self.dynamics_trainer.create_dataloader(
+            self.dynamics_trainer.dataset, self.dynamics_trainer.num_data_workers
+        )
+        self.dynamics_trainer.eval_dataset.initialize()
 
         # Pretrain.
         self.pretrain()
         assert self.step >= self.num_pretrain_steps
+
+        # Evaluate.
+        for trainer in self.trainers:
+            trainer.profiler.enable()
+        eval_metrics_list = self.evaluate()
+        self.post_evaluate_step(eval_metrics_list)
 
         # Train.
         self.train_mode()
         metrics_list: Dict[str, List[Dict[str, float]]] = {
             trainer.name: [] for trainer in self.trainers
         }
-        dataloader = self.dynamics_trainer.create_dataloader(
-            self.dynamics_trainer.dataset, self.dynamics_trainer.num_data_workers
-        )
         batches = iter(dataloader)
         pbar = tqdm.tqdm(
             range(self.step - self.num_pretrain_steps, self.num_train_steps),
@@ -377,14 +380,21 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
                 metrics_list[key].append(train_metric)
             metrics_list = self.log_step(metrics_list)
 
+            self.increment_step()
+            eval_step = train_step + 1
+
             # Evaluate.
-            if train_step % self.eval_freq == 0:
+            if eval_step % self.eval_freq == 0:
                 for trainer in self.trainers:
                     trainer.profiler.enable()
                 eval_metrics_list = self.evaluate()
                 self.post_evaluate_step(eval_metrics_list)
 
-            self.increment_step()
+            # Checkpoint.
+            if eval_step % self.checkpoint_freq == 0:
+                for trainer in self.trainers:
+                    trainer.save(trainer.path, f"ckpt_trainer_{eval_step}")
+                    trainer.model.save(trainer.path, f"ckpt_model_{eval_step}")
 
     def evaluate(self) -> Dict[str, List[Dict[str, np.ndarray]]]:  # type: ignore
         """Evaluates the policies and dynamics model.

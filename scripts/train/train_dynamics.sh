@@ -16,7 +16,7 @@ function train_dynamics {
     args=""
     args="${args} --trainer-config ${TRAINER_CONFIG}"
     args="${args} --dynamics-config ${DYNAMICS_CONFIG}"
-    if [ ! -z "${POLICY_CHECKPOINTS}" ]; then
+    if [ ${#POLICY_CHECKPOINTS[@]} -gt 0 ]; then
         args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS}"
     fi
     args="${args} --path models/${EXP_NAME}"
@@ -27,9 +27,14 @@ function train_dynamics {
     run_cmd
 }
 
-EXP_NAME="20220427/decoupled"
-
-TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
-DYNAMICS_CONFIG="configs/pybox2d/dynamics/decoupled.yaml"
-POLICY_CHECKPOINTS="models/${EXP_NAME}/placeright_img/final_model.pt models/${EXP_NAME}/pushleft_img/final_model.pt"
-train_dynamics
+for train_step in 50000 100000 150000 200000; do
+    EXP_NAME="20220428/decoupled_state"
+    TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
+    DYNAMICS_CONFIG="configs/pybox2d/dynamics/decoupled.yaml"
+    POLICY_CHECKPOINTS=(
+        "models/${EXP_NAME}/placeright/ckpt_model_${train_step}.pt"
+        "models/${EXP_NAME}/pushleft/ckpt_model_${train_step}.pt"
+    )
+    EXP_NAME="${EXP_NAME}/dynamics_${train_step}"
+    train_dynamics
+done
