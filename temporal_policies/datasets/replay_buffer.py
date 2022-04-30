@@ -75,7 +75,6 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
             save_frequency = None
         self._save_frequency = save_frequency
 
-
     @property
     def observation_space(self) -> gym.spaces.Space:
         """Batch observation space."""

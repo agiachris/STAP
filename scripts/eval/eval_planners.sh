@@ -75,32 +75,64 @@ PLANNERS=(
 
 # Evaluate planners.
 
-planner_env="placeright_pushleft_img"
+# planner_env="placeright_pushleft_img"
+# policy_envs=(
+#     "placeright_img"
+#     "pushleft_img"
+# )
+# experiments=(
+#     "20220426/unified"
+#     "20220426/decoupled"
+# )
+#
+# for EXP_NAME in "${experiments[@]}"; do
+#     for planner in "${PLANNERS[@]}"; do
+#         ENV_CONFIG=configs/pybox2d/envs/${planner_env}.yaml
+#         POLICY_CHECKPOINTS=()
+#         for policy_env in "${policy_envs[@]}"; do
+#             POLICY_CHECKPOINTS+=("models/${EXP_NAME}/${policy_env}/final_model.pt")
+#         done
+#         POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
+#         if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
+#             DYNAMICS_CHECKPOINT=""
+#         else
+#             DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics/final_model.pt"
+#         fi
+#         PLANNER_CONFIG="configs/pybox2d/planners/${planner}.yaml"
+#
+#         eval_planner
+#     done
+# done
+
+planner_env="placeright_pushleft"
 policy_envs=(
-    "placeright_img"
-    "pushleft_img"
+    "placeright"
+    "pushleft"
 )
 experiments=(
-    "20220426/unified"
-    "20220426/decoupled"
+    "20220428/decoupled_state"
+    # "20220428/decoupled_img"
 )
 
 for EXP_NAME in "${experiments[@]}"; do
-    for planner in "${PLANNERS[@]}"; do
-        ENV_CONFIG=configs/pybox2d/envs/${planner_env}.yaml
-        POLICY_CHECKPOINTS=()
-        for policy_env in "${policy_envs[@]}"; do
-            POLICY_CHECKPOINTS+=("models/${EXP_NAME}/${policy_env}/final_model.pt")
-        done
-        POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
-        if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
-            DYNAMICS_CHECKPOINT=""
-        else
-            DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics/final_model.pt"
-        fi
-        PLANNER_CONFIG="configs/pybox2d/planners/${planner}.yaml"
+    for train_step in 50000 100000 150000 200000; do
+        for planner in "${PLANNERS[@]}"; do
+            ENV_CONFIG=configs/pybox2d/envs/${planner_env}.yaml
+            POLICY_CHECKPOINTS=()
+            for policy_env in "${policy_envs[@]}"; do
+                POLICY_CHECKPOINTS+=("models/${EXP_NAME}/${policy_env}/ckpt_model_${train_step}.pt")
+            done
+            POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
+            if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
+                DYNAMICS_CHECKPOINT=""
+            else
+                DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics_${train_step}/dynamics/best_model.pt"
+            fi
+            PLANNER_CONFIG="configs/pybox2d/planners/${planner}.yaml"
+            EXP_NAME="${EXP_NAME}_${train_step}"
 
-        eval_planner
+            eval_planner
+        done
     done
 done
 
@@ -135,6 +167,6 @@ PLANNERS=(
     "random"
 )
 
-for EXP_NAME in "${experiments[@]}"; do
-    visualize_results
-done
+# for EXP_NAME in "${experiments[@]}"; do
+#     visualize_results
+# done

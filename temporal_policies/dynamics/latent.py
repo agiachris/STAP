@@ -111,7 +111,7 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
         }
         return optimizers
 
-    def to(self, device: Union[str, torch.device]) -> Dynamics:
+    def to(self, device: Union[str, torch.device]) -> "LatentDynamics":
         """Transfers networks to device."""
         super().to(device)
         self.network.to(self.device)
