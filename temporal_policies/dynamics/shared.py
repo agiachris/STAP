@@ -75,17 +75,17 @@ class SharedDynamics(LatentDynamics):
         # Assume all encoders are the same.
         return self.policies[0].encoder(observation)
 
-        # [B, O] => [A, B, Z].
-        policy_latents = torch.stack(
-            [policy.encoder(observation) for policy in self.policies], dim=0
-        )
-
-        # [B] => [1, B, Z].
-        idx_policy = (
-            idx_policy.unsqueeze(-1).expand(*policy_latents.shape[1:]).unsqueeze(0)
-        )
-
-        # [A, B, Z], [1, B, Z] => [B, Z].
-        policy_latent = torch.gather(policy_latents, 0, idx_policy).squeeze(0)
-
-        return policy_latent
+        # # [B, O] => [A, B, Z].
+        # policy_latents = torch.stack(
+        #     [policy.encoder(observation) for policy in self.policies], dim=0
+        # )
+        #
+        # # [B] => [1, B, Z].
+        # idx_policy = (
+        #     idx_policy.unsqueeze(-1).expand(*policy_latents.shape[1:]).unsqueeze(0)
+        # )
+        #
+        # # [A, B, Z], [1, B, Z] => [B, Z].
+        # policy_latent = torch.gather(policy_latents, 0, idx_policy).squeeze(0)
+        #
+        # return policy_latent

@@ -42,7 +42,7 @@ function train_dynamics {
 for train_step in 50000 100000 150000 200000; do
     EXP_NAME="20220428/decoupled_img"
     TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
-    DYNAMICS_CONFIG="configs/pybox2d/dynamics/decoupled.yaml"
+    DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
     POLICY_CHECKPOINTS=(
         "models/${EXP_NAME}/placeright_img/ckpt_model_${train_step}.pt"
         "models/${EXP_NAME}/pushleft_img/ckpt_model_${train_step}.pt"
