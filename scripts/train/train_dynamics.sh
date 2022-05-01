@@ -27,13 +27,25 @@ function train_dynamics {
     run_cmd
 }
 
+# for train_step in 50000 100000 150000 200000; do
+#     EXP_NAME="20220428/decoupled_state"
+#     TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
+#     DYNAMICS_CONFIG="configs/pybox2d/dynamics/decoupled.yaml"
+#     POLICY_CHECKPOINTS=(
+#         "models/${EXP_NAME}/placeright/ckpt_model_${train_step}.pt"
+#         "models/${EXP_NAME}/pushleft/ckpt_model_${train_step}.pt"
+#     )
+#     EXP_NAME="${EXP_NAME}/dynamics_${train_step}"
+#     train_dynamics
+# done
+
 for train_step in 50000 100000 150000 200000; do
-    EXP_NAME="20220428/decoupled_state"
+    EXP_NAME="20220428/decoupled_img"
     TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
     DYNAMICS_CONFIG="configs/pybox2d/dynamics/decoupled.yaml"
     POLICY_CHECKPOINTS=(
-        "models/${EXP_NAME}/placeright/ckpt_model_${train_step}.pt"
-        "models/${EXP_NAME}/pushleft/ckpt_model_${train_step}.pt"
+        "models/${EXP_NAME}/placeright_img/ckpt_model_${train_step}.pt"
+        "models/${EXP_NAME}/pushleft_img/ckpt_model_${train_step}.pt"
     )
     EXP_NAME="${EXP_NAME}/dynamics_${train_step}"
     train_dynamics
