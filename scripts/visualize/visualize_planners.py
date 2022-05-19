@@ -30,6 +30,8 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
     def get_method_label(method: str) -> str:
         if method == "random":
             return "Random"
+        if method == "greedy":
+            return "Greedy"
 
         tokens = method.split("_")
         policy = tokens[0]
@@ -40,7 +42,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         return f"{policy.capitalize()} {planner}"
 
     def get_value_label(method: str) -> str:
-        if method == "random":
+        if method in ("random", "greedy"):
             return "NA"
 
         tokens = method.split("_")
@@ -50,7 +52,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         return "Q-value"
 
     def get_dynamics_label(method: str) -> str:
-        if method == "random":
+        if method in ("random", "greedy"):
             return "NA"
 
         tokens = method.split("_")
@@ -204,12 +206,12 @@ def plot_planning_results(
         x="Method",
         y="Predicted success error",
         hue="Value / Dynamics",
-        ylim=(-0.8, 0.5),
+        # ylim=(-0.8, 0.5),
     )
     ax.set_title("Predicted success error")
 
     ax = axes[1, 0]
-    barplot(ax, df_plans, x="Method", y="Time", hue="Value / Dynamics", ylim=(0, 50))
+    barplot(ax, df_plans, x="Method", y="Time", hue="Value / Dynamics")
     ax.set_title("Planning time")
     ax.set_ylabel("Time [s]")
 
@@ -225,7 +227,7 @@ def plot_planning_results(
         x="Method",
         y="Predicted success > 0.5",
         hue="Value / Dynamics",
-        ylim=(0, 0.4),
+        # ylim=(0, 0.4),
     )
     ax.set_title("Sample quality")
     ax.set_ylabel("Predicted success > 0.5")
@@ -256,11 +258,13 @@ def plot_action_statistics(
         (df_plans["Value"] != "Oracle")
         & (df_plans["Dynamics"] != "Oracle")
         & (df_plans["Method"] != "Random")
+        & (df_plans["Method"] != "Greedy")
     ]
     df_samples = df_samples[
         (df_samples["Value"] != "Oracle")
         & (df_samples["Dynamics"] != "Oracle")
         & (df_samples["Method"] != "Random")
+        & (df_samples["Method"] != "Greedy")
     ]
 
     fig, axes = plt.subplots(2, 2, figsize=(10, 8))

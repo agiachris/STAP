@@ -1,0 +1,10 @@
+planner: ShootingPlanner
+planner_kwargs:
+  num_samples: 1
+
+agent_configs:
+  - "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
+
+dynamics_config:
+  dynamics: OracleDynamics
