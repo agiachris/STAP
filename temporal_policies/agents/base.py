@@ -1,13 +1,14 @@
-from typing import Union
+from typing import Generic, Union
 
 import gym  # type: ignore
 import torch  # type: ignore
 
-from temporal_policies import networks
+from temporal_policies import encoders, networks
 from temporal_policies.utils import tensors
+from temporal_policies.utils.typing import ObsType
 
 
-class Agent:
+class Agent(Generic[ObsType]):
     """Base agent class."""
 
     def __init__(
@@ -17,7 +18,7 @@ class Agent:
         observation_space: gym.spaces.Space,
         actor: networks.actors.Actor,
         critic: networks.critics.Critic,
-        encoder: networks.encoders.Encoder,
+        encoder: encoders.Encoder[ObsType],
         device: str = "auto",
     ):
         """Assigns the required properties of the Agent.
@@ -66,7 +67,7 @@ class Agent:
         return self._critic
 
     @property
-    def encoder(self) -> networks.encoders.Encoder:
+    def encoder(self) -> encoders.Encoder[ObsType]:
         """Encoder network that encodes observations into states."""
         return self._encoder
 
@@ -87,10 +88,10 @@ class Agent:
         """Switches the networks to train mode."""
         self.actor.train()
         self.critic.train()
-        self.encoder.train()
+        self.encoder.train_mode()
 
     def eval_mode(self) -> None:
         """Switches the networks to eval mode."""
         self.actor.eval()
         self.critic.eval()
-        self.encoder.eval()
+        self.encoder.eval_mode()

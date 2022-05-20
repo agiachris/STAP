@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, Generic, List, Optional, Type, Union
 
 import numpy as np  # type: ignore
 import torch  # type: ignore
@@ -9,16 +9,16 @@ from temporal_policies import agents, datasets, envs, processors
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.utils import configs, metrics, tensors
-from temporal_policies.utils.typing import Batch
+from temporal_policies.utils.typing import Batch, ObsType
 
 
-class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
+class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsType]):
     """Agent trainer."""
 
     def __init__(
         self,
         path: Union[str, pathlib.Path],
-        agent: agents.RLAgent,
+        agent: agents.RLAgent[ObsType],
         dataset_class: Union[
             str, Type[torch.utils.data.IterableDataset]
         ] = datasets.ReplayBuffer,
@@ -45,6 +45,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         profile_freq: Optional[int] = None,
         eval_metric: str = "reward",
         num_data_workers: int = 0,
+        dataset_size: Optional[int] = None,
+        eval_dataset_size: Optional[int] = None,
     ):
         """Prepares the agent trainer for training.
 
@@ -96,9 +98,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         )
 
         processor_class = configs.get_class(processor_class, processors)
-        processor = processor_class(
-            agent.observation_space, agent.action_space, **processor_kwargs
-        )
+        processor = processor_class(agent.observation_space, **processor_kwargs)
 
         optimizer_class = configs.get_class(optimizer_class, torch.optim)
         optimizers = agent.create_optimizers(optimizer_class, optimizer_kwargs)
@@ -117,7 +117,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             processor=processor,
             optimizers=optimizers,
             schedulers=schedulers,
-            checkpoint=checkpoint,
+            checkpoint=None,
             device=device,
             num_pretrain_steps=num_pretrain_steps,
             num_train_steps=num_train_steps,
@@ -130,8 +130,16 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             num_data_workers=num_data_workers,
         )
 
+        if checkpoint is not None:
+            self.load(
+                checkpoint,
+                strict=True,
+                dataset_size=dataset_size,
+                eval_dataset_size=eval_dataset_size,
+            )
+
     @property
-    def agent(self) -> agents.RLAgent:
+    def agent(self) -> agents.RLAgent[ObsType]:
         """Agent being trained."""
         return self.model
 
@@ -163,7 +171,10 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     observation = tensors.from_numpy(
                         self.env.get_observation(), self.device
                     )
-                    action = self.agent.actor.predict(self.agent.encoder(observation))
+                    observation = tensors.rgb_to_cnn(observation)
+                    action = self.agent.actor.predict(
+                        self.agent.encoder.encode(observation)
+                    )
                     action = action.cpu().numpy()
                 self.train_mode()
 
@@ -198,8 +209,27 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
             return metrics
 
+    def process_batch(self, batch: Batch) -> Batch:
+        """Processes replay buffer batch for training.
+
+        Args:
+            batch: Replay buffer batch.
+
+        Returns:
+            Processed batch.
+        """
+        if (
+            isinstance(batch["observation"], torch.Tensor)
+            and batch["observation"].shape[-1] == 3
+            and batch["observation"].dtype == torch.uint8
+        ):
+            batch["observation"] = tensors.rgb_to_cnn(batch["observation"])
+            batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])
+        return tensors.to(batch, self.device)
+
     def pretrain(self) -> None:
         """Runs the pretrain phase."""
+        self.dataset.initialize()
         pbar = tqdm.tqdm(
             range(self.step, self.num_pretrain_steps),
             desc=f"Pretrain {self.name}",
@@ -254,8 +284,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 while not done:
                     with torch.no_grad():
                         observation = tensors.from_numpy(observation, self.device)
+                        observation = tensors.rgb_to_cnn(observation)
                         action = self.agent.actor.predict(
-                            self.agent.encoder(observation)
+                            self.agent.encoder.encode(observation)
                         )
                         action = action.cpu().numpy()
 

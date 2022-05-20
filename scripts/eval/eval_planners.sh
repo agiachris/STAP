@@ -104,37 +104,50 @@ PLANNERS=(
 #     done
 # done
 
-planner_env="placeright_pushleft"
-policy_envs=(
+function test_dynamics {
+    for exp_name in "${EXPERIMENTS[@]}"; do
+        for train_step in 50000 100000 150000 200000; do
+            for planner in "${PLANNERS[@]}"; do
+                EXP_NAME="${exp_name}/${train_step}"
+                ENV_CONFIG=configs/pybox2d/envs/${PLANNER_ENV}.yaml
+                POLICY_CHECKPOINTS=()
+                for policy_env in "${POLICY_ENVS[@]}"; do
+                    POLICY_CHECKPOINTS+=("models/${exp_name}/${policy_env}/ckpt_model_${train_step}.pt")
+                done
+                POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
+                if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
+                    DYNAMICS_CHECKPOINT=""
+                else
+                    DYNAMICS_CHECKPOINT="models/${exp_name}/dynamics_${train_step}/dynamics/best_model.pt"
+                fi
+                PLANNER_CONFIG="configs/pybox2d/planners/${planner}.yaml"
+
+                eval_planner
+            done
+        done
+    done
+}
+
+PLANNER_ENV="placeright_pushleft"
+POLICY_ENVS=(
     "placeright"
     "pushleft"
 )
-experiments=(
+EXPERIMENTS=(
     "20220428/decoupled_state"
-    # "20220428/decoupled_img"
 )
+test_dynamics
 
-for EXP_NAME in "${experiments[@]}"; do
-    for train_step in 50000 100000 150000 200000; do
-        for planner in "${PLANNERS[@]}"; do
-            ENV_CONFIG=configs/pybox2d/envs/${planner_env}.yaml
-            POLICY_CHECKPOINTS=()
-            for policy_env in "${policy_envs[@]}"; do
-                POLICY_CHECKPOINTS+=("models/${EXP_NAME}/${policy_env}/ckpt_model_${train_step}.pt")
-            done
-            POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
-            if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
-                DYNAMICS_CHECKPOINT=""
-            else
-                DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics_${train_step}/dynamics/best_model.pt"
-            fi
-            PLANNER_CONFIG="configs/pybox2d/planners/${planner}.yaml"
-            EXP_NAME="${EXP_NAME}_${train_step}"
+PLANNER_ENV="placeright_pushleft_img"
+POLICY_ENVS=(
+    "placeright_img"
+    "pushleft_img"
+)
+EXPERIMENTS=(
+    "20220428/decoupled_img"
+)
+test_dynamics
 
-            eval_planner
-        done
-    done
-done
 
 if [[ `hostname` == "sc.stanford.edu" ]]; then
     exit
@@ -167,6 +180,17 @@ PLANNERS=(
     "random"
 )
 
-# for EXP_NAME in "${experiments[@]}"; do
-#     visualize_results
-# done
+experiments=(
+    "20220428/decoupled_state/50000"
+    "20220428/decoupled_state/100000"
+    "20220428/decoupled_state/150000"
+    "20220428/decoupled_state/200000"
+    "20220428/decoupled_img/50000"
+    "20220428/decoupled_img/100000"
+    "20220428/decoupled_img/150000"
+    "20220428/decoupled_img/200000"
+)
+
+for EXP_NAME in "${experiments[@]}"; do
+    visualize_results
+done

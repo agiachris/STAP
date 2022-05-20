@@ -57,10 +57,9 @@ class StratifiedReplayBuffer(ReplayBuffer):
         """Number of child replay buffers."""
         return len(self.replay_buffers)
 
-    @property
-    def size(self) -> int:
+    def __len__(self) -> int:
         """Total number of entries added to the child replay buffers."""
-        return sum(replay_buffer.size for replay_buffer in self.replay_buffers)
+        return sum(len(replay_buffer) for replay_buffer in self.replay_buffers)
 
     @property
     def path(self) -> Optional[pathlib.Path]:

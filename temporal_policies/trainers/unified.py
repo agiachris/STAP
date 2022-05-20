@@ -177,7 +177,13 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
         return checkpoint_path
 
-    def load(self, checkpoint: Union[str, pathlib.Path], strict: bool = True) -> None:
+    def load(
+        self,
+        checkpoint: Union[str, pathlib.Path],
+        strict: bool = True,
+        dataset_size: Optional[int] = None,
+        eval_dataset_size: Optional[int] = None,
+    ) -> None:
         """Loads the trainer checkpoints to resume training.
 
         Args:
@@ -188,7 +194,9 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         self.load_state_dict(state_dict, strict=strict)
 
         for trainer in self.trainers:
-            trainer.load(state_dict[trainer.name], strict)
+            trainer.load(
+                state_dict[trainer.name], strict, dataset_size, eval_dataset_size
+            )
 
     def to(self, device: Union[str, torch.device]) -> Trainer:
         """Transfer networks to a device."""

@@ -5,8 +5,8 @@ from .base import Processor
 
 class RandomShiftsAug(Processor):
 
-    def __init__(self, observation_space, action_space, pad=4):
-        super().__init__(observation_space, action_space)
+    def __init__(self, observation_space, pad=4):
+        super().__init__(observation_space)
         self.pad = pad
 
     def _flatten(self, x):

@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Dict, Generic, Optional, Sequence, Tuple, Type, Union
 
 import gym  # type: ignore
 import torch  # type: ignore
@@ -10,7 +10,7 @@ from temporal_policies.utils import configs
 from temporal_policies.utils.typing import DynamicsBatch, Model, ObsType
 
 
-class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
+class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch], Generic[ObsType]):
     """Base dynamics class."""
 
     def __init__(
@@ -44,9 +44,6 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
             device=device,
         )
 
-        self._steps = 0
-        self._epochs = 0
-
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
 
@@ -71,25 +68,6 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch]):
         return {
             "dynamics": self.network.state_dict(),
         }
-
-    def load(self, checkpoint: Union[str, pathlib.Path], strict: bool = True) -> None:
-        """Loads the model from the given checkpoint.
-
-        Args:
-            checkpoint: Checkpoint path.
-            strict: Make sure the state dict keys match.
-        """
-        state_dict = torch.load(checkpoint, map_location=self.device)
-        self.load_state_dict(state_dict)
-
-    def save(self, path: Union[str, pathlib.Path], name: str):
-        """Saves a checkpoint of the model and the optimizers.
-
-        Args:
-            path: Directory of checkpoint.
-            name: Name of checkpoint (saved as `path/name.pt`).
-        """
-        torch.save(self.state_dict(), pathlib.Path(path) / f"{name}.pt")
 
     def create_optimizers(
         self,

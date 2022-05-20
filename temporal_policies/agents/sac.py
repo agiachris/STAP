@@ -1,17 +1,19 @@
+import copy
 import itertools
 import pathlib
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Dict, Generic, Optional, Tuple, Type, Union
 
 import torch  # type: ignore
 import numpy as np  # type: ignore
 
 from temporal_policies.agents import base as agents
 from temporal_policies.agents import rl
-from temporal_policies import envs, networks
+from temporal_policies import encoders, envs, networks
 from temporal_policies.utils import configs
+from temporal_policies.utils.typing import ObsType
 
 
-class SAC(rl.RLAgent):
+class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
     """Soft actor critic."""
 
     def __init__(
@@ -21,6 +23,7 @@ class SAC(rl.RLAgent):
         actor_kwargs: Dict[str, Any],
         critic_class: Union[str, Type[networks.critics.Critic]],
         critic_kwargs: Dict[str, Any],
+        encoder: Optional[encoders.Encoder[ObsType]] = None,
         encoder_class: Union[
             str, Type[networks.encoders.Encoder]
         ] = networks.encoders.NormalizeObservation,
@@ -52,21 +55,24 @@ class SAC(rl.RLAgent):
             actor_update_freq: Actor update frequency.
             target_update_freq: Target update frequency.
         """
-        encoder_class = configs.get_class(encoder_class, networks)
-        encoder_kwargs = dict(env=env, **encoder_kwargs)
-        encoder = encoder_class(**encoder_kwargs)
+        if encoder is None:
+            encoder = encoders.Encoder(env, encoder_class, encoder_kwargs, device)
+            target_encoder = encoders.Encoder[ObsType](
+                env, encoder_class, encoder_kwargs, device
+            )
+            target_encoder.network.load_state_dict(encoder.network.state_dict())
+        else:
+            target_encoder = encoder
+
+        for param in target_encoder.network.parameters():
+            param.requires_grad = False
+        target_encoder.eval_mode()
 
         actor_class = configs.get_class(actor_class, networks)
         actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)
 
         critic_class = configs.get_class(critic_class, networks)
         critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)
-
-        target_encoder = encoder_class(**encoder_kwargs)
-        target_encoder.load_state_dict(encoder.state_dict())
-        for param in target_encoder.parameters():
-            param.requires_grad = False
-        target_encoder.eval()
 
         target_critic = critic_class(
             target_encoder.state_space, env.action_space, **critic_kwargs
@@ -113,7 +119,7 @@ class SAC(rl.RLAgent):
         return self._target_critic
 
     @property
-    def target_encoder(self) -> torch.nn.Module:
+    def target_encoder(self) -> encoders.Encoder[ObsType]:
         """Target encoder."""
         return self._target_encoder
 
@@ -217,7 +223,10 @@ class SAC(rl.RLAgent):
         optimizers = {
             "actor": optimizer_class(self.actor.parameters(), **optimizer_kwargs),
             "critic": optimizer_class(
-                itertools.chain(self.critic.parameters(), self.encoder.parameters()),
+                self.critic.parameters(),
+                # itertools.chain(
+                #     self.critic.parameters(), self.encoder.network.parameters()
+                # ),
                 **optimizer_kwargs,
             ),
             "log_alpha": optimizer_class([self.log_alpha], **optimizer_kwargs),
@@ -247,9 +256,9 @@ class SAC(rl.RLAgent):
         updating_target = step % self.target_update_freq == 0
 
         if updating_actor or updating_critic:
-            batch["observation"] = self.encoder(batch["observation"])
             with torch.no_grad():
-                batch["next_observation"] = self.target_encoder(
+                batch["observation"] = self.encoder.encode(batch["observation"])
+                batch["next_observation"] = self.target_encoder.encode(
                     batch["next_observation"]
                 )
 
@@ -283,9 +292,11 @@ class SAC(rl.RLAgent):
 
         if updating_target:
             with torch.no_grad():
-                _update_params(
-                    source=self.encoder, target=self.target_encoder, tau=self.tau
-                )
+                # _update_params(
+                #     source=self.encoder.network,
+                #     target=self.target_encoder.network,
+                #     tau=self.tau,
+                # )
                 _update_params(
                     source=self.critic, target=self.target_critic, tau=self.tau
                 )
@@ -293,7 +304,9 @@ class SAC(rl.RLAgent):
         return metrics
 
 
-def _update_params(source: torch.nn.Module, target: torch.nn.Module, tau: float) -> None:
+def _update_params(
+    source: torch.nn.Module, target: torch.nn.Module, tau: float
+) -> None:
     """Updates the target parameters towards the source parameters.
 
     Args:

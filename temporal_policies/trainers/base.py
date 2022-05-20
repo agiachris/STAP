@@ -187,8 +187,8 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             "step": self.step,
             "epoch": self.epoch,
             "best_eval_score": self.best_eval_score,
-            "dataset_size": self.dataset.size,
-            "eval_dataset_size": self.eval_dataset.size,
+            "dataset_size": len(self.dataset),
+            "eval_dataset_size": len(self.eval_dataset),
         }
         state_dict["optimizers"] = {
             key: optimizer.state_dict() for key, optimizer in self.optimizers.items()
@@ -231,7 +231,13 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
 
         return checkpoint_path
 
-    def load(self, checkpoint: Union[str, pathlib.Path], strict: bool = True) -> None:
+    def load(
+        self,
+        checkpoint: Union[str, pathlib.Path],
+        strict: bool = True,
+        dataset_size: Optional[int] = None,
+        eval_dataset_size: Optional[int] = None,
+    ) -> None:
         """Loads the trainer checkpoint to resume training.
 
         Args:
@@ -244,8 +250,12 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         path = pathlib.Path(checkpoint).parent
         self.dataset.path = path / "train_data"
         self.eval_dataset.path = path / "eval_data"
-        self.dataset.load(max_entries=state_dict["dataset_size"])
-        self.eval_dataset.load(max_entries=state_dict["eval_dataset_size"])
+        if dataset_size is None:
+            dataset_size = state_dict["dataset_size"]
+        if eval_dataset_size is None:
+            eval_dataset_size = state_dict["eval_dataset_size"]
+        self.dataset.load(max_entries=dataset_size)
+        self.eval_dataset.load(max_entries=eval_dataset_size)
 
     def to(self, device: Union[str, torch.device]) -> "Trainer":
         """Transfer networks to a device."""

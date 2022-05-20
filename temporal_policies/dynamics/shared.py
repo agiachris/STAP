@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Sequence, Type, Union
+from typing import Any, Dict, Generic, Optional, Sequence, Type, Union
 
 import torch  # type: ignore
 
@@ -9,7 +9,7 @@ from temporal_policies.dynamics.latent import LatentDynamics
 from temporal_policies.utils.typing import ObsType
 
 
-class SharedDynamics(LatentDynamics):
+class SharedDynamics(LatentDynamics[ObsType], Generic[ObsType]):
     """Dynamics model per action with shared latent states.
 
     We train A dynamics models T_a of the form:

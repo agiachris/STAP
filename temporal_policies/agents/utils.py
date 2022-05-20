@@ -11,7 +11,7 @@ import torch  # type: ignore
 import yaml  # type: ignore
 
 import temporal_policies
-from temporal_policies import agents, envs, schedulers
+from temporal_policies import agents, envs, encoders, schedulers
 from temporal_policies.utils import configs
 
 
@@ -23,6 +23,7 @@ class AgentFactory(configs.Factory):
         config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
         env: Optional[envs.Env] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
         """Creates the agent factory from an agent config or checkpoint.
@@ -33,6 +34,7 @@ class AgentFactory(configs.Factory):
             env: Optional env. Either env or checkpoint must be specified.
             checkpoint: Policy checkpoint path. Either env or checkpoint must be
                 specified.
+            encoder_checkpoint: Encoder checkpoint path.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -62,6 +64,9 @@ class AgentFactory(configs.Factory):
                     f"Config agent [{self.config['agent']}] and checkpoint "
                     f"agent [{ckpt_agent_config['agent']}] must be the same"
                 )
+
+        if encoder_checkpoint is not None:
+            self.kwargs["encoder"] = encoders.load(checkpoint=encoder_checkpoint)
 
         if issubclass(self.cls, agents.RLAgent):
             self.kwargs["checkpoint"] = checkpoint

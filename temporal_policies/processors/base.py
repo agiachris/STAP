@@ -12,11 +12,10 @@ class Processor:
     This is the base processor class. All processors should inherit from it.
     """
 
-    def __init__(self, observation_space, action_space):
+    def __init__(self, observation_space):
         # TODO: Remove unused arguments.
         self.training = True
         self.observation_space = observation_space
-        self.action_space = action_space
 
     def __call__(self, batch):
         # Perform operations on the values. This may be normalization etc.
@@ -59,14 +58,14 @@ class ComposeProcessor(Processor):
     """
 
     def __init__(
-        self, observation_space, action_space, processors=[("IdentityProcessor"), {}]
+        self, observation_space, processors=[("IdentityProcessor"), {}]
     ):
-        super().__init__(observation_space, action_space)
+        super().__init__(observation_space)
         self.processors = []
         for processor_class, processor_kwargs in processors:
             processor_class = vars(temporal_policies.processors)[processor_class]
             processor = processor_class(
-                self.observation_space, self.action_space, **processor_kwargs
+                self.observation_space, **processor_kwargs
             )
             self.processors.append(processor)
 

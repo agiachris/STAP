@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Sequence, Type, Union
+from typing import Any, Dict, Generic, Optional, Sequence, Type, Union
 
 import torch  # type: ignore
 
@@ -10,7 +10,7 @@ from temporal_policies.utils import spaces, tensors
 from temporal_policies.utils.typing import ObsType
 
 
-class DecoupledDynamics(LatentDynamics):
+class DecoupledDynamics(LatentDynamics[ObsType], Generic[ObsType]):
     """Dynamics model per action per action latent space.
 
     We train A*A dynamics models T_ab of the form:

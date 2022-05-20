@@ -1,14 +1,14 @@
 import pathlib
-from typing import Dict, Optional, Union
+from typing import Dict, Generic, Optional, Union
 
 import torch  # type: ignore
 
-from temporal_policies import envs, networks
+from temporal_policies import encoders, envs, networks
 from temporal_policies.agents.base import Agent
-from temporal_policies.utils.typing import Model, Batch
+from temporal_policies.utils.typing import Batch, Model, ObsType
 
 
-class RLAgent(Agent, Model[Batch]):
+class RLAgent(Agent[ObsType], Model[Batch], Generic[ObsType]):
     """RL agent base class."""
 
     def __init__(
@@ -16,7 +16,7 @@ class RLAgent(Agent, Model[Batch]):
         env: envs.Env,
         actor: networks.actors.Actor,
         critic: networks.critics.Critic,
-        encoder: networks.encoders.Encoder,
+        encoder: encoders.Encoder[ObsType],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -61,32 +61,12 @@ class RLAgent(Agent, Model[Batch]):
         """
         self.critic.load_state_dict(state_dict["critic"], strict=strict)
         self.actor.load_state_dict(state_dict["actor"], strict=strict)
-        self.encoder.load_state_dict(state_dict["encoder"], strict=strict)
+        self.encoder.network.load_state_dict(state_dict["encoder"], strict=strict)
 
     def state_dict(self) -> Dict[str, Dict[str, torch.Tensor]]:
         """Gets the agent state dicts."""
         return {
             "critic": self.critic.state_dict(),
             "actor": self.actor.state_dict(),
-            "encoder": self.encoder.state_dict(),
+            "encoder": self.encoder.network.state_dict(),
         }
-
-    def load(self, checkpoint: Union[str, pathlib.Path], strict: bool = True) -> None:
-        """Loads the model from the given checkpoint.
-
-        Args:
-            checkpoint: Checkpoint path.
-            strict: Make sure the state dict keys match.
-        """
-        state_dict = torch.load(checkpoint, map_location=self.device)
-        self.load_state_dict(state_dict)
-
-    def save(self, path: Union[str, pathlib.Path], name: str) -> None:
-        """Saves a checkpoint of the model.
-
-        Args:
-            path: Directory of checkpoint.
-            name: Name of checkpoint (saved as `path/name.pt`).
-        """
-        torch.save(self.state_dict(), pathlib.Path(path) / f"{name}.pt")
-

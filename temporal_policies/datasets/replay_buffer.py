@@ -75,6 +75,14 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
             save_frequency = None
         self._save_frequency = save_frequency
 
+        # if self.path is not None and self.path.exists():
+        #     if num_load_entries is None:
+        #         num_load_entries = capacity
+        #     if num_load_entries > 0:
+        #         # TODO: Support multiple workers.
+        #         self.initialize()
+        #         self.load(self.path, num_load_entries)
+
     @property
     def observation_space(self) -> gym.spaces.Space:
         """Batch observation space."""
@@ -90,8 +98,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
         """Replay buffer capacity."""
         return self._capacity
 
-    @property
-    def size(self) -> int:
+    def __len__(self) -> int:
         """Number of entries added to the replay buffer."""
         return self._worker_idx
 

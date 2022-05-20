@@ -5,22 +5,22 @@ import numpy as np  # type: ignore
 import torch  # type: ignore
 import tqdm  # type: ignore
 
-from temporal_policies import datasets, dynamics, processors
+from temporal_policies import datasets, encoders, processors
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.utils import load as load_trainer
 from temporal_policies.utils import configs, tensors
-from temporal_policies.utils.typing import WrappedBatch, DynamicsBatch
+from temporal_policies.utils.typing import WrappedBatch, AutoencoderBatch
 
 
-class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBatch]):
-    """Dynamics trainer."""
+class AutoencoderTrainer(Trainer[encoders.Autoencoder, AutoencoderBatch, WrappedBatch]):
+    """Autoencoder trainer."""
 
     def __init__(
         self,
         path: Union[str, pathlib.Path],
-        dynamics: dynamics.LatentDynamics,
+        encoder: encoders.Autoencoder,
         dataset_class: Union[str, Type[torch.utils.data.IterableDataset]],
         dataset_kwargs: Dict[str, Any],
         processor_class: Union[
@@ -43,20 +43,20 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         checkpoint_freq: int = 10000,
         log_freq: int = 100,
         profile_freq: Optional[int] = None,
-        eval_metric: str = "l2_loss",
+        eval_metric: str = "loss",
         num_data_workers: int = 0,
     ):
-        """Prepares the dynamics trainer for training.
+        """Prepares the autoencoder trainer for training.
 
         Args:
             path: Output path.
-            dynamics: Dynamics model to train.
-            dataset_class: Dynamics model dataset class or class name.
+            encoder: Encoder model to train.
+            dataset_class: Autoencoder model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
             eval_dataset_kwargs: Kwargs for eval dataset.
             processor_class: Batch data processor calss.
             processor_kwargs: Kwargs for processor.
-            optimizer_class: Dynamics model optimizer class.
+            optimizer_class: Autoencoder model optimizer class.
             optimizer_kwargs: Kwargs for optimizer class.
             scheduler_class: Optional optimizer scheduler class.
             scheduler_kwargs: Kwargs for scheduler class.
@@ -76,7 +76,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             eval_metric: Metric to use for evaluation.
             num_data_workers: Number of workers to use for dataloader.
         """
-        path = pathlib.Path(path) / "dynamics"
+        path = pathlib.Path(path) / "encoder"
 
         # Get agent trainers.
         if agent_trainers is None:
@@ -108,12 +108,12 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
 
         processor_class = configs.get_class(processor_class, processors)
         processor = processor_class(
-            dynamics.policies[0].observation_space,
+            encoder.observation_space,
             **processor_kwargs,
         )
 
         optimizer_class = configs.get_class(optimizer_class, torch.optim)
-        optimizers = dynamics.create_optimizers(optimizer_class, optimizer_kwargs)
+        optimizers = encoder.create_optimizers(optimizer_class, optimizer_kwargs)
 
         scheduler_class = configs.get_class(scheduler_class, torch.optim.lr_scheduler)
         schedulers = {
@@ -121,9 +121,12 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             for key, optimizer in optimizers.items()
         }
 
+        if isinstance(encoder, encoders.VAE):
+            encoder.train_setup(dataset)
+
         super().__init__(
             path=path,
-            model=dynamics,
+            model=encoder,
             dataset=dataset,
             eval_dataset=eval_dataset,
             processor=processor,
@@ -145,12 +148,12 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         self._eval_dataloader: Optional[torch.utils.data.DataLoader] = None
 
     @property
-    def dynamics(self) -> dynamics.LatentDynamics:
-        """Dynamics model being trained."""
+    def encoder(self) -> encoders.Autoencoder:
+        """Autoencoder being trained."""
         return self.model
 
-    def process_batch(self, batch: WrappedBatch) -> DynamicsBatch:
-        """Formats the replay buffer batch for the dynamics model.
+    def process_batch(self, batch: WrappedBatch) -> AutoencoderBatch:
+        """Formats the replay buffer batch for the autoencoder model.
 
         Args:
             batch: Replay buffer batch.
@@ -158,13 +161,14 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         Returns:
             Dict with (observation, idx_policy, action, next_observation).
         """
-        dynamics_batch = DynamicsBatch(
-            observation=batch["observation"],
-            idx_policy=batch["idx_replay_buffer"],
-            action=batch["action"],
-            next_observation=batch["next_observation"],
+
+        observations = (
+            tensors.rgb_to_cnn(batch["observation"], contiguous=True),
+            tensors.rgb_to_cnn(batch["next_observation"], contiguous=True),
         )
-        return tensors.to(dynamics_batch, self.device)
+
+        encoder_batch = AutoencoderBatch(observation=torch.concat(observations, dim=0))
+        return tensors.to(encoder_batch, self.device)
 
     def evaluate(self) -> List[Dict[str, np.ndarray]]:
         """Evaluates the model.
@@ -189,7 +193,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
 
             with torch.no_grad():
                 batch = self.process_batch(batch)
-                loss, eval_metrics = self.dynamics.compute_loss(**batch)
+                loss, eval_metrics = self.encoder.compute_loss(**batch)
 
             pbar.set_postfix({self.eval_metric: eval_metrics[self.eval_metric]})
             eval_metrics_list.append(eval_metrics)

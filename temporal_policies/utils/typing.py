@@ -43,13 +43,25 @@ class Model(abc.ABC, Generic[BatchType]):
     def load_state_dict(self, state_dict: Dict[str, Any], strict: bool = True) -> None:
         pass
 
-    @abc.abstractmethod
-    def save(self, path: Union[str, pathlib.Path], name: str) -> None:
-        pass
+    def save(self, path: Union[str, pathlib.Path], name: str):
+        """Saves a checkpoint of the model and the optimizers.
 
-    @abc.abstractmethod
-    def to(self, device: Union[str, torch.device]) -> "Model":
-        pass
+        Args:
+            path: Directory of checkpoint.
+            name: Name of checkpoint (saved as `path/name.pt`).
+        """
+        torch.save(self.state_dict(), pathlib.Path(path) / f"{name}.pt")
+
+    def load(self, checkpoint: Union[str, pathlib.Path], strict: bool = True) -> None:
+        """Loads the model from the given checkpoint.
+
+        Args:
+            checkpoint: Checkpoint path.
+            strict: Make sure the state dict keys match.
+        """
+        device = self.device if hasattr(self, "device") else None  # type: ignore
+        state_dict = torch.load(checkpoint, map_location=device)
+        self.load_state_dict(state_dict)
 
     @abc.abstractmethod
     def train_mode(self) -> None:
@@ -57,6 +69,10 @@ class Model(abc.ABC, Generic[BatchType]):
 
     @abc.abstractmethod
     def eval_mode(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    def to(self, device):
         pass
 
 
@@ -80,3 +96,7 @@ class DynamicsBatch(TypedDict, Generic[ArrayType, ObsType]):
     idx_policy: ArrayType
     action: ArrayType
     next_observation: ObsType
+
+
+class AutoencoderBatch(TypedDict, Generic[ObsType]):
+    observation: ObsType

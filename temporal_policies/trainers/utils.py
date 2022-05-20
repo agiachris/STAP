@@ -1,7 +1,7 @@
 import pathlib
 from typing import Any, Dict, Optional, Sequence, Union
 
-from temporal_policies import agents, dynamics, trainers
+from temporal_policies import agents, dynamics, encoders, trainers
 from temporal_policies.dynamics import load as load_dynamics
 from temporal_policies.dynamics import LatentDynamics, load_policy_checkpoints
 from temporal_policies.utils import configs
@@ -16,6 +16,7 @@ class TrainerFactory(configs.Factory):
         config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
         agent: Optional[agents.RLAgent] = None,
         dynamics: Optional[dynamics.LatentDynamics] = None,
+        encoder: Optional[encoders.Encoder] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
         agent_trainers: Optional[Sequence["trainers.AgentTrainer"]] = None,
@@ -60,7 +61,7 @@ class TrainerFactory(configs.Factory):
                 if checkpoint is None:
                     raise ValueError("Either dynamics or checkpoint must be specified")
                 ckpt_dynamics = load_dynamics(checkpoint=checkpoint, device=device)
-                if not isinstance(load_dynamics, LatentDynamics):
+                if not isinstance(ckpt_dynamics, LatentDynamics):
                     raise ValueError("Checkpoint dynamics must be a LatentDynamics instance")
                 dynamics = ckpt_dynamics
 
@@ -78,6 +79,28 @@ class TrainerFactory(configs.Factory):
                     policy_checkpoints = load_policy_checkpoints(checkpoint)
 
                 self.kwargs["policy_checkpoints"] = policy_checkpoints
+        elif issubclass(self.cls, trainers.AutoencoderTrainer):
+            if encoder is None:
+                if checkpoint is None:
+                    raise ValueError("Either encoder or checkpoint must be specified")
+                ckpt_encoder = encoders.load(checkpoint=checkpoint, device=device)
+                if not isinstance(ckpt_encoder, encoders.Autoencoder):
+                    raise ValueError("Checkpoint encoder must be an Autoencoder instance")
+                encoder = ckpt_encoder
+
+            self.kwargs["encoder"] = encoder
+
+            if agent_trainers is not None:
+                self.kwargs["agent_trainers"] = agent_trainers
+            elif policy_checkpoints is None:
+                if checkpoint is None:
+                    raise ValueError(
+                        "One of agent_trainers, policy_checkpoints, or "
+                        "checkpoint must be specified"
+                    )
+                policy_checkpoints = load_policy_checkpoints(checkpoint)
+
+            self.kwargs["policy_checkpoints"] = policy_checkpoints
         else:
             raise NotImplementedError
 
@@ -100,6 +123,7 @@ def load(
     config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     agent: Optional[agents.RLAgent] = None,
     dynamics: Optional[dynamics.LatentDynamics] = None,
+    encoder: Optional[encoders.Encoder] = None,
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
     policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
     agent_trainers: Optional[Sequence["trainers.AgentTrainer"]] = None,
@@ -129,6 +153,7 @@ def load(
         config=config,
         agent=agent,
         dynamics=dynamics,
+        encoder=encoder,
         checkpoint=checkpoint,
         policy_checkpoints=policy_checkpoints,
         agent_trainers=agent_trainers,

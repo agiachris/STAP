@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 import numpy as np  # type: ignore
+import torch  # type: ignore
 
 from temporal_policies.utils import nest, typing
 
@@ -11,6 +12,7 @@ METRIC_CHOICE_FNS = {
     "success": max,
     "loss": min,
     "l2_loss": min,
+    "elbo_loss": min,
     "q_loss": min,
     "q1_loss": min,
     "q2_loss": min,
@@ -28,6 +30,7 @@ METRIC_AGGREGATION_FNS = {
     "success": lambda x: x[-1],
     "loss": np.mean,
     "l2_loss": np.mean,
+    "elbo_loss": np.mean,
     "q_loss": np.mean,
     "q1_loss": np.mean,
     "q2_loss": np.mean,
@@ -105,9 +108,13 @@ def collect_metrics(metrics_list: List[Dict[str, Any]]) -> Dict[str, np.ndarray]
     Returns:
         Dict of metric value arrays.
     """
+
+    def stack(*args):
+        if isinstance(args[0], torch.Tensor):
+            return torch.stack(args, dim=0)
+        return np.array(args)
+
     metrics = nest.map_structure(
-        lambda *args: np.array(args),
-        *metrics_list,
-        atom_type=typing.scalars,
+        stack, *metrics_list, atom_type=(*typing.scalars, np.ndarray, torch.Tensor)
     )
     return metrics

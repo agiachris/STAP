@@ -5,6 +5,8 @@ from typing import Any, Dict, IO, Optional, Union
 import numpy as np  # type: ignore
 from torch.utils import tensorboard  # type: ignore
 
+from temporal_policies.utils import metrics
+
 
 class Logger(object):
     def __init__(self, path: Union[str, pathlib.Path]):
@@ -16,6 +18,8 @@ class Logger(object):
 
         self._staged: Dict[str, Any] = {}
         self._flushed: Dict[str, Any] = {}
+        self._images: Dict[str, np.ndarray] = {}
+        self._embeddings: Dict[str, np.ndarray] = {}
 
     def log(
         self, key: str, value: Union[Any, Dict[str, Any]], std: bool = False
@@ -32,9 +36,24 @@ class Logger(object):
             value: Single value or dict of values.
             std: Whether to log the standard deviations of arrays.
         """
+        subkey = key.split("/")[-1]
+        if subkey.startswith("emb"):
+            # Stage embedding.
+            self._embeddings[key] = value
+            return
+
         if isinstance(value, np.ndarray):
+            subkey = key.split("/")[-1]
+
+            # Stage image.
+            if subkey.startswith("img"):
+                self._images[key] = value
+                return
+
+            # Log mean/std of array.
             self.log(key, np.mean(value))
-            self.log(f"{key}/std", np.std(value))
+            if subkey in metrics.METRIC_AGGREGATION_FNS:
+                self.log(f"{key}/std", np.std(value))
             return
 
         if isinstance(value, dict):
@@ -42,6 +61,7 @@ class Logger(object):
                 self.log(f"{key}/{subkey}", subval)
             return
 
+        # Stage scalar value.
         self._staged[key] = value
 
     def flush(self, step: int, dump_csv: bool = False):
@@ -56,10 +76,16 @@ class Logger(object):
 
         for key, value in self._staged.items():
             self._writer.add_scalar(key, value, step)
+        for key, img in self._images.items():
+            self._writer.add_images(key, img, step)
+        for key, emb in self._embeddings.items():
+            self._writer.add_embedding(tag=f"{key}_{step}", **emb)
         self._writer.flush()
 
         self._flushed.update(self._staged)
         self._staged = {}
+        self._images = {}
+        self._embeddings = {}
 
         if dump_csv:
             if self._csv_writer is None:

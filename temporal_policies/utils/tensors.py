@@ -327,3 +327,18 @@ def batch(dims: int) -> Callable:
         return batched_func
 
     return _vmap
+
+
+def rgb_to_cnn(img_rgb: torch.Tensor, contiguous: bool = False) -> torch.Tensor:
+    if contiguous:
+        return img_rgb.moveaxis(-1, -3).contiguous().float() / 255
+    else:
+        return img_rgb.moveaxis(-1, -3).float() / 255
+
+
+def cnn_to_rgb(img_cnn: torch.Tensor, contiguous: bool = False) -> torch.Tensor:
+    img_rgb = (255 * img_cnn.clip(0, 1).moveaxis(-3, -1) + 0.5).to(torch.uint8)
+    if contiguous:
+        return img_rgb.contiguous()
+    else:
+        return img_rgb
