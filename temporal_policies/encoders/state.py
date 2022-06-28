@@ -5,11 +5,10 @@ import torch  # type: ignore
 
 from temporal_policies import envs, networks
 from temporal_policies.encoders.base import Encoder
-from temporal_policies.utils import configs
-from temporal_policies.utils.typing import AutoencoderBatch, Model, ObsType
+from temporal_policies.utils.typing import StateEncoderBatch, Model, ObsType
 
 
-class Autoencoder(Encoder[ObsType], Model[AutoencoderBatch], Generic[ObsType]):
+class StateEncoder(Encoder[ObsType], Model[StateEncoderBatch], Generic[ObsType]):
     """Vanilla autoencoder."""
 
     def __init__(
@@ -17,8 +16,6 @@ class Autoencoder(Encoder[ObsType], Model[AutoencoderBatch], Generic[ObsType]):
         env: envs.Env,
         encoder_class: Union[str, Type[networks.encoders.Encoder]],
         encoder_kwargs: Dict[str, Any],
-        decoder_class: Union[str, Type[networks.encoders.Decoder]],
-        decoder_kwargs: Dict[str, Any],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -33,9 +30,6 @@ class Autoencoder(Encoder[ObsType], Model[AutoencoderBatch], Generic[ObsType]):
             checkpoint: Autoencoder checkpoint.
             device: Torch device.
         """
-        decoder_class = configs.get_class(decoder_class, networks)
-        self._decoder = decoder_class(env, **decoder_kwargs)
-
         super().__init__(
             env=env,
             network_class=encoder_class,
@@ -46,23 +40,21 @@ class Autoencoder(Encoder[ObsType], Model[AutoencoderBatch], Generic[ObsType]):
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
 
-    @property
-    def encoder(self) -> torch.nn.Module:
-        return self.network
-
-    @property
-    def decoder(self) -> torch.nn.Module:
-        return self._decoder
-
     def compute_loss(
-        self, observation: torch.Tensor
+            self, observation: torch.Tensor, state: torch.Tensor,
     ) -> Tuple[torch.Tensor, Dict[str, float]]:
-        raise NotImplementedError
+        state_prediction = self.network.predict(observation)
+        loss = torch.nn.functional.mse_loss(state_prediction, state)
+        metrics = {
+            "loss": loss.item(),
+        }
+
+        return loss, metrics
 
     def train_step(
         self,
         step: int,
-        batch: AutoencoderBatch,
+        batch: StateEncoderBatch,
         optimizers: Dict[str, torch.optim.Optimizer],
         schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
     ) -> Dict[str, float]:
@@ -77,23 +69,18 @@ class Autoencoder(Encoder[ObsType], Model[AutoencoderBatch], Generic[ObsType]):
         Returns:
             Dict of training metrics for logging.
         """
-        raise NotImplementedError
+        loss, metrics = self.compute_loss(**batch)
 
-    def to(self, device: Union[str, torch.device]) -> "Autoencoder[ObsType]":
-        """Transfers networks to device."""
-        super().to(device)
-        self.decoder.to(self.device)
-        return self
+        optimizers["encoder"].zero_grad()
+        loss.backward()
+        optimizers["encoder"].step()
+
+        return metrics
 
     def train_mode(self) -> None:
         """Switches to training mode."""
-        self.encoder.train()
-        self.decoder.train()
+        self.network.train()
 
     def eval_mode(self) -> None:
         """Switches to eval mode."""
-        self.encoder.eval()
-        self.decoder.eval()
-
-    def decode(self, latent: torch.Tensor) -> ObsType:
-        return self.decoder(latent)
+        self.network.eval()

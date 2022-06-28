@@ -98,5 +98,16 @@ class DynamicsBatch(TypedDict, Generic[ArrayType, ObsType]):
     next_observation: ObsType
 
 
+class StateBatch(TypedDict, Generic[ArrayType]):
+    state: ArrayType
+    observation: ArrayType
+    image: ArrayType
+
+
 class AutoencoderBatch(TypedDict, Generic[ObsType]):
     observation: ObsType
+
+
+class StateEncoderBatch(TypedDict, Generic[ArrayType, ObsType]):
+    observation: ObsType
+    state: ArrayType

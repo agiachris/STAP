@@ -13,6 +13,7 @@ class Env(gym.Env[ObsType, ActType], Generic[StateType, ActType, ObsType]):
 
     name: str
     state_space: gym.spaces.Space[StateType]
+    image_space: gym.spaces.Space[ObsType]
 
     @abc.abstractmethod
     def get_state(self) -> StateType:
@@ -26,7 +27,7 @@ class Env(gym.Env[ObsType, ActType], Generic[StateType, ActType, ObsType]):
 
     # TODO: Set idx_policy to first arg.
     @abc.abstractmethod
-    def get_observation(self) -> ObsType:
+    def get_observation(self, image: Optional[bool] = None) -> ObsType:
         """Gets an observation for the current environment state."""
         raise NotImplementedError
 

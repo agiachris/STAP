@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np  # type: ignore
 from gym import spaces  # type: ignore
 
@@ -82,10 +84,11 @@ class PushLeft2DControl(Box2DBase):
         self._observation_bodies = all_bodies - redundant_bodies
         reps = len(self._observation_bodies) + 1
 
+        self.image_space = spaces.Box(
+            0, 255, shape=(64, 64, 3), dtype=np.uint8
+        )
         if self._image_observation:
-            self.observation_space = spaces.Box(
-                0, 255, shape=(64, 64, 3), dtype=np.uint8
-            )
+            self.observation_space = self.image_space
         else:
             low = np.tile(np.array([x_min, y_min, w_min, h_min]), reps)
             low = np.concatenate((low, [-np.pi * 0.5 - 1e-2]))
@@ -94,28 +97,6 @@ class PushLeft2DControl(Box2DBase):
             self.observation_space = spaces.Box(
                 low=low.astype(np.float32), high=high.astype(np.float32)
             )
-
-    def get_observation(self):
-        if self._image_observation:
-            return super().get_observation()
-
-        k = 0
-        observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
-        for object_name in self.env.keys():
-            for shape_name, shape_data in self._get_shapes(object_name).items():
-                if shape_name not in self._observation_bodies:
-                    continue
-                position = np.array(
-                    self._get_body(object_name, shape_name).position, dtype=np.float32
-                )
-                observation[k : k + 4] = np.concatenate((position, shape_data["box"]))
-                k += 4
-        # Agent data
-        position = np.array(self.agent.position, dtype=np.float32)
-        box = self._get_shape("item", "block")["box"]
-        angle = np.array([self.agent.angle])
-        observation[k : k + 5] = np.concatenate((position, box, angle))
-        return super().get_observation(observation)
 
     def _get_reward(self):
         """PushLeft2D reward function.

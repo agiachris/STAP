@@ -336,20 +336,40 @@ class Box2DBase(ABC, gym.Env, Generator):
         """Setup observation space, action space, and supporting attributes."""
         raise NotImplementedError
 
-    @abstractmethod
-    def get_observation(self, obs: Optional[np.ndarray] = None):
+    def get_observation(self, image: Optional[bool] = None):
         """Observation model. Optionally incorporate noise to observations."""
-        if self._image_observation:
+        if image is None:
+            image = self._image_observation
+
+        if image:
             img = self.render(mode="rgb_array")
             return img
 
-        assert self.observation_space.contains(obs)
+        k = 0
+        observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
+        assert self.env is not None
+        for object_name in self.env:
+            for shape_name, shape_data in self._get_shapes(object_name).items():
+                if shape_name not in self._observation_bodies:
+                    continue
+                position = np.array(
+                    self._get_body(object_name, shape_name).position, dtype=np.float32
+                )
+                observation[k : k + 4] = np.concatenate((position, shape_data["box"]))
+                k += 4
+        # Agent data
+        position = np.array(self.agent.position, dtype=np.float32)
+        box = self._get_shape("item", "block")["box"]
+        angle = np.array([self.agent.angle])
+        observation[k : k + 5] = np.concatenate((position, box, angle))
+
+        # Add noise.
         low = self.observation_space.low
         high = self.observation_space.high
         margin = (high - low) * self._observation_noise
         noise = np.random.uniform(-margin, margin)
-        obs = np.clip(obs + noise, low, high)
-        return obs.astype(np.float32)
+        observation = np.clip(observation + noise, low, high)
+        return observation.astype(np.float32)
 
     @abstractmethod
     def _get_reward(self):
