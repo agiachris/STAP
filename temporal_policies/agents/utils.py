@@ -6,9 +6,9 @@ import pprint
 import subprocess
 from typing import Any, Dict, Optional, Union
 
-import gym  # type: ignore
-import torch  # type: ignore
-import yaml  # type: ignore
+import gym
+import torch
+import yaml
 
 import temporal_policies
 from temporal_policies import agents, envs, encoders, schedulers

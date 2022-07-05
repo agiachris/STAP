@@ -1,8 +1,8 @@
 import pathlib
 from typing import Any, Dict, Generic, Optional, Sequence, Tuple, Type, Union
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import torch
 
 from temporal_policies import agents, networks
 from temporal_policies.dynamics.base import Dynamics

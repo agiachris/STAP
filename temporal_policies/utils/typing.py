@@ -2,8 +2,8 @@ import abc
 import pathlib
 from typing import Any, Dict, Generic, Mapping, Type, TypedDict, TypeVar, Union
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import numpy as np
+import torch
 
 Scalar = Union[np.generic, float, int, bool]
 scalars = (np.generic, float, int, bool)

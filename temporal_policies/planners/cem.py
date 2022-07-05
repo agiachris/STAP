@@ -1,8 +1,8 @@
 import functools
 from typing import Any, Sequence, Tuple
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import numpy as np
+import torch
 
 from temporal_policies import agents, dynamics
 from temporal_policies.planners import base as planners

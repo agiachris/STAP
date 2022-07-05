@@ -3,9 +3,9 @@ import pathlib
 import random
 from typing import Any, Dict, Generic, List, Mapping, Optional, TypeVar, Union
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
-import tqdm  # type: ignore
+import numpy as np
+import torch
+import tqdm
 
 from temporal_policies import processors
 from temporal_policies.utils import logging, metrics, tensors, timing

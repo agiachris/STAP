@@ -1,7 +1,7 @@
 from typing import Any, Optional, Sequence
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import numpy as np
+import torch
 
 from temporal_policies import agents, envs
 from temporal_policies.dynamics import base as dynamics

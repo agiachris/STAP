@@ -1,8 +1,8 @@
 from typing import Sequence
 
-import gym  # type: ignore
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import gym
+import numpy as np
+import torch
 
 from temporal_policies import envs
 from temporal_policies.networks.encoders.base import Encoder, Decoder

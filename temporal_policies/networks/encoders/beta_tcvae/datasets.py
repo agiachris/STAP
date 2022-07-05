@@ -1,5 +1,5 @@
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import numpy as np
+import torch
 
 
 class Shapes(object):

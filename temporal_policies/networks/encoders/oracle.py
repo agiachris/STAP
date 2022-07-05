@@ -1,4 +1,4 @@
-import numpy as np  # type: ignore
+import numpy as np
 
 from temporal_policies import envs
 from temporal_policies.networks.encoders.base import Encoder

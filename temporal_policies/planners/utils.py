@@ -1,9 +1,9 @@
 import pathlib
 from typing import Any, Dict, Optional, Iterable, List, Sequence, Tuple, Union
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
-import yaml  # type: ignore
+import numpy as np
+import torch
+import yaml
 
 from temporal_policies import agents, dynamics, envs, planners
 from temporal_policies.utils import configs, tensors

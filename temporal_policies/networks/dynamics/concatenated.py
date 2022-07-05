@@ -4,8 +4,8 @@ from temporal_policies import networks
 from temporal_policies.networks.dynamics.base import PolicyDynamics
 from temporal_policies.utils import configs
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import torch
 
 
 class ConcatenatedDynamics(PolicyDynamics):

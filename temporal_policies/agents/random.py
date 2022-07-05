@@ -1,7 +1,7 @@
 from typing import Optional
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import torch
 
 from temporal_policies.agents import base, wrapper
 from temporal_policies import envs, networks

@@ -3,12 +3,12 @@ from collections import defaultdict
 from copy import deepcopy
 from typing import Optional
 
-import Box2D  # type: ignore
-import gym  # type: ignore
-import numpy as np  # type: ignore
-from PIL import Image  # type: ignore
-from skimage import draw  # type: ignore
-import torch  # type: ignore
+import Box2D
+import gym
+import numpy as np
+from PIL import Image
+from skimage import draw
+import torch
 
 from .generator import Generator
 from .utils import rigid_body_2d, shape_to_vertices, to_homogenous

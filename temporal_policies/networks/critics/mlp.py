@@ -1,6 +1,6 @@
 from typing import List
 
-import torch  # type: ignore
+import torch
 
 from temporal_policies.networks.critics.base import Critic
 from temporal_policies.networks.mlp import MLP, weight_init

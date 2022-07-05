@@ -1,4 +1,4 @@
-import torch  # type: ignore
+import torch
 
 from temporal_policies.networks.mlp import MLP, weight_init
 from temporal_policies.networks.utils import SquashedNormal

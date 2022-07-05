@@ -1,7 +1,7 @@
 import abc
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import torch
 
 
 class Encoder(torch.nn.Module, abc.ABC):

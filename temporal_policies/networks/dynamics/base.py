@@ -1,7 +1,7 @@
 import abc
 from typing import Any, Dict, Sequence, Type, Union
 
-import torch  # type: ignore
+import torch
 
 from temporal_policies import networks
 from temporal_policies.utils import configs

@@ -1,4 +1,4 @@
-import numpy as np  # type: ignore
+import numpy as np
 from abc import ABC, abstractmethod, abstractproperty
 from copy import deepcopy
 

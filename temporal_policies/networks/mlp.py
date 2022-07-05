@@ -1,6 +1,6 @@
 import math
 
-import torch  # type: ignore
+import torch
 
 
 def weight_init(m):

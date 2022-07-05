@@ -3,9 +3,9 @@ from copy import deepcopy
 import os
 from typing import Any, Dict, Optional
 
-from Box2D import b2FixtureDef, b2PolygonShape, b2World  # type: ignore
-import numpy as np  # type: ignore
-import yaml  # type: ignore
+from Box2D import b2FixtureDef, b2PolygonShape, b2World
+import numpy as np
+import yaml
 
 from .utils import GeometryHandler, sample_random_params
 from .constants import COLORS

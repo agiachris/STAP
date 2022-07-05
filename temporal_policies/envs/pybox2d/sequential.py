@@ -2,8 +2,8 @@ import itertools
 import pathlib
 from typing import Sequence
 
-import imageio  # type: ignore
-import numpy as np  # type: ignore
+import imageio
+import numpy as np
 
 from temporal_policies.envs.base import SequentialEnv
 from temporal_policies.envs import utils

@@ -5,10 +5,10 @@ import functools
 import pathlib
 from typing import Generator, Optional, Sequence, TypedDict, Union
 
-import gym  # type: ignore
-import numpy as np  # type: ignore
-import torch  # type: ignore
-import tqdm  # type: ignore
+import gym
+import numpy as np
+import torch
+import tqdm
 
 from temporal_policies.datasets.replay_buffer import (
     ReplayBuffer,

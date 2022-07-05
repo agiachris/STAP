@@ -1,10 +1,8 @@
-import copy
-import itertools
 import pathlib
 from typing import Any, Dict, Generic, Optional, Tuple, Type, Union
 
-import torch  # type: ignore
-import numpy as np  # type: ignore
+import torch
+import numpy as np
 
 from temporal_policies.agents import base as agents
 from temporal_policies.agents import rl

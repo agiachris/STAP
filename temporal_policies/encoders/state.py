@@ -1,7 +1,7 @@
 import pathlib
 from typing import Any, Dict, Generic, Optional, Tuple, Type, Union
 
-import torch  # type: ignore
+import torch
 
 from temporal_policies import envs, networks
 from temporal_policies.encoders.base import Encoder

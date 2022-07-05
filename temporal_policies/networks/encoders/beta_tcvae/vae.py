@@ -5,7 +5,7 @@ import math
 import os
 import time
 
-import torch  # type: ignore
+import torch
 
 from . import datasets, dist, elbo_decomposition, flows, utils
 

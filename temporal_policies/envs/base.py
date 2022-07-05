@@ -3,7 +3,7 @@ import inspect
 import multiprocessing
 from typing import Any, Dict, Generic, List, Optional, Tuple, Type, Union
 
-import gym  # type: ignore
+import gym
 
 from temporal_policies.utils.typing import StateType, ObsType, ActType
 

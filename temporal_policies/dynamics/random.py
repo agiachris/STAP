@@ -1,6 +1,6 @@
 from typing import Any, Optional, Sequence, Union
 
-import torch  # type: ignore
+import torch
 
 from temporal_policies import agents, networks
 from temporal_policies.dynamics import base as dynamics

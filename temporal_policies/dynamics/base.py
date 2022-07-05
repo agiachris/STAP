@@ -1,8 +1,8 @@
 import abc
 from typing import Any, Generic, Optional, Sequence, Tuple, Union
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import torch
 
 from temporal_policies import agents
 from temporal_policies.utils import spaces, tensors

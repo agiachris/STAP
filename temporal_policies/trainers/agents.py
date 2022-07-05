@@ -1,9 +1,9 @@
 import pathlib
 from typing import Any, Dict, Generic, List, Optional, Type, Union
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
-import tqdm  # type: ignore
+import numpy as np
+import torch
+import tqdm
 
 from temporal_policies import agents, datasets, envs, processors
 from temporal_policies.schedulers import DummyScheduler

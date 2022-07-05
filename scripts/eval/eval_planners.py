@@ -5,10 +5,10 @@ import functools
 import pathlib
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-import numpy as np  # type: ignore
-import matplotlib.pyplot as plt  # type: ignore
-import torch  # type: ignore
-import tqdm  # type: ignore
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+import tqdm
 
 from temporal_policies import agents, envs, planners
 from temporal_policies.utils import random, spaces, timing

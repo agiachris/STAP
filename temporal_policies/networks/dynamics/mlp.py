@@ -1,7 +1,7 @@
 from typing import List
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import torch
 
 from temporal_policies.networks.dynamics.base import PolicyDynamics
 from temporal_policies.networks.mlp import MLP, weight_init

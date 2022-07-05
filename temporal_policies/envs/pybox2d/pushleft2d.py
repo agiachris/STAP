@@ -1,5 +1,5 @@
-import numpy as np  # type: ignore
-from gym import spaces  # type: ignore
+import numpy as np
+from gym import spaces
 
 from .base import Box2DBase
 from .utils import shape_to_vertices

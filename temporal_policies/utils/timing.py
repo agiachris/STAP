@@ -2,7 +2,7 @@ import collections
 import time
 from typing import Dict, List, Sequence
 
-import numpy as np  # type: ignore
+import numpy as np
 
 
 class Timer:

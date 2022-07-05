@@ -3,8 +3,8 @@ import os
 import pathlib
 from typing import Any, Dict, List, Optional, Union
 
-import torch  # type: ignore
-import yaml  # type: ignore
+import torch
+import yaml
 
 from temporal_policies import dynamics
 from temporal_policies.utils.config import Config

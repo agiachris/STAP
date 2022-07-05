@@ -2,7 +2,7 @@ import pathlib
 import random
 from typing import Any, Dict, Optional, Tuple, Type, Union
 
-import torch  # type: ignore
+import torch
 
 from temporal_policies import envs, networks
 from temporal_policies.encoders.autoencoder import Autoencoder

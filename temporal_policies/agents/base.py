@@ -1,7 +1,7 @@
 from typing import Generic, Union
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import torch
 
 from temporal_policies import encoders, networks
 from temporal_policies.utils import tensors

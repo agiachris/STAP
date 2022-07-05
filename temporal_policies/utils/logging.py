@@ -2,8 +2,8 @@ import csv
 import pathlib
 from typing import Any, Dict, IO, Optional, Union
 
-import numpy as np  # type: ignore
-from torch.utils import tensorboard  # type: ignore
+import numpy as np
+from torch.utils import tensorboard
 
 from temporal_policies.utils import metrics
 

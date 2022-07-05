@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-import torch  # type: ignore
+import torch
 
 
 class DummyScheduler:

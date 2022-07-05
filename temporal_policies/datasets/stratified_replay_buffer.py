@@ -1,7 +1,7 @@
 import pathlib
 from typing import Generator, Optional, Sequence, Union
 
-import numpy as np  # type: ignore
+import numpy as np
 
 from temporal_policies.datasets.replay_buffer import ReplayBuffer, StorageBatch
 from temporal_policies.utils import tensors, spaces

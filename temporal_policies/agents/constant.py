@@ -1,8 +1,8 @@
 from typing import Optional, Sequence, Union
 
-import gym  # type: ignore
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import gym
+import numpy as np
+import torch
 
 from temporal_policies.agents import base as agents
 from temporal_policies import envs, networks

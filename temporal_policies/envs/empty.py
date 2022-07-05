@@ -1,5 +1,5 @@
-import gym  # type: ignore
-import numpy as np  # type: ignore
+import gym
+import numpy as np
 
 from temporal_policies.envs.base import Env
 

@@ -4,11 +4,11 @@ import argparse
 import pathlib
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-import matplotlib  # type: ignore
-import matplotlib.pyplot as plt  # type: ignore
-import numpy as np  # type: ignore
-import pandas as pd  # type: ignore
-import seaborn as sns  # type: ignore
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 
 
 def load_results(

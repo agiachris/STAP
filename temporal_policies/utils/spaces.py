@@ -1,8 +1,8 @@
 from typing import Optional, Sequence, Tuple, Union
 
-import gym  # type: ignore
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import gym
+import numpy as np
+import torch
 
 
 def null(space: gym.spaces.Space, batch_shape: Union[int, Sequence[int]] = tuple()):
