@@ -2,12 +2,13 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import spatialdyn as dyn
-# import ctrlutils  # TODO: debug
 
-from temporal_policies.envs.pybullet.sim import articulated_body, math, redisgl
+from temporal_policies.envs.pybullet.sim import articulated_body, math
 
 
 class Arm(articulated_body.ArticulatedBody):
+    """Arm controlled with operational space control."""
+
     def __init__(
         self,
         physics_id: int,
@@ -19,11 +20,27 @@ class Arm(articulated_body.ArticulatedBody):
         pos_gains: Tuple[float, float],
         ori_gains: Tuple[float, float],
         nullspace_joint_gains: Tuple[float, float],
-        joint_gains: Tuple[float, float],
         pos_threshold: Tuple[float, float],
         ori_threshold: Tuple[float, float],
         timeout: float,
     ):
+        """Constructs the arm from yaml config.
+
+        Args:
+            physics_id: Pybullet physics client id.
+            body_id: Pybullet body id.
+            arm_urdf: Path to arm-only urdf for spatialdyn. This urdf will be
+                used for computing opspace commands.
+            torque_joints: List of torque-controlled joint names.
+            q_home: Home joint configuration.
+            ee_offset: Position offset from last link com to end-effector operational point.
+            pos_gains: (kp, kv) position gains.
+            ori_gains: (kp, kv) orientation gains.
+            nullspace_joint_gains: (kp, kv) nullspace joint gains.
+            pos_threshold: (position, velocity) error threshold for position convergence.
+            ori_threshold: (orientation, angular velocity) threshold for orientation convergence.
+            timeout: Default command timeout.
+        """
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
@@ -38,7 +55,6 @@ class Arm(articulated_body.ArticulatedBody):
         self.pos_gains = np.array(pos_gains, dtype=np.float64)
         self.ori_gains = np.array(ori_gains, dtype=np.float64)
         self.nullspace_joint_gains = np.array(nullspace_joint_gains, dtype=np.float64)
-        self.joint_gains = np.array(joint_gains, dtype=np.float64)
 
         self.pos_threshold = np.array(pos_threshold, dtype=np.float64)
         self.ori_threshold = np.array(ori_threshold, dtype=np.float64)
@@ -63,12 +79,11 @@ class Arm(articulated_body.ArticulatedBody):
 
     @property
     def ab(self) -> dyn.ArticulatedBody:
+        """Spatialdyn articulated body."""
         return self._ab
 
-    # def ee_pose(self) -> Pose:
-    #     return Pose.from_eigen(dyn.cartesian_pose(self.ab, offset=self.ee_offset))
-
     def reset(self) -> bool:
+        """Disables torque control and esets the arm to the home configuration (bypassing simulation)."""
         self._pos_des = None
         self._quat_des = None
         self._torque_control = False
@@ -82,6 +97,17 @@ class Arm(articulated_body.ArticulatedBody):
         ori_gains: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         timeout: Optional[float] = None,
     ) -> None:
+        """Sets the pose goal.
+
+        To actually control the robot, call `Arm.update_torques()`.
+
+        Args:
+            pos: Optional position. Maintains current position if None.
+            quat: Optional quaternion. Maintains current orientation if None.
+            pos_gains: (kp, kv) gains or [3 x 2] array of xyz gains.
+            ori_gains: (kp, kv) gains or [3 x 2] array of xyz gains.
+            timeout: Uses the timeout specified in the yaml arm config if None.
+        """
         if pos is not None:
             self._pos_des = pos
         if quat is not None:
@@ -98,6 +124,11 @@ class Arm(articulated_body.ArticulatedBody):
         self._torque_control = True
 
     def update_torques(self) -> articulated_body.ControlStatus:
+        """Computes and applies the torques to control the articulated body to the goal set with `Arm.set_pose_goal().
+
+        Returns:
+            Controller status.
+        """
         if not self._torque_control:
             return articulated_body.ControlStatus.UNINITIALIZED
 
@@ -121,7 +152,7 @@ class Arm(articulated_body.ArticulatedBody):
             joint=self.q_home,
             pos_gains=self._pos_gains,
             ori_gains=self._ori_gains,
-            joint_gains=self.joint_gains,
+            joint_gains=self.nullspace_joint_gains,
             task_pos=self.ee_offset,
             pos_threshold=self.pos_threshold,
             ori_threshold=self.ori_threshold,
@@ -154,6 +185,16 @@ class Arm(articulated_body.ArticulatedBody):
         return articulated_body.ControlStatus.IN_PROGRESS
 
     def goto_configuration(self, q: np.ndarray, skip_simulation: bool = False) -> bool:
+        """Sets the robot to the desired joint configuration.
+
+        Args:
+            q: Joint configuration.
+            skip_simulation: Whether to forcibly set the joint positions or use
+                torque control to achieve them.
+        Returns:
+            True if the controller converges to the desired position or zero
+            velocity, false if the command times out.
+        """
         if skip_simulation:
             self._torque_control = False
             self.reset_joints(q, self.torque_joints)
@@ -161,4 +202,5 @@ class Arm(articulated_body.ArticulatedBody):
             self.ab.q, self.ab.dq = self.get_state(self.torque_joints)
             return True
         else:
+            # TODO: Implement torque control.
             raise NotImplementedError

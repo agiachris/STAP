@@ -12,6 +12,7 @@ import yaml
 from temporal_policies.envs.pybullet.base import PybulletEnv
 from temporal_policies.envs.pybullet.sim import body, math, robot
 from temporal_policies.envs.pybullet.sim.robot import ControlException
+from temporal_policies.utils import spaces
 
 
 @dataclasses.dataclass
@@ -89,7 +90,8 @@ class Object(body.Body):
 
 
 class Primitive(abc.ABC):
-    action_space: gym.spaces.Space
+    action_space: gym.spaces.Box
+    action_scale: gym.spaces.Box
 
     def __init__(self, args: List[Object]):
         self._args = args
@@ -114,18 +116,26 @@ class Primitive(abc.ABC):
 
         return primitives[name](args)
 
+    @classmethod
+    def scale_action(cls, action: np.ndarray) -> np.ndarray:
+        return spaces.unnormalize(
+            spaces.normalize(action, cls.action_space), cls.action_scale
+        )
+
     def __repr__(self) -> str:
         return f"{type(self).__name__.lower()}({', '.join([arg.name for arg in self.args])})"
 
 
 class Pick(Primitive):
-    action_space = gym.spaces.Box(
+    action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
+    action_scale = gym.spaces.Box(
         low=np.array([-0.05, -0.05, -0.05, -np.pi], dtype=np.float32),
         high=np.array([0.05, 0.05, 0.05, np.pi], dtype=np.float32),
     )
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         # Parse action.
+        action = self.scale_action(action)
         pos = action[:3]
         theta = action[3]
 

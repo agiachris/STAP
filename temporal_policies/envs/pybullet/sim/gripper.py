@@ -9,6 +9,8 @@ from temporal_policies.envs.pybullet.sim import articulated_body, math
 
 
 class Gripper(articulated_body.ArticulatedBody):
+    """Gripper controlled with torque control."""
+
     def __init__(
         self,
         physics_id: int,
@@ -23,6 +25,23 @@ class Gripper(articulated_body.ArticulatedBody):
         pos_threshold: float,
         timeout: float,
     ):
+        """Constructs the arm from yaml config.
+
+        Args:
+            physics_id: Pybullet physics client id.
+            body_id: Pybullet body id.
+            torque_joints: List of torque_controlled joint names.
+            position_joints: List of position-controlled joint names.
+            finger_links: Finger link names.
+            base_link: Gripper base link name.
+            command_multipliers: Conversion from [0.0, 1.0] grasp command to
+                corresponding joint position.
+            inertia_kwargs: Gripper inertia kwargs ({"mass": Float, "com":
+                List[Float, 3], "inertia": List[Float, 6]}).
+            pos_gains: (kp, kv) position gains.
+            pos_threshold: (position, velocity) error threshold for position convergence.
+            timeout: Default command timeout.
+        """
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
@@ -56,6 +75,7 @@ class Gripper(articulated_body.ArticulatedBody):
         self.pos_gains = pos_gains
         self.pos_threshold = pos_threshold
 
+        self._command = 0.0
         self._torque_control = False
         self._grasp_constraint_id: Optional[int] = None
 
@@ -63,23 +83,40 @@ class Gripper(articulated_body.ArticulatedBody):
 
     @property
     def inertia(self) -> dyn.SpatialInertiad:
+        """Gripper inertia."""
         return self._inertia
 
     @property
     def finger_links(self) -> List[int]:
+        """Finger link ids."""
         return self._finger_links
 
     @property
     def base_link(self) -> int:
+        """Base link id."""
         return self._base_link
 
     def reset(self) -> bool:
+        """Removes any grasp constraint and resets the gripper to the open position."""
+        self._command = 0.0
+        self._torque_control = False
         self.remove_grasp_constraint()
         self.reset_joints(self._q_home, self.joints)
-        self.freeze_grasp()
+        self.apply_positions(self._q_home, self.joints)
         return True
 
     def is_object_grasped(self, body_id: int) -> bool:
+        """Detects whether the given body is grasped.
+
+        A body is considered grasped if it is in contact with both finger links
+        and the contact normals are no closer than 45deg parallel with the axis
+        of gravity.
+
+        Args:
+            body_id: Body id for which to check the grasp.
+        Returns:
+            True if the body is grasped.
+        """
         for finger_link_id in self.finger_links:
             contacts = p.getContactPoints(
                 bodyA=self.body_id,
@@ -99,6 +136,17 @@ class Gripper(articulated_body.ArticulatedBody):
         return True
 
     def create_grasp_constraint(self, body_id: int) -> bool:
+        """Creates a pose constraint to simulate a stable grasp if and only if the body is properly grasped.
+
+        Pybullet is not robust enough to simulate a grasped object using
+        force/friction alone, so we create an artificial pose constraint between
+        the grasped object and the gripper base.
+
+        Args:
+            body_id: Body id to grasp.
+        Returns:
+            True if the body is successfully grasped.
+        """
         self.remove_grasp_constraint()
         if not self.is_object_grasped(body_id):
             return False
@@ -123,7 +171,8 @@ class Gripper(articulated_body.ArticulatedBody):
         )
         return True
 
-    def remove_grasp_constraint(self):
+    def remove_grasp_constraint(self) -> None:
+        """Removes the grasp constraint if one exists."""
         if self._grasp_constraint_id is None:
             return
 
@@ -136,6 +185,15 @@ class Gripper(articulated_body.ArticulatedBody):
         pos_gains: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         timeout: Optional[float] = None,
     ) -> None:
+        """Sets the gripper to the desired grasp (0.0 open, 1.0 closed).
+
+        To actually control the gripper, call `Gripper.update_torques()`.
+
+        Args:
+            command: Desired grasp (range from 0.0 open to 1.0 closed).
+            pos_gains: kp gains (only used for sim).
+            timeout: Uses the timeout specified in the yaml gripper config if None.
+        """
         self._command = command
         if timeout is None:
             timeout = self.timeout
@@ -146,12 +204,12 @@ class Gripper(articulated_body.ArticulatedBody):
 
         self._torque_control = True
 
-    def freeze_grasp(self) -> None:
-        self._torque_control = False
-        q = self.get_state(self.joints)[0]
-        self.apply_positions(q, self.joints)
-
     def update_torques(self) -> articulated_body.ControlStatus:
+        """Computes and applies the torques to control the articulated body to the goal set with `Arm.set_pose_goal().
+
+        Returns:
+            Controller status.
+        """
         if not self._torque_control:
             return articulated_body.ControlStatus.UNINITIALIZED
 
@@ -189,3 +247,9 @@ class Gripper(articulated_body.ArticulatedBody):
             return articulated_body.ControlStatus.TIMEOUT
 
         return articulated_body.ControlStatus.IN_PROGRESS
+
+    def freeze_grasp(self) -> None:
+        """Disables torque control and freezes the grasp with position control."""
+        self._torque_control = False
+        q = self.get_state(self.joints)[0]
+        self.apply_positions(q, self.joints)
