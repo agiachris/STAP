@@ -125,7 +125,6 @@ class Pick(Primitive):
     )
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
-        print(action.shape)
         # Parse action.
         pos = action[:3]
         theta = action[3]
