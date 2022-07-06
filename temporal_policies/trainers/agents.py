@@ -171,7 +171,8 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
                     observation = tensors.from_numpy(
                         self.env.get_observation(), self.device
                     )
-                    observation = tensors.rgb_to_cnn(observation)
+                    # TODO: Make this configurable in yaml.
+                    # observation = tensors.rgb_to_cnn(observation)
                     action = self.agent.actor.predict(
                         self.agent.encoder.encode(observation)
                     )
@@ -284,7 +285,8 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
                 while not done:
                     with torch.no_grad():
                         observation = tensors.from_numpy(observation, self.device)
-                        observation = tensors.rgb_to_cnn(observation)
+                        # TODO: Make this configurable in yaml.
+                        # observation = tensors.rgb_to_cnn(observation)
                         action = self.agent.actor.predict(
                             self.agent.encoder.encode(observation)
                         )
