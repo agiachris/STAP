@@ -9,7 +9,7 @@ from temporal_policies import agents, datasets, envs, processors
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.utils import configs, metrics, tensors
-from temporal_policies.utils.typing import Batch, ObsType
+from temporal_policies.utils.typing import Batch, ObsType, Scalar
 
 
 class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsType]):
@@ -19,9 +19,7 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
         self,
         path: Union[str, pathlib.Path],
         agent: agents.RLAgent[ObsType],
-        dataset_class: Union[
-            str, Type[torch.utils.data.IterableDataset]
-        ] = datasets.ReplayBuffer,
+        dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
         eval_dataset_kwargs: Optional[Dict[str, Any]] = None,
         processor_class: Union[
@@ -56,7 +54,7 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
             eval_dataset_kwargs: Kwargs for eval dataset.
-            processor_class: Batch data processor calss.
+            processor_class: Batch data processor class.
             processor_kwargs: Kwargs for processor.
             optimizer_class: Dynamics model optimizer class.
             optimizer_kwargs: Kwargs for optimizer class.
@@ -161,7 +159,7 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             if self.step == 0:
                 self.dataset.add(observation=self.env.reset())
                 self._episode_length = 0
-                self._episode_reward = 0
+                self._episode_reward = 0.0
 
             if random:
                 action = self.agent.action_space.sample()
@@ -173,10 +171,10 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
                     )
                     # TODO: Make this configurable in yaml.
                     # observation = tensors.rgb_to_cnn(observation)
-                    action = self.agent.actor.predict(
+                    torch_action = self.agent.actor.predict(
                         self.agent.encoder.encode(observation)
                     )
-                    action = action.cpu().numpy()
+                    action = torch_action.cpu().numpy()
                 self.train_mode()
 
             next_observation, reward, done, info = self.env.step(action)
@@ -206,7 +204,7 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             # Reset the environment
             self.dataset.add(observation=self.env.reset())
             self._episode_length = 0
-            self._episode_reward = 0
+            self._episode_reward = 0.0
 
             return metrics
 
@@ -224,8 +222,8 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             and batch["observation"].shape[-1] == 3
             and batch["observation"].dtype == torch.uint8
         ):
-            batch["observation"] = tensors.rgb_to_cnn(batch["observation"])
-            batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])
+            batch["observation"] = tensors.rgb_to_cnn(batch["observation"])  # type: ignore
+            batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])  # type: ignore
         return tensors.to(batch, self.device)
 
     def pretrain(self) -> None:
@@ -261,7 +259,7 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
 
         return {**collect_metrics, **train_metrics}
 
-    def evaluate(self) -> List[Dict[str, np.ndarray]]:
+    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:
@@ -287,10 +285,10 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
                         observation = tensors.from_numpy(observation, self.device)
                         # TODO: Make this configurable in yaml.
                         # observation = tensors.rgb_to_cnn(observation)
-                        action = self.agent.actor.predict(
+                        torch_action = self.agent.actor.predict(
                             self.agent.encoder.encode(observation)
                         )
-                        action = action.cpu().numpy()
+                        action = torch_action.cpu().numpy()
 
                     observation, reward, done, info = self.env.step(action)
                     self.eval_dataset.add(
@@ -318,4 +316,4 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
 
         self.train_mode()
 
-        return metrics_list
+        return metrics_list  # type: ignore

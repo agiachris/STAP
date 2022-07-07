@@ -79,12 +79,13 @@ class Model(abc.ABC, Generic[BatchType]):
 ModelType = TypeVar("ModelType", bound=Model)
 
 
-class Batch(TypedDict, Generic[ArrayType, ObsType]):
-    observation: ObsType
-    action: ArrayType
-    reward: ArrayType
-    next_observation: ObsType
-    discount: ArrayType
+Batch = Dict[str, ArrayType]
+# class Batch(TypedDict, Generic[ArrayType, ObsType]):
+#     observation: ObsType
+#     action: ArrayType
+#     reward: ArrayType
+#     next_observation: ObsType
+#     discount: ArrayType
 
 
 class WrappedBatch(Batch):

@@ -118,12 +118,27 @@ class Primitive(abc.ABC):
 
     @classmethod
     def scale_action(cls, action: np.ndarray) -> np.ndarray:
-        return spaces.unnormalize(
-            spaces.normalize(action, cls.action_space), cls.action_scale
+        return spaces.transform(
+            action, from_space=cls.action_space, to_space=cls.action_scale
+        )
+
+    def normalize_action(cls, action: np.ndarray) -> np.ndarray:
+        return spaces.transform(
+            action, from_space=cls.action_scale, to_space=cls.action_space
         )
 
     def __repr__(self) -> str:
         return f"{type(self).__name__.lower()}({', '.join([arg.name for arg in self.args])})"
+
+
+def compute_top_down_orientation(
+    quat_home: eigen.Quaterniond, quat_obj: eigen.Quaterniond, theta: float
+) -> eigen.Quaterniond:
+    quat_ee_to_obj = quat_home
+    quat_obj_to_world = eigen.AngleAxisd(quat_obj)
+    command_aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+    command_quat = quat_obj_to_world * command_aa * quat_ee_to_obj
+    return command_quat
 
 
 class Pick(Primitive):
@@ -147,10 +162,11 @@ class Pick(Primitive):
         command_pos = obj_pose.pos + pos
 
         # Compute orientation.
-        quat_ee_to_obj = eigen.Quaterniond(robot.home_pose.quat)
-        quat_obj_to_world = eigen.AngleAxisd(eigen.Quaterniond(obj_pose.quat))
-        command_aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-        command_quat = quat_obj_to_world * command_aa * quat_ee_to_obj
+        command_quat = compute_top_down_orientation(
+            eigen.Quaterniond(robot.home_pose.quat),
+            eigen.Quaterniond(obj_pose.quat),
+            theta,
+        )
 
         pre_pos = np.array([*command_pos[:2], obj.aabb()[1, 2] + 0.1])
         try:
@@ -210,6 +226,7 @@ State = Dict[str, np.ndarray]
 
 class TableEnv(PybulletEnv[State, np.ndarray, np.ndarray]):
     # state_space = gym.spaces.Dict()
+    action_space: gym.spaces.Box
     image_space = gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
     observation_space = gym.spaces.Box(
         low=np.tile(
@@ -295,7 +312,7 @@ class TableEnv(PybulletEnv[State, np.ndarray, np.ndarray]):
         seed: Optional[int] = None,
         return_info: bool = False,
         options: Optional[dict] = None,
-    ) -> Union[np.ndarray, Tuple[np.ndarray, dict]]:
+    ) -> np.ndarray:
         self.robot.reset()
         p.restoreState(stateId=self._initial_state_id, physicsClientId=self.physics_id)
 

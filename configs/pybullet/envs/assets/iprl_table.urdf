@@ -18,7 +18,8 @@
         <box size="1.2 .9 0.05" />
       </geometry>
        <material name="white">
-        <color rgba="0.75 0.75 0.8 1" />
+        <!-- <color rgba="0.75 0.75 0.8 1" /> -->
+        <color rgba="1 1 1 1" />
       </material>
     </visual>
 

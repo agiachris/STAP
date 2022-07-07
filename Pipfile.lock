@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "7cab6077a283ce72ec7878a598d28a837ac935554335107b3450f039c4bcff90"
+            "sha256": "5901e2d11264ea6ddf688954448c87f75129490afbc8fed27fe8ddc27b245946"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -109,11 +109,11 @@
         },
         "fonttools": {
             "hashes": [
-                "sha256:c0fdcfa8ceebd7c1b2021240bd46ef77aa8e7408cf10434be55df52384865f8e",
-                "sha256:f829c579a8678fa939a1d9e9894d01941db869de44390adb49ce67055a06cc2a"
+                "sha256:3fb3bef8e743dad8fe96e12a47a9ce9bd367ac0a24c089256615518c88309dbd",
+                "sha256:c6c5a896c9760132614caa57b444ee5b4719c08f84b304bf8ce9295edfb7cbc3"
             ],
             "markers": "python_version >= '3.7'",
-            "version": "==4.33.3"
+            "version": "==4.34.2"
         },
         "google-auth": {
             "hashes": [
@@ -485,7 +485,7 @@
                 "sha256:fa768eff5f9f958270b081bb33581b4b569faabf8774726b283edb06617101dc",
                 "sha256:fac2d65901fb0fdf20363fbd345c01958a742f2dc62a8dd4495af66e3ff502a4"
             ],
-            "markers": "python_version >= '3.7'",
+            "index": "pypi",
             "version": "==9.2.0"
         },
         "protobuf": {
@@ -818,6 +818,20 @@
             ],
             "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'",
             "version": "==1.16.0"
+        },
+        "spatialdyn": {
+            "hashes": [
+                "sha256:223f59f084af3afaf75f99622a4404f9a6638123d0ec769ac14b634286727129",
+                "sha256:261a8d71a326b56dcd028a7f48146175b411559b26678230896563be516efc9a",
+                "sha256:80ea2e76fe3014f78312e24905613ca8334a1f843f5644de0cbe343fea438dea",
+                "sha256:ad39426dfdba9a5e803e6620954d157f9f4af341c01e64cf9e8780ffab836198",
+                "sha256:cab4e7200b1d0f615722db55811fef57cf6afbf7f8c27efbbb4a83c696bdb682",
+                "sha256:debcbaea3f170f657c3b457b55da37b522baf946cc80281702fd0e8e6494d2b0",
+                "sha256:ec6a6dd7d3b642425b18a7f0a2cee979167c619279b2ec7a7a7ddc5aa0d8ae2f",
+                "sha256:fb60530bf4215f0cdd2cf131d6f1d1a59e4e41f30703000a38980ba68ea1489a"
+            ],
+            "index": "pypi",
+            "version": "==1.4.2"
         },
         "temporal-policies": {
             "editable": true,

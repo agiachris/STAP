@@ -3,13 +3,13 @@ from typing import Dict, List
 import torch
 
 
-class DummyScheduler:
+class DummyScheduler(torch.optim.lr_scheduler._LRScheduler):
     """Dummy scheduler class for trainers."""
 
     def __init__(self, optimizer: torch.optim.Optimizer):
         self._lr = optimizer.defaults["lr"]
 
-    def step(self) -> None:
+    def step(self, epoch=None) -> None:
         pass
 
     def state_dict(self) -> Dict[str, torch.Tensor]:

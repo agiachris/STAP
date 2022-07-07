@@ -12,8 +12,8 @@ class PybulletEnv(
     def __init__(self, name: str, gui: bool = True):
         self.name = name
         options = (
-            "--background_color_red=0.25 "
-            "--background_color_green=0.25 "
+            "--background_color_red=0.12 "
+            "--background_color_green=0.12 "
             "--background_color_blue=0.25"
         )
         if gui:

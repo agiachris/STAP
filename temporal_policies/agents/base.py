@@ -32,6 +32,7 @@ class Agent(Generic[ObsType]):
             encoder: Encoder network.
             device: Torch device.
         """
+        assert isinstance(action_space, gym.spaces.Box)
         self._state_space = state_space
         self._action_space = action_space
         self._observation_space = observation_space
@@ -46,7 +47,7 @@ class Agent(Generic[ObsType]):
         return self._state_space
 
     @property
-    def action_space(self) -> gym.spaces.Space:
+    def action_space(self) -> gym.spaces.Box:
         """Action space (actor output)."""
         return self._action_space
 

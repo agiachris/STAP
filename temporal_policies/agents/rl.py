@@ -1,14 +1,14 @@
 import pathlib
-from typing import Dict, Generic, Optional, Union
+from typing import Dict, Optional, Union
 
 import torch
 
 from temporal_policies import encoders, envs, networks
 from temporal_policies.agents.base import Agent
-from temporal_policies.utils.typing import Batch, Model, ObsType
+from temporal_policies.utils.typing import Batch, Model
 
 
-class RLAgent(Agent[ObsType], Model[Batch], Generic[ObsType]):
+class RLAgent(Agent[torch.Tensor], Model[Batch]):
     """RL agent base class."""
 
     def __init__(
@@ -16,7 +16,7 @@ class RLAgent(Agent[ObsType], Model[Batch], Generic[ObsType]):
         env: envs.Env,
         actor: networks.actors.Actor,
         critic: networks.critics.Critic,
-        encoder: encoders.Encoder[ObsType],
+        encoder: encoders.Encoder[torch.Tensor],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):

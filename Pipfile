@@ -24,6 +24,7 @@ pybullet = "*"
 ctrlutils = "==1.4.1"
 pysymbolic = "==0.3.1"
 spatialdyn = "==1.4.2"
+pillow = "*"
 
 [dev-packages]
 

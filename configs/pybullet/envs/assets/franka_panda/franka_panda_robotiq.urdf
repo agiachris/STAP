@@ -492,7 +492,8 @@
 		<visual>
 			<origin rpy="0 0 0" xyz="0 0 -0.01" />
 			<geometry>
-				<box size="0.022 0.00635 0.0575" />
+				<!-- <box size="0.022 0.00635 0.0575" /> -->
+				<box size="0.002 0.00035 0.0075" />
 			</geometry>
 			<material name="collision" />
 		</visual>
@@ -512,7 +513,8 @@
 		<visual>
 			<origin rpy="0 0 0" xyz="0 0 -0.01" />
 			<geometry>
-				<box size="0.022 0.00635 0.0575" />
+				<!-- <box size="0.022 0.00635 0.0575" /> -->
+				<box size="0.002 0.00035 0.0075" />
 			</geometry>
 			<material name="collision" />
 		</visual>

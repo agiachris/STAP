@@ -7,9 +7,9 @@ import numpy as np
 import torch
 import tqdm
 
-from temporal_policies import processors
+from temporal_policies import datasets, processors
 from temporal_policies.utils import logging, metrics, tensors, timing
-from temporal_policies.utils.typing import ModelType
+from temporal_policies.utils.typing import ModelType, Scalar
 
 
 DatasetBatchType = TypeVar("DatasetBatchType", bound=Mapping)
@@ -22,9 +22,9 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
     def __init__(
         self,
         path: Union[str, pathlib.Path],
-        model: torch.nn.Module,
-        dataset: torch.utils.data.IterableDataset,
-        eval_dataset: torch.utils.data.IterableDataset,
+        model: ModelType,
+        dataset: datasets.ReplayBuffer,
+        eval_dataset: datasets.ReplayBuffer,
         processor: processors.Processor,
         optimizers: Dict[str, torch.optim.Optimizer],
         schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
@@ -135,12 +135,12 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         return self._path
 
     @property
-    def dataset(self) -> torch.utils.data.IterableDataset:
+    def dataset(self) -> datasets.ReplayBuffer:
         """Train dataset."""
         return self._dataset
 
     @property
-    def eval_dataset(self) -> torch.utils.data.IterableDataset:
+    def eval_dataset(self) -> datasets.ReplayBuffer:
         """Eval dataset."""
         return self._eval_dataset
 
@@ -351,7 +351,9 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
 
         return []
 
-    def post_evaluate_step(self, eval_metrics_list: List[Dict[str, float]]) -> None:
+    def post_evaluate_step(
+        self, eval_metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]]
+    ) -> None:
         """Logs the eval results and saves checkpoints.
 
         Args:
@@ -376,7 +378,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             self.model.save(self.path, "best_model")
 
     def create_dataloader(
-        self, dataset: torch.utils.data.IterableDataset, workers: Optional[int] = None
+        self, dataset: torch.utils.data.IterableDataset, workers: int = 0
     ) -> torch.utils.data.DataLoader:
         """Creates a Torch dataloader for the given dataset.
 
@@ -389,11 +391,13 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         """
 
         def _worker_init_fn(worker_id: int) -> None:
-            seed = np.random.get_state()[1][0] + worker_id
+            random_state = np.random.get_state()
+            assert isinstance(random_state, tuple)
+            seed = random_state[1][0] + worker_id
             np.random.seed(seed)
             random.seed(seed)
 
-        worker_init_fn = None if self.num_data_workers == 0 else _worker_init_fn
+        worker_init_fn = None if workers == 0 else _worker_init_fn
         pin_memory = self.device.type == "cuda"
         dataloader = torch.utils.data.DataLoader(
             dataset,
@@ -466,7 +470,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
                 self.model.save(self.path, f"ckpt_model_{eval_step}")
 
     @abc.abstractmethod
-    def evaluate(self) -> List[Dict[str, np.ndarray]]:
+    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:

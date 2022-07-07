@@ -258,12 +258,13 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
             batch["observation"] = observation
         elif batch is None:
             assert next_observation is not None
+            assert action is not None
             batch = {
                 "observation": next_observation,
                 "action": action,
-                "reward": reward,
-                "discount": discount,
-                "done": done,
+                "reward": reward,  # type: ignore
+                "discount": discount,  # type: ignore
+                "done": done,  # type: ignore
             }
 
         # Insert batch and advance indices.
