@@ -12,13 +12,13 @@ from temporal_policies.utils import configs, metrics, tensors
 from temporal_policies.utils.typing import Batch, ObsType, Scalar
 
 
-class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsType]):
+class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     """Agent trainer."""
 
     def __init__(
         self,
         path: Union[str, pathlib.Path],
-        agent: agents.RLAgent[ObsType],
+        agent: agents.RLAgent,
         dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
         eval_dataset_kwargs: Optional[Dict[str, Any]] = None,
@@ -137,7 +137,7 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             )
 
     @property
-    def agent(self) -> agents.RLAgent[ObsType]:
+    def agent(self) -> agents.RLAgent:
         """Agent being trained."""
         return self.model
 

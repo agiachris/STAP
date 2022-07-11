@@ -7,6 +7,7 @@ import torch
 
 Scalar = Union[np.generic, float, int, bool]
 scalars = (np.generic, float, int, bool)
+Tensor = Union[np.ndarray, torch.Tensor]
 
 
 ArrayType = TypeVar("ArrayType", np.ndarray, torch.Tensor)
@@ -79,7 +80,13 @@ class Model(abc.ABC, Generic[BatchType]):
 ModelType = TypeVar("ModelType", bound=Model)
 
 
-Batch = Dict[str, ArrayType]
+# Batch = Dict[str, ArrayType]
+class Batch(TypedDict):
+    observation: Tensor
+    action: Tensor
+    reward: Tensor
+    next_observation: Tensor
+    discount: Tensor
 # class Batch(TypedDict, Generic[ArrayType, ObsType]):
 #     observation: ObsType
 #     action: ArrayType
