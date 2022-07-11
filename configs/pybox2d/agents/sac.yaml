@@ -1,0 +1,19 @@
+agent: SAC
+agent_kwargs:
+  tau: 0.005
+  initial_temperature: 0.1
+  critic_update_freq: 1
+  actor_update_freq: 1
+  target_update_freq: 2
+
+  actor_class: actors.DiagonalGaussianMLPActor
+  actor_kwargs:
+    hidden_layers: [256, 256]
+    log_std_bounds: [-5, 2]
+    ortho_init: true
+
+  critic_class: critics.ContinuousMLPCritic
+  critic_kwargs:
+    hidden_layers: [256, 256]
+    num_q_fns: 2
+    ortho_init: true

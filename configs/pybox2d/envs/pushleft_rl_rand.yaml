@@ -1,0 +1,21 @@
+env: pybox2d.PushLeft2D
+env_kwargs:
+  name: pushleft_rl_rand
+  max_episode_steps: 50
+  steps_per_action: 5
+  config: configs/pybox2d/envs/obstacle.yaml
+  rand_params:
+    box:
+      shape_kwargs:
+        size: [[2.0, 3.0], [1.0, 3.0]]
+        dx: [-4.25, -3.25]
+    obstacle:
+      shape_kwargs:
+        size: [[0.5, 1.5], [0.75, 3.25]]
+        dx: [0.0, 5.0]
+    item:
+      shape_kwargs:
+        size: [[0.5, 1.5], [0.75, 3.25]]
+        dx: [0.0, 5.0]
+      body_kwargs:
+        angle: [-1.57, 1.57]    

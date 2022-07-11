@@ -1,87 +1,112 @@
-import torch
-from torch import nn
-from torch import distributions
-from torch.nn import functional as F
+import math
 
-from .common import MLP
+import torch  # type: ignore
+
 
 def weight_init(m):
-    if isinstance(m, nn.Linear):
-        nn.init.orthogonal_(m.weight.data)
-        if hasattr(m.bias, 'data'):
+    if isinstance(m, torch.nn.Linear):
+        torch.nn.init.orthogonal_(m.weight.data)
+        if hasattr(m.bias, "data"):
             m.bias.data.fill_(0.0)
 
-class ContinuousMLPCritic(nn.Module):
 
-    def __init__(self, observation_space, action_space, hidden_layers=[256, 256], act=nn.ReLU, num_q_fns=2, ortho_init=False):
+class MLP(torch.nn.Module):
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        hidden_layers=[256, 256],
+        act=torch.nn.ReLU,
+        output_act=None,
+    ):
         super().__init__()
-        self.qs = nn.ModuleList([
-            MLP(observation_space.shape[0] + action_space.shape[0], 1, hidden_layers=hidden_layers, act=act)
-         for _ in range(num_q_fns)])
-        if ortho_init:
-            self.apply(weight_init)
+        net = []
+        last_dim = input_dim
+        for dim in hidden_layers:
+            net.append(torch.nn.Linear(last_dim, dim))
+            net.append(act())
+            last_dim = dim
+        net.append(torch.nn.Linear(last_dim, output_dim))
+        if output_act is not None:
+            net.append(output_act())
+        self.net = torch.nn.Sequential(*net)
 
-    def forward(self, obs, action):
-        x = torch.cat((obs, action), dim=-1)
-        return [q(x).squeeze(-1) for q in self.qs]
+    def forward(self, x):
+        return self.net(x)
 
-class ContinuousMLPActor(nn.Module):
 
-    def __init__(self, observation_space, action_space, hidden_layers=[256, 256], act=nn.ReLU, output_act=nn.Tanh, ortho_init=False):
+class LinearEnsemble(torch.nn.Module):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        bias=True,
+        ensemble_size=3,
+        device=None,
+        dtype=None,
+    ):
+        factory_kwargs = {"device": device, "dtype": dtype}
         super().__init__()
-        self.mlp = MLP(observation_space.shape[0], action_space.shape[0], hidden_layers=hidden_layers, act=act, output_act=output_act)
-        if ortho_init:
-            self.apply(weight_init)
-        
-    def forward(self, obs):
-        return self.mlp(obs)
-
-class SquashedNormal(distributions.TransformedDistribution):
-
-    def __init__(self, loc, scale):
-        self._loc = loc
-        self.scale = scale
-        self.base_dist = distributions.Normal(loc, scale)
-        transforms = [distributions.transforms.TanhTransform(cache_size=1)]
-        super().__init__(self.base_dist, transforms)
-
-    @property
-    def loc(self):
-        loc = self._loc
-        for transform in self.transforms:
-            loc = transform(loc)
-        return loc
-
-class DiagonalGaussianMLPActor(nn.Module):
-
-    def __init__(self, observation_space, action_space, hidden_layers=[256, 256], act=nn.ReLU, ortho_init=False, log_std_bounds=[-5, 2]):
-        super().__init__()
-        self.log_std_bounds = log_std_bounds
-        if log_std_bounds is not None:
-            assert log_std_bounds[0] < log_std_bounds[1]
-        self.mlp = MLP(observation_space.shape[0], 2*action_space.shape[0], hidden_layers=hidden_layers, act=act, output_act=None)
-        if ortho_init:
-            self.apply(weight_init)
-        self.action_range = [float(action_space.low.min()), float(action_space.high.max())]
-        
-    def forward(self, obs):
-        mu, log_std = self.mlp(obs).chunk(2, dim=-1)
-        if self.log_std_bounds is not None:
-            log_std = torch.tanh(log_std)
-            log_std_min, log_std_max = self.log_std_bounds
-            log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
-            dist_class = SquashedNormal
+        self.in_features = in_features
+        self.out_features = out_features
+        self.ensemble_size = ensemble_size
+        self.weight = torch.nn.Parameter(
+            torch.empty((ensemble_size, in_features, out_features), **factory_kwargs)
+        )
+        if bias:
+            self.bias = torch.nn.Parameter(
+                torch.empty((ensemble_size, 1, out_features), **factory_kwargs)
+            )
         else:
-            dist_class = distributions.Normal
-        std = log_std.exp()
-        dist = dist_class(mu, std)
-        return dist
+            self.register_parameter("bias", None)
+        self.reset_parameters()
 
-    def predict(self, obs, sample=False):
-        dist = self(obs)
-        if sample:
-            action = dist.sample()
-        else:
-            action = dist.loc
-        action = action.clamp(*self.action_range)
-        return action
+    def reset_parameters(self):
+        torch.nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight[0].T)
+            bound = 1 / math.sqrt(fan_in)
+            torch.nn.init.uniform_(self.bias, -bound, bound)
+
+    def forward(self, input):
+        if len(input.shape) == 2:
+            input = input.repeat(self.ensemble_size, 1, 1)
+        elif len(input.shape) > 3:
+            raise ValueError(
+                "LinearEnsemble layer does not support inputs with more than 3 dimensions."
+            )
+        return torch.baddbmm(self.bias, input, self.weight)
+
+    def extra_repr(self) -> str:
+        return "ensemble_size={}, in_features={}, out_features={}, bias={}".format(
+            self.ensemble_size,
+            self.in_features,
+            self.out_features,
+            self.bias is not None,
+        )
+
+
+class EnsembleMLP(torch.nn.Module):
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        ensemble_size=3,
+        hidden_layers=[256, 256],
+        act=torch.nn.ReLU,
+        output_act=None,
+    ):
+        super().__init__()
+        net = []
+        last_dim = input_dim
+        for dim in hidden_layers:
+            net.append(LinearEnsemble(last_dim, dim, ensemble_size=ensemble_size))
+            net.append(act())
+            last_dim = dim
+        net.append(LinearEnsemble(last_dim, output_dim, ensemble_size=ensemble_size))
+        if output_act is not None:
+            net.append(output_act())
+        self.net = torch.nn.Sequential(*net)
+
+    def forward(self, x):
+        return self.net(x)

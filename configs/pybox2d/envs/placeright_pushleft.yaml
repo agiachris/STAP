@@ -1,0 +1,5 @@
+env: pybox2d.Sequential2D
+env_kwargs:
+  env_configs:
+    - configs/pybox2d/envs/placeright.yaml
+    - configs/pybox2d/envs/pushleft.yaml

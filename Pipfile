@@ -1,0 +1,27 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "*"
+imageio = "*"
+temporal-policies = {editable = true, path = "."}
+torch = "1.10.2"
+torchvision = "*"
+tensorboard = "*"
+setuptools = "==59.5.0"
+gym = "*"
+matplotlib = "*"
+scikit-image = "*"
+pyyaml = "*"
+tqdm = "*"
+box2d-py = "*"
+h5py = "*"
+pandas = "*"
+seaborn = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.8"

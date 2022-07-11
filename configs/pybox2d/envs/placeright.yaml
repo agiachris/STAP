@@ -1,0 +1,10 @@
+env: pybox2d.PlaceRight2D
+env_kwargs:
+  name: placeright
+  max_episode_steps: 1
+  steps_per_action: 100
+  config: configs/pybox2d/envs/obstacle.yaml
+  rand_params:
+    obstacle:
+      shape_kwargs:
+        dx: [0.0, 5.0]

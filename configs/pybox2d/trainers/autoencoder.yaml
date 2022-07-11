@@ -1,0 +1,16 @@
+trainer: AutoencoderTrainer
+trainer_kwargs:
+  dataset_class: StratifiedReplayBuffer
+  dataset_kwargs:
+    batch_size: 512
+
+  optimizer_class: Adam
+  optimizer_kwargs:
+    lr: 0.001
+
+  num_train_steps: 20000
+  num_eval_steps: 100
+  eval_freq: 1000
+  checkpoint_freq: 50000
+  log_freq: 1000
+  profile_freq: 100

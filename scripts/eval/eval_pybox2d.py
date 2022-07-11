@@ -16,10 +16,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--exec-config", "-e", type=str, required=True, help="Path to execution configs")
-    parser.add_argument("--checkpoints", "-c", nargs="+", type=str, required=True, help="Path to model checkpoints")
+    parser.add_argument("--policy_checkpoints", "-c", nargs="+", type=str, required=True, help="Path to model checkpoints")
+    parser.add_argument("--dynamics_checkpoint", "-d", type=str, required=False, help="Path to dynamics model checkpoints")
     parser.add_argument("--path", "-p", type=str, required=True, help="Path to save json files of results")
     parser.add_argument("--num-eps", "-n", type=int, default=1, help="Number of episodes to unit test across")
-    parser.add_argument("--device", "-d", type=str, default="auto")
+    parser.add_argument("--device", type=str, default="auto")
     args = parser.parse_args()
 
     # Setup
@@ -27,7 +28,8 @@ if __name__ == "__main__":
     env_cls = [vars(pybox2d_envs)[subtask["env"]] for subtask in exec_config["task"]]
     planner = vars(pybox2d_planners)[exec_config["planner"]](
         task=exec_config["task"],
-        checkpoints=args.checkpoints,
+        policy_checkpoints=args.policy_checkpoints,
+        dynamics_checkpoint=args.dynamics_checkpoint,
         device=args.device,
         **exec_config["planner_kwargs"]
     )

@@ -1,0 +1,13 @@
+planner: ShootingPlanner
+planner_kwargs:
+  num_samples: 128
+
+agent_configs:
+  - agent: GaussianAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      std: 0.5
+  - "{AGENT_CONFIG}"
+
+dynamics_config:
+  dynamics: OracleDynamics

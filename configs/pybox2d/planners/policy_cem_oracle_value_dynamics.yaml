@@ -1,0 +1,15 @@
+planner: CEMPlanner
+planner_kwargs:
+  num_samples: 16
+  num_iterations: 8
+
+agent_configs:
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+
+dynamics_config:
+  dynamics: OracleDynamics

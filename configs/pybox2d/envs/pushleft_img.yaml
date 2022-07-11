@@ -1,0 +1,21 @@
+env: pybox2d.PushLeft2DControl
+env_kwargs:
+  name: pushleft_img
+  max_episode_steps: 1000
+  steps_per_action: 1
+  image_observation: True
+  config: configs/pybox2d/envs/obstacle.yaml
+  rand_params:
+    obstacle:
+      shape_kwargs:
+        dx: [0.0, 5.0]
+    item:
+      shape_kwargs:
+        dx: [0.0, 5.0]
+      body_kwargs:
+        angle: [-1.57, 1.57]
+  control_kwargs: 
+    kp: 2
+    kd: 2
+    ki: 0.05
+    overshoot_reset: True

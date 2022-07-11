@@ -5,8 +5,8 @@ from .base import Processor
 
 class RandomShiftsAug(Processor):
 
-    def __init__(self, observation_space, action_space, pad=4):
-        super().__init__(observation_space, action_space)
+    def __init__(self, observation_space, pad=4):
+        super().__init__(observation_space)
         self.pad = pad
 
     def _flatten(self, x):
@@ -53,13 +53,13 @@ class RandomShiftsAug(Processor):
             batch = self._flatten(batch.float())
         elif isinstance(batch, dict):
             for k in batch.keys():
-                if 'obs' in k:
+                if 'observation' in k:
                     batch[k] = self._flatten(batch[k].float())
         if not self.training:
             return batch
         else:
             print("AUGED")
             for k in batch.keys():
-                if 'obs' in k:
+                if 'observation' in k:
                     batch[k] = self._aug(batch[k])
             return batch
