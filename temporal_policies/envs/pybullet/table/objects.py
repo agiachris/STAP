@@ -4,9 +4,11 @@ from typing import Dict, List, Optional, Union
 from ctrlutils import eigen
 import numpy as np
 import pybullet as p
+import spatialdyn as dyn
 import symbolic
 
 from temporal_policies.envs.pybullet.sim import body, math, shapes
+from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
 from temporal_policies.envs.pybullet.table import object_state
 
 
@@ -31,7 +33,9 @@ class Object(body.Body):
         self.initial_state = initial_state
 
         T_pybullet_to_obj = super().pose().to_eigen()
-        self._modified_axes = not T_pybullet_to_obj.is_approx(eigen.Isometry3d.identity())
+        self._modified_axes = not T_pybullet_to_obj.is_approx(
+            eigen.Isometry3d.identity()
+        )
         if self._modified_axes:
             self._T_pybullet_to_obj = T_pybullet_to_obj
             self._T_obj_to_pybullet = T_pybullet_to_obj.inverse()
@@ -42,9 +46,7 @@ class Object(body.Body):
         if not self._modified_axes:
             return super().pose()
 
-        return math.Pose.from_eigen(
-            super().pose().to_eigen() * self._T_obj_to_pybullet
-        )
+        return math.Pose.from_eigen(super().pose().to_eigen() * self._T_obj_to_pybullet)
 
     def set_pose(self, pose: math.Pose) -> None:
         if not self._modified_axes:
@@ -54,6 +56,37 @@ class Object(body.Body):
             math.Pose.from_eigen(pose.to_eigen() * self._T_pybullet_to_obj)
         )
 
+    def disable_collisions(self) -> None:
+        for link_id in range(self.dof):
+            p.setCollisionFilterGroupMask(
+                self.body_id, link_id, 0, 0, physicsClientId=self.physics_id
+            )
+
+    def enable_collisions(self) -> None:
+        for link_id in range(self.dof):
+            p.setCollisionFilterGroupMask(
+                self.body_id, link_id, 1, 0xFF, physicsClientId=self.physics_id
+            )
+
+    @property
+    def inertia(self) -> dyn.SpatialInertiad:
+        try:
+            return self._obj_inertia  # type: ignore
+        except AttributeError:
+            pass
+
+        self._obj_inertia = super().inertia
+        if self._modified_axes:
+            self._obj_inertia = self._obj_inertia * self._T_pybullet_to_obj
+
+        T_world_to_obj = self.pose().to_eigen().inverse()
+        for link_id in range(self.dof):
+            link = body.Link(self.physics_id, self.body_id, link_id)
+            T_link_to_obj = T_world_to_obj * link.pose().to_eigen()
+            self._obj_inertia += link.inertia * T_link_to_obj
+
+        return self._obj_inertia
+
     def state(self) -> object_state.ObjectState:
         pose = self.pose()
         aa = eigen.AngleAxisd(eigen.Quaterniond(pose.quat))
@@ -62,13 +95,15 @@ class Object(body.Body):
 
         return self._state
 
-    def reset(self, objects: Dict[str, "Object"]) -> None:
+    def reset(self, robot: Robot, objects: Dict[str, "Object"]) -> None:
         if self.is_static or self.initial_state is None:
             return
 
         predicate, args = symbolic.parse_proposition(self.initial_state)
         if predicate == "on":
             parent_obj = objects[args[1]]
+
+            # Generate pose on parent.
             xyz_min, xyz_max = parent_obj.aabb()
             xyz = np.zeros(3)
             xyz[:2] = np.random.uniform(0.9 * xyz_min[:2], 0.9 * xyz_max[:2])
@@ -76,8 +111,43 @@ class Object(body.Body):
             theta = np.random.uniform(-np.pi / 2, np.pi / 2)
             aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
             pose = math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
+
             self.set_pose(pose)
 
+        elif predicate == "inhand":
+            obj = objects[args[0]]
+            self.disable_collisions()
+
+            # Retry grasps.
+            for _ in range(5):
+                # Generate grasp pose.
+                xyz = np.array(robot.home_pose.pos)
+                xyz += 0.45 * np.random.uniform(-obj.size, obj.size)
+                theta = np.random.uniform(-np.pi / 2, np.pi / 2)
+                aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+                pose = math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
+
+                # Generate post-pick pose.
+                table_xyz_min, table_xyz_max = objects["table"].aabb()
+                xyz_pick = np.array([0.0, 0.0, obj.size[2] + 0.1])
+                xyz_pick[:2] = np.random.uniform(
+                    0.9 * table_xyz_min[:2], 0.9 * table_xyz_max[:2]
+                )
+
+                # Use fake grasp.
+                self.set_pose(pose)
+                robot.grasp_object(obj, realistic=False)
+                try:
+                    robot.goto_pose(pos=xyz_pick)
+                except ControlException:
+                    robot.reset()
+                    continue
+
+                break
+
+            self.enable_collisions()
+        else:
+            raise NotImplementedError
 
     @classmethod
     def create(cls, physics_id: int, **kwargs) -> "Object":
@@ -171,7 +241,7 @@ class Hook(Object):
             mass=(handle_length / (head_length + handle_length + radius)) * mass,
             color=color,
             pose=math.Pose(
-                pos=np.array([0.0, handle_y * head_length / 2 - dy, 0.0]),
+                pos=np.array([-radius / 2, handle_y * head_length / 2 - dy, 0.0]),
                 quat=eigen.Quaterniond(
                     eigen.AngleAxisd(angle=np.pi / 2, axis=np.array([0.0, 1.0, 0.0]))
                 ).coeffs,
@@ -183,7 +253,7 @@ class Hook(Object):
             mass=(head_length / (head_length + handle_length + radius)) * mass,
             color=color,
             pose=math.Pose(
-                pos=np.array([handle_length / 2, -dy, 0.0]),
+                pos=np.array([(handle_length - radius) / 2, -dy, 0.0]),
                 quat=eigen.Quaterniond(
                     eigen.AngleAxisd(angle=np.pi / 2, axis=np.array([1.0, 0.0, 0.0]))
                 ).coeffs,
@@ -194,7 +264,9 @@ class Hook(Object):
             mass=(radius / (head_length + handle_length + radius)) * mass,
             color=color,
             pose=math.Pose(
-                pos=np.array([handle_length / 2, handle_y * head_length / 2 - dy, 0.0])
+                pos=np.array(
+                    [(handle_length - radius) / 2, handle_y * head_length / 2 - dy, 0.0]
+                )
             ),
         )
         body_id = shapes.create_body(
@@ -213,6 +285,11 @@ class Hook(Object):
         self._state.handle_length = handle_length
         self._state.handle_y = handle_y
 
+        self._size = np.array(
+            [handle_length + radius, head_length + 2 * abs(dy), 2 * radius]
+        )
+        self._bbox = np.array([-self.size / 2, self.size / 2])
+
     @property
     def head_length(self) -> float:
         return self._state.head_length  # type: ignore
@@ -224,3 +301,14 @@ class Hook(Object):
     @property
     def handle_y(self) -> float:
         return self._state.handle_y  # type: ignore
+
+    @property
+    def size(self) -> np.ndarray:
+        return self._size
+
+    @property
+    def bbox(self) -> np.ndarray:
+        return self._bbox
+
+    def aabb(self) -> np.ndarray:
+        raise NotImplementedError

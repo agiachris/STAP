@@ -44,7 +44,6 @@ class ArticulatedBody(body.Body, abc.ABC):
                 self.body_id, joint_id, physicsClientId=self.physics_id
             )[1].decode("utf8")
 
-        self._dof = p.getNumJoints(self.body_id, physicsClientId=self.physics_id)
         joint_ids = {get_joint_name(joint_id): joint_id for joint_id in range(self.dof)}
         self._torque_joints = [joint_ids[joint] for joint in torque_joints]
         self._position_joints = [joint_ids[joint] for joint in position_joints]
@@ -66,11 +65,6 @@ class ArticulatedBody(body.Body, abc.ABC):
     def joints(self) -> List[int]:
         """List of torque and position-controlled joint ids."""
         return self._torque_joints + self._position_joints
-
-    @property
-    def dof(self) -> int:
-        """Total number of joints in the articulated body, including non-controlled joints."""
-        return self._dof
 
     def link(self, link_id: int) -> body.Link:
         """Link with the given id."""

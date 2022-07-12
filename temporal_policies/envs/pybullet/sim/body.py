@@ -14,9 +14,12 @@ class Body:
     body_id: int
 
     def aabb(self) -> np.ndarray:
+        """Base aabb."""
+        # TODO: Get accurate aabb.
         return np.array(p.getAABB(self.body_id, physicsClientId=self.physics_id))
 
     def pose(self) -> math.Pose:
+        """Base pose."""
         pos, quat = p.getBasePositionAndOrientation(
             self.body_id, physicsClientId=self.physics_id
         )
@@ -32,23 +35,38 @@ class Body:
         return np.concatenate([v, w])
 
     @property
+    def dof(self) -> int:
+        """Total number of joints in the articulated body, including non-controlled joints."""
+        try:
+            return self._dof  # type: ignore
+        except AttributeError:
+            pass
+
+        self._dof = p.getNumJoints(self.body_id, physicsClientId=self.physics_id)
+        return self._dof
+
+    @property
     def inertia(self) -> dyn.SpatialInertiad:
+        """Base inertia."""
         try:
             return self._inertia  # type: ignore
         except AttributeError:
-            dynamics_info = p.getDynamicsInfo(
-                self.body_id, -1, physicsClientId=self.physics_id
-            )
-            mass = dynamics_info[0]
-            inertia_xyz = dynamics_info[2]
-            com = np.array(dynamics_info[3])
-            quat_inertia = eigen.Quaterniond(dynamics_info[4])
-            T_inertia = eigen.Translation3d.identity() * quat_inertia
-            inertia = dyn.SpatialInertiad(
-                mass, com, np.concatenate([inertia_xyz, np.zeros(3)])
-            )
-            self._inertia = inertia * T_inertia
-            return self._inertia
+            pass
+
+        dynamics_info = p.getDynamicsInfo(
+            self.body_id, -1, physicsClientId=self.physics_id
+        )
+        mass = dynamics_info[0]
+        inertia_xyz = dynamics_info[2]
+        com = np.array(dynamics_info[3])
+        quat_inertia = eigen.Quaterniond(dynamics_info[4])
+        T_inertia = eigen.Translation3d.identity() * quat_inertia
+        self._inertia = (
+            dyn.SpatialInertiad(mass, com, np.concatenate([inertia_xyz, np.zeros(3)]))
+            * T_inertia
+        )
+
+        return self._inertia
 
 
 @dataclasses.dataclass
@@ -62,13 +80,36 @@ class Link:
         try:
             return self._name  # type: ignore
         except AttributeError:
-            self._name = p.getJointInfo(
-                self.body_id, self.link_id, physicsClientId=self.physics_id
-            )[12].decode("utf8")
-            return self._name
+            pass
+
+        self._name = p.getJointInfo(
+            self.body_id, self.link_id, physicsClientId=self.physics_id
+        )[12].decode("utf8")
+        return self._name
 
     def pose(self) -> math.Pose:
+        """World pose of the center of mass."""
         pos, quat = p.getLinkState(
             self.body_id, self.link_id, physicsClientId=self.physics_id
         )[:2]
         return math.Pose(pos, quat)
+
+    @property
+    def inertia(self) -> str:
+        """Inertia at the center of mass frame."""
+        try:
+            return self._inertia  # type: ignore
+        except AttributeError:
+            pass
+
+        dynamics_info = p.getDynamicsInfo(
+            self.body_id, self.link_id, physicsClientId=self.physics_id
+        )
+        mass = dynamics_info[0]
+        inertia_xyz = dynamics_info[2]
+        com = np.zeros(3)
+        self._inertia = dyn.SpatialInertiad(
+            mass, com, np.concatenate([inertia_xyz, np.zeros(3)])
+        )
+
+        return self._inertia

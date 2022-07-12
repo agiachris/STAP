@@ -5,7 +5,7 @@ import numpy as np
 import pybullet as p
 import spatialdyn as dyn
 
-from temporal_policies.envs.pybullet.sim import articulated_body, math
+from temporal_policies.envs.pybullet.sim import articulated_body, body, math
 
 
 class Gripper(articulated_body.ArticulatedBody):
@@ -15,6 +15,7 @@ class Gripper(articulated_body.ArticulatedBody):
         self,
         physics_id: int,
         body_id: int,
+        T_world_to_ee: eigen.Isometry3d,
         torque_joints: List[str],
         position_joints: List[str],
         finger_links: List[str],
@@ -54,6 +55,10 @@ class Gripper(articulated_body.ArticulatedBody):
         self._torque_multipliers = cmd_multipliers[: len(self.torque_joints)]
         self._position_multipliers = cmd_multipliers[len(self.torque_joints) :]
 
+        link_ids = {self.link(joint_id).name: joint_id for joint_id in range(self.dof)}
+        self._finger_links = [link_ids[link_name] for link_name in finger_links]
+        self._base_link = link_ids[base_link]
+
         def get_link_mass(joint_id: int):
             return p.getDynamicsInfo(
                 self.body_id, joint_id, physicsClientId=self.physics_id
@@ -62,15 +67,19 @@ class Gripper(articulated_body.ArticulatedBody):
         self._masses = np.array(
             [get_link_mass(joint_id) for joint_id in self.torque_joints]
         )
-        self._inertia = dyn.SpatialInertiad(
-            inertia_kwargs["mass"],
-            np.array(inertia_kwargs["com"]),
-            np.array(inertia_kwargs["inertia"]),
-        )
 
-        link_ids = {self.link(joint_id).name: joint_id for joint_id in range(self.dof)}
-        self._finger_links = [link_ids[link_name] for link_name in finger_links]
-        self._base_link = link_ids[base_link]
+        # Compute gripper inertia.
+        self._inertia = dyn.SpatialInertiad()
+        gripper_links = set(
+            [self._base_link]
+            + self.torque_joints
+            + self.position_joints
+            + self.finger_links
+        )
+        for link_id in sorted(gripper_links):
+            link = body.Link(physics_id, body_id, link_id)
+            T_link_to_ee = T_world_to_ee * link.pose().to_eigen()
+            self._inertia += link.inertia * T_link_to_ee
 
         self.pos_gains = pos_gains
         self.pos_threshold = pos_threshold
@@ -135,7 +144,7 @@ class Gripper(articulated_body.ArticulatedBody):
 
         return True
 
-    def create_grasp_constraint(self, body_id: int) -> bool:
+    def create_grasp_constraint(self, body_id: int, realistic: bool = True) -> bool:
         """Creates a pose constraint to simulate a stable grasp if and only if the body is properly grasped.
 
         Pybullet is not robust enough to simulate a grasped object using
@@ -144,16 +153,16 @@ class Gripper(articulated_body.ArticulatedBody):
 
         Args:
             body_id: Body id to grasp.
+            realistic: If false, creates a pose constraint regardless of whether
+                the object is in a secure grasp.
         Returns:
             True if the body is successfully grasped.
         """
         self.remove_grasp_constraint()
-        if not self.is_object_grasped(body_id):
+        if realistic and not self.is_object_grasped(body_id):
             return False
 
-        T_body_to_world = math.Pose(
-            *p.getBasePositionAndOrientation(body_id, physicsClientId=self.physics_id)
-        ).to_eigen()
+        T_body_to_world = body.Body(self.physics_id, body_id).pose().to_eigen()
         T_ee_to_world = self.link(self._base_link).pose().to_eigen()
         T_body_to_ee = T_ee_to_world.inverse() * T_body_to_world
 

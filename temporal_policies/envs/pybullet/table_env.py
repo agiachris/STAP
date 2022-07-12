@@ -103,8 +103,9 @@ class TableEnv(PybulletEnv[State, np.ndarray, np.ndarray]):
         self.robot.reset()
         p.restoreState(stateId=self._initial_state_id, physicsClientId=self.physics_id)
 
+        # TODO: Reset in order.
         for obj in self.objects.values():
-            obj.reset(self.objects)
+            obj.reset(self.robot, self.objects)
 
         self.wait_until_stable(1)
 

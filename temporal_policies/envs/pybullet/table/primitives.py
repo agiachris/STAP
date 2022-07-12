@@ -106,29 +106,30 @@ class Pick(Primitive):
 
 
 class Place(Primitive):
-    action_space = gym.spaces.Box(
-        low=np.array([-0.3, -0.5], dtype=np.float32),
-        high=np.array([0.9, 0.5], dtype=np.float32),
+    action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
+    action_scale = gym.spaces.Box(
+        low=np.array([-0.3, -0.5, -0.05, -np.pi], dtype=np.float32),
+        high=np.array([0.9, 0.5, 0.1, np.pi], dtype=np.float32),
     )
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         # Parse action.
+        action = self.scale_action(action)
         pos = action[:3]
         theta = action[3]
 
         # Get target pose.
         target = self.args[1]
         target_pose = target.pose()
+        target_quat = eigen.Quaterniond(target_pose.quat)
 
         # Compute position.
-        command_pos = target_pose.pos + pos
+        command_pos = target_pose.pos + target_quat * pos
 
         # Compute orientation.
-        quat_ee_to_world = eigen.Quaterniond(robot.home_pose.quat)
-        target_aa = eigen.AngleAxisd(eigen.Quaterniond(target_pose.quat))
-        command_aa = eigen.AngleAxisd(eigen.Quaterniond(robot.home_pose.quat))
-        command_aa.angle = target_aa.angle + theta
-        command_quat = eigen.Quaterniond(command_aa) * quat_ee_to_world
+        command_quat = compute_top_down_orientation(
+            eigen.Quaterniond(robot.home_pose.quat), target_quat, theta
+        )
 
         pre_pos = np.array([*command_pos[:2], target.aabb()[1, 2] + 0.1])
         try:
