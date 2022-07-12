@@ -8,7 +8,7 @@ import symbolic
 
 from temporal_policies.envs.pybullet.sim import robot
 from temporal_policies.envs.pybullet.sim.robot import ControlException
-from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.envs.pybullet.table import objects
 from temporal_policies.utils import spaces
 
 
@@ -26,11 +26,11 @@ class Primitive(abc.ABC):
     action_space: gym.spaces.Box
     action_scale: gym.spaces.Box
 
-    def __init__(self, args: List[Object]):
+    def __init__(self, args: List[objects.Object]):
         self._args = args
 
     @property
-    def args(self) -> List[Object]:
+    def args(self) -> List[objects.Object]:
         return self._args
 
     @abc.abstractmethod
@@ -38,7 +38,7 @@ class Primitive(abc.ABC):
         pass
 
     @staticmethod
-    def from_action_call(action_call: str, objects: Dict[str, Object]) -> "Primitive":
+    def from_action_call(action_call: str, objects: Dict[str, objects.Object]) -> "Primitive":
         name, arg_names = symbolic.parse_proposition(action_call)
         args = [objects[obj_name] for obj_name in arg_names]
 
@@ -62,6 +62,10 @@ class Primitive(abc.ABC):
 
     def __repr__(self) -> str:
         return f"{type(self).__name__.lower()}({', '.join([arg.name for arg in self.args])})"
+
+    @abc.abstractmethod
+    def sample_action(self) -> np.ndarray:
+        pass
 
 
 class Pick(Primitive):
@@ -104,6 +108,12 @@ class Pick(Primitive):
 
         return True
 
+    def sample_action(self) -> np.ndarray:
+        if isinstance(self.args[0], objects.Hook):
+            return np.array([-0.1, -0.1, 0.0, 0.0], dtype=np.float32)
+        else:
+            return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+
 
 class Place(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
@@ -142,3 +152,6 @@ class Place(Primitive):
             return False
 
         return True
+
+    def sample_action(self) -> np.ndarray:
+        return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)

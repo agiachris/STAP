@@ -22,6 +22,14 @@ class ObjectState:
     def __init__(self, vector: Optional[np.ndarray] = None):
         if vector is None:
             vector = np.zeros(len(self.RANGES), dtype=np.float32)
+        elif vector.shape[-1] != len(self.RANGES):
+            vector = vector.reshape(
+                (
+                    *vector.shape[:-1],
+                    vector.shape[-1] // len(self.RANGES),
+                    len(self.RANGES),
+                )
+            )
         self.vector = vector
 
     @property

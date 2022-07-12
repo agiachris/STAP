@@ -9,17 +9,20 @@ from ctrlutils import eigen
 import numpy as np
 import matplotlib.pyplot as plt
 import PIL
-import pybullet as p
 import torch
 
 from temporal_policies import agents, envs
-from temporal_policies.envs.pybullet.table_env import compute_top_down_orientation
+from temporal_policies.envs.pybullet.sim import math
+from temporal_policies.envs.pybullet.table import object_state, primitives
 from temporal_policies.utils import random
+
+import pybullet as p
 
 
 def evaluate_pick_critic_state(
     env: envs.pybullet.TableEnv,
     policy: agents.Agent,
+    observation: np.ndarray,
     action: np.ndarray,
     grid_resolution: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -27,13 +30,17 @@ def evaluate_pick_critic_state(
     xy_max = np.array(env.observation_space.high[:2])
     xy_min[1] = max(-0.45, xy_min[1])
     xy_max[1] = min(0.45, xy_max[1])
-    z = 0.05
+    obs = object_state.ObjectState(observation)
+    z = obs.box_size[0, 2] / 2 if obs.box_size[0, 2] > 0 else 0.02
     xs, ys = np.meshgrid(*np.linspace(xy_min, xy_max, grid_resolution).T)
 
-    observations = np.zeros((xs.size, *env.observation_space.shape), dtype=np.float32)
-    observations[:, 0] = xs.flatten()
-    observations[:, 1] = ys.flatten()
-    observations[:, 2] = z
+    observations = np.tile(
+        observation, (xs.size, *np.ones_like(env.observation_space.shape))
+    )
+    obs = object_state.ObjectState(observations)
+    obs.pos[:, 0, 0] = xs.flatten()
+    obs.pos[:, 0, 1] = ys.flatten()
+    obs.pos[:, 0, 2] = z
 
     actions = np.tile(
         action, (observations.shape[0], *([1] * len(env.action_space.shape)))
@@ -77,74 +84,17 @@ def evaluate_pick_critic_action(
         torch_q_values = policy.critic.predict(torch_states, torch_actions)
         q_values = torch_q_values.cpu().numpy()
 
-    absolute_actions = actions[:, :2] + observation[None, :2]
+    obs = object_state.ObjectState(observation)
+    xy = obs.pos[0, :2]
+    theta = obs.aa[0, 2]
+    R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+
+    absolute_actions = actions[:, :2] @ R.T + xy
 
     return q_values, absolute_actions
 
 
-def plot_pick_critic(
-    env: envs.pybullet.TableEnv,
-    # action_skeleton: Sequence[Tuple[int, Any]],
-    # actions: np.ndarray,
-    # p_success: np.ndarray,
-    # rewards: np.ndarray,
-    grid_q_values: np.ndarray,
-    grid_states: np.ndarray,
-    path: Union[str, pathlib.Path],
-    title: Optional[str] = None,
-) -> None:
-    def tick_labels(value: float, pos: float, dim: int) -> str:
-        x = value
-        return f"{x:0.2f}"
-
-    def plot_trisurf(
-        ax: plt.Axes, xs: np.ndarray, ys: np.ndarray, zs: np.ndarray, **kwargs
-    ) -> None:
-        ax.plot_trisurf(xs, ys, zs, cmap="plasma", linewidth=0, **kwargs)
-
-        ax.set_xlabel("x [m]")
-        ax.set_ylabel("y [m]")
-
-        state_space = env.observation_space
-        ax.set_xlim(state_space.low[0], state_space.high[0])
-        ax.set_ylim(state_space.low[1], state_space.high[1])
-        ax.set_zlim(0, 1)
-
-        xtick_labels = functools.partial(tick_labels, dim=0)
-        ytick_labels = functools.partial(tick_labels, dim=1)
-        ax.xaxis.set_major_formatter(plt.FuncFormatter(xtick_labels))
-        ax.yaxis.set_major_formatter(plt.FuncFormatter(ytick_labels))
-        ax.set_xticks(np.linspace(state_space.low[0], state_space.high[0], 5))
-        ax.set_yticks(np.linspace(state_space.low[1], state_space.high[1], 5))
-
-    fig, axes = plt.subplots(1, 1, subplot_kw={"projection": "3d"}, figsize=(5, 5))
-
-    xs, ys = grid_states.T
-    ax = axes
-    plot_trisurf(ax, xs, ys, grid_q_values)
-    ax.set_title(f"{env.name} Q(s, a)")
-    ax.set_zlabel("Q(s, a)")
-
-    # ax = axes[2]
-    # cmap = plt.get_cmap("tab10")
-    # idx_best = p_success.argmax()
-    # ax.scatter(
-    #     *actions[idx_best, 0].T, p_success[idx_best], color=cmap(3), linewidth=10
-    # )
-    # ax.scatter(*actions[:, 0].T, p_success, color=cmap(2), marker=".", linewidth=0)
-    # plot_trisurf(ax, xs, ys, np.clip(grid_q_values, 0, 1).prod(axis=-1), alpha=0.5)
-
-    # ax.set_title(f"Predicted success: {p_success[idx_best]}\nGround truth: {rewards}")
-    # ax.set_zlabel("success prob")
-
-    if title is not None:
-        fig.suptitle(title)
-
-    fig.savefig(path)
-    plt.close(fig)
-
-
-def write_critic_obj(
+def save_critic_obj(
     grid_states: np.ndarray,
     grid_q_values: np.ndarray,
     path: pathlib.Path,
@@ -156,6 +106,8 @@ def write_critic_obj(
     xs = np.reshape(grid_states[:, 0], (grid_resolution, grid_resolution))
     ys = np.reshape(grid_states[:, 1], (grid_resolution, grid_resolution))
     zs = np.reshape(grid_q_values, (grid_resolution, grid_resolution))
+
+    path.mkdir(parents=True, exist_ok=True)
     with open(path / f"{name}.obj", "w") as f:
         f.write(f"o {name}\n")
         f.write(f"mtllib {name}.mtl\n")
@@ -202,6 +154,7 @@ def plot_critic_overlay(
     path: pathlib.Path,
     name: str,
     opacity: float = 0.9,
+    view: str = "front",
 ) -> None:
     visual_id = p.createVisualShape(
         p.GEOM_MESH,
@@ -222,11 +175,18 @@ def plot_critic_overlay(
     )
 
     width, height = 1620, 1080
-    view_matrix = p.computeViewMatrix(
-        cameraEyePosition=[2.0, 0.0, 1.0],
-        cameraTargetPosition=[0.0, 0.0, 0.1],
-        cameraUpVector=[0.0, 0.0, 1.0],
-    )
+    if view == "front":
+        view_matrix = p.computeViewMatrix(
+            cameraEyePosition=[2.0, 0.0, 1.0],
+            cameraTargetPosition=[0.0, 0.0, 0.1],
+            cameraUpVector=[0.0, 0.0, 1.0],
+        )
+    elif view == "top":
+        view_matrix = p.computeViewMatrix(
+            cameraEyePosition=[0.3, 0.0, 1.4],
+            cameraTargetPosition=[0.3, 0.0, 0.0],
+            cameraUpVector=[0.0, 1.0, 0.0],
+        )
     projection_matrix = p.computeProjectionMatrixFOV(
         fov=37.8,
         aspect=1.5,
@@ -267,30 +227,35 @@ def evaluate_pick_action(
     )
     grid_q_values = grid_q_values.clip(0.0, 1.0)
 
-    path_obj = write_critic_obj(
-        grid_states,
-        grid_q_values,
-        path=path,
-        name=f"action_q_values_z{z:.1f}_th{theta:.2f}",
-        grid_resolution=grid_resolution,
-        z_scale=0.1,
-        z_height=0.1,
-    )
+    obs = object_state.ObjectState(observation)
     env.robot.goto_pose(
-        pos=np.array([observation[0], observation[1], env.robot.home_pose.pos[2] + z]),
-        quat=compute_top_down_orientation(
+        pos=np.array([obs.pos[0, 0], -obs.pos[0, 1], env.robot.home_pose.pos[2] + z]),
+        quat=primitives.compute_top_down_orientation(
             eigen.Quaterniond(env.robot.home_pose.quat),
             eigen.Quaterniond(env.primitive.args[0].pose().quat),
             theta=theta,
         ),
     )
-    plot_critic_overlay(
-        env=env,
-        path_obj=path_obj,
-        path=path,
-        name=f"action_values_z{z:.2f}_th{theta:.2f}",
-        opacity=0.75,
+
+    path_obj = save_critic_obj(
+        grid_states,
+        grid_q_values,
+        path=path / "assets",
+        name=f"action_q_values_z{z:.1f}_th{theta:.2f}",
+        grid_resolution=grid_resolution,
+        z_scale=0.0,
+        z_height=(obs.box_size[0, 2] if obs.box_size[0, 2] > 0 else 0.04) + 0.001,
     )
+
+    for view in ("front", "top"):
+        plot_critic_overlay(
+            env=env,
+            path_obj=path_obj,
+            path=path,
+            name=f"action_values_z{z:.2f}_th{theta:.2f}_{view}",
+            opacity=0.75,
+            view=view,
+        )
 
 
 def evaluate_policies(
@@ -311,26 +276,34 @@ def evaluate_policies(
     assert isinstance(policy, agents.RLAgent)
     env = policy.env
     assert isinstance(env, envs.pybullet.TableEnv)
+
     grid_q_values, grid_states = evaluate_pick_critic_state(
         env=env,
         policy=policy,
-        action=np.zeros(4, dtype=np.float32),
+        observation=env.get_observation(),
+        action=env.primitive.sample_action(),
         grid_resolution=grid_resolution,
     )
     grid_q_values = grid_q_values.clip(0.0, 1.0)
 
-    path_obj = write_critic_obj(
+    path_obj = save_critic_obj(
         grid_states,
         grid_q_values,
-        path=path,
+        path=path / "assets",
         name="state_q_values",
         grid_resolution=grid_resolution,
-        z_scale=0.05,
+        z_scale=0,  #.05,
         z_height=0.001,
     )
-    plot_critic_overlay(
-        env=env, path_obj=path_obj, path=path, name="state_values", opacity=0.9
-    )
+    for view in ("front", "top"):
+        plot_critic_overlay(
+            env=env,
+            path_obj=path_obj,
+            path=path,
+            name=f"state_values_{view}",
+            opacity=0.9,
+            view=view,
+        )
 
     observation = env.reset()
     for theta in np.linspace(0, np.pi / 2, 3):
@@ -353,13 +326,6 @@ def evaluate_policies(
             path=path,
             grid_resolution=grid_resolution,
         )
-
-    # plot_pick_critic(
-    #     env=env,
-    #     grid_q_values=grid_q_values,
-    #     grid_states=grid_states,
-    #     path=path / "values.png",
-    # )
 
 
 def main(args: argparse.Namespace) -> None:

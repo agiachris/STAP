@@ -37,7 +37,8 @@ policy_envs=(
     "pick"
 )
 experiments=(
-    "20220705/pick_box"
+    # "20220705/pick_box"
+    "20220708/pick_hook"
 )
 
 for EXP_NAME in "${experiments[@]}"; do
