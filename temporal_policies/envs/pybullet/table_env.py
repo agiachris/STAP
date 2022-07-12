@@ -2,7 +2,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gym
 import numpy as np
-import pybullet as p
 import yaml
 
 from temporal_policies.envs.pybullet.base import PybulletEnv
@@ -10,6 +9,8 @@ from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table.objects import Object
 from temporal_policies.envs.pybullet.table.object_state import ObjectState
 from temporal_policies.envs.pybullet.table.primitives import Primitive
+
+import pybullet as p  # Import after envs.pybullet.base to avoid print statement.
 
 
 State = Dict[str, np.ndarray]

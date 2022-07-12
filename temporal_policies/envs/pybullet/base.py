@@ -1,9 +1,12 @@
+import sys
 from typing import Generic
-
-import pybullet as p
 
 from temporal_policies.envs.base import Env
 from temporal_policies.utils.typing import StateType, ActType, ObsType
+from temporal_policies.envs.pybullet.utils import RedirectStream
+
+with RedirectStream(sys.stderr):
+    import pybullet as p
 
 
 class PybulletEnv(
@@ -17,7 +20,9 @@ class PybulletEnv(
             "--background_color_blue=0.25"
         )
         if gui:
-            self._physics_id = p.connect(p.GUI, options=options)
+            with RedirectStream():
+                self._physics_id = p.connect(p.GUI, options=options)
+
             p.configureDebugVisualizer(
                 p.COV_ENABLE_GUI, 0, physicsClientId=self.physics_id
             )
@@ -50,3 +55,7 @@ class PybulletEnv(
     @property
     def physics_id(self) -> int:
         return self._physics_id
+
+    def __del__(self) -> None:
+        with RedirectStream():
+            p.disconnect(physicsClientId=self.physics_id)
