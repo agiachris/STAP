@@ -2,10 +2,12 @@ import setuptools
 from pathlib import Path
 
 install_requires = [
+    # NumPy Family
     "numpy",
     "scipy",
     "networkx",
     "scikit-image",
+    # IO
     "imageio",
     "pillow",
     "pyyaml",
@@ -13,18 +15,25 @@ install_requires = [
     "h5py",
     "absl-py",
     "pyparsing",
+    # Plotting
     "tensorboard",
     "pandas",
     "matplotlib",
     "seaborn",
+    # Other
     "pytest",
     "tqdm",
     "future",
+    # Env
     "gym>=0.12",
     "box2d-py",
     "pygame",
+    # PyTorch
     "torch>=1.11",
+    "torchvision",
+    "torchtext",
     "functorch",
+    # Third Party
     f"scod-regression @ file://localhost/{Path(__file__).parent}/third_party/scod-regression",
 ]
 
@@ -41,10 +50,11 @@ setuptools.setup(
     long_description=long_description,
     url="https://github.com/agiachris/temporal-policies",
     classifiers=[
-        "Programming Language :: Python :: 3" "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     packages=setuptools.find_packages(),
     install_requires=install_requires,
 )
