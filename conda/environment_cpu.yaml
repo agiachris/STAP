@@ -8,19 +8,19 @@ channels:
 dependencies:
   - python=3.8
   
-  # pytorch
+  # PyTorch
   - pytorch
   - cpuonly
   - torchvision
   - torchtext
 
-  # NP Family
+  # NumPy Family
   - numpy
   - scipy
   - networkx
   - scikit-image
 
-  # Environment
+  # Env
   - pybox2d
 
   # IO

@@ -8,13 +8,13 @@ channels:
 dependencies:
   - python=3.8
 
-  # NP Family
+  # NumPy Family
   - numpy
   - scipy
   - networkx
   - scikit-image
 
-  # Environment
+  # Env
   - pybox2d
 
   # IO

@@ -9,19 +9,19 @@ channels:
 dependencies:
   - python=3.8
   
-  # pytorch
+  # PyTorch
   - pytorch
   - cudatoolkit=11.1
   - torchvision
   - torchtext
 
-  # NP Family
+  # NumPy Family
   - numpy
   - scipy
   - networkx
   - scikit-image
 
-  # Environment
+  # Env
   - pybox2d
 
   # IO
