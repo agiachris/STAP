@@ -1,15 +1,16 @@
 name: temporal_policies
+
 channels:
   - pytorch
   - conda-forge
-  - nvidia
   - default
+
 dependencies:
   - python=3.8
   
   # pytorch
   - pytorch
-  - cudatoolkit=11.1
+  - cpuonly
   - torchvision
   - torchtext
 
@@ -44,5 +45,4 @@ dependencies:
 
   - pip
   - pip:
-      - gym>=0.12
-      - pygame
+      - -r requirements.txt

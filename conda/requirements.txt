@@ -1,0 +1,7 @@
+gym>=0.12
+pygame
+functorch
+../third_party/scod-regression
+black
+mypy
+flake8

@@ -1,0 +1,10 @@
+gym>=0.12
+pygame
+torch
+torchvision
+torchtext
+functorch
+../third_party/scod-regression
+black
+mypy
+flake8
