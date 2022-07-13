@@ -33,6 +33,10 @@ install_requires = [
     "torchvision",
     "torchtext",
     "functorch",
+    # Format
+    "black",
+    "mypy",
+    "flake8",
     # Third Party
     f"scod-regression @ file://localhost/{Path(__file__).parent}/third_party/scod-regression",
 ]
