@@ -109,7 +109,7 @@ class Pick(Primitive):
         return True
 
     def sample_action(self) -> np.ndarray:
-        if isinstance(self.args[0], objects.Hook):
+        if self.args[0].isinstance(objects.Hook):
             return np.array([-0.1, -0.1, 0.0, 0.0], dtype=np.float32)
         else:
             return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)

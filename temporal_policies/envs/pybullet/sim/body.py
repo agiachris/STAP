@@ -68,6 +68,17 @@ class Body:
 
         return self._inertia
 
+    def freeze(self) -> None:
+        if not hasattr(self, "_mass"):
+            self._mass = p.getDynamicsInfo(self.body_id, -1, physicsClientId=self.physics_id)[0]
+        p.changeDynamics(self.body_id, -1, mass=0, physicsClientId=self.physics_id)
+
+    def unfreeze(self) -> None:
+        try:
+            p.changeDynamics(self.body_id, -1, mass=self._mass, physicsClientId=self.physics_id)
+        except AttributeError:
+            pass
+
 
 @dataclasses.dataclass
 class Link:

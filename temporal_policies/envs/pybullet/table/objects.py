@@ -1,5 +1,6 @@
 import dataclasses
-from typing import Dict, List, Optional, Union
+import random
+from typing import Any, Dict, List, Optional, Union
 
 from ctrlutils import eigen
 import numpy as np
@@ -150,15 +151,14 @@ class Object(body.Body):
             raise NotImplementedError
 
     @classmethod
-    def create(cls, physics_id: int, **kwargs) -> "Object":
-        if "urdf" in kwargs:
-            return Urdf(physics_id, **kwargs["urdf"])
-        elif "box" in kwargs:
-            return Box(physics_id, **kwargs["box"])
-        elif "hook" in kwargs:
-            return Hook(physics_id, **kwargs["hook"])
-        else:
-            raise NotImplementedError
+    def create(
+        cls, physics_id: int, object_type: str, object_kwargs: Dict[str, Any], **kwargs
+    ) -> "Object":
+        object_class = globals()[object_type]
+        return object_class(physics_id, **object_kwargs, **kwargs)
+
+    def isinstance(self, class_or_tuple: type) -> bool:
+        return isinstance(self, class_or_tuple)
 
 
 class Urdf(Object):
@@ -312,3 +312,107 @@ class Hook(Object):
 
     def aabb(self) -> np.ndarray:
         raise NotImplementedError
+
+
+class Union(Object):
+    def __init__(
+        self,
+        physics_id: int,
+        name: str,
+        options: List[Dict[str, Any]],
+        initial_state: Optional[str] = None,
+    ):
+        self.physics_id = physics_id
+        self.name = name
+        self.initial_state = initial_state
+
+        self._objects = [
+            Object.create(
+                physics_id=self.physics_id,
+                name=self.name,
+                initial_state=self.initial_state,
+                **obj_kwargs,
+            )
+            for obj_kwargs in options
+        ]
+        self._masses = [
+            p.getDynamicsInfo(obj.body_id, -1, physicsClientId=self.physics_id)[0]
+            for obj in self._objects
+        ]
+        self._body = None
+
+    @property
+    def body(self) -> Object:
+        if self._body is None:
+            raise RuntimeError("Union.reset() must be called first")
+        return self._body
+
+    def reset(self, robot: Robot, objects: Dict[str, "Object"]) -> None:
+        idx_body = random.randrange(len(self._objects))
+        for i, body in enumerate(self._objects):
+            if i == idx_body:
+                continue
+            body.disable_collisions()
+            body.set_pose(math.Pose(pos=np.array([0.0, 0.0, -0.5])))
+            body.freeze()
+
+        self._body = self._objects[idx_body]
+        self.body.enable_collisions()
+        self.body.unfreeze()
+        self.body.reset(robot, objects)
+
+    def isinstance(self, class_or_tuple: type) -> bool:
+        return self.body.isinstance(class_or_tuple)
+
+    # Body methods.
+
+    @property
+    def body_id(self) -> int:
+        return self.body.body_id
+
+    @property
+    def dof(self) -> int:
+        return self.body.dof
+
+    # Object methods.
+
+    def pose(self) -> math.Pose:
+        return self.body.pose()
+
+    def set_pose(self, pose: math.Pose) -> None:
+        self.body.set_pose(pose)
+
+    @property
+    def inertia(self) -> dyn.SpatialInertiad:
+        return self.body.inertia
+
+    def state(self) -> object_state.ObjectState:
+        return self.body.state()
+
+    @property
+    def is_static(self) -> bool:
+        return self.body.is_static
+
+    # Box methods.
+
+    @property
+    def size(self) -> np.ndarray:
+        return self.body.size
+
+    # Hook methods.
+
+    @property
+    def head_length(self) -> float:
+        return self.body.head_length
+
+    @property
+    def handle_length(self) -> float:
+        return self.body.handle_length
+
+    @property
+    def handle_y(self) -> float:
+        return self.body.handle_y
+
+    @property
+    def bbox(self) -> np.ndarray:
+        return self.body.bbox

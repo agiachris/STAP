@@ -2,26 +2,34 @@ env: pybullet.TableEnv
 env_kwargs:
   name: pick
   action_skeleton:
-    # - pick(box, table)
-    - pick(hook, table)
+    - pick(a, table)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   objects:
-    - urdf:
+    - object_type: Urdf
+      object_kwargs:
         name: table
         path: configs/pybullet/envs/assets/iprl_table.urdf
         is_static: true
-    # - box:
-    #     name: box
+    # - object_type: Box
+    #   object_kwargs:
+    #     name: a
+    #     initial_state: on(a, table)
     #     size: [0.05, 0.05, 0.1]
     #     color: [1.0, 0.0, 0.0, 1.0]
-    #     initial_state: on(box, table)
-    - hook:
-        name: hook
-        head_length: 0.2
-        handle_length: 0.38
-        handle_y: -1.0
-        mass: 0.1
-        color: [0.4, 0.2, 0.0, 1.0]
-        initial_state: on(hook, table)
+    - object_type: Union
+      object_kwargs:
+        name: a
+        initial_state: on(a, table)
+        options:
+          - object_type: Box
+            object_kwargs:
+              size: [0.05, 0.05, 0.1]
+              color: [1.0, 0.0, 0.0, 1.0]
+          - object_type: Hook
+            object_kwargs:
+              head_length: 0.2
+              handle_length: 0.38
+              handle_y: -1.0
+              color: [0.4, 0.2, 0.0, 1.0]
