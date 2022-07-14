@@ -4,7 +4,11 @@ import datetime
 import enum
 import functools
 import pathlib
-from typing import Generator, Generic, Optional, Sequence, TypedDict, Union
+from typing import Generator, Generic, Optional, Sequence, Union
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 import gym  # type: ignore
 import numpy as np  # type: ignore
