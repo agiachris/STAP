@@ -8,3 +8,4 @@ functorch
 black
 mypy
 flake8
+-e ../.
