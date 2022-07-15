@@ -154,4 +154,4 @@ class Place(Primitive):
         return True
 
     def sample_action(self) -> np.ndarray:
-        return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        return np.array([0.4, 0.0, 0.04, 0.0], dtype=np.float32)

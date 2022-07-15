@@ -3,6 +3,8 @@ env_kwargs:
   name: pick
   action_skeleton:
     - pick(a, table)
+  initial_state:
+    - on(a, table)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -15,13 +17,18 @@ env_kwargs:
     # - object_type: Box
     #   object_kwargs:
     #     name: a
-    #     initial_state: on(a, table)
     #     size: [0.05, 0.05, 0.1]
     #     color: [1.0, 0.0, 0.0, 1.0]
+    # - object_type: Hook
+    #   object_kwargs:
+    #     name: hook
+    #     head_length: 0.2
+    #     handle_length: 0.38
+    #     handle_y: -1.0
+    #     color: [0.4, 0.2, 0.0, 1.0]
     - object_type: Union
       object_kwargs:
         name: a
-        initial_state: on(a, table)
         options:
           - object_type: Box
             object_kwargs:

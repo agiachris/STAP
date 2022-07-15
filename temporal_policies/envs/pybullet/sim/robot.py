@@ -1,6 +1,5 @@
 from typing import Any, Dict, Optional, Tuple, Union
 
-from ctrlutils import eigen
 import numpy as np
 import pybullet as p
 import spatialdyn as dyn

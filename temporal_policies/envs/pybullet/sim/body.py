@@ -14,8 +14,11 @@ class Body:
     body_id: int
 
     def aabb(self) -> np.ndarray:
-        """Base aabb."""
-        # TODO: Get accurate aabb.
+        """Body aabb.
+
+        Note: The aabb given by Pybullet is larger than the true aabb for
+        collision detection purposes.
+        """
         return np.array(p.getAABB(self.body_id, physicsClientId=self.physics_id))
 
     def pose(self) -> math.Pose:
@@ -26,11 +29,13 @@ class Body:
         return math.Pose(pos, quat)
 
     def set_pose(self, pose: math.Pose) -> None:
+        """Sets the base pose."""
         p.resetBasePositionAndOrientation(
             self.body_id, pose.pos, pose.quat, physicsClientId=self.physics_id
         )
 
     def twist(self) -> np.ndarray:
+        """Base twist."""
         v, w = p.getBaseVelocity(self.body_id, physicsClientId=self.physics_id)
         return np.concatenate([v, w])
 
@@ -69,13 +74,19 @@ class Body:
         return self._inertia
 
     def freeze(self) -> None:
+        """Disable simulation for this body."""
         if not hasattr(self, "_mass"):
-            self._mass = p.getDynamicsInfo(self.body_id, -1, physicsClientId=self.physics_id)[0]
+            self._mass = p.getDynamicsInfo(
+                self.body_id, -1, physicsClientId=self.physics_id
+            )[0]
         p.changeDynamics(self.body_id, -1, mass=0, physicsClientId=self.physics_id)
 
     def unfreeze(self) -> None:
+        """Enable simulation for this body."""
         try:
-            p.changeDynamics(self.body_id, -1, mass=self._mass, physicsClientId=self.physics_id)
+            p.changeDynamics(
+                self.body_id, -1, mass=self._mass, physicsClientId=self.physics_id
+            )
         except AttributeError:
             pass
 
@@ -88,6 +99,7 @@ class Link:
 
     @property
     def name(self) -> str:
+        """Link name."""
         try:
             return self._name  # type: ignore
         except AttributeError:
@@ -124,3 +136,18 @@ class Link:
         )
 
         return self._inertia
+
+    @property
+    def joint_limits(self) -> np.ndarray:
+        """(lower, upper) joint limits."""
+        try:
+            return self._joint_limits
+        except AttributeError:
+            pass
+
+        joint_info = p.getJointInfo(
+            self.body_id, self.link_id, physicsClientId=self.physics_id
+        )
+        self._joint_limits = np.array(joint_info[8:10])
+
+        return self._joint_limits
