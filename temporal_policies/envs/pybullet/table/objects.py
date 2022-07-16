@@ -14,7 +14,7 @@ from temporal_policies.envs.pybullet.table import object_state
 @dataclasses.dataclass
 class Object(body.Body):
     name: str
-    is_static: bool
+    is_static: bool = False
 
     def __init__(
         self,

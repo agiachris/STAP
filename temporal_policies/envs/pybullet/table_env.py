@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from ctrlutils import eigen
 import gym
 import numpy as np
 import yaml
@@ -90,17 +91,27 @@ class TableEnv(PybulletEnv[State, np.ndarray, np.ndarray]):
 
     def get_state(self) -> State:
         obj_states = {
-            obj.name: obj.state().vector for name, obj in self.objects.items()
+            name: state.vector for name, state in self.object_states().items()
         }
 
         return obj_states
 
     def object_states(self) -> Dict[str, object_state.ObjectState]:
-        return {obj.name: obj.state() for name, obj in self.objects.items()}
+        state = {obj.name: obj.state() for name, obj in self.objects.items()}
+
+        gripper_state = object_state.ObjectState()
+        ee_pose = self.robot.arm.ee_pose()
+        aa_pose = eigen.AngleAxisd(eigen.Quaterniond(ee_pose.quat))
+        gripper_state.pos = ee_pose.pos
+        gripper_state.aa = aa_pose.axis * aa_pose.angle
+        state["gripper"] = gripper_state
+
+        return state
 
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
         obj_states = self.get_state()
         arg_states = [obj_states[arg.name] for arg in self.primitive.args]
+        arg_states.append(obj_states["gripper"])
         return np.concatenate(arg_states, axis=0)
 
     def reset(

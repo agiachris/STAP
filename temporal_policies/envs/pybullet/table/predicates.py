@@ -6,6 +6,7 @@ import numpy as np
 import symbolic
 
 from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.envs.pybullet.table.primitives import is_upright
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
 
@@ -56,8 +57,7 @@ class On(Proposition):
             return False
 
         child_pose = child_obj.pose()
-        child_aa = eigen.AngleAxisd(eigen.Quaterniond(child_pose.quat))
-        if abs(child_aa.axis.dot(np.array([0.0, 0.0, 1.0]))) < 0.99:
+        if not is_upright(child_pose.quat):
             return False
 
         return True
