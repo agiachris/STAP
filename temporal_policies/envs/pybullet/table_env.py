@@ -21,8 +21,8 @@ class TableEnv(PybulletEnv[State, np.ndarray, np.ndarray]):
     action_space: gym.spaces.Box
     image_space = gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
     observation_space = gym.spaces.Box(
-        low=np.tile(object_state.ObjectState.range()[0], 2),
-        high=np.tile(object_state.ObjectState.range()[1], 2),
+        low=np.tile(object_state.ObjectState.range()[0], 3),
+        high=np.tile(object_state.ObjectState.range()[1], 3),
     )
 
     def __init__(
