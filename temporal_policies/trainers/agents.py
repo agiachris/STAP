@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Generic, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 import numpy as np
 import torch
@@ -9,7 +9,7 @@ from temporal_policies import agents, datasets, envs, processors
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.utils import configs, metrics, tensors
-from temporal_policies.utils.typing import Batch, ObsType, Scalar
+from temporal_policies.utils.typing import Batch, Scalar
 
 
 class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):

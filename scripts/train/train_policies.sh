@@ -63,16 +63,16 @@ function train_policy {
 # ENV_CONFIG="configs/pybox2d/envs/pushleft_img.yaml"
 # train_policy
 
-# EXP_NAME="20220708/pick_hook"
-#
-# TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
-# AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
-# ENV_CONFIG="configs/pybullet/envs/pick.yaml"
-# train_policy
-
-EXP_NAME="20220712/place_hook"
+EXP_NAME="20220716/pull"
 
 TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
+
+ENV_CONFIG="configs/pybullet/envs/pick.yaml"
+train_policy
+
 ENV_CONFIG="configs/pybullet/envs/place.yaml"
+train_policy
+
+ENV_CONFIG="configs/pybullet/envs/pull.yaml"
 train_policy

@@ -1,5 +1,6 @@
 from typing import List, Optional, Tuple, Union
 
+from ctrlutils import eigen
 import numpy as np
 import spatialdyn as dyn
 
@@ -60,6 +61,11 @@ class Arm(articulated_body.ArticulatedBody):
         self.ori_threshold = np.array(ori_threshold, dtype=np.float64)
 
         self._ab = dyn.ArticulatedBody(dyn.urdf.load_model(arm_urdf))
+        self.ab.q, self.ab.dq = self.get_state(self.torque_joints)
+
+        self._q_limits = np.array(
+            [self.link(link_id).joint_limits for link_id in self.torque_joints]
+        ).T
 
         self._pos_des: Optional[np.ndarray] = None
         self._quat_des: Optional[np.ndarray] = None
@@ -123,6 +129,13 @@ class Arm(articulated_body.ArticulatedBody):
 
         self._torque_control = True
 
+    def ee_pose(self) -> math.Pose:
+        self.ab.q, self.ab.dq = self.get_state(self.torque_joints)
+        T_ee_to_world = dyn.cartesian_pose(self.ab, offset=self.ee_offset)
+        return math.Pose(
+            T_ee_to_world.translation, eigen.Quaterniond(T_ee_to_world.linear).coeffs
+        )
+
     def update_torques(self) -> articulated_body.ControlStatus:
         """Computes and applies the torques to control the articulated body to the goal set with `Arm.set_pose_goal().
 
@@ -134,6 +147,10 @@ class Arm(articulated_body.ArticulatedBody):
 
         self.ab.q, self.ab.dq = self.get_state(self.torque_joints)
 
+        if (self._q_limits[0] >= self.ab.q).any() or (
+            self.ab.q >= self._q_limits[1]
+        ).any():
+            return articulated_body.ControlStatus.ABORTED
         # TODO: Debugging.
         # J = dyn.jacobian(self.ab, -1, offset=self.ee_offset)
         # Lambda = dyn.opspace.inertia(self.ab, J, svd_epsilon=0.01)

@@ -1,23 +1,20 @@
 import dataclasses
 import random
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 from ctrlutils import eigen
 import numpy as np
 import pybullet as p
 import spatialdyn as dyn
-import symbolic
 
 from temporal_policies.envs.pybullet.sim import body, math, shapes
-from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
 from temporal_policies.envs.pybullet.table import object_state
 
 
 @dataclasses.dataclass
 class Object(body.Body):
     name: str
-    is_static: bool
-    initial_state: Optional[str]
+    is_static: bool = False
 
     def __init__(
         self,
@@ -25,13 +22,11 @@ class Object(body.Body):
         body_id: int,
         name: str,
         is_static: bool = False,
-        initial_state: Optional[str] = None,
     ):
         super().__init__(physics_id, body_id)
 
         self.name = name
         self.is_static = is_static
-        self.initial_state = initial_state
 
         T_pybullet_to_obj = super().pose().to_eigen()
         self._modified_axes = not T_pybullet_to_obj.is_approx(
@@ -96,59 +91,8 @@ class Object(body.Body):
 
         return self._state
 
-    def reset(self, robot: Robot, objects: Dict[str, "Object"]) -> None:
-        if self.is_static or self.initial_state is None:
-            return
-
-        predicate, args = symbolic.parse_proposition(self.initial_state)
-        if predicate == "on":
-            parent_obj = objects[args[1]]
-
-            # Generate pose on parent.
-            xyz_min, xyz_max = parent_obj.aabb()
-            xyz = np.zeros(3)
-            xyz[:2] = np.random.uniform(0.9 * xyz_min[:2], 0.9 * xyz_max[:2])
-            xyz[2] = xyz_max[2] + 0.2
-            theta = np.random.uniform(-np.pi / 2, np.pi / 2)
-            aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-            pose = math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
-
-            self.set_pose(pose)
-
-        elif predicate == "inhand":
-            obj = objects[args[0]]
-            self.disable_collisions()
-
-            # Retry grasps.
-            for _ in range(5):
-                # Generate grasp pose.
-                xyz = np.array(robot.home_pose.pos)
-                xyz += 0.45 * np.random.uniform(-obj.size, obj.size)
-                theta = np.random.uniform(-np.pi / 2, np.pi / 2)
-                aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-                pose = math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
-
-                # Generate post-pick pose.
-                table_xyz_min, table_xyz_max = objects["table"].aabb()
-                xyz_pick = np.array([0.0, 0.0, obj.size[2] + 0.1])
-                xyz_pick[:2] = np.random.uniform(
-                    0.9 * table_xyz_min[:2], 0.9 * table_xyz_max[:2]
-                )
-
-                # Use fake grasp.
-                self.set_pose(pose)
-                robot.grasp_object(obj, realistic=False)
-                try:
-                    robot.goto_pose(pos=xyz_pick)
-                except ControlException:
-                    robot.reset()
-                    continue
-
-                break
-
-            self.enable_collisions()
-        else:
-            raise NotImplementedError
+    def reset(self) -> None:
+        pass
 
     @classmethod
     def create(
@@ -168,7 +112,6 @@ class Urdf(Object):
         name: str,
         path: str,
         is_static: bool = False,
-        initial_state: Optional[str] = None,
     ):
         body_id = p.loadURDF(
             fileName=path,
@@ -181,7 +124,6 @@ class Urdf(Object):
             body_id=body_id,
             name=name,
             is_static=is_static,
-            initial_state=initial_state,
         )
 
 
@@ -193,7 +135,6 @@ class Box(Object):
         size: Union[List[float], np.ndarray],
         color: Union[List[float], np.ndarray],
         mass: float = 0.1,
-        initial_state: Optional[str] = None,
     ):
         box = shapes.Box(size=np.array(size), mass=mass, color=np.array(color))
         body_id = shapes.create_body(box, physics_id=physics_id)
@@ -203,7 +144,6 @@ class Box(Object):
             body_id=body_id,
             name=name,
             is_static=mass == 0.0,
-            initial_state=initial_state,
         )
 
         self._state.box_size = box.size
@@ -225,7 +165,6 @@ class Hook(Object):
         color: Union[List[float], np.ndarray],
         radius: float = 0.02,
         mass: float = 0.1,
-        initial_state: Optional[str] = None,
     ):
         if not isinstance(color, np.ndarray):
             color = np.array(color)
@@ -278,7 +217,6 @@ class Hook(Object):
             body_id=body_id,
             name=name,
             is_static=mass == 0.0,
-            initial_state=initial_state,
         )
 
         self._state.head_length = head_length
@@ -310,8 +248,8 @@ class Hook(Object):
     def bbox(self) -> np.ndarray:
         return self._bbox
 
-    def aabb(self) -> np.ndarray:
-        raise NotImplementedError
+    # def aabb(self) -> np.ndarray:
+    #     raise NotImplementedError
 
 
 class Union(Object):
@@ -320,17 +258,14 @@ class Union(Object):
         physics_id: int,
         name: str,
         options: List[Dict[str, Any]],
-        initial_state: Optional[str] = None,
     ):
         self.physics_id = physics_id
         self.name = name
-        self.initial_state = initial_state
 
         self._objects = [
             Object.create(
                 physics_id=self.physics_id,
                 name=self.name,
-                initial_state=self.initial_state,
                 **obj_kwargs,
             )
             for obj_kwargs in options
@@ -347,7 +282,7 @@ class Union(Object):
             raise RuntimeError("Union.reset() must be called first")
         return self._body
 
-    def reset(self, robot: Robot, objects: Dict[str, "Object"]) -> None:
+    def reset(self) -> None:
         idx_body = random.randrange(len(self._objects))
         for i, body in enumerate(self._objects):
             if i == idx_body:
@@ -359,7 +294,7 @@ class Union(Object):
         self._body = self._objects[idx_body]
         self.body.enable_collisions()
         self.body.unfreeze()
-        self.body.reset(robot, objects)
+        self.body.reset()
 
     def isinstance(self, class_or_tuple: type) -> bool:
         return self.body.isinstance(class_or_tuple)
