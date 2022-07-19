@@ -18,7 +18,7 @@ function train_policy {
     args="${args} --agent-config ${AGENT_CONFIG}"
     args="${args} --env-config ${ENV_CONFIG}"
     # args="${args} --encoder-checkpoint ${ENCODER_CHECKPOINT}"
-    args="${args} --path ${OUTPUTS}/models/${EXP_NAME}"
+    args="${args} --path ${OUTPUTS}/temporal_policies/models/${EXP_NAME}"
     args="${args} --seed 0"
     # args="${args} --overwrite"
 
@@ -63,14 +63,14 @@ function train_policy {
 # ENV_CONFIG="configs/pybox2d/envs/pushleft_img.yaml"
 # train_policy
 
-EXP_NAME="20220714/decoupled_state"
+EXP_NAME="20220718/decoupled_state"
 
 TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
 ENV_CONFIG="configs/pybox2d/envs/placeright.yaml"
 train_policy
 
-# TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
-# AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
-# ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
-# train_policy
+TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
+AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
+ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
+train_policy

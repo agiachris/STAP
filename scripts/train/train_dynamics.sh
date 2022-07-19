@@ -19,7 +19,7 @@ function train_dynamics {
     if [ ${#POLICY_CHECKPOINTS[@]} -gt 0 ]; then
         args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS[@]}"
     fi
-    args="${args} --path models/${EXP_NAME}"
+    args="${args} --path ${OUTPUTS}/temporal_policies/models/${EXP_NAME}"
     args="${args} --seed 0"
     # args="${args} --overwrite"
 

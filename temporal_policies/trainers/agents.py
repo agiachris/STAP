@@ -6,6 +6,7 @@ import torch  # type: ignore
 import tqdm  # type: ignore
 
 from temporal_policies import agents, datasets, envs, processors
+from temporal_policies.networks.encoders import OracleEncoder, NormalizeObservation
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.utils import configs, metrics, tensors
@@ -171,7 +172,8 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
                     observation = tensors.from_numpy(
                         self.env.get_observation(), self.device
                     )
-                    observation = tensors.rgb_to_cnn(observation)
+                    if not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation)):
+                        observation = tensors.rgb_to_cnn(observation)
                     action = self.agent.actor.predict(
                         self.agent.encoder.encode(observation)
                     )
@@ -222,10 +224,11 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             isinstance(batch["observation"], torch.Tensor)
             and batch["observation"].shape[-1] == 3
             and batch["observation"].dtype == torch.uint8
+            and not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation))
         ):
             batch["observation"] = tensors.rgb_to_cnn(batch["observation"])
             batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])
-        return tensors.to(batch, self.device)
+        return super().to(batch, self.device)
 
     def pretrain(self) -> None:
         """Runs the pretrain phase."""
@@ -284,7 +287,8 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
                 while not done:
                     with torch.no_grad():
                         observation = tensors.from_numpy(observation, self.device)
-                        observation = tensors.rgb_to_cnn(observation)
+                        if not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation)):
+                            observation = tensors.rgb_to_cnn(observation)
                         action = self.agent.actor.predict(
                             self.agent.encoder.encode(observation)
                         )
