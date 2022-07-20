@@ -228,7 +228,7 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
         ):
             batch["observation"] = tensors.rgb_to_cnn(batch["observation"])
             batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])
-        return super().to(batch, self.device)
+        return super().process_batch(batch)
 
     def pretrain(self) -> None:
         """Runs the pretrain phase."""
