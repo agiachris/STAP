@@ -60,7 +60,10 @@ class Model(abc.ABC, Generic[BatchType]):
             checkpoint: Checkpoint path.
             strict: Make sure the state dict keys match.
         """
-        device = self.device if hasattr(self, "device") else None  # type: ignore
+        try:
+            device = self.device  # type: ignore
+        except AttributeError:
+            device = None
         state_dict = torch.load(checkpoint, map_location=device)
         self.load_state_dict(state_dict)
 
@@ -80,42 +83,35 @@ class Model(abc.ABC, Generic[BatchType]):
 ModelType = TypeVar("ModelType", bound=Model)
 
 
-# Batch = Dict[str, ArrayType]
 class Batch(TypedDict):
     observation: Tensor
     action: Tensor
     reward: Tensor
     next_observation: Tensor
     discount: Tensor
-# class Batch(TypedDict, Generic[ArrayType, ObsType]):
-#     observation: ObsType
-#     action: ArrayType
-#     reward: ArrayType
-#     next_observation: ObsType
-#     discount: ArrayType
 
 
 class WrappedBatch(Batch):
     idx_replay_buffer: np.ndarray
 
 
-class DynamicsBatch(TypedDict, Generic[ArrayType, ObsType]):
-    observation: ObsType
-    idx_policy: ArrayType
-    action: ArrayType
-    next_observation: ObsType
+class DynamicsBatch(TypedDict):
+    observation: Tensor
+    idx_policy: Tensor
+    action: Tensor
+    next_observation: Tensor
 
 
-class StateBatch(TypedDict, Generic[ArrayType]):
-    state: ArrayType
-    observation: ArrayType
-    image: ArrayType
+class StateBatch(TypedDict):
+    state: Tensor
+    observation: Tensor
+    image: Tensor
 
 
-class AutoencoderBatch(TypedDict, Generic[ObsType]):
-    observation: ObsType
+class AutoencoderBatch(TypedDict):
+    observation: Tensor
 
 
-class StateEncoderBatch(TypedDict, Generic[ArrayType, ObsType]):
-    observation: ObsType
-    state: ArrayType
+class StateEncoderBatch(TypedDict):
+    observation: Tensor
+    state: Tensor

@@ -1,10 +1,10 @@
 import functools
-from typing import Any, Sequence, Tuple
+from typing import Sequence, Tuple
 
 import numpy as np
 import torch
 
-from temporal_policies import agents, dynamics
+from temporal_policies import agents, dynamics, envs
 from temporal_policies.planners import base as planners
 from temporal_policies.planners import utils
 
@@ -36,7 +36,7 @@ class ShootingPlanner(planners.Planner):
         return self._num_samples
 
     def plan(
-        self, observation: Any, action_skeleton: Sequence[Tuple[int, Any]]
+        self, observation: np.ndarray, action_skeleton: Sequence[envs.Primitive]
     ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray]:
         """Generates `num_samples` trajectories and picks the best one.
 
@@ -54,24 +54,34 @@ class ShootingPlanner(planners.Planner):
         """
         with torch.no_grad():
             # Get initial state.
-            observation = torch.from_numpy(observation).to(self.dynamics.device)
-            idx_policy = action_skeleton[0][0]
-            state = self.dynamics.encode(observation, idx_policy)
+            t_observation = torch.from_numpy(observation).to(self.dynamics.device)
+            state = self.dynamics.encode(
+                t_observation,
+                action_skeleton[0].idx_policy,
+                action_skeleton[0].policy_args,
+            )
             state = state.repeat(self.num_samples, 1)
 
             # Roll out trajectories.
-            policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
+            policies = [
+                self.policies[primitive.idx_policy] for primitive in action_skeleton
+            ]
             states, actions, p_transitions = self.dynamics.rollout(
                 state, action_skeleton, policies
             )
 
             # Evaluate trajectories.
             value_fns = [
-                self.policies[idx_policy].critic for idx_policy, _ in action_skeleton
+                self.policies[primitive.idx_policy].critic
+                for primitive in action_skeleton
             ]
             decode_fns = [
-                functools.partial(self.dynamics.decode, idx_policy=idx_policy)
-                for idx_policy, _ in action_skeleton
+                functools.partial(
+                    self.dynamics.decode,
+                    idx_policy=primitive.idx_policy,
+                    policy_args=primitive.policy_args,
+                )
+                for primitive in action_skeleton
             ]
             p_success = utils.evaluate_trajectory(
                 value_fns, decode_fns, states, actions, p_transitions

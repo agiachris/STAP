@@ -11,17 +11,21 @@ from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.utils import load as load_trainer
 from temporal_policies.utils import configs, tensors
-from temporal_policies.utils.typing import WrappedBatch, StateEncoderBatch
+from temporal_policies.utils.typing import Scalar, StateBatch, StateEncoderBatch
 
 
-class StateEncoderTrainer(Trainer[encoders.StateEncoder, StateEncoderBatch, WrappedBatch]):
+# TODO: Not fully implemented
+
+class StateEncoderTrainer(
+    Trainer[encoders.StateEncoder, StateEncoderBatch, StateBatch]
+):
     """State encoder trainer."""
 
     def __init__(
         self,
         path: Union[str, pathlib.Path],
         encoder: encoders.StateEncoder,
-        dataset_class: Union[str, Type[torch.utils.data.IterableDataset]],
+        dataset_class: Union[str, Type[datasets.StateBuffer]],
         dataset_kwargs: Dict[str, Any],
         processor_class: Union[
             str, Type[processors.Processor]
@@ -152,7 +156,7 @@ class StateEncoderTrainer(Trainer[encoders.StateEncoder, StateEncoderBatch, Wrap
         """State encoder being trained."""
         return self.model
 
-    def process_batch(self, batch: WrappedBatch) -> StateEncoderBatch:
+    def process_batch(self, batch: StateBatch) -> StateEncoderBatch:
         """Formats the replay buffer batch for the state encoder model.
 
         Args:
@@ -161,16 +165,12 @@ class StateEncoderTrainer(Trainer[encoders.StateEncoder, StateEncoderBatch, Wrap
         Returns:
             Dict with (observation, idx_policy, action, next_observation).
         """
-
-        observations = (
-            tensors.rgb_to_cnn(batch["observation"], contiguous=True),
-            tensors.rgb_to_cnn(batch["next_observation"], contiguous=True),
+        encoder_batch = StateEncoderBatch(
+            observation=batch["observation"], state=batch["state"]
         )
-
-        encoder_batch = StateEncoderBatch(observation=torch.concat(observations, dim=0))
         return tensors.to(encoder_batch, self.device)
 
-    def evaluate(self) -> List[Dict[str, np.ndarray]]:
+    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:
@@ -181,7 +181,7 @@ class StateEncoderTrainer(Trainer[encoders.StateEncoder, StateEncoderBatch, Wrap
 
         self.eval_mode()
 
-        eval_metrics_list = []
+        eval_metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]] = []
         pbar = tqdm.tqdm(
             self._eval_dataloader,
             desc=f"Eval {self.name}",

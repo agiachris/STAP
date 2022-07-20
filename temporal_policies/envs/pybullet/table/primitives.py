@@ -6,10 +6,10 @@ import gym
 import numpy as np
 import symbolic
 
+from temporal_policies.envs import base as envs
 from temporal_policies.envs.pybullet.sim import robot
 from temporal_policies.envs.pybullet.sim.robot import ControlException
 from temporal_policies.envs.pybullet.table import objects
-from temporal_policies.utils import spaces
 
 
 def compute_top_down_orientation(
@@ -27,17 +27,7 @@ def is_upright(quat: np.ndarray) -> bool:
     return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= 0.99
 
 
-class Primitive(abc.ABC):
-    action_space: gym.spaces.Box
-    action_scale: gym.spaces.Box
-
-    def __init__(self, args: List[objects.Object]):
-        self._args = args
-
-    @property
-    def args(self) -> List[objects.Object]:
-        return self._args
-
+class Primitive(envs.Primitive, abc.ABC):
     @abc.abstractmethod
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         pass
@@ -48,27 +38,19 @@ class Primitive(abc.ABC):
 
     @staticmethod
     def from_action_call(
-        action_call: str, objects: Dict[str, objects.Object]
+        action_call: str,
+        primitives: List[str],
+        objects: Dict[str, objects.Object],
     ) -> "Primitive":
         name, arg_names = symbolic.parse_proposition(action_call)
         args = [objects[obj_name] for obj_name in arg_names]
 
         primitive_class = globals()[name.capitalize()]
-        return primitive_class(args)
-
-    @classmethod
-    def scale_action(cls, action: np.ndarray) -> np.ndarray:
-        return spaces.transform(
-            action, from_space=cls.action_space, to_space=cls.action_scale
-        )
-
-    def normalize_action(cls, action: np.ndarray) -> np.ndarray:
-        return spaces.transform(
-            action, from_space=cls.action_scale, to_space=cls.action_space
-        )
+        idx_policy = primitives.index(name)
+        return primitive_class(idx_policy, args)
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__.lower()}({', '.join([arg.name for arg in self.args])})"
+        return f"{type(self).__name__.lower()}({', '.join([arg.name for arg in self.policy_args])})"
 
 
 class Pick(Primitive):
@@ -85,7 +67,7 @@ class Pick(Primitive):
         theta = action[3]
 
         # Get object pose.
-        obj = self.args[0]
+        obj = self.policy_args[0]
         obj_pose = obj.pose()
         obj_quat = eigen.Quaterniond(obj_pose.quat)
 
@@ -111,7 +93,7 @@ class Pick(Primitive):
         return True
 
     def sample_action(self) -> np.ndarray:
-        if self.args[0].isinstance(objects.Hook):
+        if self.policy_args[0].isinstance(objects.Hook):
             return np.array([-0.1, -0.1, 0.0, 0.0], dtype=np.float32)
         else:
             return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
@@ -131,7 +113,7 @@ class Place(Primitive):
         theta = action[3]
 
         # Get target pose.
-        target = self.args[1]
+        target = self.policy_args[1]
         target_pose = target.pose()
         target_quat = eigen.Quaterniond(target_pose.quat)
 
@@ -173,7 +155,7 @@ class Pull(Primitive):
         r_reach, r_pull, y, theta = self.scale_action(action)
 
         # Get target pose in polar coordinates
-        target, hook = self.args
+        target, hook = self.policy_args
         target_pose = target.pose()
         if target_pose.pos[0] < 0:
             return False

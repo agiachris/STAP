@@ -1,17 +1,13 @@
 import sys
-from typing import Generic
 
 from temporal_policies.envs.base import Env
-from temporal_policies.utils.typing import StateType, ActType, ObsType
 from temporal_policies.envs.pybullet.utils import RedirectStream
 
 with RedirectStream(sys.stderr):
     import pybullet as p
 
 
-class PybulletEnv(
-    Env[StateType, ActType, ObsType], Generic[StateType, ActType, ObsType]
-):
+class PybulletEnv(Env):
     def __init__(self, name: str, gui: bool = True):
         self.name = name
         options = (

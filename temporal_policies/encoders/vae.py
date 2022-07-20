@@ -2,16 +2,17 @@ import pathlib
 import random
 from typing import Any, Dict, Optional, Tuple, Type, Union
 
+import gym
 import torch
 
-from temporal_policies import envs, networks
+from temporal_policies import datasets, envs, networks
 from temporal_policies.encoders.autoencoder import Autoencoder
 from temporal_policies.networks.encoders import beta_tcvae
-from temporal_policies.utils import configs, tensors
+from temporal_policies.utils import configs
 from temporal_policies.utils.typing import AutoencoderBatch
 
 
-class VAE(Autoencoder[torch.Tensor]):
+class VAE(Autoencoder):
     """Beta-TCVAE."""
 
     def __init__(
@@ -58,6 +59,7 @@ class VAE(Autoencoder[torch.Tensor]):
             prior_distribution, {}, beta_tcvae.dist
         )
         q_distribution = configs.get_instance(q_distribution, {}, beta_tcvae.dist)
+        assert isinstance(self.encoder.state_space, gym.spaces.Box)
         self.vae = beta_tcvae.VAE(
             z_dim=self.encoder.state_space.shape[0],
             prior_dist=prior_distribution(),
@@ -113,7 +115,7 @@ class VAE(Autoencoder[torch.Tensor]):
         }
         return optimizers
 
-    def train_setup(self, dataset: torch.utils.data.Dataset) -> None:
+    def train_setup(self, dataset: datasets.StratifiedReplayBuffer) -> None:
         self._dataset_size = len(dataset)
 
     def compute_loss(
@@ -180,7 +182,7 @@ class VAE(Autoencoder[torch.Tensor]):
             Dict of training metrics for logging.
         """
         self.anneal_kl(step)
-        loss, metrics = self.compute_loss(**batch)
+        loss, metrics = self.compute_loss(**batch)  # type: ignore
 
         optimizers["vae"].zero_grad()
         loss.backward()

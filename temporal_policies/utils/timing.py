@@ -128,7 +128,7 @@ class Profiler(Timer):
         Returns:
             Average time interval.
         """
-        mean = np.mean(self._tictocs[key])
+        mean = float(np.mean(self._tictocs[key]))
         if reset:
             self._tictocs[key] = []
         return mean

@@ -1,6 +1,6 @@
 import abc
 import enum
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pybullet as p

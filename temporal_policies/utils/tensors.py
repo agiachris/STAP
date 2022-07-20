@@ -44,7 +44,7 @@ def to_tensor(
 
 def dim(
     x: Union[torch.Tensor, np.ndarray, Sequence[float], Sequence[int], typing.Scalar]
-) -> torch.Tensor:
+) -> int:
     """Gets the number of dimensions of x.
 
     Args:

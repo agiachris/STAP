@@ -1,7 +1,9 @@
+from typing import Any, Optional
+
 import gym
 import numpy as np
 
-from temporal_policies.envs.base import Env
+from temporal_policies.envs import base as envs
 
 
 def _get_space(low=None, high=None, shape=None, dtype=None):
@@ -15,11 +17,11 @@ def _get_space(low=None, high=None, shape=None, dtype=None):
         # Construct all the sets
         spaces = {}
         for k in all_keys:
-            l = low.get(k, None) if isinstance(low, dict) else low
+            ll = low.get(k, None) if isinstance(low, dict) else low
             h = high.get(k, None) if isinstance(high, dict) else high
             s = shape.get(k, None) if isinstance(shape, dict) else shape
             d = dtype.get(k, None) if isinstance(dtype, dict) else dtype
-            spaces[k] = _get_space(l, h, s, d)
+            spaces[k] = _get_space(ll, h, s, d)
         # Construct the gym dict space
         return gym.spaces.Dict(**spaces)
 
@@ -37,7 +39,7 @@ def _get_space(low=None, high=None, shape=None, dtype=None):
     return gym.spaces.Box(low=low, high=high, shape=shape, dtype=dtype)
 
 
-class EmptyEnv(Env):
+class EmptyEnv(envs.Env):
 
     """
     An empty holder for defining supervised learning problems
@@ -58,9 +60,50 @@ class EmptyEnv(Env):
         self.observation_space = _get_space(
             observation_low, observation_high, observation_shape, observation_dtype
         )
-        self.action_space = _get_space(
+        self._action_space = _get_space(
             action_low, action_high, action_shape, action_dtype
         )
+
+    @property
+    def action_space(self) -> gym.spaces.Box:  # type: ignore
+        return self._action_space
+
+    @property
+    def action_scale(self) -> gym.spaces.Box:
+        return self._action_space
+
+    def get_primitive(self) -> envs.Primitive:
+        raise NotImplementedError("Empty Env does not have primitives")
+
+    def set_primitive(
+        self,
+        primitive: Optional[envs.Primitive] = None,
+        action_call: Optional[str] = None,
+        idx_policy: Optional[int] = None,
+        policy_args: Optional[Any] = None,
+    ) -> envs.Env:
+        raise NotImplementedError("Empty Env does not have primitives")
+
+    def get_primitive_info(
+        self,
+        action_call: Optional[str] = None,
+        idx_policy: Optional[int] = None,
+        policy_args: Optional[Any] = None,
+    ) -> envs.Primitive:
+        """Gets the primitive info."""
+        raise NotImplementedError("Empty Env does not have primitives")
+
+    def get_state(self) -> np.ndarray:
+        """Gets the environment state."""
+        raise NotImplementedError("Empty Env does not have states")
+
+    def set_state(self, state: np.ndarray) -> bool:
+        """Sets the environment state."""
+        raise NotImplementedError("Empty Env does not have states")
+
+    def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
+        """Gets an observation for the current environment state."""
+        raise NotImplementedError("Empty Env does not have observations")
 
     def step(self, action):
         raise NotImplementedError("Empty Env does not have step")

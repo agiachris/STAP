@@ -1,14 +1,15 @@
 import pathlib
-from typing import Any, Dict, Generic, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
+import numpy as np
 import torch
 
 from temporal_policies import envs, networks
 from temporal_policies.encoders.base import Encoder
-from temporal_policies.utils.typing import StateEncoderBatch, Model, ObsType
+from temporal_policies.utils.typing import StateEncoderBatch, Model, Scalar
 
 
-class StateEncoder(Encoder[ObsType], Model[StateEncoderBatch], Generic[ObsType]):
+class StateEncoder(Encoder, Model[StateEncoderBatch]):
     """Vanilla autoencoder."""
 
     def __init__(
@@ -41,11 +42,13 @@ class StateEncoder(Encoder[ObsType], Model[StateEncoderBatch], Generic[ObsType])
             self.load(checkpoint, strict=True)
 
     def compute_loss(
-            self, observation: torch.Tensor, state: torch.Tensor,
-    ) -> Tuple[torch.Tensor, Dict[str, float]]:
+        self,
+        observation: torch.Tensor,
+        state: torch.Tensor,
+    ) -> Tuple[torch.Tensor, Dict[str, Union[Scalar, np.ndarray]]]:
         state_prediction = self.network.predict(observation)
         loss = torch.nn.functional.mse_loss(state_prediction, state)
-        metrics = {
+        metrics: Dict[str, Union[Scalar, np.ndarray]] = {
             "loss": loss.item(),
         }
 
@@ -57,7 +60,7 @@ class StateEncoder(Encoder[ObsType], Model[StateEncoderBatch], Generic[ObsType])
         batch: StateEncoderBatch,
         optimizers: Dict[str, torch.optim.Optimizer],
         schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Union[Scalar, np.ndarray]]:
         """Performs a single training step.
 
         Args:
@@ -69,7 +72,8 @@ class StateEncoder(Encoder[ObsType], Model[StateEncoderBatch], Generic[ObsType])
         Returns:
             Dict of training metrics for logging.
         """
-        loss, metrics = self.compute_loss(**batch)
+        assert isinstance(batch["observation"], torch.Tensor)
+        loss, metrics = self.compute_loss(**batch)  # type: ignore
 
         optimizers["encoder"].zero_grad()
         loss.backward()

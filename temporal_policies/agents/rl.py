@@ -8,7 +8,7 @@ from temporal_policies.agents.base import Agent
 from temporal_policies.utils.typing import Batch, Model
 
 
-class RLAgent(Agent[torch.Tensor], Model[Batch]):
+class RLAgent(Agent, Model[Batch]):
     """RL agent base class."""
 
     def __init__(
@@ -16,7 +16,7 @@ class RLAgent(Agent[torch.Tensor], Model[Batch]):
         env: envs.Env,
         actor: networks.actors.Actor,
         critic: networks.critics.Critic,
-        encoder: encoders.Encoder[torch.Tensor],
+        encoder: encoders.Encoder,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):

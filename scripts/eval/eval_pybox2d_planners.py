@@ -15,26 +15,25 @@ from temporal_policies.utils import random, spaces, timing
 
 
 def create_grid_policies(
-    env: envs.SequentialEnv,
+    env: envs.Env,
     policies: Sequence[agents.Agent],
-    action_skeleton: Sequence[Tuple[int, Any]],
+    action_skeleton: Sequence[envs.Primitive],
     grid_resolution: int,
 ) -> List[agents.Agent]:
     assert all(
-        len(policy_env.action_space.shape) == 1 for policy_env in env.envs
+        len(primitive.action_space.shape) == 1 for primitive in action_skeleton
     ), "Only vector actions supported"
 
     grid_policies: List[agents.Agent] = []
-    for idx_policy, policy_args in action_skeleton[:-1]:
-        policy_env = env.envs[idx_policy]
-        action_space = policy_env.action_space
-        actions = np.meshgrid(
+    for primitive in action_skeleton[:-1]:
+        action_space = primitive.action_space
+        action_mesh = np.meshgrid(
             *np.linspace(action_space.low, action_space.high, grid_resolution).T
         )
-        actions = np.stack(actions, axis=-1).reshape(-1, action_space.shape[0])
+        actions = np.stack(action_mesh, axis=-1).reshape(-1, action_space.shape[0])
 
         grid_policies.append(
-            agents.ConstantAgent(action=actions, policy=policies[idx_policy])
+            agents.ConstantAgent(action=actions, policy=policies[primitive.idx_policy])
         )
 
     grid_policies.append(policies[-1])
@@ -44,18 +43,23 @@ def create_grid_policies(
 
 def evaluate_critic_functions(
     planner: planners.Planner,
-    action_skeleton: Sequence[Tuple[int, Any]],
-    env: envs.SequentialEnv,
+    action_skeleton: Sequence[envs.Primitive],
+    env: envs.Env,
     grid_resolution: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
     grid_policies = create_grid_policies(
         env, planner.policies, action_skeleton, grid_resolution
     )
 
-    observation = env.get_observation(action_skeleton[0][0])
+    primitive = action_skeleton[0]
+    env.set_primitive(primitive)
+    observation = env.get_observation()
     with torch.no_grad():
-        observation = torch.from_numpy(observation).to(planner.device)
-        state = planner.dynamics.encode(observation, action_skeleton[0][0])
+        t_observation = torch.from_numpy(observation).to(planner.device)
+        state = planner.dynamics.encode(
+            t_observation, primitive.idx_policy, primitive.policy_args
+        )
+        assert isinstance(grid_policies[0].actor.constant, torch.Tensor)
         state = state.repeat(grid_policies[0].actor.constant.shape[0], 1)
         states, actions, p_transitions = planner.dynamics.rollout(
             state=state,
@@ -65,13 +69,14 @@ def evaluate_critic_functions(
         )
 
         q_values = torch.zeros_like(p_transitions)
-        for t, (idx_policy, policy_args) in enumerate(action_skeleton):
+        for t, primitive in enumerate(action_skeleton):
             policy_state = planner.dynamics.decode(
-                states[:, t], idx_policy, policy_args
+                states[:, t], primitive.idx_policy, primitive.policy_args
             )
             dim_action = torch.sum(~torch.isnan(actions[0, t])).cpu().item()
+            assert isinstance(dim_action, int)
             action = actions[:, t, :dim_action]
-            q_values[:, t] = planner.policies[idx_policy].critic.predict(
+            q_values[:, t] = planner.policies[primitive.idx_policy].critic.predict(
                 policy_state, action
             )
 
@@ -79,8 +84,8 @@ def evaluate_critic_functions(
 
 
 def plot_critic_functions(
-    env: envs.pybox2d.Sequential2D,
-    action_skeleton: Sequence[Tuple[int, Any]],
+    env: envs.Env,
+    action_skeleton: Sequence[envs.Primitive],
     actions: np.ndarray,
     p_success: np.ndarray,
     rewards: np.ndarray,
@@ -90,12 +95,12 @@ def plot_critic_functions(
     title: Optional[str] = None,
 ) -> None:
     def tick_labels(value: float, pos: float, dim: int) -> str:
-        x = np.array(env.envs[0].action_space.low)
+        x = np.array(action_skeleton[0].action_space.low)
         x[dim] = value
         x = spaces.transform(
             x,
-            from_space=env.envs[0].action_space,
-            to_space=env.envs[0].action_scale,
+            from_space=action_skeleton[0].action_space,
+            to_space=action_skeleton[0].action_scale,
         )[dim]
         return f"{x:0.2f}"
 
@@ -107,7 +112,7 @@ def plot_critic_functions(
         ax.set_xlabel("x [m]")
         ax.set_ylabel("theta [rad]")
 
-        action_space = env.envs[0].action_space
+        action_space = action_skeleton[0].action_space
         ax.set_xlim(action_space.low[0], action_space.high[0])
         ax.set_ylim(action_space.low[1], action_space.high[1])
         ax.set_zlim(0, 1)
@@ -123,11 +128,11 @@ def plot_critic_functions(
     fig, axes = plt.subplots(1, T + 1, subplot_kw={"projection": "3d"}, figsize=(16, 5))
 
     xs, ys = grid_actions[:, 0].T
-    for t, (idx_policy, policy_args) in enumerate(action_skeleton):
+    for t, primitive in enumerate(action_skeleton):
         ax = axes[t]
 
         plot_trisurf(ax, xs, ys, grid_q_values[:, t])
-        ax.set_title(f"{type(env.envs[idx_policy]).__name__} Q(s, a)")
+        ax.set_title(f"{primitive} Q(s, a)")
         ax.set_zlabel("Q(s, a)")
 
     ax = axes[2]
@@ -151,17 +156,16 @@ def plot_critic_functions(
 
 def scale_actions(
     actions: np.ndarray,
-    env: envs.SequentialEnv,
-    action_skeleton: Sequence[Tuple[int, Any]],
+    env: envs.Env,
+    action_skeleton: Sequence[envs.Primitive],
 ) -> np.ndarray:
     scaled_actions = actions.copy()
-    for t, (idx_policy, policy_args) in enumerate(action_skeleton):
-        policy_env = env.envs[idx_policy]
-        action_dims = policy_env.action_space.shape[0]
+    for t, primitive in enumerate(action_skeleton):
+        action_dims = primitive.action_space.shape[0]
         scaled_actions[..., t, :action_dims] = spaces.transform(
             actions[..., t, :action_dims],
-            from_space=policy_env.action_space,
-            to_space=policy_env.action_scale,
+            from_space=primitive.action_space,
+            to_space=primitive.action_scale,
         )
 
     return scaled_actions
@@ -195,13 +199,17 @@ def evaluate_planners(
     path = pathlib.Path(path) / pathlib.Path(config).stem
     path.mkdir(parents=True, exist_ok=True)
 
-    action_skeleton = [(0, None), (1, None)]
+    action_skeleton = [
+        env.get_primitive_info("PlaceRight"),
+        env.get_primitive_info("PushLeft"),
+    ]
 
     for i in tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True):
         if seed is not None:
             random.seed(i)
 
-        observation = env.reset(action_skeleton[0][0])
+        observation = env.reset()
+        assert isinstance(observation, np.ndarray)
         state = env.get_state()
 
         timer.tic("planner")
@@ -211,11 +219,7 @@ def evaluate_planners(
         t_planner = timer.toc("planner")
 
         rewards = planners.evaluate_plan(
-            env,
-            action_skeleton,
-            state,
-            actions,
-            gif_path=path / f"exec_{i}.gif",
+            env, action_skeleton, state, actions, gif_path=path / f"exec_{i}.gif"
         )
 
         if verbose:
@@ -269,7 +273,7 @@ def evaluate_planners(
                 "p_visited_success": p_visited_success,
                 "t_planner": t_planner,
             }
-            np.savez_compressed(f, **save_dict)
+            np.savez_compressed(f, **save_dict)  # type: ignore
 
 
 def main(args: argparse.Namespace) -> None:

@@ -1,10 +1,9 @@
 from typing import Optional
 
 import gym
-import torch
 
 from temporal_policies.agents import base, wrapper
-from temporal_policies import envs, networks
+from temporal_policies import encoders, envs, networks
 
 
 class RandomAgent(wrapper.WrapperAgent):
@@ -14,8 +13,8 @@ class RandomAgent(wrapper.WrapperAgent):
         self,
         env: Optional[envs.Env] = None,
         policy: Optional[base.Agent] = None,
-        action_space: Optional[gym.spaces.Space] = None,
-        observation_space: Optional[gym.spaces.Space] = None,
+        action_space: Optional[gym.spaces.Box] = None,
+        observation_space: Optional[gym.spaces.Box] = None,
         device: str = "auto",
     ):
         """Constructs the random agent.
@@ -53,16 +52,14 @@ class RandomAgent(wrapper.WrapperAgent):
 
             state_space = observation_space
             dim_states = len(state_space.shape)
-            critic = networks.Constant(0.0, input_dim=dim_states)
-            encoder = torch.nn.Identity()
+            critic = networks.critics.ConstantCritic(0.0, dim_states)
+            encoder = encoders.IdentityEncoder(env, action_space, observation_space)
 
         super().__init__(
             state_space=state_space,
             action_space=action_space,
             observation_space=observation_space,
-            actor=networks.Random(
-                action_space.low, action_space.high, input_dim=dim_states
-            ),
+            actor=networks.actors.RandomActor(action_space, dim_states),
             critic=critic,
             encoder=encoder,
             device=device,

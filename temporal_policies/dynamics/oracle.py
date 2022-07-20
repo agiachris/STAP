@@ -12,7 +12,10 @@ class OracleDynamics(dynamics.Dynamics):
     """Dummy dynamics model that uses simulation to get the next state."""
 
     def __init__(
-        self, policies: Sequence[agents.Agent], env: envs.SequentialEnv, device: str = "auto"
+        self,
+        policies: Sequence[agents.Agent],
+        env: envs.Env,
+        device: str = "auto",
     ):
         """Constructs the oracle dynamics wrapper.
 
@@ -31,12 +34,12 @@ class OracleDynamics(dynamics.Dynamics):
         self._env = env
 
     @property
-    def env(self) -> envs.SequentialEnv:
+    def env(self) -> envs.Env:
         """Oracle environment."""
         return self._env
 
     @env.setter
-    def env(self, env: envs.SequentialEnv) -> None:
+    def env(self, env: envs.Env) -> None:
         """Updates the oracle environment."""
         self._env = env
 
@@ -45,36 +48,43 @@ class OracleDynamics(dynamics.Dynamics):
     def forward(
         self,
         state: np.ndarray,
-        idx_policy: int,
         action: np.ndarray,
-        policy_args: Optional[Any] = None,
+        idx_policy: int,
+        policy_args: Optional[Any],
     ) -> np.ndarray:
         """Simulates a single step in the environment.
 
         Args:
             state: Current state.
-            idx_policy: Index of executed policy.
             action: Policy action.
+            idx_policy: Index of executed policy.
             policy_args: Auxiliary policy arguments.
 
         Returns:
             Next state.
         """
+        self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
         self.env.set_state(state)
         action = action[: self.policies[idx_policy].action_space.shape[0]]
-        self.env.step((action, idx_policy, policy_args))
-        next_state: np.ndarray = self.env.get_state()
+        self.env.step(action)
+        next_state = self.env.get_state()
         return next_state
 
     @tensors.torch_wrap
-    def encode(self, observation: np.ndarray, idx_policy: int) -> np.ndarray:
+    def encode(
+        self,
+        observation: np.ndarray,
+        idx_policy: int,
+        policy_args: Optional[Any],
+    ) -> np.ndarray:
         """Returns the current environment state.
 
         WARNING: This ignores the input observation and instead returns the
         environment's current ground truth state. Be careful that the state
         matches the observation as expected.
         """
-        env_observation = self.env.get_observation(idx_policy)
+        self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
+        env_observation = self.env.get_observation()
         assert observation.ndim == env_observation.ndim
         if (observation != env_observation).any():
             # May happen if self.env is not updated by the dynamics factory.
@@ -87,7 +97,7 @@ class OracleDynamics(dynamics.Dynamics):
         self,
         state: np.ndarray,
         idx_policy: int,
-        policy_args: Optional[Any] = None,
+        policy_args: Optional[Any],
     ) -> np.ndarray:
         """Returns the encoded state for the policy.
 
@@ -99,10 +109,11 @@ class OracleDynamics(dynamics.Dynamics):
         Returs:
             Encoded state for policy.
         """
+        self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
         self.env.set_state(state)
-        observation = self.env.get_observation(idx_policy)
+        observation = self.env.get_observation()
         with torch.no_grad():
-            observation = torch.from_numpy(observation).to(self.device)
-            policy_state = self.policies[idx_policy].encoder(observation)
-            policy_state = policy_state.cpu().numpy()
+            t_observation = torch.from_numpy(observation).to(self.device)
+            t_policy_state = self.policies[idx_policy].encoder.encode(t_observation)
+            policy_state = t_policy_state.cpu().numpy()
         return policy_state

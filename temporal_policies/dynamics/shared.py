@@ -1,15 +1,13 @@
 import pathlib
-from typing import Any, Dict, Generic, Optional, Sequence, Type, Union
+from typing import Any, Dict, Optional, Sequence, Type, Union
 
 import torch
 
-
 from temporal_policies import agents, networks
 from temporal_policies.dynamics.latent import LatentDynamics
-from temporal_policies.utils.typing import ObsType
 
 
-class SharedDynamics(LatentDynamics[ObsType], Generic[ObsType]):
+class SharedDynamics(LatentDynamics):
     """Dynamics model per action with shared latent states.
 
     We train A dynamics models T_a of the form:
@@ -57,23 +55,27 @@ class SharedDynamics(LatentDynamics[ObsType], Generic[ObsType]):
         )
 
     def encode(
-        self, observation: ObsType, idx_policy: Union[int, torch.Tensor]
+        self,
+        observation: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
+        policy_args: Optional[Any],
     ) -> torch.Tensor:
         """Encodes the observation using the first policy's encoder.
 
         Args:
             observation: Common observation across all policies.
             idx_policy: Index of executed policy.
+            policy_args: Auxiliary policy arguments.
 
         Returns:
             Encoded latent state vector.
         """
         if isinstance(idx_policy, int):
             # [B, O] => [B, Z].
-            return self.policies[idx_policy].encoder(observation)
+            return self.policies[idx_policy].encoder.encode(observation)
 
         # Assume all encoders are the same.
-        return self.policies[0].encoder(observation)
+        return self.policies[0].encoder.encode(observation)
 
         # # [B, O] => [A, B, Z].
         # policy_latents = torch.stack(

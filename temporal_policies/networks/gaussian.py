@@ -25,8 +25,8 @@ class Gaussian(torch.nn.Module):
         super().__init__()
         self.mean = mean
         self.std = std
-        self.min = tensors.to_tensor(min)
-        self.max = tensors.to_tensor(max)
+        self.min = None if min is None else tensors.to_tensor(min)
+        self.max = None if max is None else tensors.to_tensor(max)
 
     def _apply(self, fn):
         super()._apply(fn)
@@ -39,14 +39,14 @@ class Gaussian(torch.nn.Module):
     def forward(self, *args, **kwargs) -> torch.Tensor:
         """Outputs a random value sampled the Gaussian."""
         mean = self.mean(*args, **kwargs)
-        sample = torch.random(mean, self.std)
+        sample = torch.random(mean, self.std)  # type: ignore
         if self.min is not None and self.max is not None:
             sample = torch.clamp(sample, self.min, self.max)
         return sample
 
     def predict(self, *args, **kwargs) -> torch.Tensor:
         """Outputs a random value sampled the Gaussian."""
-        mean = self.mean.predict(*args, **kwargs)
+        mean = self.mean.predict(*args, **kwargs)  # type: ignore
         sample = torch.normal(mean, self.std)
         if self.min is not None and self.max is not None:
             sample = torch.clamp(sample, self.min, self.max)

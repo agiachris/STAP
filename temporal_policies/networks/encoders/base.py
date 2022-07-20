@@ -3,11 +3,13 @@ import abc
 import gym
 import torch
 
+from temporal_policies import envs
+
 
 class Encoder(torch.nn.Module, abc.ABC):
     """Base encoder class."""
 
-    def __init__(self, state_space: gym.spaces.Space):
+    def __init__(self, env: envs.Env, state_space: gym.spaces.Box):
         """Sets up the encoder spaces.
 
         Args:
@@ -18,7 +20,7 @@ class Encoder(torch.nn.Module, abc.ABC):
         self._state_space = state_space
 
     @property
-    def state_space(self) -> gym.spaces.Space:
+    def state_space(self) -> gym.spaces.Box:
         """Policy latent state space."""
         return self._state_space
 
@@ -50,6 +52,9 @@ class Encoder(torch.nn.Module, abc.ABC):
 
 class Decoder(torch.nn.Module, abc.ABC):
     """Base decoder class."""
+
+    def __init__(self, env: envs.Env, **kwargs):
+        super().__init__()
 
     @abc.abstractmethod
     def forward(self, latent: torch.Tensor) -> torch.Tensor:

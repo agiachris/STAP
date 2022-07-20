@@ -1,21 +1,20 @@
-from typing import Any, Dict, Generic, Type, Union
+from typing import Any, Dict, Type, Union
 
 import gym
 import torch
 
 from temporal_policies import envs, networks
 from temporal_policies.utils import configs, tensors
-from temporal_policies.utils.typing import ObsType
 
 
-class Encoder(Generic[ObsType]):
+class Encoder:
     """Base encooder class."""
 
     def __init__(
         self,
         env: envs.Env,
         network_class: Union[str, Type[networks.encoders.Encoder]],
-        network_kwargs: Dict[str, Any],
+        network_kwargs: Dict[str, Any] = {},
         device: str = "auto",
     ):
         """Initializes the dynamics model network, dataset, and optimizer.
@@ -34,11 +33,11 @@ class Encoder(Generic[ObsType]):
         self.to(device)
 
     @property
-    def observation_space(self) -> gym.spaces.Space:
+    def observation_space(self) -> gym.spaces.Box:
         return self._observation_space
 
     @property
-    def state_space(self) -> gym.spaces.Space:
+    def state_space(self) -> gym.spaces.Box:
         return self.network.state_space
 
     @property
@@ -50,7 +49,7 @@ class Encoder(Generic[ObsType]):
         """Torch device."""
         return self._device
 
-    def to(self, device: Union[str, torch.device]) -> "Encoder[ObsType]":
+    def to(self, device: Union[str, torch.device]) -> "Encoder":
         """Transfers networks to device."""
         self._device = torch.device(tensors.device(device))
         self.network.to(self.device)
@@ -64,5 +63,5 @@ class Encoder(Generic[ObsType]):
         """Switches the networks to eval mode."""
         self.network.eval()
 
-    def encode(self, observation: ObsType) -> torch.Tensor:
+    def encode(self, observation: torch.Tensor) -> torch.Tensor:
         return self.network.predict(observation)

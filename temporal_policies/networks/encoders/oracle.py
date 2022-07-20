@@ -17,7 +17,7 @@ class OracleEncoder(Encoder):
         Args:
             env: Gym environment.
         """
-        super().__init__(env.state_space)
+        super().__init__(env, env.state_space)
 
         self.env = env
 

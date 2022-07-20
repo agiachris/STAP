@@ -18,7 +18,7 @@ class OracleActor(Actor):
             policy: Child actor policy.
         """
         super().__init__()
-        self.env = env
+        self._env = env
         self.encoder = policy.encoder
         self.actor = policy.actor
 
@@ -26,10 +26,10 @@ class OracleActor(Actor):
     @tensors.vmap(dims=1)
     def _get_observation(self, state: np.ndarray) -> np.ndarray:
         """Gets the policy observation from the environment."""
-        self.env.set_state(state)
-        return self.env.get_observation()
+        self._env.set_state(state)
+        return self._env.get_observation()
 
-    def forward(self, state: torch.Tensor) -> torch.Tensor:
+    def forward(self, state: torch.Tensor) -> torch.distributions.Distribution:
         """Outputs the predicted distribution from the child policy.
 
         Args:

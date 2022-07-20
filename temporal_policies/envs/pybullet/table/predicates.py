@@ -21,7 +21,7 @@ class Proposition:
         predicate_class = globals()[predicate.capitalize()]
         return predicate_class(args)
 
-    def sample(self, robot: Robot, objects: Dict[str, Object]) -> None:
+    def sample(self, robot: Robot, objects: Dict[str, Object]) -> bool:
         raise NotImplementedError
 
     def value(self, robot: Robot, objects: Dict[str, Object]) -> bool:

@@ -14,8 +14,8 @@ class ConcatenatedDynamics(PolicyDynamics):
 
     def __init__(
         self,
-        state_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
+        state_space: gym.spaces.Box,
+        action_space: gym.spaces.Box,
         num_policies: int,
         network_class: Union[str, Type[PolicyDynamics]],
         network_kwargs: Dict[str, Any] = {},
@@ -28,7 +28,7 @@ class ConcatenatedDynamics(PolicyDynamics):
             network_class: Backend network.
             network_kwargs: Backend network arguments.
         """
-        super().__init__()
+        super().__init__(state_space, action_space)
         self._num_policies = num_policies
         network_class = configs.get_class(network_class, networks)
         self.models = torch.nn.ModuleList(
@@ -64,5 +64,5 @@ class ConcatenatedDynamics(PolicyDynamics):
             model_a(policy_latents[..., i, :], action)
             for i, model_a in enumerate(self.models)
         ]
-        next_latents = torch.cat(next_latents, dim=-1)
-        return next_latents
+        t_next_latents = torch.cat(next_latents, dim=-1)
+        return t_next_latents

@@ -44,13 +44,14 @@ class EnvFactory(configs.Factory[envs.Env]):
             Env instance.
         """
         if multiprocess:
-            merged_kwargs = dict(self.kwargs)
-            merged_kwargs.update(kwargs)
-            instance = envs.ProcessEnv(self.cls, *args, **kwargs)
-
-            self.run_post_hooks(instance)
-
-            return instance
+            raise NotImplementedError
+            # merged_kwargs = dict(self.kwargs)
+            # merged_kwargs.update(kwargs)
+            # instance = envs.ProcessEnv(self.cls, *args, **kwargs)
+            #
+            # self.run_post_hooks(instance)
+            #
+            # return instance
 
         return super().__call__(*args, **kwargs)
 

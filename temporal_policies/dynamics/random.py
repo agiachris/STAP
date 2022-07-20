@@ -43,16 +43,16 @@ class RandomDynamics(dynamics.Dynamics):
     def forward(
         self,
         state: torch.Tensor,
-        idx_policy: torch.Tensor,
-        action: Sequence[torch.Tensor],
-        policy_args: Optional[Any] = None,
+        action: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
+        policy_args: Optional[Any],
     ) -> torch.Tensor:
         """Generates a random batched state within the state space.
 
         Args:
             state: Current state.
-            idx_policy: Index of executed policy.
             action: Policy action.
+            idx_policy: Index of executed policy.
             policy_args: Auxiliary policy arguments.
 
         Returns:

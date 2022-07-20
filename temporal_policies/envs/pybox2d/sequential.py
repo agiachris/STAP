@@ -1,15 +1,61 @@
 import itertools
 import pathlib
-from typing import Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import imageio
 import numpy as np
 
-from temporal_policies.envs.base import SequentialEnv
-from temporal_policies.envs import utils
+from temporal_policies.envs import base, utils
 
 
-class Sequential2D(SequentialEnv[np.ndarray, np.ndarray, np.ndarray]):
+class SequentialEnv(base.Env):
+    """Wrapper around a sequence of child envs."""
+
+    def __init__(self, envs: List[base.Env]):
+        self._envs = envs
+        self.state_space = self.envs[0].state_space
+        self.name = "_".join([env.name for env in self.envs])
+
+    @property
+    def envs(self) -> List[base.Env]:
+        """Primtive envs."""
+        return self._envs
+
+    def get_state(self) -> np.ndarray:
+        """Gets the environment state."""
+        base_env = self.envs[0]
+        return base_env.get_state()
+
+    def set_state(self, state: np.ndarray) -> bool:
+        """Sets the environment state."""
+        base_env = self.envs[0]
+        return base_env.set_state(state)
+
+    def get_observation(self, idx_policy: Optional[int] = None) -> np.ndarray:
+        """Gets an observation for the current state of the environment."""
+        if idx_policy is None:
+            idx_policy = 0
+        return self.envs[idx_policy].get_observation()
+
+    def step(
+        self, action: Tuple[np.ndarray, int]
+    ) -> Tuple[np.ndarray, float, bool, Dict]:
+        """Executes the step corresponding to the policy index.
+
+        Args:
+            action: 2-tuple (action, idx_policy).
+
+        Returns:
+            4-tuple (observation, reward, done, info).
+        """
+        env_action, idx_policy = action
+        return self.envs[idx_policy].step(env_action)
+
+    def reset(self, idx_policy: int) -> np.ndarray:
+        return self.envs[idx_policy].reset()
+
+
+class Sequential2D(SequentialEnv):
     """Wrapper around primtive envs for sequential tasks."""
 
     def __init__(self, env_factories: Sequence[utils.EnvFactory]):

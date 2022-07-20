@@ -9,7 +9,7 @@ from temporal_policies import encoders, envs, trainers
 from temporal_policies.utils import configs, random
 
 
-def train(
+def collect(
     path: Union[str, pathlib.Path],
     policy_checkpoints: Sequence[Union[str, pathlib.Path]],
     trainer_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,

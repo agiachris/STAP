@@ -21,7 +21,7 @@ class SAC(rl.RLAgent):
         actor_kwargs: Dict[str, Any],
         critic_class: Union[str, Type[networks.critics.Critic]],
         critic_kwargs: Dict[str, Any],
-        encoder: Optional[encoders.Encoder[torch.Tensor]] = None,
+        encoder: Optional[encoders.Encoder] = None,
         encoder_class: Union[
             str, Type[networks.encoders.Encoder]
         ] = networks.encoders.NormalizeObservation,
@@ -55,7 +55,7 @@ class SAC(rl.RLAgent):
         """
         if encoder is None:
             encoder = encoders.Encoder(env, encoder_class, encoder_kwargs, device)
-            target_encoder = encoders.Encoder[torch.Tensor](
+            target_encoder = encoders.Encoder(
                 env, encoder_class, encoder_kwargs, device
             )
             target_encoder.network.load_state_dict(encoder.network.state_dict())
@@ -117,7 +117,7 @@ class SAC(rl.RLAgent):
         return self._target_critic
 
     @property
-    def target_encoder(self) -> encoders.Encoder[torch.Tensor]:
+    def target_encoder(self) -> encoders.Encoder:
         """Target encoder."""
         return self._target_encoder
 
@@ -131,11 +131,11 @@ class SAC(rl.RLAgent):
 
     def compute_critic_loss(
         self,
-        observation: Any,
+        observation: torch.Tensor,
         action: torch.Tensor,
         reward: torch.Tensor,
-        next_observation: Any,
-        discount: float,
+        next_observation: torch.Tensor,
+        discount: torch.Tensor,
     ) -> Tuple[torch.Tensor, Dict[str, float]]:
         """Computes the critic loss.
 
@@ -249,6 +249,9 @@ class SAC(rl.RLAgent):
         Returns:
             Dict of loggable training metrics.
         """
+        assert isinstance(batch["observation"], torch.Tensor)
+        assert isinstance(batch["next_observation"], torch.Tensor)
+
         updating_critic = step % self.critic_update_freq == 0
         updating_actor = step % self.actor_update_freq == 0
         updating_target = step % self.target_update_freq == 0
@@ -262,7 +265,7 @@ class SAC(rl.RLAgent):
 
         metrics = {}
         if updating_critic:
-            q_loss, critic_metrics = self.compute_critic_loss(**batch)
+            q_loss, critic_metrics = self.compute_critic_loss(**batch)  # type: ignore
 
             optimizers["critic"].zero_grad(set_to_none=True)
             q_loss.backward()

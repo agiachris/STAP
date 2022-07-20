@@ -1,10 +1,10 @@
 import functools
-from typing import Any, Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 
-from temporal_policies import agents, dynamics
+from temporal_policies import agents, dynamics, envs
 from temporal_policies.planners import base as planners
 from temporal_policies.planners import utils
 from temporal_policies.utils import spaces
@@ -88,7 +88,7 @@ class CEMPlanner(planners.Planner):
         return self._momentum
 
     def _compute_initial_distribution(
-        self, state: torch.Tensor, action_skeleton: Sequence[Tuple[int, Any]]
+        self, state: torch.Tensor, action_skeleton: Sequence[envs.Primitive]
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Computes the initial popoulation distribution.
 
@@ -106,20 +106,22 @@ class CEMPlanner(planners.Planner):
         T = len(action_skeleton)
 
         # Roll out a trajectory.
-        policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
+        policies = [
+            self.policies[primitive.idx_policy] for primitive in action_skeleton
+        ]
         _, actions, _ = self.dynamics.rollout(state, action_skeleton, policies)
         mean = actions.cpu().numpy()
 
         # Scale the standard deviations by the action spaces.
         std = spaces.null_tensor(self.dynamics.action_space, (T,)).numpy()
-        for t, (idx_policy, policy_args) in enumerate(action_skeleton):
-            a = self.policies[idx_policy].action_space
+        for t, primitive in enumerate(action_skeleton):
+            a = self.policies[primitive.idx_policy].action_space
             std[t] = self.standard_deviation * 0.5 * (a.high - a.low)
 
         return mean, std
 
     def plan(
-        self, observation: Any, action_skeleton: Sequence[Tuple[int, Any]]
+        self, observation: np.ndarray, action_skeleton: Sequence[envs.Primitive]
     ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray]:
         """Runs `num_iterations` of CEM.
 
@@ -137,24 +139,31 @@ class CEMPlanner(planners.Planner):
         """
         num_samples = self.num_samples
 
-        best_actions = None
-        p_best_success = -np.float32(float("inf"))
+        best_actions: Optional[np.ndarray] = None
+        p_best_success: float = -float("inf")
         visited_actions = []
         p_visited_success = []
 
         value_fns = [
-            self.policies[idx_policy].critic for idx_policy, _ in action_skeleton
+            self.policies[primitive.idx_policy].critic for primitive in action_skeleton
         ]
         decode_fns = [
-            functools.partial(self.dynamics.decode, idx_policy=idx_policy)
-            for idx_policy, _ in action_skeleton
+            functools.partial(
+                self.dynamics.decode,
+                idx_policy=primitive.idx_policy,
+                policy_args=primitive.policy_args,
+            )
+            for primitive in action_skeleton
         ]
 
         # Get initial state.
         with torch.no_grad():
-            observation = torch.from_numpy(observation).to(self.dynamics.device)
-            idx_policy = action_skeleton[0][0]
-            state = self.dynamics.encode(observation, idx_policy)
+            t_observation = torch.from_numpy(observation).to(self.dynamics.device)
+            state = self.dynamics.encode(
+                t_observation,
+                action_skeleton[0].idx_policy,
+                action_skeleton[0].policy_args,
+            )
             state = state.repeat(self.num_samples, 1)
 
             # Initialize distribution.
@@ -167,8 +176,8 @@ class CEMPlanner(planners.Planner):
                 samples = mean + std * np.random.randn(
                     self.num_samples, *mean.shape
                 ).astype(np.float32)
-                for t, (idx_policy, policy_args) in enumerate(action_skeleton):
-                    action_space = self.policies[idx_policy].action_space
+                for t, primitive in enumerate(action_skeleton):
+                    action_space = self.policies[primitive.idx_policy].action_space
                     action_shape = action_space.shape[0]
                     samples[:, t, :action_shape] = np.clip(
                         samples[:, t, :action_shape],
@@ -180,11 +189,13 @@ class CEMPlanner(planners.Planner):
                 policies = [
                     agents.ConstantAgent(
                         action=samples[
-                            :, t, : self.policies[idx_policy].action_space.shape[0]
+                            :,
+                            t,
+                            : self.policies[primitive.idx_policy].action_space.shape[0],
                         ],
-                        policy=self.policies[idx_policy],
+                        policy=self.policies[primitive.idx_policy],
                     )
-                    for t, (idx_policy, policy_args) in enumerate(action_skeleton)
+                    for t, primitive in enumerate(action_skeleton)
                 ]
                 states, actions, p_transitions = self.dynamics.rollout(
                     state, action_skeleton, policies
@@ -231,7 +242,8 @@ class CEMPlanner(planners.Planner):
                 num_samples = int(self.population_decay * num_samples + 0.5)
                 num_samples = max(num_samples, 2 * self.num_elites)
 
-        visited_actions = np.concatenate(visited_actions, axis=0)
-        p_visited_success = np.concatenate(p_visited_success, axis=0)
+        np_visited_actions = np.concatenate(visited_actions, axis=0)
+        np_p_visited_success = np.concatenate(p_visited_success, axis=0)
+        assert best_actions is not None
 
-        return best_actions, p_best_success, visited_actions, p_visited_success
+        return best_actions, p_best_success, np_visited_actions, np_p_visited_success

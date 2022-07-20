@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Iterable, List, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Iterable, List, Sequence, Union
 
 import numpy as np
 import torch
@@ -15,7 +15,7 @@ class PlannerFactory(configs.Factory):
     def __init__(
         self,
         config: Union[str, pathlib.Path, Dict[str, Any]],
-        env: envs.SequentialEnv,
+        env: envs.Env,
         policy_checkpoints: Optional[
             Sequence[Optional[Union[str, pathlib.Path]]]
         ] = None,
@@ -33,7 +33,7 @@ class PlannerFactory(configs.Factory):
         """
 
         def replace_config(config, old: str, new: str):
-            config_yaml = yaml.dump(config)
+            config_yaml: str = yaml.dump(config)
             config_yaml = config_yaml.replace(old, new)
             config = yaml.safe_load(config_yaml)
             return config
@@ -103,7 +103,7 @@ class PlannerFactory(configs.Factory):
 
 def load(
     config: Union[str, pathlib.Path, Dict[str, Any]],
-    env: envs.SequentialEnv,
+    env: envs.Env,
     policy_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
     dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     device: str = "auto",
@@ -159,13 +159,13 @@ def evaluate_trajectory(
     if q_value:
         for t, (value_fn, decode_fn) in enumerate(zip(value_fns, decode_fns)):
             policy_state = decode_fn(states[:, t])
-            dim_action = torch.sum(~torch.isnan(actions[0, t])).cpu().item()
+            dim_action = int(torch.sum(~torch.isnan(actions[0, t])).cpu().item())
             action = actions[:, t, :dim_action]
-            p_successes[:, t] = value_fn.predict(policy_state, action)
+            p_successes[:, t] = value_fn.predict(policy_state, action)  # type: ignore
     else:
         for t, value_fn in enumerate(value_fns):
             policy_state = decode_fn(states[:, t])
-            p_successes[:, t] = value_fn.predict(policy_state)
+            p_successes[:, t] = value_fn.predict(policy_state)  # type: ignore
     p_successes = torch.clip(p_successes, min=0, max=1)
 
     # Discard last transition from T-1 to T, since s_T isn't used.
@@ -179,8 +179,8 @@ def evaluate_trajectory(
 
 
 def evaluate_plan(
-    env: envs.SequentialEnv,
-    action_skeleton: Sequence[Tuple[int, Any]],
+    env: envs.Env,
+    action_skeleton: Sequence[envs.Primitive],
     state: np.ndarray,
     actions: np.ndarray,
     gif_path: Optional[Union[str, pathlib.Path]] = None,
@@ -203,9 +203,10 @@ def evaluate_plan(
         env.record_start()
 
     rewards = np.zeros(len(action_skeleton), dtype=np.float32)
-    for t, (idx_policy, policy_args) in enumerate(action_skeleton):
-        action = actions[t, : env.envs[idx_policy].action_space.shape[0]]
-        _, reward, _, _ = env.step((action, idx_policy, policy_args))
+    for t, primitive in enumerate(action_skeleton):
+        env.set_primitive(primitive)
+        action = actions[t, : env.action_space.shape[0]]
+        _, reward, _, _ = env.step(action)
         rewards[t] = reward
 
     if gif_path is not None:

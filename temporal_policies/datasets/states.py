@@ -215,6 +215,8 @@ class StateBuffer(torch.utils.data.IterableDataset):
         # Prepare batch.
         if batch is None:
             assert state is not None
+            assert observation is not None
+            assert image is not None
             batch = {
                 "state": state,
                 "observation": observation,

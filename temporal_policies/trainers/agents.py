@@ -157,7 +157,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         """
         with self.profiler.profile("collect"):
             if self.step == 0:
-                self.dataset.add(observation=self.env.reset())
+                observation = self.env.reset()
+                assert isinstance(observation, np.ndarray)
+                self.dataset.add(observation=observation)
                 self._episode_length = 0
                 self._episode_reward = 0.0
 
@@ -166,13 +168,13 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             else:
                 self.eval_mode()
                 with torch.no_grad():
-                    observation = tensors.from_numpy(
+                    t_observation = tensors.from_numpy(
                         self.env.get_observation(), self.device
                     )
                     # TODO: Make this configurable in yaml.
                     # observation = tensors.rgb_to_cnn(observation)
                     torch_action = self.agent.actor.predict(
-                        self.agent.encoder.encode(observation)
+                        self.agent.encoder.encode(t_observation)
                     )
                     action = torch_action.cpu().numpy()
                 self.train_mode()
@@ -202,7 +204,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             }
 
             # Reset the environment
-            self.dataset.add(observation=self.env.reset())
+            observation = self.env.reset()
+            assert isinstance(observation, np.ndarray)
+            self.dataset.add(observation=observation)
             self._episode_length = 0
             self._episode_reward = 0.0
 
@@ -268,7 +272,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         self.eval_mode()
 
         with self.profiler.profile("evaluate"):
-            metrics_list = []
+            metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]] = []
             pbar = tqdm.tqdm(
                 range(self.num_eval_steps),
                 desc=f"Eval {self.name}",
@@ -276,17 +280,18 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             )
             for _ in pbar:
                 observation = self.env.reset()
+                assert isinstance(observation, np.ndarray)
                 self.eval_dataset.add(observation=observation)
 
                 step_metrics_list = []
                 done = False
                 while not done:
                     with torch.no_grad():
-                        observation = tensors.from_numpy(observation, self.device)
+                        t_observation = tensors.from_numpy(observation, self.device)
                         # TODO: Make this configurable in yaml.
                         # observation = tensors.rgb_to_cnn(observation)
                         torch_action = self.agent.actor.predict(
-                            self.agent.encoder.encode(observation)
+                            self.agent.encoder.encode(t_observation)
                         )
                         action = torch_action.cpu().numpy()
 
@@ -309,11 +314,11 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     step_metrics_list.append(step_metrics)
 
                 episode_metrics = metrics.aggregate_metrics(step_metrics_list)
-                metrics_list.append(episode_metrics)
+                metrics_list.append(episode_metrics)  # type: ignore
                 pbar.set_postfix({self.eval_metric: episode_metrics[self.eval_metric]})
 
             self.eval_dataset.save()
 
         self.train_mode()
 
-        return metrics_list  # type: ignore
+        return metrics_list

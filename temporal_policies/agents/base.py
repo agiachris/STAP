@@ -1,24 +1,23 @@
-from typing import Generic, Union
+from typing import Union
 
 import gym
 import torch
 
 from temporal_policies import encoders, networks
 from temporal_policies.utils import tensors
-from temporal_policies.utils.typing import ObsType
 
 
-class Agent(Generic[ObsType]):
+class Agent:
     """Base agent class."""
 
     def __init__(
         self,
-        state_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
-        observation_space: gym.spaces.Space,
+        state_space: gym.spaces.Box,
+        action_space: gym.spaces.Box,
+        observation_space: gym.spaces.Box,
         actor: networks.actors.Actor,
         critic: networks.critics.Critic,
-        encoder: encoders.Encoder[ObsType],
+        encoder: encoders.Encoder,
         device: str = "auto",
     ):
         """Assigns the required properties of the Agent.
@@ -42,7 +41,7 @@ class Agent(Generic[ObsType]):
         self.to(device)
 
     @property
-    def state_space(self) -> gym.spaces.Space:
+    def state_space(self) -> gym.spaces.Box:
         """Policy state space (encoder output, actor/critic input)."""
         return self._state_space
 
@@ -52,7 +51,7 @@ class Agent(Generic[ObsType]):
         return self._action_space
 
     @property
-    def observation_space(self) -> gym.spaces.Space:
+    def observation_space(self) -> gym.spaces.Box:
         """Observation space (encoder input)."""
         return self._observation_space
 
@@ -68,7 +67,7 @@ class Agent(Generic[ObsType]):
         return self._critic
 
     @property
-    def encoder(self) -> encoders.Encoder[ObsType]:
+    def encoder(self) -> encoders.Encoder:
         """Encoder network that encodes observations into states."""
         return self._encoder
 

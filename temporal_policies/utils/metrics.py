@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 import numpy as np
 import torch
@@ -24,7 +24,7 @@ METRIC_CHOICE_FNS = {
     "length": min,
 }
 
-METRIC_AGGREGATION_FNS = {
+METRIC_AGGREGATION_FNS: Dict[str, Callable[[np.ndarray], float]] = {
     "accuracy": np.mean,
     "reward": np.sum,
     "success": lambda x: x[-1],

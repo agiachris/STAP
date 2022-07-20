@@ -14,7 +14,7 @@ class DynamicsFactory(configs.Factory):
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         policies: Optional[Sequence[agents.Agent]] = None,
         policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
-        env: Optional[envs.SequentialEnv] = None,
+        env: Optional[envs.Env] = None,
         device: str = "auto",
     ):
         """Creates the dynamics model factory from a config or checkpoint.
@@ -28,7 +28,7 @@ class DynamicsFactory(configs.Factory):
                 policy_checkpoints is None.
             policy_checkpoints: Optional list of policy checkpoints. Must be
                 provided if policies is None.
-            env: Sequential env required only for OracleDynamics.
+            env: Env required only for OracleDynamics.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -96,7 +96,7 @@ def load(
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
     policies: Optional[Sequence[agents.Agent]] = None,
     policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
-    env: Optional[envs.SequentialEnv] = None,
+    env: Optional[envs.Env] = None,
     device: str = "auto",
     **kwargs,
 ) -> dynamics.Dynamics:

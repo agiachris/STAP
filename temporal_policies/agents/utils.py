@@ -54,7 +54,11 @@ class AgentFactory(configs.Factory):
 
         if issubclass(self.cls, agents.WrapperAgent):
             agent_factory = AgentFactory(
-                self.kwargs["agent_config"], env, checkpoint, device
+                config=self.kwargs["agent_config"],
+                env=env,
+                checkpoint=checkpoint,
+                encoder_checkpoint=encoder_checkpoint,
+                device=device,
             )
             del self.kwargs["agent_config"]
             self.kwargs["policy"] = agent_factory()

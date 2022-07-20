@@ -141,7 +141,7 @@ class Link:
     def joint_limits(self) -> np.ndarray:
         """(lower, upper) joint limits."""
         try:
-            return self._joint_limits
+            return self._joint_limits  # type: ignore
         except AttributeError:
             pass
 

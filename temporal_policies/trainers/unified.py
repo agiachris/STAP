@@ -11,7 +11,7 @@ from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.dynamics import DynamicsTrainer
 from temporal_policies.trainers.utils import load as load_trainer
 from temporal_policies.utils import spaces, tensors
-from temporal_policies.utils.typing import Batch, WrappedBatch
+from temporal_policies.utils.typing import Batch, Scalar, WrappedBatch
 
 
 class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
@@ -286,6 +286,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
                 lambda x: x[idx_batch],
                 {key: val for key, val in batch.items() if key != "idx_replay_buffer"},
             )
+            assert isinstance(agent_batch["action"], np.ndarray)
             agent_batch["action"] = spaces.subspace(
                 agent_batch["action"], agent_trainer.agent.action_space
             )
@@ -321,7 +322,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         return metrics_list
 
     def post_evaluate_step(  # type: ignore
-        self, eval_metrics_list: Dict[str, List[Dict[str, float]]]
+        self, eval_metrics_list: Dict[str, List[Dict[str, Union[Scalar, np.ndarray]]]]
     ) -> None:
         """Logs the eval results and saves checkpoints.
 
@@ -404,7 +405,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
                     trainer.save(trainer.path, f"ckpt_trainer_{eval_step}")
                     trainer.model.save(trainer.path, f"ckpt_model_{eval_step}")
 
-    def evaluate(self) -> Dict[str, List[Dict[str, np.ndarray]]]:  # type: ignore
+    def evaluate(self) -> Dict[str, List[Dict[str, Union[Scalar, np.ndarray]]]]:  # type: ignore
         """Evaluates the policies and dynamics model.
 
         Returns:

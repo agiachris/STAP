@@ -5,7 +5,7 @@ import numpy as np
 
 from temporal_policies.datasets.replay_buffer import ReplayBuffer, StorageBatch
 from temporal_policies.utils import tensors, spaces
-from temporal_policies.utils.typing import Batch, ObsType, WrappedBatch
+from temporal_policies.utils.typing import Batch, WrappedBatch
 
 
 class StratifiedReplayBuffer(ReplayBuffer):
@@ -84,10 +84,10 @@ class StratifiedReplayBuffer(ReplayBuffer):
 
     def add(
         self,
-        observation: Optional[ObsType] = None,
+        observation: Optional[np.ndarray] = None,
         action: Optional[np.ndarray] = None,
         reward: Optional[Union[np.ndarray, float]] = None,
-        next_observation: Optional[ObsType] = None,
+        next_observation: Optional[np.ndarray] = None,
         discount: Optional[Union[np.ndarray, float]] = None,
         done: Optional[Union[np.ndarray, bool]] = None,
         batch: Optional[StorageBatch] = None,
@@ -136,6 +136,7 @@ class StratifiedReplayBuffer(ReplayBuffer):
         for idx_replay_buffer, batch in enumerate(batches):
             if batch is None:
                 return None
+            assert isinstance(batch["action"], np.ndarray)
             stratified_batch = WrappedBatch(
                 observation=batch["observation"],
                 action=spaces.pad_null(batch["action"], self.action_space),

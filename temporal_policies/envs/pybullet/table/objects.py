@@ -1,6 +1,6 @@
 import dataclasses
 import random
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from ctrlutils import eigen
 import numpy as np
@@ -104,6 +104,10 @@ class Object(body.Body):
     def isinstance(self, class_or_tuple: type) -> bool:
         return isinstance(self, class_or_tuple)
 
+    @property
+    def size(self) -> np.ndarray:
+        raise NotImplementedError
+
 
 class Urdf(Object):
     def __init__(
@@ -118,6 +122,8 @@ class Urdf(Object):
             useFixedBase=is_static,
             physicsClientId=physics_id,
         )
+        xyz_min, xyz_max = self.aabb()
+        self._size = xyz_max - xyz_min
 
         super().__init__(
             physics_id=physics_id,
@@ -125,6 +131,10 @@ class Urdf(Object):
             name=name,
             is_static=is_static,
         )
+
+    @property
+    def size(self) -> np.ndarray:
+        raise NotImplementedError
 
 
 class Box(Object):
@@ -252,7 +262,7 @@ class Hook(Object):
     #     raise NotImplementedError
 
 
-class Union(Object):
+class Variant(Object):
     def __init__(
         self,
         physics_id: int,
@@ -274,7 +284,7 @@ class Union(Object):
             p.getDynamicsInfo(obj.body_id, -1, physicsClientId=self.physics_id)[0]
             for obj in self._objects
         ]
-        self._body = None
+        self._body: Optional[Object] = None
 
     @property
     def body(self) -> Object:
@@ -302,7 +312,7 @@ class Union(Object):
     # Body methods.
 
     @property
-    def body_id(self) -> int:
+    def body_id(self) -> int:  # type: ignore
         return self.body.body_id
 
     @property
@@ -325,29 +335,29 @@ class Union(Object):
         return self.body.state()
 
     @property
-    def is_static(self) -> bool:
+    def is_static(self) -> bool:  # type: ignore
         return self.body.is_static
 
     # Box methods.
 
     @property
     def size(self) -> np.ndarray:
-        return self.body.size
+        return self.body.size  # type: ignore
 
     # Hook methods.
 
     @property
     def head_length(self) -> float:
-        return self.body.head_length
+        return self.body.head_length  # type: ignore
 
     @property
     def handle_length(self) -> float:
-        return self.body.handle_length
+        return self.body.handle_length  # type: ignore
 
     @property
     def handle_y(self) -> float:
-        return self.body.handle_y
+        return self.body.handle_y  # type: ignore
 
     @property
     def bbox(self) -> np.ndarray:
-        return self.body.bbox
+        return self.body.bbox  # type: ignore

@@ -31,7 +31,7 @@ class ContinuousMLPCritic(Critic):
         if ortho_init:
             self.apply(weight_init)
 
-    def forward(self, state: torch.Tensor, action: torch.Tensor) -> List[torch.Tensor]:
+    def forward(self, state: torch.Tensor, action: torch.Tensor) -> List[torch.Tensor]:  # type: ignore
         """Predicts the expected value of the given (state, action) pair.
 
         Args:

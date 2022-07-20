@@ -1,10 +1,10 @@
 import abc
-from typing import Any, Sequence, Tuple, Union
+from typing import Sequence, Tuple, Union
 
 import numpy as np
 import torch
 
-from temporal_policies import agents, dynamics
+from temporal_policies import agents, dynamics, envs
 from temporal_policies.utils import tensors
 
 
@@ -53,7 +53,7 @@ class Planner(abc.ABC):
 
     @abc.abstractmethod
     def plan(
-        self, observation: Any, action_skeleton: Sequence[Tuple[int, Any]]
+        self, observation: np.ndarray, action_skeleton: Sequence[envs.Primitive]
     ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray]:
         """Plans a sequence of actions following the given action skeleton.
 

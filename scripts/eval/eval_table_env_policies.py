@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import functools
 import pathlib
 from typing import Optional, Tuple, Union
 
@@ -12,7 +11,6 @@ import PIL
 import torch
 
 from temporal_policies import agents, envs
-from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.table import object_state, primitives
 from temporal_policies.utils import random
 
@@ -45,7 +43,7 @@ def evaluate_pick_critic_state(
     actions = np.tile(
         action, (observations.shape[0], *([1] * len(env.action_space.shape)))
     )
-    normalized_actions = env.primitive.normalize_action(actions)
+    normalized_actions = env.get_primitive().normalize_action(actions)
 
     with torch.no_grad():
         torch_observations = torch.from_numpy(observations).to(policy.device)
@@ -64,14 +62,14 @@ def evaluate_pick_critic_action(
     action: np.ndarray,
     grid_resolution: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    xy_min = np.array(env.primitive.action_scale.low[:2])
-    xy_max = np.array(env.primitive.action_scale.high[:2])
+    xy_min = np.array(env.get_primitive().action_scale.low[:2])
+    xy_max = np.array(env.get_primitive().action_scale.high[:2])
     xs, ys = np.meshgrid(*np.linspace(xy_min, xy_max, grid_resolution).T)
 
     actions = np.tile(action, (xs.size, *([1] * len(env.action_space.shape))))
     actions[:, 0] = xs.flatten()
     actions[:, 1] = ys.flatten()
-    normalized_actions = env.primitive.normalize_action(actions)
+    normalized_actions = env.get_primitive().normalize_action(actions)
 
     observations = np.tile(
         observation, (xs.size, *([1] * len(env.observation_space.shape)))
@@ -232,7 +230,7 @@ def evaluate_pick_action(
         pos=np.array([obs.pos[0, 0], -obs.pos[0, 1], env.robot.home_pose.pos[2] + z]),
         quat=primitives.compute_top_down_orientation(
             eigen.Quaterniond(env.robot.home_pose.quat),
-            eigen.Quaterniond(env.primitive.args[0].pose().quat),
+            eigen.Quaterniond(env.get_primitive().policy_args[0].pose().quat),
             theta=theta,
         ),
     )
@@ -277,11 +275,13 @@ def evaluate_policies(
     env = policy.env
     assert isinstance(env, envs.pybullet.TableEnv)
 
+    primitive = env.get_primitive()
+    assert isinstance(primitive, primitives.Primitive)
     grid_q_values, grid_states = evaluate_pick_critic_state(
         env=env,
         policy=policy,
         observation=env.get_observation(),
-        action=env.primitive.sample_action(),
+        action=primitive.sample_action(),
         grid_resolution=grid_resolution,
     )
     grid_q_values = grid_q_values.clip(0.0, 1.0)
@@ -292,7 +292,7 @@ def evaluate_policies(
         path=path / "assets",
         name="state_q_values",
         grid_resolution=grid_resolution,
-        z_scale=0,  #.05,
+        z_scale=0,  # .05,
         z_height=0.001,
     )
     for view in ("front", "top"):
