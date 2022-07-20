@@ -122,8 +122,6 @@ class Urdf(Object):
             useFixedBase=is_static,
             physicsClientId=physics_id,
         )
-        xyz_min, xyz_max = self.aabb()
-        self._size = xyz_max - xyz_min
 
         super().__init__(
             physics_id=physics_id,
@@ -132,9 +130,13 @@ class Urdf(Object):
             is_static=is_static,
         )
 
+        # xyz_min, xyz_max = self.aabb()
+        # self._size = xyz_max - xyz_min
+
     @property
     def size(self) -> np.ndarray:
         raise NotImplementedError
+        return self._size
 
 
 class Box(Object):
