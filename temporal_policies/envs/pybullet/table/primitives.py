@@ -49,8 +49,8 @@ class Primitive(envs.Primitive, abc.ABC):
         idx_policy = primitives.index(name)
         return primitive_class(idx_policy, args)
 
-    def __repr__(self) -> str:
-        return f"{type(self).__name__.lower()}({', '.join([arg.name for arg in self.policy_args])})"
+    # def __repr__(self) -> str:
+    #     return f"{type(self).__name__.lower()}({', '.join([arg.name for arg in self.policy_args])})"
 
 
 class Pick(Primitive):

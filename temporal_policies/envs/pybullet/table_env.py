@@ -1,8 +1,12 @@
+import dataclasses
+import pathlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ctrlutils import eigen
 import gym
+import imageio
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 import yaml
 
 from temporal_policies.envs import base as envs
@@ -15,7 +19,12 @@ from temporal_policies.envs.pybullet.table.objects import Object
 import pybullet as p  # Import after envs.pybullet.base to avoid print statement.
 
 
-State = Dict[str, np.ndarray]
+@dataclasses.dataclass
+class CameraView:
+    width: int
+    height: int
+    view_matrix: np.ndarray
+    projection_matrix: np.ndarray
 
 
 class TableEnv(PybulletEnv):
@@ -55,8 +64,12 @@ class TableEnv(PybulletEnv):
             predicates.Proposition.create(prop) for prop in initial_state
         ]
 
-        self._robot = robot.Robot(physics_id=self.physics_id, **robot_config)
-        p.stepSimulation(self.physics_id)
+        self._robot = robot.Robot(
+            physics_id=self.physics_id,
+            step_simulation_fn=self.step_simulation,
+            **robot_config,
+        )
+        # self.step_simulation()
 
         object_list = [
             Object.create(physics_id=self.physics_id, **obj_kwargs)
@@ -68,6 +81,44 @@ class TableEnv(PybulletEnv):
         self._state_ids: List[int] = []
 
         self.set_primitive(action_call=self.action_skeleton[0])
+
+        WIDTH, HEIGHT = 405, 270
+        PROJECTION_MATRIX = p.computeProjectionMatrixFOV(
+            fov=37.8,
+            aspect=1.5,
+            nearVal=0.02,
+            farVal=100,
+        )
+        self._camera_views = {
+            "front": CameraView(
+                width=WIDTH,
+                height=HEIGHT,
+                view_matrix=p.computeViewMatrix(
+                    cameraEyePosition=[2.0, 0.0, 1.0],
+                    cameraTargetPosition=[0.0, 0.0, 0.1],
+                    cameraUpVector=[0.0, 0.0, 1.0],
+                ),
+                projection_matrix=PROJECTION_MATRIX,
+            ),
+            "top": CameraView(
+                width=WIDTH,
+                height=HEIGHT,
+                view_matrix=p.computeViewMatrix(
+                    cameraEyePosition=[0.3, 0.0, 1.4],
+                    cameraTargetPosition=[0.3, 0.0, 0.0],
+                    cameraUpVector=[0.0, 1.0, 0.0],
+                ),
+                projection_matrix=PROJECTION_MATRIX,
+            ),
+        }
+        self._is_recording = False
+        self._recording_id = None
+        self._recordings: Dict[Any, List[np.ndarray]] = {}
+        self._recording_freq = 50
+        self._recording_buffer: List[np.ndarray] = []
+        self._recording_text = ""
+        self._timestep = 0
+        # self._frames: List[np.ndarray] = []
 
     @property
     def action_skeleton(self) -> List[str]:
@@ -100,9 +151,7 @@ class TableEnv(PybulletEnv):
         policy_args: Optional[Any] = None,
     ) -> envs.Env:
         if primitive is None:
-            primitive = self.get_primitive_info(
-                action_call, idx_policy, policy_args
-            )
+            primitive = self.get_primitive_info(action_call, idx_policy, policy_args)
         assert isinstance(primitive, Primitive)
         self._primitive = primitive
 
@@ -200,6 +249,9 @@ class TableEnv(PybulletEnv):
         success = primitive.execute(action, self.robot)
         obs = self.get_observation()
 
+        if self._is_recording:
+            self._recording_text = f"Action: {primitive.scale_action(action)}"
+
         return obs, float(success), True, {}
 
     def close(self) -> None:
@@ -220,8 +272,106 @@ class TableEnv(PybulletEnv):
         ):
             self.robot.arm.update_torques()
             self.robot.gripper.update_torques()
-            p.stepSimulation(physicsClientId=self.physics_id)
+            self.step_simulation()
             num_iters += 1
 
         # print("TableEnv.wait_until_stable: {num_iters}")
         return num_iters
+
+    def render_image(
+        self, view: str = "front", resolution: Optional[Tuple[int, int]] = None
+    ) -> np.ndarray:
+        camera_view = self._camera_views[view]
+        width = camera_view.width if resolution is None else resolution[0]
+        height = camera_view.height if resolution is None else resolution[1]
+        img_rgba = p.getCameraImage(
+            width,
+            height,
+            viewMatrix=camera_view.view_matrix,
+            projectionMatrix=camera_view.projection_matrix,
+            renderer=p.ER_BULLET_HARDWARE_OPENGL,
+            physicsClientId=self.physics_id,
+        )[2]
+        img_rgba = np.reshape(img_rgba, (height, width, 4))
+        img_rgb = img_rgba[:, :, :3]
+
+        img = Image.fromarray(img_rgb, "RGB")
+        draw = ImageDraw.Draw(img)
+        FONT = ImageFont.truetype("arial.ttf", 15)
+        draw.multiline_text(
+            (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", font=FONT
+        )
+
+        return np.array(img)
+
+    def record_start(self, recording_id: Optional[Any] = None) -> bool:
+        """Starts recording the simulation.
+
+        Args:
+            recording_id: Prepends the new recording with the existing recording
+                saved under this id.
+        """
+        if isinstance(recording_id, np.ndarray):
+            recording_id = recording_id.item()
+
+        if self._is_recording and self._recording_id == recording_id:
+            return False
+
+        if recording_id in self._recordings:
+            self._recording_buffer = list(self._recordings[recording_id])
+        else:
+            self._recording_buffer = []
+
+        self._recording_id = recording_id
+        self._is_recording = True
+
+        return True
+
+    def record_stop(self, recording_id: Optional[Any] = None) -> bool:
+        """Stops recording the simulation.
+
+        Args:
+            recording_id: Saves the recording to this id.
+        """
+        if isinstance(recording_id, np.ndarray):
+            recording_id = recording_id.item()
+
+        if not self._is_recording and self._recording_id == recording_id:
+            return False
+
+        self._recordings[recording_id] = self._recording_buffer
+
+        self._recording_id = recording_id
+        self._is_recording = False
+
+        return True
+
+    def record_save(self, path: Union[str, pathlib.Path], reset: bool = True) -> bool:
+        """Saves all the recordings.
+
+        Args:
+            path: Path for the recording.
+            reset: Reset the recording after saving.
+        """
+        path = pathlib.Path(path)
+
+        print([(id, len(recording)) for id, recording in self._recordings.items()])
+        for recording_id, recording in self._recordings.items():
+            if len(recording) == 0:
+                continue
+            if recording_id is not None:
+                path_video = path.parent / f"{path.stem}-{recording_id}{path.suffix}"
+            else:
+                path_video = path
+            imageio.mimsave(path_video, recording)
+
+            if reset:
+                recording.clear()
+
+        return True
+
+    def step_simulation(self) -> None:
+        p.stepSimulation(physicsClientId=self.physics_id)
+        if self._is_recording and self._timestep % self._recording_freq == 0:
+            self._recording_buffer.append(self.render_image())
+        self._timestep += 1

@@ -60,7 +60,7 @@ PLANNERS=(
     # "policy_shooting_oracle_value"
     # "random_shooting_oracle_value"
 # # Q-value / Oracle dynamics.
-    "policy_cem_oracle_dynamics"
+    # "policy_cem_oracle_dynamics"
     # "random_cem_oracle_dynamics"
     "policy_shooting_oracle_dynamics"
     # "random_shooting_oracle_dynamics"

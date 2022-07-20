@@ -79,6 +79,7 @@ def evaluate_planners(
             observation, action_skeleton
         )
         t_planner = timer.toc("planner")
+        env.record_save(path / f"sampled_trajectory_{i}.gif")
 
         rewards = planners.evaluate_plan(
             env, action_skeleton, state, actions, gif_path=path / f"exec_{i}.gif"

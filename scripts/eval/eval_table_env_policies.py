@@ -172,35 +172,7 @@ def plot_critic_overlay(
         physicsClientId=env.physics_id,
     )
 
-    width, height = 1620, 1080
-    if view == "front":
-        view_matrix = p.computeViewMatrix(
-            cameraEyePosition=[2.0, 0.0, 1.0],
-            cameraTargetPosition=[0.0, 0.0, 0.1],
-            cameraUpVector=[0.0, 0.0, 1.0],
-        )
-    elif view == "top":
-        view_matrix = p.computeViewMatrix(
-            cameraEyePosition=[0.3, 0.0, 1.4],
-            cameraTargetPosition=[0.3, 0.0, 0.0],
-            cameraUpVector=[0.0, 1.0, 0.0],
-        )
-    projection_matrix = p.computeProjectionMatrixFOV(
-        fov=37.8,
-        aspect=1.5,
-        nearVal=0.02,
-        farVal=100,
-    )
-    img_rgb = p.getCameraImage(
-        width,
-        height,
-        viewMatrix=view_matrix,
-        projectionMatrix=projection_matrix,
-        renderer=p.ER_BULLET_HARDWARE_OPENGL,
-        physicsClientId=env.physics_id,
-    )[2]
-
-    img_rgb = np.reshape(img_rgb, (height, width, 4))
+    img_rgb = env.render_image("front", resolution=(1620, 1080))
     img = PIL.Image.fromarray(img_rgb)
     img.save(path / f"{name}.png")
 

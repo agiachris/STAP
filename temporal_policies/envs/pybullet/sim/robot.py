@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import numpy as np
 import pybullet as p
@@ -25,6 +25,7 @@ class Robot(body.Body):
     def __init__(
         self,
         physics_id: int,
+        step_simulation_fn: Callable[[], None],
         urdf: str,
         arm_kwargs: Dict[str, Any],
         gripper_kwargs: Dict[str, Any],
@@ -33,6 +34,7 @@ class Robot(body.Body):
 
         Args:
             physics_id: Pybullet physics client id.
+            step_simulation_fn: Function to step simulation.
             urdf: Path to urdf.
             arm_kwargs: Arm kwargs from yaml config.
             gripper_kwargs: Gripper kwargs from yaml config.
@@ -56,6 +58,8 @@ class Robot(body.Body):
         self.home_pose = math.Pose.from_eigen(
             dyn.cartesian_pose(self.arm.ab, offset=self.arm.ee_offset)
         )
+
+        self.step_simulation = step_simulation_fn
 
     @property
     def arm(self) -> arm.Arm:
@@ -128,7 +132,7 @@ class Robot(body.Body):
         status = self.arm.update_torques()
         while status == articulated_body.ControlStatus.IN_PROGRESS:
             self.gripper.update_torques()
-            p.stepSimulation(physicsClientId=self.physics_id)
+            self.step_simulation()
             status = self.arm.update_torques()
         # print("Robot.goto_pose:", pos, quat, status)
 
@@ -173,7 +177,7 @@ class Robot(body.Body):
         status = self.gripper.update_torques()
         while status == articulated_body.ControlStatus.IN_PROGRESS:
             self.arm.update_torques()
-            p.stepSimulation(physicsClientId=self.physics_id)
+            self.step_simulation()
             status = self.gripper.update_torques()
         # print("Robot.grasp:", command, status)
 
@@ -222,7 +226,7 @@ class Robot(body.Body):
             ):
                 self.arm.update_torques()
                 status = self.gripper.update_torques()
-                p.stepSimulation(physicsClientId=self.physics_id)
+                self.step_simulation()
 
             # Make sure fingers aren't fully closed.
             if status == articulated_body.ControlStatus.POS_CONVERGED:

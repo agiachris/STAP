@@ -65,16 +65,23 @@ class PlannerFactory(configs.Factory):
                 self.config["dynamics_config"], "{DYNAMICS_CONFIG}", dynamics_config
             )
 
+        if isinstance(env, envs.pybox2d.Sequential2D):
+            # TODO: Implement policy envs.
+            raise NotImplementedError("Need to implement policy envs")
         policies = [
             agents.load(
                 config=agent_config,
-                env=policy_env,
+                # env=policy_env,
+                env=env,
                 checkpoint=ckpt,
             )
-            for agent_config, policy_env, ckpt in zip(
-                self.config["agent_configs"],
-                env.envs,
-                policy_checkpoints,
+            # for agent_config, policy_env, ckpt in zip(
+            #     self.config["agent_configs"],
+            #     env.envs,
+            #     policy_checkpoints,
+            # )
+            for agent_config, ckpt in zip(
+                self.config["agent_configs"], policy_checkpoints
             )
         ]
 
@@ -197,6 +204,7 @@ def evaluate_plan(
     Returns:
         Rewards received at each timestep.
     """
+    print("planners.utils.evaluate_plan()")
     env.set_state(state)
 
     if gif_path is not None:
@@ -210,6 +218,7 @@ def evaluate_plan(
         rewards[t] = reward
 
     if gif_path is not None:
-        env.record_save(gif_path, stop=True)
+        env.record_stop()
+        env.record_save(gif_path, reset=True)
 
     return rewards

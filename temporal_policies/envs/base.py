@@ -36,6 +36,9 @@ class Primitive(abc.ABC):
             action, from_space=cls.action_scale, to_space=cls.action_space
         )
 
+    def __str__(self) -> str:
+        return f"{type(self).__name__}({', '.join(map(str, self.policy_args))})"
+
 
 class Env(gym.Env[np.ndarray, np.ndarray]):
     """Base env class with a separate state space for dynamics."""
@@ -92,12 +95,28 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
         """Gets an observation for the current environment state."""
 
-    def record_start(self):
-        """Starts recording the simulation."""
+    def record_start(self, recording_id: Optional[Any] = None) -> bool:
+        """Starts recording the simulation.
 
-    def record_save(self, path: Union[str, pathlib.Path], stop: bool = False):
-        """Stops recording the simulation."""
+        Args:
+            recording_id: Prepends the new recording with the existing recording
+                saved under this id.
+        """
 
+    def record_stop(self, recording_id: Optional[Any] = None) -> bool:
+        """Stops recording the simulation.
+
+        Args:
+            recording_id: Saves the recording to this id.
+        """
+
+    def record_save(self, path: Union[str, pathlib.Path], reset: bool = True) -> bool:
+        """Saves all the recordings.
+
+        Args:
+            path: Path for the recording.
+            reset: Reset the recording after saving.
+        """
 
 # class ProcessEnv(Env):
 #     """Creates the env in a separate process."""

@@ -108,6 +108,9 @@ class Object(body.Body):
     def size(self) -> np.ndarray:
         raise NotImplementedError
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class Urdf(Object):
     def __init__(
