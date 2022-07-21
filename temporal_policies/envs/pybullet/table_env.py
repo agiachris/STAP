@@ -78,7 +78,7 @@ class TableEnv(PybulletEnv):
         self._objects = {obj.name: obj for obj in object_list}
 
         self._initial_state_id = p.saveState(physicsClientId=self.physics_id)
-        self._state_ids: List[int] = []
+        self._states: Dict[int, Dict[str, Any]] = {}
 
         self.set_primitive(action_call=self.action_skeleton[0])
 
@@ -180,12 +180,14 @@ class TableEnv(PybulletEnv):
 
     def get_state(self) -> np.ndarray:
         state_id = p.saveState(physicsClientId=self.physics_id)
-        self._state_ids.append(state_id)
+        self._states[state_id] = self.robot.get_state()
         return np.array([state_id])
 
     def set_state(self, state: np.ndarray) -> bool:
         state_id = state.item()
+        self.robot.gripper.remove_grasp_constraint()
         p.restoreState(stateId=state_id, physicsClientId=self.physics_id)
+        self.robot.set_state(self._states[state_id])
         return True
 
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
@@ -216,9 +218,9 @@ class TableEnv(PybulletEnv):
         options: Optional[dict] = None,
         max_attempts: int = 10,
     ) -> np.ndarray:
-        for state_id in self._state_ids:
+        for state_id in self._states:
             p.removeState(state_id, physicsClientId=self.physics_id)
-        self._state_ids.clear()
+        self._states.clear()
         self.set_primitive(action_call=self.action_skeleton[0])
 
         while True:
@@ -246,11 +248,16 @@ class TableEnv(PybulletEnv):
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
         primitive = self.get_primitive()
         assert isinstance(primitive, Primitive)
-        success = primitive.execute(action, self.robot)
-        obs = self.get_observation()
 
         if self._is_recording:
-            self._recording_text = f"Action: {primitive.scale_action(action)}"
+            self._recording_text = (
+                "Action: ["
+                + " ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+                + "]"
+            )
+
+        success = primitive.execute(action, self.robot)
+        obs = self.get_observation()
 
         return obs, float(success), True, {}
 
@@ -355,7 +362,6 @@ class TableEnv(PybulletEnv):
         """
         path = pathlib.Path(path)
 
-        print([(id, len(recording)) for id, recording in self._recordings.items()])
         for recording_id, recording in self._recordings.items():
             if len(recording) == 0:
                 continue

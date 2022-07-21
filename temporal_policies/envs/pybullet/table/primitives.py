@@ -11,6 +11,9 @@ from temporal_policies.envs.pybullet.sim import robot
 from temporal_policies.envs.pybullet.sim.robot import ControlException
 from temporal_policies.envs.pybullet.table import objects
 
+dbprint = lambda *args: None  # noqa
+# dbprint = print
+
 
 def compute_top_down_orientation(
     quat_home: eigen.Quaterniond, quat_obj: eigen.Quaterniond, theta: float
@@ -49,9 +52,6 @@ class Primitive(envs.Primitive, abc.ABC):
         idx_policy = primitives.index(name)
         return primitive_class(idx_policy, args)
 
-    # def __repr__(self) -> str:
-    #     return f"{type(self).__name__.lower()}({', '.join([arg.name for arg in self.policy_args])})"
-
 
 class Pick(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
@@ -65,6 +65,7 @@ class Pick(Primitive):
         action = self.scale_action(action)
         pos = action[:3]
         theta = action[3]
+        dbprint(f"{self}: pos: {pos}, theta: {theta}")
 
         # Get object pose.
         obj = self.policy_args[0]
@@ -84,7 +85,7 @@ class Pick(Primitive):
             robot.goto_pose(pre_pos, command_quat)
             robot.goto_pose(command_pos, command_quat)
             if not robot.grasp_object(obj):
-                # print(f"Robot.grasp_object({obj}) failed")
+                dbprint(f"Robot.grasp_object({obj}) failed")
                 return False
             robot.goto_pose(pre_pos, command_quat)
         except ControlException:
@@ -111,6 +112,7 @@ class Place(Primitive):
         action = self.scale_action(action)
         pos = action[:3]
         theta = action[3]
+        dbprint(f"{self}: pos: {pos}, theta: {theta}")
 
         # Get target pose.
         target = self.policy_args[1]
@@ -143,8 +145,8 @@ class Place(Primitive):
 class Pull(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(
-        low=np.array([-0.4, 0.0, -0.5, -np.pi], dtype=np.float32),
-        high=np.array([0.0, 0.4, 0.5, np.pi], dtype=np.float32),
+        low=np.array([-0.4, 0.0, -0.1, -np.pi], dtype=np.float32),
+        high=np.array([0.0, 0.4, 0.1, np.pi], dtype=np.float32),
     )
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
@@ -153,6 +155,7 @@ class Pull(Primitive):
 
         # Parse action.
         r_reach, r_pull, y, theta = self.scale_action(action)
+        dbprint(f"{self}: r_reach: {r_reach}, r_pull: {r_pull}, y: {y}, theta: {theta}")
 
         # Get target pose in polar coordinates
         target, hook = self.policy_args

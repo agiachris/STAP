@@ -1,3 +1,5 @@
+import copy
+import dataclasses
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ctrlutils import eigen
@@ -6,6 +8,19 @@ import pybullet as p
 import spatialdyn as dyn
 
 from temporal_policies.envs.pybullet.sim import articulated_body, body, math
+
+
+@dataclasses.dataclass
+class GripperState:
+    """Mutable gripper state."""
+
+    command: float = 0.0
+    torque_control: bool = False
+    grasp_constraint_id: Optional[int] = None
+    grasp_body_id: Optional[int] = None
+    grasp_T_body_to_ee: Optional[math.Pose] = None
+    dq_avg = 0.0
+    iter_timeout = 0
 
 
 class Gripper(articulated_body.ArticulatedBody):
@@ -84,11 +99,10 @@ class Gripper(articulated_body.ArticulatedBody):
         self.pos_gains = pos_gains
         self.pos_threshold = pos_threshold
 
-        self._command = 0.0
-        self._torque_control = False
-        self._grasp_constraint_id: Optional[int] = None
+        self._gripper_state = GripperState()
 
-        self._q_home, _ = self.get_state(self.joints)
+        self._q_home, _ = self.get_joint_state(self.joints)
+        self.apply_positions(self._q_home, self.joints)
 
     @property
     def inertia(self) -> dyn.SpatialInertiad:
@@ -107,9 +121,8 @@ class Gripper(articulated_body.ArticulatedBody):
 
     def reset(self) -> bool:
         """Removes any grasp constraint and resets the gripper to the open position."""
-        self._command = 0.0
-        self._torque_control = False
         self.remove_grasp_constraint()
+        self._gripper_state = GripperState()
         self.reset_joints(self._q_home, self.joints)
         self.apply_positions(self._q_home, self.joints)
         return True
@@ -164,29 +177,41 @@ class Gripper(articulated_body.ArticulatedBody):
 
         T_body_to_world = body.Body(self.physics_id, body_id).pose().to_eigen()
         T_ee_to_world = self.link(self._base_link).pose().to_eigen()
-        T_body_to_ee = T_ee_to_world.inverse() * T_body_to_world
+        T_body_to_ee = math.Pose.from_eigen(T_ee_to_world.inverse() * T_body_to_world)
 
-        self._grasp_constraint_id = p.createConstraint(
+        self._gripper_state.grasp_constraint_id = self._create_grasp_constraint(
+            body_id, T_body_to_ee
+        )
+        self._gripper_state.grasp_body_id = body_id
+        self._gripper_state.grasp_T_body_to_ee = T_body_to_ee
+
+        return True
+
+    def _create_grasp_constraint(self, body_id: int, T_body_to_ee: math.Pose) -> int:
+        return p.createConstraint(
             parentBodyUniqueId=self.body_id,
             parentLinkIndex=self._base_link,
             childBodyUniqueId=body_id,
             childLinkIndex=-1,
             jointType=p.JOINT_FIXED,
             jointAxis=np.zeros(3),
-            parentFramePosition=T_body_to_ee.translation,
+            parentFramePosition=T_body_to_ee.pos,
             childFramePosition=np.zeros(3),
-            parentFrameOrientation=eigen.Quaterniond(T_body_to_ee.linear).coeffs,
+            parentFrameOrientation=T_body_to_ee.quat,
             physicsClientId=self.physics_id,
         )
-        return True
 
     def remove_grasp_constraint(self) -> None:
         """Removes the grasp constraint if one exists."""
-        if self._grasp_constraint_id is None:
+        if self._gripper_state.grasp_constraint_id is None:
             return
 
-        p.removeConstraint(self._grasp_constraint_id, physicsClientId=self.physics_id)
-        self._grasp_constraint_id = None
+        p.removeConstraint(
+            self._gripper_state.grasp_constraint_id, physicsClientId=self.physics_id
+        )
+        self._gripper_state.grasp_constraint_id = None
+        self._gripper_state.grasp_body_id = None
+        self._gripper_state.grasp_T_body_to_ee = None
 
     def set_grasp(
         self,
@@ -203,15 +228,15 @@ class Gripper(articulated_body.ArticulatedBody):
             pos_gains: kp gains (only used for sim).
             timeout: Uses the timeout specified in the yaml gripper config if None.
         """
-        self._command = command
+        self._gripper_state.command = command
         if timeout is None:
             timeout = self.timeout
         self._pos_gains = self.pos_gains if pos_gains is None else pos_gains
 
-        self._dq_avg = 1.0
-        self._iter_timeout = int(timeout / math.PYBULLET_TIMESTEP)
+        self._gripper_state.dq_avg = 1.0
+        self._gripper_state.iter_timeout = int(timeout / math.PYBULLET_TIMESTEP)
 
-        self._torque_control = True
+        self._gripper_state.torque_control = True
 
     def update_torques(self) -> articulated_body.ControlStatus:
         """Computes and applies the torques to control the articulated body to the goal set with `Arm.set_pose_goal().
@@ -219,7 +244,7 @@ class Gripper(articulated_body.ArticulatedBody):
         Returns:
             Controller status.
         """
-        if not self._torque_control:
+        if not self._gripper_state.torque_control:
             return articulated_body.ControlStatus.UNINITIALIZED
 
         joint_states = p.getJointStates(
@@ -228,7 +253,7 @@ class Gripper(articulated_body.ArticulatedBody):
         q, dq, _, _ = zip(*joint_states)
         q = np.array(q)
         dq = np.array(dq)
-        q_des = self._torque_multipliers * self._command
+        q_des = self._torque_multipliers * self._gripper_state.command
         q_err = q - q_des
 
         # Compute commands.
@@ -240,25 +265,45 @@ class Gripper(articulated_body.ArticulatedBody):
         self.apply_torques(tau)
         self.apply_positions(q_command)
 
-        self._dq_avg = 0.5 * abs(dq[0]) + 0.5 * self._dq_avg
-        self._iter_timeout -= 1
+        self._gripper_state.dq_avg = 0.5 * abs(dq[0]) + 0.5 * self._gripper_state.dq_avg
+        self._gripper_state.iter_timeout -= 1
 
         # Return position converged.
         if q_err.dot(q_err) < self.pos_threshold * self.pos_threshold:
             return articulated_body.ControlStatus.POS_CONVERGED
 
         # Return velocity converged.
-        if self._dq_avg < 0.0001:
+        if self._gripper_state.dq_avg < 0.0001:
             return articulated_body.ControlStatus.VEL_CONVERGED
 
         # Return timeout.
-        if self._iter_timeout <= 0:
+        if self._gripper_state.iter_timeout <= 0:
             return articulated_body.ControlStatus.TIMEOUT
 
         return articulated_body.ControlStatus.IN_PROGRESS
 
     def freeze_grasp(self) -> None:
         """Disables torque control and freezes the grasp with position control."""
-        self._torque_control = False
-        q = self.get_state(self.joints)[0]
+        self._gripper_state.torque_control = False
+        q = self.get_joint_state(self.joints)[0]
         self.apply_positions(q, self.joints)
+
+    def get_state(self) -> Dict[str, Any]:
+        state = {
+            "articulated_body": super().get_state(),
+            "gripper": copy.deepcopy(self._gripper_state),
+        }
+        return state
+
+    def set_state(self, state: Dict[str, Any]) -> None:
+        super().set_state(state["articulated_body"])
+        self._gripper_state = copy.deepcopy(state["gripper"])
+
+        if self._gripper_state.grasp_constraint_id is not None:
+            assert self._gripper_state.grasp_body_id is not None
+            assert self._gripper_state.grasp_T_body_to_ee is not None
+
+            self._gripper_state.grasp_constraint_id = self._create_grasp_constraint(
+                self._gripper_state.grasp_body_id,
+                self._gripper_state.grasp_T_body_to_ee,
+            )

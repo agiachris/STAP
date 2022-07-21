@@ -204,7 +204,6 @@ def evaluate_plan(
     Returns:
         Rewards received at each timestep.
     """
-    print("planners.utils.evaluate_plan()")
     env.set_state(state)
 
     if gif_path is not None:

@@ -1,6 +1,8 @@
 import abc
+import copy
+import dataclasses
 import enum
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pybullet as p
@@ -15,6 +17,13 @@ class ControlStatus(enum.Enum):
     TIMEOUT = 3
     ABORTED = 4
     UNINITIALIZED = 5
+
+
+@dataclasses.dataclass
+class ArticulatedBodyState:
+    positions: np.ndarray
+    torques: np.ndarray
+    torque_mode: bool = False
 
 
 class ArticulatedBody(body.Body, abc.ABC):
@@ -47,9 +56,13 @@ class ArticulatedBody(body.Body, abc.ABC):
         joint_ids = {get_joint_name(joint_id): joint_id for joint_id in range(self.dof)}
         self._torque_joints = [joint_ids[joint] for joint in torque_joints]
         self._position_joints = [joint_ids[joint] for joint in position_joints]
-        self._torque_mode = False
 
-        self.timeout = float(timeout)
+        len_joints = max(self.joints) + 1
+        self._articulated_body_state = ArticulatedBodyState(
+            np.zeros(len_joints), np.zeros(len_joints)
+        )
+
+        self.timeout = timeout
 
     @property
     def torque_joints(self) -> List[int]:
@@ -70,7 +83,7 @@ class ArticulatedBody(body.Body, abc.ABC):
         """Link with the given id."""
         return body.Link(self.physics_id, self.body_id, link_id)
 
-    def get_state(self, joints: List[int]) -> Tuple[np.ndarray, np.ndarray]:
+    def get_joint_state(self, joints: List[int]) -> Tuple[np.ndarray, np.ndarray]:
         """Gets the position and velocities of the given joints.
 
         Args:
@@ -124,24 +137,24 @@ class ArticulatedBody(body.Body, abc.ABC):
             set_torque_mode = False
 
         # Disable position/velocity control.
-        if not self._torque_mode:
-            null_command = [0] * len(joints)
+        if not self._articulated_body_state.torque_mode:
             p.setJointMotorControlArray(
                 self.body_id,
                 joints,
                 p.POSITION_CONTROL,
-                forces=null_command,
+                forces=np.zeros_like(torques),
                 physicsClientId=self.physics_id,
             )
             p.setJointMotorControlArray(
                 self.body_id,
                 joints,
                 p.VELOCITY_CONTROL,
-                forces=null_command,
+                forces=np.zeros_like(torques),
                 physicsClientId=self.physics_id,
             )
             if set_torque_mode:
-                self._torque_mode = True
+                self._articulated_body_state.torque_mode = True
+            self._articulated_body_state.positions[joints] = float("nan")
 
         # Apply torques.
         p.setJointMotorControlArray(
@@ -151,6 +164,7 @@ class ArticulatedBody(body.Body, abc.ABC):
             forces=torques,
             physicsClientId=self.physics_id,
         )
+        self._articulated_body_state.torques[joints] = torques
 
     def apply_positions(
         self, q: np.ndarray, joints: Optional[List[int]] = None
@@ -167,12 +181,67 @@ class ArticulatedBody(body.Body, abc.ABC):
         if joints is None:
             joints = self.position_joints
         else:
-            self._torque_mode = False
+            self._articulated_body_state.torque_mode = False
 
+        p.setJointMotorControlArray(
+            self.body_id,
+            joints,
+            p.TORQUE_CONTROL,
+            forces=np.zeros_like(q),
+            physicsClientId=self.physics_id,
+        )
         p.setJointMotorControlArray(
             self.body_id,
             joints,
             p.POSITION_CONTROL,
             targetPositions=q,
+            physicsClientId=self.physics_id,
+        )
+        self._articulated_body_state.torques[joints] = 0
+        self._articulated_body_state.positions[joints] = q
+
+    def get_state(self) -> Dict[str, Any]:
+        return {"articulated_body": copy.deepcopy(self._articulated_body_state)}
+
+    def set_state(self, state: Dict[str, Any]) -> None:
+        self._articulated_body_state = copy.deepcopy(state["articulated_body"])
+
+        idx_disabled_position = np.isnan(
+            self._articulated_body_state.positions[self.joints]
+        )
+        idx_torque = self._articulated_body_state.torques[self.joints] > 0
+
+        joints = np.array(self.joints)
+        disabled_joints = joints[idx_disabled_position]
+        torque_joints = joints[idx_torque]
+        position_joints = joints[~idx_disabled_position]
+
+        null_command = np.zeros(len(disabled_joints))
+        p.setJointMotorControlArray(
+            self.body_id,
+            disabled_joints,
+            p.POSITION_CONTROL,
+            forces=null_command,
+            physicsClientId=self.physics_id,
+        )
+        p.setJointMotorControlArray(
+            self.body_id,
+            disabled_joints,
+            p.VELOCITY_CONTROL,
+            forces=null_command,
+            physicsClientId=self.physics_id,
+        )
+        p.setJointMotorControlArray(
+            self.body_id,
+            torque_joints,
+            p.TORQUE_CONTROL,
+            forces=self._articulated_body_state.torques[torque_joints],
+            physicsClientId=self.physics_id,
+        )
+        p.setJointMotorControlArray(
+            self.body_id,
+            position_joints,
+            p.POSITION_CONTROL,
+            targetPositions=self._articulated_body_state.positions[position_joints],
             physicsClientId=self.physics_id,
         )

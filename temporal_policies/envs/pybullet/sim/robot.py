@@ -93,6 +93,19 @@ class Robot(body.Body):
             inertia = inertia + self.gripper.inertia
         self.arm.ab.replace_load(inertia)
 
+    def get_state(self) -> Dict[str, Any]:
+        return {
+            "arm": self.arm.get_state(),
+            "gripper": self.gripper.get_state(),
+            "load": self.arm.ab.inertia_load,
+        }
+
+    def set_state(self, state: Dict[str, Any]) -> None:
+        self.arm.set_state(state["arm"])
+        self.gripper.set_state(state["gripper"])
+        idx_link, load_inertia = next(iter(state["load"].items()))
+        self.arm.ab.replace_load(load_inertia, idx_link)
+
     def goto_home(self) -> bool:
         """Uses opspace control to go to the home position."""
         return self.goto_pose(
@@ -130,10 +143,11 @@ class Robot(body.Body):
 
         # Simulate until the pose goal is reached.
         status = self.arm.update_torques()
+        self.gripper.update_torques()
         while status == articulated_body.ControlStatus.IN_PROGRESS:
-            self.gripper.update_torques()
             self.step_simulation()
             status = self.arm.update_torques()
+            self.gripper.update_torques()
         # print("Robot.goto_pose:", pos, quat, status)
 
         if status == articulated_body.ControlStatus.ABORTED:
@@ -221,7 +235,7 @@ class Robot(body.Body):
                     articulated_body.ControlStatus.VEL_CONVERGED,
                     articulated_body.ControlStatus.IN_PROGRESS,
                 )
-                and self.gripper._iter_timeout >= 0
+                and self.gripper._gripper_state.iter_timeout >= 0
                 and (obj.twist() > 0.001).any()
             ):
                 self.arm.update_torques()
