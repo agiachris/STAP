@@ -9,27 +9,8 @@ from temporal_policies import datasets, scod, envs, agents
 from temporal_policies.networks.encoders import OracleEncoder, NormalizeObservation
 from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.utils import load as load_trainer
-from temporal_policies.utils import configs, tensors, logging, metrics, timing
+from temporal_policies.utils import configs, tensors, logging, metrics
 from temporal_policies.utils.typing import ObsType
-
-
-def load_agent_trainer(policy_checkpoint: Optional[Union[str, pathlib.Path]]) -> AgentTrainer:
-    """Returns agent trainer from policy checkpoint."""
-    if policy_checkpoint is None:
-        raise ValueError(
-            "One of agent_trainer or policy_checkpoint must be specified"
-        )
-    policy_checkpoint = pathlib.Path(policy_checkpoint)
-    if policy_checkpoint.is_file():
-        trainer_checkpoint = (
-            policy_checkpoint.parent
-            / policy_checkpoint.name.replace("model", "trainer")
-        )
-    else:
-        trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
-    agent_trainer = load_trainer(checkpoint=trainer_checkpoint)
-    assert isinstance(agent_trainer, AgentTrainer)
-    return agent_trainer
 
 
 class SCODTrainer(Generic[ObsType]):
@@ -46,9 +27,8 @@ class SCODTrainer(Generic[ObsType]):
         policy_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         agent_trainer: Optional[AgentTrainer] = None,
         device: str = "auto",
-        num_train_steps: int = 10000,
+        num_train_steps: int = 100000,
         log_freq: int = 1000,
-        profile_freq: int = 1000,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
     ):
         """Prepares the SCOD trainer for training.
@@ -65,16 +45,28 @@ class SCODTrainer(Generic[ObsType]):
             device: Torch device.
             num_train_steps: Number of steps to train.
             log_freq: Logging frequency.
-            profile_freq: Profiling frequency.
             checkpoint: Optional path to trainer checkpoint.
         """
         self._path = pathlib.Path(path) / "scod"
         self._scod = scod
         
-        self._agent_trainer = agent_trainer if agent_trainer is not None else load_agent_trainer(policy_checkpoint)
+        if agent_trainer is None:
+            if policy_checkpoint is None:
+                raise ValueError(
+                    "One of agent_trainer or policy_checkpoint must be specified"
+                )
+            policy_checkpoint = pathlib.Path(policy_checkpoint)
+            if policy_checkpoint.is_file():
+                trainer_checkpoint = (
+                    policy_checkpoint.parent
+                    / policy_checkpoint.name.replace("model", "trainer")
+                )
+            else:
+                trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
+            agent_trainer = load_trainer(checkpoint=trainer_checkpoint)
+        self._agent_trainer = agent_trainer
 
-        dataset_class = configs.get_class(dataset_class, datasets)
-        self._dataset = dataset_class(
+        self._dataset = configs.get_class(dataset_class, datasets)(
             observation_space=self.agent.observation_space,
             action_space=self.agent.action_space,
             path=self.path / "train_data", 
@@ -84,15 +76,12 @@ class SCODTrainer(Generic[ObsType]):
 
         self.num_train_steps = num_train_steps
         self.log_freq = log_freq
-        self.profile_freq = profile_freq
-        
-        self._log = logging.Logger(path=self.path)
-        self._profiler = timing.Profiler(disabled=True)
-        self._timer = timing.Timer()
+
+        self._log = logging.Logger(self.path)
 
         self._step = 0
         self._epoch = 0
-        
+
         self.to(device)
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
@@ -131,16 +120,6 @@ class SCODTrainer(Generic[ObsType]):
     def log(self) -> logging.Logger:
         """Tensorboard logger."""
         return self._log
-    
-    @property
-    def profiler(self) -> timing.Profiler:
-        """Code profiler."""
-        return self._profiler
-
-    @property
-    def timer(self) -> timing.Timer:
-        """Code timer."""
-        return self._timer
 
     @property
     def step(self) -> int:
@@ -164,13 +143,6 @@ class SCODTrainer(Generic[ObsType]):
     def device(self) -> torch.device:
         """Torch device."""
         return self._device
-
-    def profile_step(self) -> None:
-        """Enables or disables profiling for the current step."""
-        if self.profile_freq is not None and self.step % self.profile_freq == 0:
-            self.profiler.enable()
-        else:
-            self.profiler.disable()
 
     def state_dict(self) -> Dict[str, Any]:
         """Gets the trainer state dicts."""
@@ -253,66 +225,63 @@ class SCODTrainer(Generic[ObsType]):
         Returns:
             Collect metrics.
         """
-        with self.profiler.profile("collect"):
-
-            if self.step == 0:
-                self.dataset.add(observation=self.env.reset())
-                self._episode_length = 0
-                self._episode_reward = 0
-
-            if random:
-                action = self.agent.action_space.sample()
-            else:
-                self.eval_mode()
-                with torch.no_grad():
-                    observation = tensors.from_numpy(
-                        self.env.get_observation(), self.device
-                    )
-                    if not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation)):
-                        observation = tensors.rgb_to_cnn(observation)
-                    action = self.agent.actor.predict(
-                        self.agent.encoder.encode(observation)
-                    )
-                    action = action.cpu().numpy()
-                self.train_mode()
-
-            next_observation, reward, done, info = self.env.step(action)
-            discount = 1.0 - done
-
-            self.dataset.add(
-                action=action,
-                reward=reward,
-                next_observation=next_observation,
-                discount=discount,
-                done=done,
-            )
-
-            self._episode_length += 1
-            self._episode_reward += reward
-            if not done:
-                return {}
-
-            self.increment_epoch()
-
-            metrics = {
-                "reward": self._episode_reward,
-                "length": self._episode_length,
-                "episode": self.epoch
-            }
-
-            # Reset the environment
+        if self.step == 0:
             self.dataset.add(observation=self.env.reset())
             self._episode_length = 0
             self._episode_reward = 0
 
-            return metrics
+        if random:
+            action = self.agent.action_space.sample()
+        else:
+            self.eval_mode()
+            with torch.no_grad():
+                observation = tensors.from_numpy(
+                    self.env.get_observation(), self.device
+                )
+                if not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation)):
+                    observation = tensors.rgb_to_cnn(observation)
+                action = self.agent.actor.predict(
+                    self.agent.encoder.encode(observation)
+                )
+                action = action.cpu().numpy()
+            self.train_mode()
+
+        next_observation, reward, done, info = self.env.step(action)
+        discount = 1.0 - done
+
+        self.dataset.add(
+            action=action,
+            reward=reward,
+            next_observation=next_observation,
+            discount=discount,
+            done=done,
+        )
+
+        self._episode_length += 1
+        self._episode_reward += reward
+        if not done:
+            return {}
+
+        self.increment_epoch()
+
+        metrics = {
+            "reward": self._episode_reward,
+            "length": self._episode_length,
+            "episode": self.epoch
+        }
+
+        # Reset the environment
+        self.dataset.add(observation=self.env.reset())
+        self._episode_length = 0
+        self._episode_reward = 0
+
+        return metrics
 
     def train(self) -> None:
         """Trains the SCOD model."""
         self.dataset.initialize()
         metrics_list = []
         for self._step in range(self.num_train_steps):
-            self.profile_step()
 
             # Collect transition
             metrics_dict = self.collect_step(random=False)
@@ -321,22 +290,16 @@ class SCODTrainer(Generic[ObsType]):
             # Log metrics
             if self._step % self.log_freq == 0:
                 log_metrics = metrics.collect_metrics(metrics_list)
-                time_metrics = self.profiler.collect_profiles()
                 self.log.log("collect", log_metrics)
-                self.log.log("time", time_metrics)
                 self.log.flush(step=self.step)
                 metrics_list = []
         
         # SCOD pre-processing
         self.model.eval_mode()
-        self.profiler.enable()
-        with self.profiler.profile("scod_fischer"):
-            self.model.process_dataset(
-                self.dataset, 
-                input_keys=["observation", "action"],
-            )
-        self.log.log("time", self.profiler.collect_profiles())
-        self.log.flush(step=self.step)
+        self.model.process_dataset(
+            self.dataset, 
+            input_keys=["observation", "action"],
+        )
 
         self.save(self.path, "final_trainer")
         self.model.save(self.path / "final_scod.pt")
