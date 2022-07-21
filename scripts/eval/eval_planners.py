@@ -74,12 +74,16 @@ def evaluate_planners(
         assert isinstance(observation, np.ndarray)
         state = env.get_state()
 
+        if verbose:
+            env.record_start("timelapse", mode="timelapse")
+
         timer.tic("planner")
         actions, p_success, visited_actions, p_visited_success = planner.plan(
             observation, action_skeleton
         )
         t_planner = timer.toc("planner")
-        env.record_save(path / f"sampled_trajectory_{i}.gif")
+
+        env.record_save(path / f"planning_{i}.gif")
 
         rewards = planners.evaluate_plan(
             env, action_skeleton, state, actions, gif_path=path / f"exec_{i}.gif"

@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ctrlutils import eigen
 import gym
-import imageio
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import yaml
@@ -15,6 +14,7 @@ from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates
 from temporal_policies.envs.pybullet.table.primitives import Primitive
 from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.utils import recorder
 
 import pybullet as p  # Import after envs.pybullet.base to avoid print statement.
 
@@ -46,6 +46,7 @@ class TableEnv(PybulletEnv):
         robot_config: Union[str, Dict[str, Any]],
         objects: Union[str, List[Dict[str, Any]]],
         gui: bool = True,
+        recording_freq: int = 10,
     ):
         super().__init__(name=name, gui=gui)
 
@@ -78,7 +79,7 @@ class TableEnv(PybulletEnv):
         self._objects = {obj.name: obj for obj in object_list}
 
         self._initial_state_id = p.saveState(physicsClientId=self.physics_id)
-        self._states: Dict[int, Dict[str, Any]] = {}
+        self._states: Dict[int, Dict[str, Any]] = {}  # Saved states.
 
         self.set_primitive(action_call=self.action_skeleton[0])
 
@@ -111,14 +112,10 @@ class TableEnv(PybulletEnv):
                 projection_matrix=PROJECTION_MATRIX,
             ),
         }
-        self._is_recording = False
-        self._recording_id = None
-        self._recordings: Dict[Any, List[np.ndarray]] = {}
-        self._recording_freq = 50
-        self._recording_buffer: List[np.ndarray] = []
+
+        self._timelapse = recorder.Recorder()
+        self._recorder = recorder.Recorder()
         self._recording_text = ""
-        self._timestep = 0
-        # self._frames: List[np.ndarray] = []
 
     @property
     def action_skeleton(self) -> List[str]:
@@ -249,15 +246,17 @@ class TableEnv(PybulletEnv):
         primitive = self.get_primitive()
         assert isinstance(primitive, Primitive)
 
-        if self._is_recording:
+        if self._recorder.is_recording() or self._timelapse.is_recording():
             self._recording_text = (
                 "Action: ["
-                + " ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+                + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
                 + "]"
             )
 
+        self._timelapse.add_frame(self.render)
         success = primitive.execute(action, self.robot)
         obs = self.get_observation()
+        self._timelapse.add_frame(self.render)
 
         return obs, float(success), True, {}
 
@@ -285,7 +284,11 @@ class TableEnv(PybulletEnv):
         # print("TableEnv.wait_until_stable: {num_iters}")
         return num_iters
 
-    def render_image(
+    def step_simulation(self) -> None:
+        p.stepSimulation(physicsClientId=self.physics_id)
+        self._recorder.add_frame(self.render)
+
+    def render(
         self, view: str = "front", resolution: Optional[Tuple[int, int]] = None
     ) -> np.ndarray:
         camera_view = self._camera_views[view]
@@ -311,73 +314,80 @@ class TableEnv(PybulletEnv):
 
         return np.array(img)
 
-    def record_start(self, recording_id: Optional[Any] = None) -> bool:
+    def record_start(
+        self,
+        prepend_id: Optional[Any] = None,
+        frequency: Optional[int] = None,
+        mode: str = "default",
+    ) -> bool:
         """Starts recording the simulation.
 
         Args:
-            recording_id: Prepends the new recording with the existing recording
+            prepend_id: Prepends the new recording with the existing recording
                 saved under this id.
+            frequency: Recording frequency.
+            mode: Recording mode. Options:
+                - 'default': record at fixed frequency.
+                - 'timelapse': record timelapse of environment.
+        Returns:
+            Whether recording was started.
         """
-        if isinstance(recording_id, np.ndarray):
-            recording_id = recording_id.item()
+        if isinstance(prepend_id, np.ndarray):
+            prepend_id = prepend_id.item()
+        if prepend_id is not None:
+            prepend_id = str(prepend_id)
 
-        if self._is_recording and self._recording_id == recording_id:
-            return False
-
-        if recording_id in self._recordings:
-            self._recording_buffer = list(self._recordings[recording_id])
+        if mode == "timelapse":
+            self._timelapse.start(prepend_id)
+        elif mode == "default":
+            self._recorder.start(prepend_id, frequency)
         else:
-            self._recording_buffer = []
-
-        self._recording_id = recording_id
-        self._is_recording = True
+            return False
 
         return True
 
-    def record_stop(self, recording_id: Optional[Any] = None) -> bool:
+    def record_stop(self, save_id: Optional[Any] = None, mode: str = "default") -> bool:
         """Stops recording the simulation.
 
         Args:
-            recording_id: Saves the recording to this id.
+            save_id: Saves the recording to this id.
+            mode: Recording mode. Options:
+                - 'default': record at fixed frequency.
+                - 'timelapse': record timelapse of environment.
+        Returns:
+            Whether recording was stopped.
         """
-        if isinstance(recording_id, np.ndarray):
-            recording_id = recording_id.item()
+        if isinstance(save_id, np.ndarray):
+            save_id = save_id.item()
+        if save_id is not None:
+            save_id = str(save_id)
 
-        if not self._is_recording and self._recording_id == recording_id:
+        if mode == "timelapse":
+            return self._timelapse.stop(save_id)
+        elif mode == "default":
+            return self._recorder.stop(save_id)
+        else:
             return False
 
-        self._recordings[recording_id] = self._recording_buffer
-
-        self._recording_id = recording_id
-        self._is_recording = False
-
-        return True
-
-    def record_save(self, path: Union[str, pathlib.Path], reset: bool = True) -> bool:
+    def record_save(
+        self,
+        path: Union[str, pathlib.Path],
+        reset: bool = True,
+        mode: Optional[str] = None,
+    ) -> bool:
         """Saves all the recordings.
 
         Args:
             path: Path for the recording.
             reset: Reset the recording after saving.
+            mode: Recording mode to save. If None, saves all recording modes.
+        Returns:
+            Whether any recordings were saved.
         """
-        path = pathlib.Path(path)
+        is_saved = False
+        if mode is None or mode == "timelapse":
+            is_saved |= self._timelapse.save(path, reset)
+        if mode is None or mode == "default":
+            is_saved |= self._recorder.save(path, reset)
 
-        for recording_id, recording in self._recordings.items():
-            if len(recording) == 0:
-                continue
-            if recording_id is not None:
-                path_video = path.parent / f"{path.stem}-{recording_id}{path.suffix}"
-            else:
-                path_video = path
-            imageio.mimsave(path_video, recording)
-
-            if reset:
-                recording.clear()
-
-        return True
-
-    def step_simulation(self) -> None:
-        p.stepSimulation(physicsClientId=self.physics_id)
-        if self._is_recording and self._timestep % self._recording_freq == 0:
-            self._recording_buffer.append(self.render_image())
-        self._timestep += 1
+        return is_saved

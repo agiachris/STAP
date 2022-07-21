@@ -95,28 +95,52 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
         """Gets an observation for the current environment state."""
 
-    def record_start(self, recording_id: Optional[Any] = None) -> bool:
+    def record_start(
+        self,
+        prepend_id: Optional[Any] = None,
+        frequency: Optional[int] = None,
+        mode: str = "default",
+    ) -> bool:
         """Starts recording the simulation.
 
         Args:
-            recording_id: Prepends the new recording with the existing recording
+            prepend_id: Prepends the new recording with the existing recording
                 saved under this id.
+            frequency: Recording frequency.
+            mode: Recording mode.
+        Returns:
+            Whether recording was started.
         """
+        return False
 
-    def record_stop(self, recording_id: Optional[Any] = None) -> bool:
+    def record_stop(self, save_id: Optional[Any] = None, mode: str = "default") -> bool:
         """Stops recording the simulation.
 
         Args:
-            recording_id: Saves the recording to this id.
+            save_id: Saves the recording to this id.
+            mode: Recording mode.
+        Returns:
+            Whether recording was stopped.
         """
+        return False
 
-    def record_save(self, path: Union[str, pathlib.Path], reset: bool = True) -> bool:
+    def record_save(
+        self,
+        path: Union[str, pathlib.Path],
+        reset: bool = True,
+        mode: Optional[str] = None,
+    ) -> bool:
         """Saves all the recordings.
 
         Args:
             path: Path for the recording.
             reset: Reset the recording after saving.
+            mode: Recording mode to save. If None, saves all recording modes.
+        Returns:
+            Whether any recordings were saved.
         """
+        return False
+
 
 # class ProcessEnv(Env):
 #     """Creates the env in a separate process."""
