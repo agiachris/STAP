@@ -109,6 +109,8 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             key: scheduler_class(optimizer, **scheduler_kwargs)
             for key, optimizer in optimizers.items()
         }
+        
+        self._initialize_collect = True
 
         super().__init__(
             path=path,
@@ -159,10 +161,11 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             Collect metrics.
         """
         with self.profiler.profile("collect"):
-            if self.step == 0:
+            if self._initialize_collect:
                 self.dataset.add(observation=self.env.reset())
                 self._episode_length = 0
                 self._episode_reward = 0
+                self._initialize_collect = False
 
             if random:
                 action = self.agent.action_space.sample()
@@ -319,5 +322,6 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             self.eval_dataset.save()
 
         self.train_mode()
+        self._initialize_collect = True
 
         return metrics_list
