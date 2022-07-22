@@ -1,7 +1,6 @@
 import pathlib
 from typing import Any, Dict, Generic, Optional, Union, Type
 
-import numpy as np  # type: ignore
 import torch  # type: ignore
 import tqdm  # type: ignore
 
@@ -25,10 +24,9 @@ class SCODTrainer(Generic[ObsType]):
         ] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
         policy_checkpoint: Optional[Union[str, pathlib.Path]] = None,
-        agent_trainer: Optional[AgentTrainer] = None,
         device: str = "auto",
-        num_train_steps: int = 100000,
-        log_freq: int = 1000,
+        num_train_steps: int = 10000,
+        log_freq: int = 100,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
     ):
         """Prepares the SCOD trainer for training.
@@ -38,32 +36,29 @@ class SCODTrainer(Generic[ObsType]):
             scod: SCOD model to train.
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
-            policy_checkpoint: List of policy checkpoints. Either this or
-                agent_trainer must be specified.
-            agent_trainer: List of agent trainers. Either this or
-                policy_checkpoint must be specified.
+            policy_checkpoint: Policy checkpoint.
             device: Torch device.
             num_train_steps: Number of steps to train.
             log_freq: Logging frequency.
             checkpoint: Optional path to trainer checkpoint.
         """
-        self._path = pathlib.Path(path) / "scod"
+        if policy_checkpoint is None:
+            raise ValueError("Policy_checkpoint must be specified")
+        policy_checkpoint = pathlib.Path(policy_checkpoint)
+        if policy_checkpoint.is_file():
+            trainer_checkpoint = (
+                policy_checkpoint.parent
+                / policy_checkpoint.name.replace("model", "trainer")
+            )
+        else:
+            trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
+        agent_trainer = load_trainer(checkpoint=trainer_checkpoint)
+
+        agent_name = trainer_checkpoint.name.strip(".pt").split("_")
+        scod_postfix = agent_name[0] if len(agent_name) == 2 else agent_name[2]
+
+        self._path = pathlib.Path(path) / f"scod_{scod_postfix}"
         self._scod = scod
-        
-        if agent_trainer is None:
-            if policy_checkpoint is None:
-                raise ValueError(
-                    "One of agent_trainer or policy_checkpoint must be specified"
-                )
-            policy_checkpoint = pathlib.Path(policy_checkpoint)
-            if policy_checkpoint.is_file():
-                trainer_checkpoint = (
-                    policy_checkpoint.parent
-                    / policy_checkpoint.name.replace("model", "trainer")
-                )
-            else:
-                trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
-            agent_trainer = load_trainer(checkpoint=trainer_checkpoint)
         self._agent_trainer = agent_trainer
 
         self._dataset = configs.get_class(dataset_class, datasets)(
@@ -281,14 +276,21 @@ class SCODTrainer(Generic[ObsType]):
         """Trains the SCOD model."""
         self.dataset.initialize()
         metrics_list = []
-        for self._step in range(self.num_train_steps):
 
+        pbar = tqdm.tqdm(
+            range(self.num_train_steps),
+            desc=f"Collect transitions",
+            dynamic_ncols=True
+        )
+        for _ in pbar:
             # Collect transition
             metrics_dict = self.collect_step(random=False)
             metrics_list.append(metrics_dict)
-            
+            pbar.set_postfix({"Reward": metrics_dict["reward"]})
+            self.increment_step()
+
             # Log metrics
-            if self._step % self.log_freq == 0:
+            if self.step % self.log_freq == 0:
                 log_metrics = metrics.collect_metrics(metrics_list)
                 self.log.log("collect", log_metrics)
                 self.log.flush(step=self.step)
