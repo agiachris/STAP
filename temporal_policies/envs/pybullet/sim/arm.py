@@ -15,6 +15,8 @@ class ArmState:
 
     pos_des: Optional[np.ndarray] = None
     quat_des: Optional[np.ndarray] = None
+    pos_gains: Union[Tuple[float, float], np.ndarray] = (64.0, 16.0)
+    ori_gains: Union[Tuple[float, float], np.ndarray] = (64.0, 16.0)
     torque_control: bool = False
     dx_avg: float = 0.0
     w_avg: float = 0.0
@@ -125,13 +127,13 @@ class Arm(articulated_body.ArticulatedBody):
             timeout: Uses the timeout specified in the yaml arm config if None.
         """
         if pos is not None:
-            self._pos_des = pos
+            self._arm_state.pos_des = pos
         if quat is not None:
-            self._quat_des = quat
+            self._arm_state.quat_des = quat
         if timeout is None:
             timeout = self.timeout
-        self._pos_gains = self.pos_gains if pos_gains is None else pos_gains
-        self._ori_gains = self.ori_gains if ori_gains is None else ori_gains
+        self._arm_state.pos_gains = self.pos_gains if pos_gains is None else pos_gains
+        self._arm_state.ori_gains = self.ori_gains if ori_gains is None else ori_gains
 
         self._arm_state.dx_avg = 1.0
         self._arm_state.w_avg = 1.0
@@ -173,11 +175,11 @@ class Arm(articulated_body.ArticulatedBody):
         # Compute torques.
         tau, status = dyn.opspace_control(
             self.ab,
-            pos=self._pos_des,
-            ori=self._quat_des,
+            pos=self._arm_state.pos_des,
+            ori=self._arm_state.quat_des,
             joint=self.q_home,
-            pos_gains=self._pos_gains,
-            ori_gains=self._ori_gains,
+            pos_gains=self._arm_state.pos_gains,
+            ori_gains=self._arm_state.ori_gains,
             joint_gains=self.nullspace_joint_gains,
             task_pos=self.ee_offset,
             pos_threshold=self.pos_threshold,
