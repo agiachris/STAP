@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from gym import spaces
@@ -6,6 +6,12 @@ from Box2D import b2Vec2
 
 from .base import Box2DBase
 from .utils import shape_to_vertices
+from temporal_policies.envs import base as envs
+
+
+class PlaceRight(envs.Primitive):
+    def __init__(self):
+        super().__init__(0, None)
 
 
 class PlaceRight2D(Box2DBase):
@@ -36,6 +42,26 @@ class PlaceRight2D(Box2DBase):
         # Simulate
         return super().step()
 
+    def get_primitive(self) -> envs.Primitive:
+        return self._primitive
+
+    def set_primitive(
+        self,
+        primitive: Optional[envs.Primitive] = None,
+        action_call: Optional[str] = None,
+        idx_policy: Optional[int] = None,
+        policy_args: Optional[Any] = None,
+    ) -> envs.Env:
+        return self
+
+    def get_primitive_info(
+        self,
+        action_call: Optional[str] = None,
+        idx_policy: Optional[int] = None,
+        policy_args: Optional[Any] = None,
+    ) -> envs.Primitive:
+        return self._primitive
+
     def _setup_spaces(self):
         """PlaceRight2D primitive action and observation spaces.
         Action space: (self.agent.position.x, self.agent.position.angle)
@@ -53,11 +79,12 @@ class PlaceRight2D(Box2DBase):
         # Action space
         x_min = wksp_pos_x - wksp_w * 0.5 + item_w * 0.5
         x_max = wksp_pos_x + wksp_w * 0.5 - item_w * 0.5
-        self.action_scale = spaces.Box(
+        self._primitive = PlaceRight()
+        self._primitive.action_scale = spaces.Box(
             low=np.array([x_min, -np.pi * 0.5], dtype=np.float32),
             high=np.array([x_max, np.pi * 0.5], dtype=np.float32),
         )
-        self.action_space = spaces.Box(
+        self._primitive.action_space = spaces.Box(
             low=np.array([-1, -1], dtype=np.float32),
             high=np.array([1, 1], dtype=np.float32),
         )

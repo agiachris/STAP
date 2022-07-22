@@ -14,10 +14,11 @@ from .generator import Generator
 from .utils import rigid_body_2d, shape_to_vertices, to_homogenous
 from .visualization import draw_caption
 from temporal_policies import agents
-from temporal_policies.utils import tensors
+from temporal_policies.envs import base
+from temporal_policies.utils import recording, tensors
 
 
-class Box2DBase(ABC, gym.Env, Generator):
+class Box2DBase(base.Env, Generator, ABC):
     @abstractmethod
     def __init__(
         self,
@@ -35,7 +36,6 @@ class Box2DBase(ABC, gym.Env, Generator):
         steps: int = 0,
         physics_steps: int = 0,
         physics_steps_buffer: int = 0,
-        buffer_frames: bool = False,
         **kwargs,
     ):
         """Box2D environment base class.
@@ -55,7 +55,6 @@ class Box2DBase(ABC, gym.Env, Generator):
             steps: initial step of the gym environment
             physics_steps: number of time_steps occured
             physics_steps_buffer: number of extra time_steps after episode has terminated
-            buffer_frames: save frames rendered at each timestep to buffer
         """
         Generator.__init__(self, **kwargs)
         self.name = name
@@ -72,9 +71,9 @@ class Box2DBase(ABC, gym.Env, Generator):
         self._steps = steps
         self._physics_steps = physics_steps
         self._physics_steps_buffer = physics_steps_buffer
-        self._buffer_frames = buffer_frames
 
-        self._frame_buffer = []
+        self._recorder = recording.Recorder()
+
         self._setup_spaces()
         self._render_setup()
         self._eval_mode = False
@@ -109,16 +108,12 @@ class Box2DBase(ABC, gym.Env, Generator):
         self._eval_mode = False
         self._break_on_done = True
         self._physics_steps_buffer = 0
-        self._buffer_frames = False
 
-    def eval_mode(
-        self, break_on_done=True, physics_steps_buffer=10, buffer_frames=True
-    ):
+    def eval_mode(self, break_on_done=True, physics_steps_buffer=10):
         """Set environment to evaluation mode."""
         self._eval_mode = True
         self._break_on_done = break_on_done
         self._physics_steps_buffer = physics_steps_buffer
-        self._buffer_frames = buffer_frames
 
     @classmethod
     def load(cls, env, **kwargs):
@@ -134,7 +129,6 @@ class Box2DBase(ABC, gym.Env, Generator):
             # Box2DBase kwargs
             "cumulative_reward": env._cumulative_reward,
             "physics_steps": env._physics_steps,
-            "buffer_frames": env._buffer_frames,
             # Generator kwargs
             "env": env.env,
             "world": env.world,
@@ -146,12 +140,14 @@ class Box2DBase(ABC, gym.Env, Generator):
         env_kwargs.update(deepcopy(kwargs))
         loaded_env = cls(**env_kwargs)
         loaded_env._clean_base_kwargs()
-        # loaded_env._frame_buffer = deepcopy(env._frame_buffer)
+
+        # Use same recorder instance for rendering continuity.
+        loaded_env._recorder = env._recorder
+
         if env._eval_mode:
             loaded_env.eval_mode(
                 break_on_done=env._break_on_done,
                 physics_steps_buffer=env._physics_steps_buffer,
-                buffer_frames=env._buffer_frames,
             )
         return loaded_env
 
@@ -169,7 +165,6 @@ class Box2DBase(ABC, gym.Env, Generator):
             "cumulative_reward": env._cumulative_reward,
             "steps": env._steps,
             "physics_steps": env._physics_steps,
-            "buffer_frames": env._buffer_frames,
             # Generator kwargs
             "env": env.env,
             "world": env.world,
@@ -181,12 +176,11 @@ class Box2DBase(ABC, gym.Env, Generator):
         env_kwargs.update(deepcopy(kwargs))
         loaded_env = cls(**env_kwargs)
         loaded_env._clean_base_kwargs()
-        loaded_env._frame_buffer = deepcopy(env._frame_buffer)
+        loaded_env._recorder = deepcopy(loaded_env.recorder)
         if env._eval_mode:
             loaded_env.eval_mode(
                 break_on_done=env._break_on_done,
                 physics_steps_buffer=env._physics_steps_buffer,
-                buffer_frames=env._buffer_frames,
             )
         return loaded_env
 
@@ -205,14 +199,13 @@ class Box2DBase(ABC, gym.Env, Generator):
             self._cumulative_reward = 0.0
             self._steps = 0
             self._physics_steps = 0
-            self._frame_buffer = []
         self._render_setup()
 
         observation = self.get_observation()
         return observation
 
     @abstractmethod
-    def step(self):
+    def step(self, action=None):
         """Take environment steps at self._time_steps frequency."""
         obs, reward, done, info = self.simulate()
         self._steps += 1
@@ -227,16 +220,12 @@ class Box2DBase(ABC, gym.Env, Generator):
         clear_forces=None,
         break_on_done=None,
         accrue_rewards=True,
-        buffer_frames=None,
     ):
         # Custom simulation arguments
         time_steps = time_steps if time_steps is not None else self._steps_per_action
         clear_forces = clear_forces if clear_forces is not None else self._clear_forces
         break_on_done = (
             break_on_done if break_on_done is not None else self._break_on_done
-        )
-        buffer_frames = (
-            buffer_frames if buffer_frames is not None else self._buffer_frames
         )
 
         obs = None
@@ -256,8 +245,7 @@ class Box2DBase(ABC, gym.Env, Generator):
                 reward += r
                 self._cumulative_reward += r
 
-            if buffer_frames:
-                self._frame_buffer.append(self.render())
+            self._recorder.add_frame(self.render)
             self._physics_steps += 1
             steps += 1
 

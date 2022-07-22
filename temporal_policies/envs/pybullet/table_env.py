@@ -14,7 +14,7 @@ from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates
 from temporal_policies.envs.pybullet.table.primitives import Primitive
 from temporal_policies.envs.pybullet.table.objects import Object
-from temporal_policies.utils import recorder
+from temporal_policies.utils import recording
 
 import pybullet as p  # Import after envs.pybullet.base to avoid print statement.
 
@@ -113,8 +113,8 @@ class TableEnv(PybulletEnv):
             ),
         }
 
-        self._timelapse = recorder.Recorder()
-        self._recorder = recorder.Recorder()
+        self._timelapse = recording.Recorder()
+        self._recorder = recording.Recorder()
         self._recording_text = ""
 
     @property
@@ -172,7 +172,7 @@ class TableEnv(PybulletEnv):
             )
         else:
             raise ValueError(
-                "One of primitive, action_call, or (idx_policy, policy_args) must not be None."
+                "One of action_call or (idx_policy, policy_args) must not be None."
             )
 
     def get_state(self) -> np.ndarray:

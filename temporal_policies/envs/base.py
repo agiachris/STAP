@@ -9,7 +9,7 @@ import numpy as np
 from temporal_policies.utils import spaces
 
 
-class Primitive(abc.ABC):
+class Primitive:
     action_space: gym.spaces.Box
     action_scale: gym.spaces.Box
 
@@ -37,10 +37,11 @@ class Primitive(abc.ABC):
         )
 
     def __str__(self) -> str:
-        return f"{type(self).__name__}({', '.join(map(str, self.policy_args))})"
+        args = "" if self.policy_args is None else ", ".join(map(str, self.policy_args))
+        return f"{type(self).__name__}({args})"
 
 
-class Env(gym.Env[np.ndarray, np.ndarray]):
+class Env(gym.Env[np.ndarray, np.ndarray], abc.ABC):
     """Base env class with a separate state space for dynamics."""
 
     name: str

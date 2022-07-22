@@ -66,24 +66,31 @@ class PlannerFactory(configs.Factory):
             )
 
         if isinstance(env, envs.pybox2d.Sequential2D):
-            # TODO: Implement policy envs.
-            raise NotImplementedError("Need to implement policy envs")
-        policies = [
-            agents.load(
-                config=agent_config,
-                # env=policy_env,
-                env=env,
-                checkpoint=ckpt,
-            )
-            # for agent_config, policy_env, ckpt in zip(
-            #     self.config["agent_configs"],
-            #     env.envs,
-            #     policy_checkpoints,
-            # )
-            for agent_config, ckpt in zip(
-                self.config["agent_configs"], policy_checkpoints
-            )
-        ]
+            # TODO: CHeck if this special case is necessary.
+            policies = [
+                agents.load(
+                    config=agent_config,
+                    env=policy_env,
+                    checkpoint=ckpt,
+                )
+                for agent_config, policy_env, ckpt in zip(
+                    self.config["agent_configs"],
+                    env.envs,
+                    policy_checkpoints,
+                )
+            ]
+        else:
+            policies = [
+                agents.load(
+                    config=agent_config,
+                    # env=policy_env,
+                    env=env,
+                    checkpoint=ckpt,
+                )
+                for agent_config, ckpt in zip(
+                    self.config["agent_configs"], policy_checkpoints
+                )
+            ]
 
         # Make sure all policy checkpoints are not None for dynamics.
         dynamics_policy_checkpoints: Optional[List[Union[str, pathlib.Path]]] = []
