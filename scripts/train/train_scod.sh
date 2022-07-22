@@ -25,16 +25,24 @@ function train_scod {
     run_cmd
 }
 
-
 OUTPUT_PATH="${OUTPUTS}/temporal_policies/models"
 TRAINER_CONFIG="configs/pybox2d/trainers/scod.yaml"
 SCOD_CONFIG="configs/pybox2d/scod/scod.yaml"
 MODEL_NETWORK="critic"
 
-EXP_NAME="20220718/decoupled_state/placeright"
-MODEL_CHECKPOINT="${EXP_NAME}/final_model.pt"
-train_scod
+checkpoints=(
+    "final_model"
+    "best_model"
+    "ckpt_model_50000"
+    "ckpt_model_100000"
+)
+for ckpt in "${checkpoints[@]}"; do
+    EXP_NAME="20220722/decoupled_state/placeright"
+    MODEL_CHECKPOINT="${EXP_NAME}/${ckpt}.pt"
+    train_scod
 
-EXP_NAME="20220718/decoupled_state/pushleft"
-MODEL_CHECKPOINT="${EXP_NAME}/final_model.pt"
-train_scod
+    EXP_NAME="20220722/decoupled_state/pushleft"
+    MODEL_CHECKPOINT="${EXP_NAME}/${ckpt}.pt"
+    train_scod
+done
+
