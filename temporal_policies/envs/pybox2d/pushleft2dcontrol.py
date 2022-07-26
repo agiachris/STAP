@@ -184,6 +184,5 @@ class PushLeft2DControl(Box2DBase):
             clear_forces=True,
             break_on_done=False,
             accrue_rewards=False,
-            buffer_frames=False,
         )
         return self.__on_ground() and self.__on_right()

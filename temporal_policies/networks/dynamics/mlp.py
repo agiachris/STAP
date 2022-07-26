@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional, Type
 
 import gym
 import torch
@@ -19,8 +19,8 @@ class MLPDynamics(PolicyDynamics):
         state_space: gym.spaces.Box,
         action_space: gym.spaces.Box,
         hidden_layers: List[int] = [256, 256],
-        act: torch.nn.Module = torch.nn.ReLU(),
-        output_act: torch.nn.Module = None,
+        act: Type[torch.nn.Module] = torch.nn.ReLU,
+        output_act: Optional[Type[torch.nn.Module]] = None,
         ortho_init: bool = False,
     ):
         super().__init__(state_space, action_space)

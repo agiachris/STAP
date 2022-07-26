@@ -39,14 +39,35 @@ function train_dynamics {
 #     train_dynamics
 # done
 
-for train_step in 50000 100000 150000 200000; do
-    EXP_NAME="20220428/decoupled_img"
-    TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
-    DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
-    POLICY_CHECKPOINTS=(
-        "models/${EXP_NAME}/placeright_img/ckpt_model_${train_step}.pt"
-        "models/${EXP_NAME}/pushleft_img/ckpt_model_${train_step}.pt"
-    )
-    EXP_NAME="${EXP_NAME}/dynamics_${train_step}"
-    train_dynamics
-done
+# for train_step in 50000 100000 150000 200000; do
+#     EXP_NAME="20220428/decoupled_img"
+#     TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
+#     DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
+#     POLICY_CHECKPOINTS=(
+#         "models/${EXP_NAME}/placeright_img/ckpt_model_${train_step}.pt"
+#         "models/${EXP_NAME}/pushleft_img/ckpt_model_${train_step}.pt"
+#     )
+#     EXP_NAME="${EXP_NAME}/dynamics_${train_step}"
+#     train_dynamics
+# done
+
+EXP_NAME="20220721/pybox2d"
+TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
+DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
+POLICY_CHECKPOINTS=(
+    "models/${EXP_NAME}/placeright/best_model.pt"
+    "models/${EXP_NAME}/pushleft/best_model.pt"
+)
+EXP_NAME="${EXP_NAME}/dynamics"
+train_dynamics
+
+EXP_NAME="20220722/workspace"
+TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
+DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
+POLICY_CHECKPOINTS=(
+    "models/${EXP_NAME}/pick/best_model.pt"
+    "models/${EXP_NAME}/place/best_model.pt"
+    "models/${EXP_NAME}/pull/best_model.pt"
+)
+EXP_NAME="${EXP_NAME}/dynamics"
+train_dynamics

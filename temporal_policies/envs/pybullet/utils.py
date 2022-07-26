@@ -18,12 +18,18 @@ class RedirectStream(object):
 
     def __enter__(self):
         self.stream.flush()  # ensures python stream unaffected
-        self.fd = open(self.file, "w+")
+        try:
+            self.fd = open(self.file, "w+")
+        except NameError:
+            return
         self.dup_stream = os.dup(self.stream.fileno())
         os.dup2(self.fd.fileno(), self.stream.fileno())  # replaces stream
 
     def __exit__(self, type, value, traceback):
         RedirectStream._flush_c_stream(self.stream)  # ensures C stream buffer empty
-        os.dup2(self.dup_stream, self.stream.fileno())  # restores stream
+        try:
+            os.dup2(self.dup_stream, self.stream.fileno())  # restores stream
+        except AttributeError:
+            return
         os.close(self.dup_stream)
         self.fd.close()

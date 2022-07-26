@@ -1,4 +1,4 @@
-from typing import List, Sequence
+from typing import List, Sequence, Type
 
 import gym
 import numpy as np
@@ -14,7 +14,7 @@ class ConvEncoder(Encoder):
         env: envs.Env,
         latent_dim: int,
         hidden_channels: Sequence[int],
-        nonlinearity: torch.nn.Module = torch.nn.ReLU(),
+        nonlinearity: Type[torch.nn.Module] = torch.nn.ReLU,
         distribution_parameters: int = 2,
     ):
         state_space = gym.spaces.Box(
@@ -126,7 +126,7 @@ class ConvDecoder(Decoder):
         env: envs.Env,
         latent_dim: int,
         hidden_channels: Sequence[int],
-        nonlinearity: torch.nn.Module = torch.nn.ReLU(),
+        nonlinearity: Type[torch.nn.Module] = torch.nn.ReLU,
         distribution_parameters: int = 2,
     ):
         super().__init__(env)

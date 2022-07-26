@@ -1,3 +1,4 @@
+from typing import List, Optional, Sequence, Type
 import math
 
 import torch
@@ -13,14 +14,14 @@ def weight_init(m):
 class MLP(torch.nn.Module):
     def __init__(
         self,
-        input_dim,
-        output_dim,
-        hidden_layers=[256, 256],
-        act=torch.nn.ReLU,
-        output_act=None,
+        input_dim: int,
+        output_dim: int,
+        hidden_layers: Sequence[int] = [256, 256],
+        act: Type[torch.nn.Module] = torch.nn.ReLU,
+        output_act: Optional[Type[torch.nn.Module]] = None,
     ):
         super().__init__()
-        net = []
+        net: List[torch.nn.Module] = []
         last_dim = input_dim
         for dim in hidden_layers:
             net.append(torch.nn.Linear(last_dim, dim))
