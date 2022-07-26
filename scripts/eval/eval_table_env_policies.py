@@ -172,7 +172,7 @@ def plot_critic_overlay(
         physicsClientId=env.physics_id,
     )
 
-    img_rgb = env.render_image("front", resolution=(1620, 1080))
+    img_rgb = env.render("front", resolution=(1620, 1080))
     img = PIL.Image.fromarray(img_rgb)
     img.save(path / f"{name}.png")
 

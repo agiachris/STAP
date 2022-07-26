@@ -1,4 +1,5 @@
 import dataclasses
+import enum
 import pathlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -27,11 +28,20 @@ class CameraView:
     projection_matrix: np.ndarray
 
 
+class ObservationMode(enum.Enum):
+    PRIMITIVE = 0
+    FULL = 1
+
+
 class TableEnv(PybulletEnv):
     state_space = gym.spaces.Box(
         low=0, high=np.iinfo(np.int32).max, shape=(1,), dtype=np.int32
     )
     image_space = gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
+
+    # Vector containing num_policy_args + 1 object states, corresponding to the
+    # object states for each of the policy_args and an additional object state
+    # for the gripper.
     observation_space = gym.spaces.Box(
         low=np.tile(object_state.ObjectState.range()[0], 3),
         high=np.tile(object_state.ObjectState.range()[1], 3),
@@ -73,10 +83,21 @@ class TableEnv(PybulletEnv):
         # self.step_simulation()
 
         object_list = [
-            Object.create(physics_id=self.physics_id, **obj_kwargs)
-            for obj_kwargs in objects
+            Object.create(
+                physics_id=self.physics_id, idx_object=idx_object, **obj_kwargs
+            )
+            for idx_object, obj_kwargs in enumerate(objects)
         ]
         self._objects = {obj.name: obj for obj in object_list}
+        self._full_observation_space = gym.spaces.Box(
+            low=np.tile(
+                object_state.ObjectState.range()[0:1], (len(self.objects) + 1, 1)
+            ),
+            high=np.tile(
+                object_state.ObjectState.range()[1:2], (len(self.objects) + 1, 1)
+            ),
+        )
+        self._observation_mode = ObservationMode.PRIMITIVE
 
         self._initial_state_id = p.saveState(physicsClientId=self.physics_id)
         self._states: Dict[int, Dict[str, Any]] = {}  # Saved states.
@@ -137,6 +158,30 @@ class TableEnv(PybulletEnv):
     def objects(self) -> Dict[str, Object]:
         return self._objects
 
+    @property
+    def full_observation_space(self) -> gym.spaces.Box:
+        """Observation space containing all the objects in the scene, including the gripper.
+
+        `self.observation_space` is a flattened vector, while
+        `self.full_observation_space` is a matrix.
+
+        The number of objects is determined by the yaml config.
+        """
+        return self._full_observation_space
+
+    def set_observation_mode(self, mode: ObservationMode) -> None:
+        """Sets the observation type returned by `self.get_observation()`.
+
+        Args:
+            mode: Observation mode (PRIMITIVE for `observation_space`, FULL for
+                    `full_observation_space`).
+        """
+        self._observation_mode = mode
+
+    def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
+        assert isinstance(policy_args, list)
+        return [arg.idx_object for arg in policy_args] + [len(self.objects)]
+
     def get_primitive(self) -> envs.Primitive:
         return self._primitive
 
@@ -188,12 +233,21 @@ class TableEnv(PybulletEnv):
         return True
 
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
-        obj_states = self.object_states()
-        arg_states = [
-            obj_states[arg.name].vector for arg in self.get_primitive().policy_args
-        ]
-        arg_states.append(obj_states["gripper"].vector)
-        return np.concatenate(arg_states, axis=0)
+        if self._observation_mode == ObservationMode.PRIMITIVE:
+            obj_states = self.object_states()
+            arg_states = [
+                obj_states[arg.name].vector for arg in self.get_primitive().policy_args
+            ]
+            arg_states.append(obj_states["gripper"].vector)
+            return np.concatenate(arg_states, axis=0)
+        elif self._observation_mode == ObservationMode.FULL:
+            obj_states = self.object_states()
+            ordered_states = [obj_state.vector for obj_state in obj_states.values()]
+            return np.stack(ordered_states, axis=0)
+        else:
+            raise NotImplementedError(
+                f"TableEnv.get_observation() not implemented for observation mode: {self._observation_mode}"
+            )
 
     def object_states(self) -> Dict[str, object_state.ObjectState]:
         state = {obj.name: obj.state() for name, obj in self.objects.items()}

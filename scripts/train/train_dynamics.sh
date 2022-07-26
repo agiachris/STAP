@@ -58,7 +58,6 @@ POLICY_CHECKPOINTS=(
     "models/${EXP_NAME}/placeright/best_model.pt"
     "models/${EXP_NAME}/pushleft/best_model.pt"
 )
-EXP_NAME="${EXP_NAME}/dynamics"
 train_dynamics
 
 EXP_NAME="20220722/workspace"
@@ -69,5 +68,4 @@ POLICY_CHECKPOINTS=(
     "models/${EXP_NAME}/place/best_model.pt"
     "models/${EXP_NAME}/pull/best_model.pt"
 )
-EXP_NAME="${EXP_NAME}/dynamics"
 train_dynamics

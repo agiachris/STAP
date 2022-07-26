@@ -20,11 +20,13 @@ class Object(body.Body):
         self,
         physics_id: int,
         body_id: int,
+        idx_object: int,
         name: str,
         is_static: bool = False,
     ):
         super().__init__(physics_id, body_id)
 
+        self.idx_object = idx_object
         self.name = name
         self.is_static = is_static
 
@@ -96,10 +98,17 @@ class Object(body.Body):
 
     @classmethod
     def create(
-        cls, physics_id: int, object_type: str, object_kwargs: Dict[str, Any], **kwargs
+        cls,
+        physics_id: int,
+        idx_object: int,
+        object_type: str,
+        object_kwargs: Dict[str, Any],
+        **kwargs
     ) -> "Object":
         object_class = globals()[object_type]
-        return object_class(physics_id, **object_kwargs, **kwargs)
+        return object_class(
+            physics_id=physics_id, idx_object=idx_object, **object_kwargs, **kwargs
+        )
 
     def isinstance(self, class_or_tuple: type) -> bool:
         return isinstance(self, class_or_tuple)
@@ -116,6 +125,7 @@ class Urdf(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         path: str,
         is_static: bool = False,
@@ -129,6 +139,7 @@ class Urdf(Object):
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
+            idx_object=idx_object,
             name=name,
             is_static=is_static,
         )
@@ -146,6 +157,7 @@ class Box(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         size: Union[List[float], np.ndarray],
         color: Union[List[float], np.ndarray],
@@ -157,6 +169,7 @@ class Box(Object):
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
+            idx_object=idx_object,
             name=name,
             is_static=mass == 0.0,
         )
@@ -173,6 +186,7 @@ class Hook(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         head_length: float,
         handle_length: float,
@@ -230,6 +244,7 @@ class Hook(Object):
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
+            idx_object=idx_object,
             name=name,
             is_static=mass == 0.0,
         )
@@ -271,15 +286,18 @@ class Variant(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         options: List[Dict[str, Any]],
     ):
         self.physics_id = physics_id
+        self.idx_object = idx_object
         self.name = name
 
         self._objects = [
             Object.create(
                 physics_id=self.physics_id,
+                idx_object=idx_object,
                 name=self.name,
                 **obj_kwargs,
             )
