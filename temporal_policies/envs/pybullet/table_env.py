@@ -72,7 +72,7 @@ class TableEnv(PybulletEnv):
         self._action_skeleton = action_skeleton
         self._primitives = primitives
         self._initial_state = [
-            predicates.Proposition.create(prop) for prop in initial_state
+            predicates.Predicate.create(prop) for prop in initial_state
         ]
 
         self._robot = robot.Robot(
@@ -147,7 +147,7 @@ class TableEnv(PybulletEnv):
         return self._primitives
 
     @property
-    def initial_state(self) -> List[predicates.Proposition]:
+    def initial_state(self) -> List[predicates.Predicate]:
         return self._initial_state
 
     @property
@@ -284,14 +284,20 @@ class TableEnv(PybulletEnv):
                 obj.reset()
 
             if not all(
-                any(prop.sample(self.robot, self.objects) for _ in range(max_attempts))
+                any(
+                    prop.sample(self.robot, self.objects, self.initial_state)
+                    for _ in range(max_attempts)
+                )
                 for prop in self.initial_state
             ):
                 continue
 
             self.wait_until_stable(1)
 
-            if all(prop.value(self.robot, self.objects) for prop in self.initial_state):
+            if all(
+                prop.value(self.robot, self.objects, self.initial_state)
+                for prop in self.initial_state
+            ):
                 break
 
         return self.get_observation()
