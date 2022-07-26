@@ -136,6 +136,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 eval_dataset_size=eval_dataset_size,
             )
 
+        self._reset_collect = True
+
     @property
     def agent(self) -> agents.RLAgent:
         """Agent being trained."""
@@ -156,7 +158,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             Collect metrics.
         """
         with self.profiler.profile("collect"):
-            if self.step == 0:
+            if self._reset_collect:
+                self._reset_collect = False
                 observation = self.env.reset()
                 assert isinstance(observation, np.ndarray)
                 self.dataset.add(observation=observation)
@@ -320,5 +323,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             self.eval_dataset.save()
 
         self.train_mode()
+        self._reset_collect = True
 
         return metrics_list
