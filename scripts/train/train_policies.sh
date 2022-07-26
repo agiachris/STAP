@@ -26,7 +26,7 @@ function train_policy {
     run_cmd
 }
 
-EXP_NAME="20220721/pybox2d"
+EXP_NAME="20220725/pybox2d"
 
 TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
@@ -62,16 +62,16 @@ train_policy
 # ENV_CONFIG="configs/pybox2d/envs/pushleft_img.yaml"
 # train_policy
 
-# EXP_NAME="20220716/workspace"
-#
-# TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
-# AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
-#
-# ENV_CONFIG="configs/pybullet/envs/pick.yaml"
-# train_policy
-#
-# ENV_CONFIG="configs/pybullet/envs/place.yaml"
-# train_policy
-#
-# ENV_CONFIG="configs/pybullet/envs/pull.yaml"
-# train_policy
+EXP_NAME="20220725/workspace"
+
+TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
+AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
+
+ENV_CONFIG="configs/pybullet/envs/pick.yaml"
+train_policy
+
+ENV_CONFIG="configs/pybullet/envs/place.yaml"
+train_policy
+
+ENV_CONFIG="configs/pybullet/envs/pull.yaml"
+train_policy
