@@ -52,6 +52,9 @@ class PybulletEnv(Env):
     def physics_id(self) -> int:
         return self._physics_id
 
-    def __del__(self) -> None:
+    def close(self) -> None:
         with RedirectStream():
             p.disconnect(physicsClientId=self.physics_id)
+
+    def __del__(self) -> None:
+        self.close()

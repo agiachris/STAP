@@ -314,9 +314,6 @@ class TableEnv(PybulletEnv):
 
         return obs, float(success), True, {}
 
-    def close(self) -> None:
-        p.disconnect(physicsClientId=self.physics_id)
-
     def wait_until_stable(
         self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)
     ) -> int:
