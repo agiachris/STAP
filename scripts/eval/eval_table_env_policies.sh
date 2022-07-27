@@ -35,6 +35,7 @@ DEBUG=0
 
 policy_envs=(
     "pick"
+    "place"
 )
 experiments=(
     "20220726/workspace"
@@ -42,7 +43,7 @@ experiments=(
 
 for EXP_NAME in "${experiments[@]}"; do
     for policy_env in "${policy_envs[@]}"; do
-        POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/best_model.pt"
+        POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/final_model.pt"
         eval_policies
     done
 done

@@ -31,6 +31,7 @@ class Primitive:
             action, from_space=cls.action_space, to_space=cls.action_scale
         )
 
+    @classmethod
     def normalize_action(cls, action: np.ndarray) -> np.ndarray:
         return spaces.transform(
             action, from_space=cls.action_scale, to_space=cls.action_space

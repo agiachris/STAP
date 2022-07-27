@@ -11,11 +11,30 @@ import PIL
 import torch
 
 from temporal_policies import agents, envs
-from temporal_policies.envs.pybullet.table import objects, object_state, primitives
+from temporal_policies.envs.pybullet.sim import math
+from temporal_policies.envs.pybullet.table import (
+    objects,
+    object_state,
+    primitives,
+    primitive_actions,
+)
 from temporal_policies.envs.pybullet.sim.robot import ControlException
 from temporal_policies.utils import random
 
 import pybullet as p
+
+
+def evaluate_critic(
+    policy: agents.Agent, observations: np.ndarray, actions: np.ndarray
+) -> np.ndarray:
+    with torch.no_grad():
+        t_observations = torch.from_numpy(observations).to(policy.device)
+        t_actions = torch.from_numpy(actions).to(policy.device)
+        t_states = policy.encoder.encode(t_observations)
+        t_q_values = policy.critic.predict(t_states, t_actions)
+        q_values = t_q_values.cpu().numpy()
+
+    return q_values
 
 
 def evaluate_pick_critic_state(
@@ -26,14 +45,15 @@ def evaluate_pick_critic_state(
     action: np.ndarray,
     grid_resolution: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
+    # Create grid of xy positions on the table.
     xy_min = np.array(env.observation_space.low[:2])
     xy_max = np.array(env.observation_space.high[:2])
     xy_min[1] = max(-0.45, xy_min[1])
     xy_max[1] = min(0.45, xy_max[1])
-    obs = object_state.ObjectState(observation)
     z = primitive.policy_args[0].size[2] / 2
     xs, ys = np.meshgrid(*np.linspace(xy_min, xy_max, grid_resolution).T)
 
+    # Create observation batch.
     observations = np.tile(
         observation, (xs.size, *np.ones_like(env.observation_space.shape))
     )
@@ -42,17 +62,13 @@ def evaluate_pick_critic_state(
     obs.pos[:, 0, 1] = ys.flatten()
     obs.pos[:, 0, 2] = z
 
+    # Create action batch.
     actions = np.tile(
         action, (observations.shape[0], *([1] * len(env.action_space.shape)))
     )
-    normalized_actions = env.get_primitive().normalize_action(actions)
+    normalized_actions = primitives.Pick.normalize_action(actions)
 
-    with torch.no_grad():
-        torch_observations = torch.from_numpy(observations).to(policy.device)
-        torch_actions = torch.from_numpy(normalized_actions).to(policy.device)
-        torch_states = policy.encoder.encode(torch_observations)
-        torch_q_values = policy.critic.predict(torch_states, torch_actions)
-        q_values = torch_q_values.cpu().numpy()
+    q_values = evaluate_critic(policy, observations, normalized_actions)
 
     return q_values, observations[:, :2]
 
@@ -64,34 +80,320 @@ def evaluate_pick_critic_action(
     action: np.ndarray,
     grid_resolution: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    xy_min = np.array(env.get_primitive().action_scale.low[:2])
-    xy_max = np.array(env.get_primitive().action_scale.high[:2])
+    # Create grid of xy pick positions.
+    xy_min = np.array(primitives.Pick.action_scale.low[:2])
+    xy_max = np.array(primitives.Pick.action_scale.high[:2])
     xs, ys = np.meshgrid(*np.linspace(xy_min, xy_max, grid_resolution).T)
 
+    # Create action batch.
     actions = np.tile(action, (xs.size, *([1] * len(env.action_space.shape))))
-    actions[:, 0] = xs.flatten()
-    actions[:, 1] = ys.flatten()
-    normalized_actions = env.get_primitive().normalize_action(actions)
+    a = primitive_actions.PickAction(actions)
+    a.pos[:, 0] = xs.flatten()
+    a.pos[:, 1] = ys.flatten()
+    normalized_actions = primitives.Pick.normalize_action(actions)
 
+    # Create observation batch.
     observations = np.tile(
         observation, (xs.size, *([1] * len(env.observation_space.shape)))
     )
 
-    with torch.no_grad():
-        torch_observations = torch.from_numpy(observations).to(policy.device)
-        torch_actions = torch.from_numpy(normalized_actions).to(policy.device)
-        torch_states = policy.encoder.encode(torch_observations)
-        torch_q_values = policy.critic.predict(torch_states, torch_actions)
-        q_values = torch_q_values.cpu().numpy()
+    q_values = evaluate_critic(policy, observations, normalized_actions)
 
+    # Compute image coordinates (on top of target object).
     obs = object_state.ObjectState(observation)
     xy = obs.pos[0, :2]
     theta = obs.aa[0, 2]
+    R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+    absolute_actions = a.pos[:, :2] @ R.T + xy
+
+    return q_values, absolute_actions
+
+
+def evaluate_place_critic_action(
+    env: envs.pybullet.TableEnv,
+    policy: agents.Agent,
+    observation: np.ndarray,
+    action: np.ndarray,
+    grid_resolution: int,
+) -> Tuple[np.ndarray, np.ndarray]:
+    # Create grid of xy place positions.
+    xy_min = np.array(primitives.Place.action_scale.low[:2])
+    xy_max = np.array(primitives.Place.action_scale.high[:2])
+    xy_min[1] = max(-0.45, xy_min[1])
+    xy_max[1] = min(0.45, xy_max[1])
+    xs, ys = np.meshgrid(*np.linspace(xy_min, xy_max, grid_resolution).T)
+
+    # Create action batch.
+    actions = np.tile(action, (xs.size, *([1] * len(env.action_space.shape))))
+    a = primitive_actions.PlaceAction(actions)
+    a.pos[:, 0] = xs.flatten()
+    a.pos[:, 1] = ys.flatten()
+    normalized_actions = primitives.Place.normalize_action(actions)
+
+    # Create observation batch.
+    observations = np.tile(
+        observation, (xs.size, *([1] * len(env.observation_space.shape)))
+    )
+
+    q_values = evaluate_critic(policy, observations, normalized_actions)
+
+    # Compute image coordinates (on top of target object).
+    obs = object_state.ObjectState(observation)
+    xy = obs.pos[1, :2]
+    theta = obs.aa[1, 2]
     R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
 
     absolute_actions = actions[:, :2] @ R.T + xy
 
     return q_values, absolute_actions
+
+
+def evaluate_pick_state(
+    env: envs.pybullet.TableEnv,
+    primitive: primitives.Pick,
+    policy: agents.Agent,
+    path: pathlib.Path,
+    grid_resolution: int,
+) -> None:
+    grid_q_values, grid_states = evaluate_pick_critic_state(
+        env=env,
+        primitive=primitive,
+        policy=policy,
+        observation=env.get_observation(),
+        action=primitive.sample_action().vector,
+        grid_resolution=grid_resolution,
+    )
+    grid_q_values = grid_q_values.clip(0.0, 1.0)
+
+    path_obj = save_critic_obj(
+        grid_states,
+        grid_q_values,
+        path=path / "assets",
+        name="state_q_values",
+        grid_resolution=grid_resolution,
+        z_scale=0,  # .05,
+        z_height=0.001,
+    )
+    for view in ("front", "top"):
+        plot_critic_overlay(
+            env=env,
+            path_obj=path_obj,
+            path=path,
+            name=f"state_values_{view}",
+            opacity=0.9,
+            view=view,
+        )
+
+
+def evaluate_pick_action(
+    env: envs.pybullet.TableEnv,
+    policy: agents.Agent,
+    observation: np.ndarray,
+    z: float,
+    theta: float,
+    path: pathlib.Path,
+    grid_resolution: int,
+) -> None:
+    grid_q_values, grid_states = evaluate_pick_critic_action(
+        env=env,
+        policy=policy,
+        observation=observation,
+        action=primitive_actions.PickAction(
+            pos=np.array([0.0, 0.0, z]), theta=theta
+        ).vector,
+        grid_resolution=grid_resolution,
+    )
+    grid_q_values = grid_q_values.clip(0.0, 1.0)
+
+    obs = object_state.ObjectState(observation)
+    try:
+        env.robot.goto_pose(
+            pos=np.array(
+                [obs.pos[0, 0], -obs.pos[0, 1], env.robot.home_pose.pos[2] + z]
+            ),
+            quat=primitives.compute_top_down_orientation(
+                eigen.Quaterniond(env.robot.home_pose.quat),
+                eigen.Quaterniond(env.get_primitive().policy_args[0].pose().quat),
+                theta=theta,
+            ),
+        )
+    except ControlException:
+        pass
+
+    path_obj = save_critic_obj(
+        grid_states,
+        grid_q_values,
+        path=path / "assets",
+        name=f"action_q_values_z{z:.1f}_th{theta:.2f}",
+        grid_resolution=grid_resolution,
+        z_scale=0.0,
+        z_height=(obs.box_size[0, 2] if obs.box_size[0, 2] > 0 else 0.04) + 0.001,
+    )
+
+    for view in ("front", "top"):
+        plot_critic_overlay(
+            env=env,
+            path_obj=path_obj,
+            path=path,
+            name=f"action_values_z{z:.2f}_th{theta:.2f}_{view}",
+            opacity=0.75,
+            view=view,
+        )
+
+
+def evaluate_place_action(
+    env: envs.pybullet.TableEnv,
+    policy: agents.Agent,
+    observation: np.ndarray,
+    action: np.ndarray,
+    path: pathlib.Path,
+    grid_resolution: int,
+) -> None:
+    grid_q_values, grid_states = evaluate_place_critic_action(
+        env=env,
+        policy=policy,
+        observation=observation,
+        action=action,
+        grid_resolution=grid_resolution,
+    )
+    grid_q_values = grid_q_values.clip(0.0, 1.0)
+
+    path_obj = save_critic_obj(
+        grid_states,
+        grid_q_values,
+        path=path / "assets",
+        name="action_q_values",
+        grid_resolution=grid_resolution,
+        z_scale=0.0,
+        z_height=0.001,
+    )
+
+    for view in ("front", "top"):
+        plot_critic_overlay(
+            env=env,
+            path_obj=path_obj,
+            path=path,
+            name=f"action_values_{view}",
+            opacity=0.75,
+            view=view,
+        )
+
+
+def evaluate_pick(
+    env: envs.pybullet.TableEnv,
+    primitive: primitives.Pick,
+    policy: agents.Agent,
+    path: pathlib.Path,
+    grid_resolution: int,
+) -> None:
+    def _evaluate_pick(path: pathlib.Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
+        obj = primitive.policy_args[0]
+        obj.set_pose(math.Pose(pos=np.array([0.4, 0.0, obj.size[2] / 2])))
+
+        evaluate_pick_state(
+            env=env,
+            primitive=primitive,
+            policy=policy,
+            path=path,
+            grid_resolution=grid_resolution,
+        )
+
+        observation = env.reset()
+        for theta in np.linspace(0, np.pi / 2, 3):
+            evaluate_pick_action(
+                env=env,
+                policy=policy,
+                observation=observation,
+                z=0.0,
+                theta=theta,
+                path=path,
+                grid_resolution=grid_resolution,
+            )
+        for z in np.linspace(-0.05, 0.05, 3):
+            evaluate_pick_action(
+                env=env,
+                policy=policy,
+                observation=observation,
+                z=z,
+                theta=0.0,
+                path=path,
+                grid_resolution=grid_resolution,
+            )
+
+    obj = primitive.policy_args[0]
+    if isinstance(obj, objects.Variant):
+        for idx_variant in range(len(obj.variants)):
+            obj.set_variant(idx_variant, lock=True)
+            _evaluate_pick(path / f"{primitive}-{type(obj.body).__name__.lower()}")
+    else:
+        _evaluate_pick(path / str(primitive))
+
+
+def evaluate_place(
+    env: envs.pybullet.TableEnv,
+    primitive: primitives.Place,
+    policy: agents.Agent,
+    path: pathlib.Path,
+    grid_resolution: int,
+):
+    def _evaluate_place(path: pathlib.Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
+        evaluate_place_action(
+            env=env,
+            policy=policy,
+            observation=env.reset(),
+            action=primitive.sample_action().vector,
+            path=path,
+            grid_resolution=grid_resolution,
+        )
+
+    obj = primitive.policy_args[0]
+    if isinstance(obj, objects.Variant):
+        for idx_variant in range(len(obj.variants)):
+            obj.set_variant(idx_variant, lock=True)
+            _evaluate_place(path / f"{primitive}-{type(obj.body).__name__.lower()}")
+    else:
+        _evaluate_place(path / str(primitive))
+
+
+def evaluate_policies(
+    checkpoint: Union[str, pathlib.Path],
+    device: str,
+    path: Union[str, pathlib.Path],
+    grid_resolution: int,
+    verbose: bool,
+    seed: Optional[int] = None,
+) -> None:
+    if seed is not None:
+        random.seed(seed)
+
+    path = pathlib.Path(path)
+
+    policy = agents.load(checkpoint=checkpoint, device=device)
+    assert isinstance(policy, agents.RLAgent)
+    env = policy.env
+    assert isinstance(env, envs.pybullet.TableEnv)
+
+    primitive = env.get_primitive()
+    if isinstance(primitive, primitives.Pick):
+        evaluate_pick(
+            env=env,
+            primitive=primitive,
+            policy=policy,
+            path=path,
+            grid_resolution=grid_resolution,
+        )
+    elif isinstance(primitive, primitives.Place):
+        evaluate_place(
+            env=env,
+            primitive=primitive,
+            policy=policy,
+            path=path,
+            grid_resolution=grid_resolution,
+        )
 
 
 def save_critic_obj(
@@ -179,131 +481,6 @@ def plot_critic_overlay(
     img.save(path / f"{name}.png")
 
     p.removeBody(body_id, physicsClientId=env.physics_id)
-
-
-def evaluate_pick_action(
-    env: envs.pybullet.TableEnv,
-    policy: agents.Agent,
-    observation: np.ndarray,
-    z: float,
-    theta: float,
-    path: pathlib.Path,
-    grid_resolution: int,
-):
-    grid_q_values, grid_states = evaluate_pick_critic_action(
-        env=env,
-        policy=policy,
-        observation=observation,
-        action=np.array([0, 0, 0, theta], dtype=np.float32),
-        grid_resolution=grid_resolution,
-    )
-    grid_q_values = grid_q_values.clip(0.0, 1.0)
-
-    obs = object_state.ObjectState(observation)
-    env.robot.goto_pose(
-        pos=np.array([obs.pos[0, 0], -obs.pos[0, 1], env.robot.home_pose.pos[2] + z]),
-        quat=primitives.compute_top_down_orientation(
-            eigen.Quaterniond(env.robot.home_pose.quat),
-            eigen.Quaterniond(env.get_primitive().policy_args[0].pose().quat),
-            theta=theta,
-        ),
-    )
-
-    path_obj = save_critic_obj(
-        grid_states,
-        grid_q_values,
-        path=path / "assets",
-        name=f"action_q_values_z{z:.1f}_th{theta:.2f}",
-        grid_resolution=grid_resolution,
-        z_scale=0.0,
-        z_height=(obs.box_size[0, 2] if obs.box_size[0, 2] > 0 else 0.04) + 0.001,
-    )
-
-    for view in ("front", "top"):
-        plot_critic_overlay(
-            env=env,
-            path_obj=path_obj,
-            path=path,
-            name=f"action_values_z{z:.2f}_th{theta:.2f}_{view}",
-            opacity=0.75,
-            view=view,
-        )
-
-
-def evaluate_policies(
-    checkpoint: Union[str, pathlib.Path],
-    device: str,
-    path: Union[str, pathlib.Path],
-    grid_resolution: int,
-    verbose: bool,
-    seed: Optional[int] = None,
-) -> None:
-    if seed is not None:
-        random.seed(seed)
-
-    path = pathlib.Path(path)
-    path.mkdir(parents=True, exist_ok=True)
-
-    policy = agents.load(checkpoint=checkpoint, device=device)
-    assert isinstance(policy, agents.RLAgent)
-    env = policy.env
-    assert isinstance(env, envs.pybullet.TableEnv)
-
-    primitive = env.get_primitive()
-    assert isinstance(primitive, primitives.Pick)
-    if isinstance(primitive.policy_args[0], objects.Variant):
-        primitive.policy_args[0].set_variant(0)
-
-    grid_q_values, grid_states = evaluate_pick_critic_state(
-        env=env,
-        primitive=primitive,
-        policy=policy,
-        observation=env.get_observation(),
-        action=primitive.sample_action(),
-        grid_resolution=grid_resolution,
-    )
-    grid_q_values = grid_q_values.clip(0.0, 1.0)
-
-    path_obj = save_critic_obj(
-        grid_states,
-        grid_q_values,
-        path=path / "assets",
-        name="state_q_values",
-        grid_resolution=grid_resolution,
-        z_scale=0,  # .05,
-        z_height=0.001,
-    )
-    for view in ("front", "top"):
-        plot_critic_overlay(
-            env=env,
-            path_obj=path_obj,
-            path=path,
-            name=f"state_values_{view}",
-            opacity=0.9,
-            view=view,
-        )
-
-    observation = env.reset()
-    for theta in np.linspace(0, np.pi / 2, 3):
-        evaluate_pick_action(
-            env=env,
-            policy=policy,
-            observation=observation,
-            z=0.0,
-            theta=theta,
-            path=path,
-            grid_resolution=grid_resolution,
-        )
-    for z in np.linspace(-0.05, 0.05, 3):
-        evaluate_pick_action(
-            env=env,
-            policy=policy,
-            observation=observation,
-            z=z,
-            theta=0.0,
-            path=path,
-            grid_resolution=grid_resolution,
-        )
 
 
 def main(args: argparse.Namespace) -> None:
