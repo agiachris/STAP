@@ -1,6 +1,6 @@
 import dataclasses
 import random
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ctrlutils import eigen
 import numpy as np
@@ -20,11 +20,13 @@ class Object(body.Body):
         self,
         physics_id: int,
         body_id: int,
+        idx_object: int,
         name: str,
         is_static: bool = False,
     ):
         super().__init__(physics_id, body_id)
 
+        self.idx_object = idx_object
         self.name = name
         self.is_static = is_static
 
@@ -96,10 +98,17 @@ class Object(body.Body):
 
     @classmethod
     def create(
-        cls, physics_id: int, object_type: str, object_kwargs: Dict[str, Any], **kwargs
+        cls,
+        physics_id: int,
+        idx_object: int,
+        object_type: str,
+        object_kwargs: Dict[str, Any],
+        **kwargs
     ) -> "Object":
         object_class = globals()[object_type]
-        return object_class(physics_id, **object_kwargs, **kwargs)
+        return object_class(
+            physics_id=physics_id, idx_object=idx_object, **object_kwargs, **kwargs
+        )
 
     def isinstance(self, class_or_tuple: type) -> bool:
         return isinstance(self, class_or_tuple)
@@ -116,6 +125,7 @@ class Urdf(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         path: str,
         is_static: bool = False,
@@ -129,6 +139,7 @@ class Urdf(Object):
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
+            idx_object=idx_object,
             name=name,
             is_static=is_static,
         )
@@ -146,6 +157,7 @@ class Box(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         size: Union[List[float], np.ndarray],
         color: Union[List[float], np.ndarray],
@@ -157,6 +169,7 @@ class Box(Object):
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
+            idx_object=idx_object,
             name=name,
             is_static=mass == 0.0,
         )
@@ -170,9 +183,27 @@ class Box(Object):
 
 @dataclasses.dataclass
 class Hook(Object):
+    @staticmethod
+    def compute_link_positions(
+        head_length: float, handle_length: float, handle_y: float, radius: float
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        dy = (
+            0.5
+            * np.sign(handle_y)
+            * max(0, (abs(handle_y) - 1.0) * head_length / 2 + radius)
+        )
+        pos_handle = np.array([-radius / 2, handle_y * head_length / 2 - dy, 0.0])
+        pos_head = np.array([(handle_length - radius) / 2, -dy, 0.0])
+        pos_joint = np.array(
+            [(handle_length - radius) / 2, handle_y * head_length / 2 - dy, 0.0]
+        )
+
+        return pos_handle, pos_head, pos_joint
+
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         head_length: float,
         handle_length: float,
@@ -184,10 +215,11 @@ class Hook(Object):
         if not isinstance(color, np.ndarray):
             color = np.array(color)
 
-        dy = (
-            0.5
-            * np.sign(handle_y)
-            * max(0, (abs(handle_y) - 1.0) * head_length / 2 + radius)
+        pos_handle, pos_head, pos_joint = Hook.compute_link_positions(
+            head_length=head_length,
+            handle_length=handle_length,
+            handle_y=handle_y,
+            radius=radius,
         )
         handle = shapes.Cylinder(
             radius=radius,
@@ -195,7 +227,7 @@ class Hook(Object):
             mass=(handle_length / (head_length + handle_length + radius)) * mass,
             color=color,
             pose=math.Pose(
-                pos=np.array([-radius / 2, handle_y * head_length / 2 - dy, 0.0]),
+                pos=pos_handle,
                 quat=eigen.Quaterniond(
                     eigen.AngleAxisd(angle=np.pi / 2, axis=np.array([0.0, 1.0, 0.0]))
                 ).coeffs,
@@ -207,7 +239,7 @@ class Hook(Object):
             mass=(head_length / (head_length + handle_length + radius)) * mass,
             color=color,
             pose=math.Pose(
-                pos=np.array([(handle_length - radius) / 2, -dy, 0.0]),
+                pos=pos_head,
                 quat=eigen.Quaterniond(
                     eigen.AngleAxisd(angle=np.pi / 2, axis=np.array([1.0, 0.0, 0.0]))
                 ).coeffs,
@@ -217,11 +249,7 @@ class Hook(Object):
             radius=radius,
             mass=(radius / (head_length + handle_length + radius)) * mass,
             color=color,
-            pose=math.Pose(
-                pos=np.array(
-                    [(handle_length - radius) / 2, handle_y * head_length / 2 - dy, 0.0]
-                )
-            ),
+            pose=math.Pose(pos=pos_joint),
         )
         body_id = shapes.create_body(
             [joint, handle, head], link_parents=[0, 0], physics_id=physics_id
@@ -230,6 +258,7 @@ class Hook(Object):
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
+            idx_object=idx_object,
             name=name,
             is_static=mass == 0.0,
         )
@@ -237,9 +266,10 @@ class Hook(Object):
         self._state.head_length = head_length
         self._state.handle_length = handle_length
         self._state.handle_y = handle_y
+        self._radius = radius
 
         self._size = np.array(
-            [handle_length + radius, head_length + 2 * abs(dy), 2 * radius]
+            [handle_length + radius, head_length + 2 * abs(pos_head[1]), 2 * radius]
         )
         self._bbox = np.array([-self.size / 2, self.size / 2])
 
@@ -254,6 +284,10 @@ class Hook(Object):
     @property
     def handle_y(self) -> float:
         return self._state.handle_y  # type: ignore
+
+    @property
+    def radius(self) -> float:
+        return self._radius
 
     @property
     def size(self) -> np.ndarray:
@@ -271,15 +305,18 @@ class Variant(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         options: List[Dict[str, Any]],
     ):
         self.physics_id = physics_id
+        self.idx_object = idx_object
         self.name = name
 
         self._objects = [
             Object.create(
                 physics_id=self.physics_id,
+                idx_object=idx_object,
                 name=self.name,
                 **obj_kwargs,
             )
@@ -362,6 +399,10 @@ class Variant(Object):
     @property
     def handle_y(self) -> float:
         return self.body.handle_y  # type: ignore
+
+    @property
+    def radius(self) -> float:
+        return self.body.radius  # type: ignore
 
     @property
     def bbox(self) -> np.ndarray:

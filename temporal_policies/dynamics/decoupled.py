@@ -86,7 +86,7 @@ class DecoupledDynamics(LatentDynamics):
     def decode(
         self,
         latent: torch.Tensor,
-        idx_policy: Union[int, torch.Tensor],
+        idx_policy: int,
         policy_args: Optional[Any],
     ) -> torch.Tensor:
         """Extracts the policy state from the concatenated latent states.
@@ -102,12 +102,14 @@ class DecoupledDynamics(LatentDynamics):
         policy_latents = torch.reshape(
             latent, (*latent.shape[:-1], len(self.policies), -1)
         )
-        if isinstance(idx_policy, int):
-            return policy_latents[:, idx_policy]
-
-        idx_policy = (
-            idx_policy.unsqueeze(-1)
-            .unsqueeze(-1)
-            .expand(*idx_policy.shape, 1, policy_latents.shape[-1])
-        )
-        return torch.gather(policy_latents, dim=1, index=idx_policy).squeeze(1)
+        assert isinstance(idx_policy, int)
+        return policy_latents[:, idx_policy]
+        # if isinstance(idx_policy, int):
+        #     return policy_latents[:, idx_policy]
+        #
+        # idx_policy = (
+        #     idx_policy.unsqueeze(-1)
+        #     .unsqueeze(-1)
+        #     .expand(*idx_policy.shape, 1, policy_latents.shape[-1])
+        # )
+        # return torch.gather(policy_latents, dim=1, index=idx_policy).squeeze(1)

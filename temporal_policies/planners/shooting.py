@@ -55,19 +55,13 @@ class ShootingPlanner(planners.Planner):
         with torch.no_grad():
             # Get initial state.
             t_observation = torch.from_numpy(observation).to(self.dynamics.device)
-            state = self.dynamics.encode(
-                t_observation,
-                action_skeleton[0].idx_policy,
-                action_skeleton[0].policy_args,
-            )
-            state = state.repeat(self.num_samples, 1)
 
             # Roll out trajectories.
             policies = [
                 self.policies[primitive.idx_policy] for primitive in action_skeleton
             ]
-            states, actions, p_transitions = self.dynamics.rollout(
-                state, action_skeleton, policies
+            states, t_actions, p_transitions = self.dynamics.rollout(
+                t_observation, action_skeleton, policies, batch_size=self.num_samples
             )
 
             # Evaluate trajectories.
@@ -84,11 +78,11 @@ class ShootingPlanner(planners.Planner):
                 for primitive in action_skeleton
             ]
             p_success = utils.evaluate_trajectory(
-                value_fns, decode_fns, states, actions, p_transitions
+                value_fns, decode_fns, states, t_actions, p_transitions
             )
 
             # Convert to numpy.
-            actions = actions.cpu().numpy()
+            actions = t_actions.cpu().numpy()
             p_success = p_success.cpu().numpy()
 
             # Select best trajectory.

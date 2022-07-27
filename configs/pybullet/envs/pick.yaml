@@ -11,6 +11,8 @@ env_kwargs:
 
   initial_state:
     - on(a, table)
+    - beyondworkspace(a)
+    - istippable(a)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -27,7 +29,7 @@ env_kwargs:
     #     color: [1.0, 0.0, 0.0, 1.0]
     # - object_type: Hook
     #   object_kwargs:
-    #     name: hook
+    #     name: a
     #     head_length: 0.2
     #     handle_length: 0.38
     #     handle_y: -1.0

@@ -1,4 +1,5 @@
 import dataclasses
+import enum
 import pathlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -27,11 +28,20 @@ class CameraView:
     projection_matrix: np.ndarray
 
 
+class ObservationMode(enum.Enum):
+    PRIMITIVE = 0
+    FULL = 1
+
+
 class TableEnv(PybulletEnv):
     state_space = gym.spaces.Box(
         low=0, high=np.iinfo(np.int32).max, shape=(1,), dtype=np.int32
     )
     image_space = gym.spaces.Box(low=0, high=255, shape=(64, 64, 3), dtype=np.uint8)
+
+    # Vector containing num_policy_args + 1 object states, corresponding to the
+    # object states for each of the policy_args and an additional object state
+    # for the gripper.
     observation_space = gym.spaces.Box(
         low=np.tile(object_state.ObjectState.range()[0], 3),
         high=np.tile(object_state.ObjectState.range()[1], 3),
@@ -62,7 +72,7 @@ class TableEnv(PybulletEnv):
         self._action_skeleton = action_skeleton
         self._primitives = primitives
         self._initial_state = [
-            predicates.Proposition.create(prop) for prop in initial_state
+            predicates.Predicate.create(prop) for prop in initial_state
         ]
 
         self._robot = robot.Robot(
@@ -73,10 +83,22 @@ class TableEnv(PybulletEnv):
         # self.step_simulation()
 
         object_list = [
-            Object.create(physics_id=self.physics_id, **obj_kwargs)
-            for obj_kwargs in objects
+            Object.create(
+                physics_id=self.physics_id, idx_object=idx_object, **obj_kwargs
+            )
+            for idx_object, obj_kwargs in enumerate(objects)
         ]
         self._objects = {obj.name: obj for obj in object_list}
+        self.robot.table = self.objects["table"]
+        self._full_observation_space = gym.spaces.Box(
+            low=np.tile(
+                object_state.ObjectState.range()[0:1], (len(self.objects) + 1, 1)
+            ),
+            high=np.tile(
+                object_state.ObjectState.range()[1:2], (len(self.objects) + 1, 1)
+            ),
+        )
+        self._observation_mode = ObservationMode.PRIMITIVE
 
         self._initial_state_id = p.saveState(physicsClientId=self.physics_id)
         self._states: Dict[int, Dict[str, Any]] = {}  # Saved states.
@@ -126,7 +148,7 @@ class TableEnv(PybulletEnv):
         return self._primitives
 
     @property
-    def initial_state(self) -> List[predicates.Proposition]:
+    def initial_state(self) -> List[predicates.Predicate]:
         return self._initial_state
 
     @property
@@ -136,6 +158,30 @@ class TableEnv(PybulletEnv):
     @property
     def objects(self) -> Dict[str, Object]:
         return self._objects
+
+    @property
+    def full_observation_space(self) -> gym.spaces.Box:
+        """Observation space containing all the objects in the scene, including the gripper.
+
+        `self.observation_space` is a flattened vector, while
+        `self.full_observation_space` is a matrix.
+
+        The number of objects is determined by the yaml config.
+        """
+        return self._full_observation_space
+
+    def set_observation_mode(self, mode: ObservationMode) -> None:
+        """Sets the observation type returned by `self.get_observation()`.
+
+        Args:
+            mode: Observation mode (PRIMITIVE for `observation_space`, FULL for
+                    `full_observation_space`).
+        """
+        self._observation_mode = mode
+
+    def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
+        assert isinstance(policy_args, list)
+        return [arg.idx_object for arg in policy_args] + [len(self.objects)]
 
     def get_primitive(self) -> envs.Primitive:
         return self._primitive
@@ -188,12 +234,21 @@ class TableEnv(PybulletEnv):
         return True
 
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
-        obj_states = self.object_states()
-        arg_states = [
-            obj_states[arg.name].vector for arg in self.get_primitive().policy_args
-        ]
-        arg_states.append(obj_states["gripper"].vector)
-        return np.concatenate(arg_states, axis=0)
+        if self._observation_mode == ObservationMode.PRIMITIVE:
+            obj_states = self.object_states()
+            arg_states = [
+                obj_states[arg.name].vector for arg in self.get_primitive().policy_args
+            ]
+            arg_states.append(obj_states["gripper"].vector)
+            return np.concatenate(arg_states, axis=0)
+        elif self._observation_mode == ObservationMode.FULL:
+            obj_states = self.object_states()
+            ordered_states = [obj_state.vector for obj_state in obj_states.values()]
+            return np.stack(ordered_states, axis=0)
+        else:
+            raise NotImplementedError(
+                f"TableEnv.get_observation() not implemented for observation mode: {self._observation_mode}"
+            )
 
     def object_states(self) -> Dict[str, object_state.ObjectState]:
         state = {obj.name: obj.state() for name, obj in self.objects.items()}
@@ -230,14 +285,20 @@ class TableEnv(PybulletEnv):
                 obj.reset()
 
             if not all(
-                any(prop.sample(self.robot, self.objects) for _ in range(max_attempts))
+                any(
+                    prop.sample(self.robot, self.objects, self.initial_state)
+                    for _ in range(max_attempts)
+                )
                 for prop in self.initial_state
             ):
                 continue
 
             self.wait_until_stable(1)
 
-            if all(prop.value(self.robot, self.objects) for prop in self.initial_state):
+            if all(
+                prop.value(self.robot, self.objects, self.initial_state)
+                for prop in self.initial_state
+            ):
                 break
 
         return self.get_observation()
@@ -259,9 +320,6 @@ class TableEnv(PybulletEnv):
         self._timelapse.add_frame(self.render)
 
         return obs, float(success), True, {}
-
-    def close(self) -> None:
-        p.disconnect(physicsClientId=self.physics_id)
 
     def wait_until_stable(
         self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)

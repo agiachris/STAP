@@ -52,15 +52,12 @@ def evaluate_critic_functions(
     observation = env.get_observation()
     with torch.no_grad():
         t_observation = torch.from_numpy(observation).to(planner.device)
-        state = planner.dynamics.encode(
-            t_observation, primitive.idx_policy, primitive.policy_args
-        )
         assert isinstance(grid_policies[0].actor.constant, torch.Tensor)
-        state = state.repeat(grid_policies[0].actor.constant.shape[0], 1)
         states, actions, p_transitions = planner.dynamics.rollout(
-            state=state,
+            observation=t_observation,
             action_skeleton=action_skeleton,
             policies=grid_policies,
+            batch_size=grid_policies[0].actor.constant.shape[0],
             time_index=True,
         )
 

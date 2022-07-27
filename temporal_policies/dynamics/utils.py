@@ -28,7 +28,7 @@ class DynamicsFactory(configs.Factory):
                 policy_checkpoints is None.
             policy_checkpoints: Optional list of policy checkpoints. Must be
                 provided if policies is None.
-            env: Env required only for OracleDynamics.
+            env: Env required only for OracleDynamics and TableEnvDynamics.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -66,9 +66,9 @@ class DynamicsFactory(configs.Factory):
         if issubclass(self.cls, dynamics.LatentDynamics):
             self.kwargs["checkpoint"] = checkpoint
 
-        if issubclass(self.cls, dynamics.OracleDynamics):
+        if issubclass(self.cls, (dynamics.OracleDynamics, dynamics.TableEnvDynamics)):
             if env is None:
-                raise ValueError("OracleDynamics requires env to be specified")
+                raise ValueError(f"{self.cls} requires env to be specified")
             self.kwargs["env"] = env
 
         self.kwargs["device"] = device

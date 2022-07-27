@@ -88,7 +88,7 @@ class CEMPlanner(planners.Planner):
         return self._momentum
 
     def _compute_initial_distribution(
-        self, state: torch.Tensor, action_skeleton: Sequence[envs.Primitive]
+        self, observation: torch.Tensor, action_skeleton: Sequence[envs.Primitive]
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Computes the initial popoulation distribution.
 
@@ -97,7 +97,7 @@ class CEMPlanner(planners.Planner):
         action space for each action in the skeleton.
 
         Args:
-            state: Start state.
+            observation: Start observation.
             action_skeleton: List of (idx_policy, policy_args) 2-tuples.
 
         Returns:
@@ -109,7 +109,7 @@ class CEMPlanner(planners.Planner):
         policies = [
             self.policies[primitive.idx_policy] for primitive in action_skeleton
         ]
-        _, actions, _ = self.dynamics.rollout(state, action_skeleton, policies)
+        _, actions, _ = self.dynamics.rollout(observation, action_skeleton, policies)
         mean = actions.cpu().numpy()
 
         # Scale the standard deviations by the action spaces.
@@ -159,23 +159,19 @@ class CEMPlanner(planners.Planner):
         # Get initial state.
         with torch.no_grad():
             t_observation = torch.from_numpy(observation).to(self.dynamics.device)
-            state = self.dynamics.encode(
-                t_observation,
-                action_skeleton[0].idx_policy,
-                action_skeleton[0].policy_args,
-            )
-            state = state.repeat(self.num_samples, 1)
 
             # Initialize distribution.
-            mean, std = self._compute_initial_distribution(state[0], action_skeleton)
+            mean, std = self._compute_initial_distribution(
+                t_observation, action_skeleton
+            )
             elites = np.empty((0, *mean.shape), dtype=mean.dtype)
             p_elites = np.empty(0, dtype=np.float32)
 
             for _ in range(self.num_iterations):
                 # Sample from distribution.
-                samples = mean + std * np.random.randn(
-                    self.num_samples, *mean.shape
-                ).astype(np.float32)
+                samples = mean + std * np.random.randn(num_samples, *mean.shape).astype(
+                    np.float32
+                )
                 for t, primitive in enumerate(action_skeleton):
                     action_space = self.policies[primitive.idx_policy].action_space
                     action_shape = action_space.shape[0]
@@ -197,17 +193,17 @@ class CEMPlanner(planners.Planner):
                     )
                     for t, primitive in enumerate(action_skeleton)
                 ]
-                states, actions, p_transitions = self.dynamics.rollout(
-                    state, action_skeleton, policies
+                states, t_actions, p_transitions = self.dynamics.rollout(
+                    t_observation, action_skeleton, policies, batch_size=num_samples
                 )
 
                 # Evaluate trajectories.
                 p_success = utils.evaluate_trajectory(
-                    value_fns, decode_fns, states, actions, p_transitions
+                    value_fns, decode_fns, states, t_actions, p_transitions
                 )
 
                 # Convert to numpy.
-                actions = actions.cpu().numpy()
+                actions = t_actions.cpu().numpy()
                 p_success = p_success.cpu().numpy()
                 visited_actions.append(actions)
                 p_visited_success.append(p_success)

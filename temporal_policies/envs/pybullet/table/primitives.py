@@ -150,7 +150,7 @@ class Pull(Primitive):
     )
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
-        PULL_HEIGHT = 0.02
+        PULL_HEIGHT = 0.03
         MIN_PULL_DISTANCE = 0.01
 
         # Parse action.

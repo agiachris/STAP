@@ -65,6 +65,7 @@ def evaluate_planners(
         action_skeleton = [
             env.get_primitive_info(action_call) for action_call in env.action_skeleton
         ]
+        env.set_observation_mode(envs.pybullet.table_env.ObservationMode.FULL)
 
     for i in tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True):
         if seed is not None:
