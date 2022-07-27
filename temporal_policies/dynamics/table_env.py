@@ -40,10 +40,10 @@ class TableEnvDynamics(LatentDynamics):
 
     def __init__(
         self,
-        env: envs.pybullet.TableEnv,
         policies: Sequence[agents.RLAgent],
         network_class: Union[str, Type[networks.dynamics.PolicyDynamics]],
         network_kwargs: Dict[str, Any],
+        env: Optional[envs.pybullet.TableEnv],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -53,6 +53,7 @@ class TableEnvDynamics(LatentDynamics):
             policies: Ordered list of all policies.
             network_class: Backend network for decoupled dynamics network.
             network_kwargs: Kwargs for network class.
+            env: TableEnv required for planning (not training).
             checkpoint: Dynamics checkpoint.
             device: Torch device.
         """
@@ -63,19 +64,25 @@ class TableEnvDynamics(LatentDynamics):
             "network_kwargs": network_kwargs,
         }
         self._env = env
+        if self.env is None:
+            # Placeholder - state space not needed for training.
+            state_space = policies[0].state_space
+        else:
+            # State space required for planning.
+            state_space = self.env.full_observation_space
 
         super().__init__(
             policies=policies,
             network_class=parent_network_class,
             network_kwargs=parent_network_kwargs,
-            state_space=self.env.full_observation_space,
+            state_space=state_space,
             action_space=None,
             checkpoint=checkpoint,
             device=device,
         )
 
     @property
-    def env(self) -> envs.pybullet.TableEnv:
+    def env(self) -> Optional[envs.pybullet.TableEnv]:
         return self._env
 
     def encode(
@@ -117,6 +124,7 @@ class TableEnvDynamics(LatentDynamics):
         Returns:
             Decoded observation.
         """
+        assert self.env is not None
         idx_args = self.env.get_arg_indices(idx_policy, policy_args)
         policy_state = state[..., idx_args, :].view(*state.shape[:-2], -1)
         return policy_state
@@ -128,6 +136,7 @@ class TableEnvDynamics(LatentDynamics):
         idx_policy: int,
         policy_args: Optional[Any],
     ) -> torch.Tensor:
+        assert self.env is not None
         idx_args = self.env.get_arg_indices(idx_policy, policy_args)
         next_state = state.clone()
         next_state[..., idx_args, :] = dynamics_state.view(

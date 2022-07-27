@@ -11,7 +11,6 @@ env_kwargs:
 
   initial_state:
     - on(a, table)
-    - beyondworkspace(a)
     - istippable(a)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
@@ -37,7 +36,7 @@ env_kwargs:
     - object_type: Variant
       object_kwargs:
         name: a
-        options:
+        variants:
           - object_type: Box
             object_kwargs:
               size: [0.05, 0.05, 0.1]

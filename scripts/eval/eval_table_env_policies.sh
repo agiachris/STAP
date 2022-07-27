@@ -37,13 +37,12 @@ policy_envs=(
     "pick"
 )
 experiments=(
-    "20220705/pick_box"
-    # "20220708/pick_hook"
+    "20220726/workspace"
 )
 
 for EXP_NAME in "${experiments[@]}"; do
     for policy_env in "${policy_envs[@]}"; do
-        POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/final_model.pt"
+        POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/best_model.pt"
         eval_policies
     done
 done

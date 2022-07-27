@@ -44,7 +44,8 @@ class PybulletEnv(Env):
                 physicsClientId=self.physics_id,
             )
         else:
-            self._physics_id = p.connect(p.DIRECT, options=options)
+            with RedirectStream():
+                self._physics_id = p.connect(p.DIRECT, options=options)
 
         p.setGravity(0, 0, -9.8, physicsClientId=self.physics_id)
 

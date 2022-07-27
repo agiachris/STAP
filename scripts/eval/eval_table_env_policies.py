@@ -11,7 +11,8 @@ import PIL
 import torch
 
 from temporal_policies import agents, envs
-from temporal_policies.envs.pybullet.table import object_state, primitives
+from temporal_policies.envs.pybullet.table import objects, object_state, primitives
+from temporal_policies.envs.pybullet.sim.robot import ControlException
 from temporal_policies.utils import random
 
 import pybullet as p
@@ -19,6 +20,7 @@ import pybullet as p
 
 def evaluate_pick_critic_state(
     env: envs.pybullet.TableEnv,
+    primitive: primitives.Pick,
     policy: agents.Agent,
     observation: np.ndarray,
     action: np.ndarray,
@@ -29,7 +31,7 @@ def evaluate_pick_critic_state(
     xy_min[1] = max(-0.45, xy_min[1])
     xy_max[1] = min(0.45, xy_max[1])
     obs = object_state.ObjectState(observation)
-    z = obs.box_size[0, 2] / 2 if obs.box_size[0, 2] > 0 else 0.02
+    z = primitive.policy_args[0].size[2] / 2
     xs, ys = np.meshgrid(*np.linspace(xy_min, xy_max, grid_resolution).T)
 
     observations = np.tile(
@@ -172,7 +174,7 @@ def plot_critic_overlay(
         physicsClientId=env.physics_id,
     )
 
-    img_rgb = env.render("front", resolution=(1620, 1080))
+    img_rgb = env.render(view, resolution=(1620, 1080))
     img = PIL.Image.fromarray(img_rgb)
     img.save(path / f"{name}.png")
 
@@ -248,9 +250,13 @@ def evaluate_policies(
     assert isinstance(env, envs.pybullet.TableEnv)
 
     primitive = env.get_primitive()
-    assert isinstance(primitive, primitives.Primitive)
+    assert isinstance(primitive, primitives.Pick)
+    if isinstance(primitive.policy_args[0], objects.Variant):
+        primitive.policy_args[0].set_variant(0)
+
     grid_q_values, grid_states = evaluate_pick_critic_state(
         env=env,
+        primitive=primitive,
         policy=policy,
         observation=env.get_observation(),
         action=primitive.sample_action(),

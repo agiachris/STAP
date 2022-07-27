@@ -110,7 +110,7 @@ class Arm(articulated_body.ArticulatedBody):
     def set_pose_goal(
         self,
         pos: Optional[np.ndarray] = None,
-        quat: Optional[np.ndarray] = None,
+        quat: Optional[Union[eigen.Quaterniond, np.ndarray]] = None,
         pos_gains: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         ori_gains: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         timeout: Optional[float] = None,
@@ -129,6 +129,8 @@ class Arm(articulated_body.ArticulatedBody):
         if pos is not None:
             self._arm_state.pos_des = pos
         if quat is not None:
+            if isinstance(quat, eigen.Quaterniond):
+                quat = quat.coeffs
             self._arm_state.quat_des = quat
         if timeout is None:
             timeout = self.timeout

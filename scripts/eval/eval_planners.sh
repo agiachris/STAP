@@ -94,7 +94,7 @@ policy_envs=(
     "pull"
 )
 experiments=(
-    "20220722/workspace"
+    "20220726/workspace"
 )
 
 for EXP_NAME in "${experiments[@]}"; do
@@ -102,13 +102,13 @@ for EXP_NAME in "${experiments[@]}"; do
         ENV_CONFIG=configs/${DOMAIN}/envs/${planner_env}.yaml
         POLICY_CHECKPOINTS=()
         for policy_env in "${policy_envs[@]}"; do
-            POLICY_CHECKPOINTS+=("models/${EXP_NAME}/${policy_env}/final_model.pt")
+            POLICY_CHECKPOINTS+=("models/${EXP_NAME}/${policy_env}/best_model.pt")
         done
         POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
         if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
             DYNAMICS_CHECKPOINT=""
         else
-            DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics/final_model.pt"
+            DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics/best_model.pt"
         fi
         PLANNER_CONFIG="configs/${DOMAIN}/planners/${planner}.yaml"
 

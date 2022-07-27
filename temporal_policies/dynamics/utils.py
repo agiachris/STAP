@@ -67,7 +67,7 @@ class DynamicsFactory(configs.Factory):
             self.kwargs["checkpoint"] = checkpoint
 
         if issubclass(self.cls, (dynamics.OracleDynamics, dynamics.TableEnvDynamics)):
-            if env is None:
+            if issubclass(self.cls, dynamics.OracleDynamics) and env is None:
                 raise ValueError(f"{self.cls} requires env to be specified")
             self.kwargs["env"] = env
 
