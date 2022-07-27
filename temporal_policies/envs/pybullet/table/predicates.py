@@ -117,6 +117,48 @@ class On(Predicate):
         return True
 
 
+def generate_grasp_pose(obj: Object) -> math.Pose:
+    if obj.isinstance(Hook):
+        hook: Hook = obj  # type: ignore
+        pos_handle, pos_head, pos_joint = Hook.compute_link_positions(
+            head_length=hook.head_length,
+            handle_length=hook.handle_length,
+            handle_y=hook.handle_y,
+            radius=hook.radius,
+        )
+        if np.random.random() < hook.handle_length / (
+            hook.handle_length + hook.head_length
+        ):
+            # Handle.
+            half_size = np.array([0.5 * hook.handle_length, hook.radius, hook.radius])
+            xyz = pos_handle + np.random.uniform(-half_size, half_size)
+            theta = 0.0
+        else:
+            # Head.
+            half_size = np.array([hook.radius, 0.5 * hook.head_length, hook.radius])
+            xyz = pos_head + np.random.uniform(-half_size, half_size)
+            theta = np.pi / 2
+
+        # Perturb angle by 10deg.
+        theta += np.random.normal(scale=0.2)
+        if theta > np.pi / 2:
+            theta -= np.pi
+
+        aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+    else:
+        # Fit object between gripper fingers.
+        max_aabb = 0.5 * obj.size
+        max_aabb[:2] = np.minimum(max_aabb[:2], np.array([0.02, 0.02]))
+        min_aabb = -0.5 * obj.size
+        min_aabb = np.maximum(min_aabb, np.array([-0.02, -0.02, max_aabb[2] - 0.05]))
+
+        xyz = np.random.uniform(min_aabb, max_aabb)
+        theta = np.random.uniform(-np.pi / 2, np.pi / 2)
+        aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+
+    return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
+
+
 class Inhand(Predicate):
     def sample(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
@@ -128,11 +170,9 @@ class Inhand(Predicate):
         obj.disable_collisions()
 
         # Generate grasp pose.
-        xyz = np.array(robot.home_pose.pos)
-        xyz += 0.45 * np.random.uniform(-obj.size, obj.size)
-        theta = np.random.uniform(-np.pi / 2, np.pi / 2)
-        aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-        pose = math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
+        grasp_pose = generate_grasp_pose(obj)
+        obj_pose = math.Pose.from_eigen(grasp_pose.to_eigen().inverse())
+        obj_pose.pos += robot.home_pose.pos
 
         # Generate post-pick pose.
         table_xyz_min, table_xyz_max = objects["table"].aabb()
@@ -142,10 +182,10 @@ class Inhand(Predicate):
         )
 
         # Use fake grasp.
-        obj.set_pose(pose)
+        obj.set_pose(obj_pose)
         robot.grasp_object(obj, realistic=False)
         try:
-            robot.goto_pose(pos=xyz_pick)
+            robot.goto_pose(pos=xyz_pick, quat=robot.home_pose.quat)
         except ControlException:
             robot.reset()
             return False

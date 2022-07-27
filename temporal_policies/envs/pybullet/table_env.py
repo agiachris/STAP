@@ -89,6 +89,7 @@ class TableEnv(PybulletEnv):
             for idx_object, obj_kwargs in enumerate(objects)
         ]
         self._objects = {obj.name: obj for obj in object_list}
+        self.robot.table = self.objects["table"]
         self._full_observation_space = gym.spaces.Box(
             low=np.tile(
                 object_state.ObjectState.range()[0:1], (len(self.objects) + 1, 1)

@@ -16,7 +16,6 @@ def main() -> None:
     while True:
         timer.tic("reset")
         obs = env.reset()
-        print(env.object_states())
         print("obs:", obs)
         input("continue?")
         dt_reset = timer.toc("reset")

@@ -60,6 +60,7 @@ class Robot(body.Body):
         )
 
         self.step_simulation = step_simulation_fn
+        self._table: Optional[body.Body] = None
 
     @property
     def arm(self) -> arm.Arm:
@@ -70,6 +71,14 @@ class Robot(body.Body):
     def gripper(self) -> gripper.Gripper:
         """Controllable gripper."""
         return self._gripper
+
+    @property
+    def table(self) -> Optional[body.Body]:
+        return self._table
+
+    @table.setter
+    def table(self, table: body.Body) -> None:
+        self._table = table
 
     def reset(self) -> bool:
         """Resets the robot by setting the arm to its home configuration and the gripper to the open position.
@@ -148,10 +157,32 @@ class Robot(body.Body):
             self.step_simulation()
             status = self.arm.update_torques()
             self.gripper.update_torques()
+
+            if self.table is not None:
+                grasp_body_id = self.gripper._gripper_state.grasp_body_id
+                if grasp_body_id is not None:
+                    contacts = p.getContactPoints(
+                        bodyA=grasp_body_id,
+                        bodyB=self.table.body_id,
+                        physicsClientId=self.physics_id,
+                    )
+                else:
+                    contacts = p.getContactPoints(
+                        bodyA=self.body_id,
+                        bodyB=self.table.body_id,
+                        linkIndexA=self.gripper.finger_links[0],
+                        physicsClientId=self.physics_id,
+                    )
+                if contacts:
+                    force = contacts[0][9]
+                    if force > 0.0:
+                        raise ControlException(
+                            f"Robot.goto_pose({pos}, {quat}): Collision"
+                        )
         # print("Robot.goto_pose:", pos, quat, status)
 
         if status == articulated_body.ControlStatus.ABORTED:
-            raise ControlException(f"Robot.goto_pose({pos}, {quat})")
+            raise ControlException(f"Robot.goto_pose({pos}, {quat}): Singularity")
 
         return status in (
             articulated_body.ControlStatus.POS_CONVERGED,
