@@ -16,7 +16,7 @@ class PybulletEnv(Env):
             "--background_color_blue=0.25"
         )
         if gui:
-            with RedirectStream():
+            with RedirectStream(sys.stderr):
                 self._physics_id = p.connect(p.GUI, options=options)
 
             p.configureDebugVisualizer(
