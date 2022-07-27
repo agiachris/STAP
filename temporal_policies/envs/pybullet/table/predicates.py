@@ -54,7 +54,20 @@ class BeyondWorkspace(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         obj = self._get_arg_objects(objects)[0]
-        return bool(np.linalg.norm(obj.pose().pos[:2]) > self.WORKSPACE_RADIUS)
+        distance = float(np.linalg.norm(obj.pose().pos[:2]))
+        return distance > self.WORKSPACE_RADIUS
+
+
+class InWorkspace(Predicate):
+    MIN_X = 0.4
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        obj = self._get_arg_objects(objects)[0]
+        xyz = obj.pose().pos
+        distance = float(np.linalg.norm(xyz[:2]))
+        return self.MIN_X < xyz[0] and distance < BeyondWorkspace.WORKSPACE_RADIUS
 
 
 class IsTippable(Predicate):

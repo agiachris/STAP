@@ -35,7 +35,7 @@ env_kwargs:
     - object_type: Variant
       object_kwargs:
         name: a
-        options:
+        variants:
           - object_type: Box
             object_kwargs:
               size: [0.05, 0.05, 0.1]

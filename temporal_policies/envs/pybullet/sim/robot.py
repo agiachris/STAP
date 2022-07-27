@@ -1,5 +1,6 @@
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
+from ctrlutils import eigen
 import numpy as np
 import pybullet as p
 import spatialdyn as dyn
@@ -127,7 +128,7 @@ class Robot(body.Body):
     def goto_pose(
         self,
         pos: Optional[np.ndarray] = None,
-        quat: Optional[np.ndarray] = None,
+        quat: Optional[Union[eigen.Quaterniond, np.ndarray]] = None,
         pos_gains: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         ori_gains: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         timeout: Optional[float] = None,

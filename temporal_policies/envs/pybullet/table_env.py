@@ -136,7 +136,7 @@ class TableEnv(PybulletEnv):
         }
 
         self._timelapse = recording.Recorder()
-        self._recorder = recording.Recorder()
+        self._recorder = recording.Recorder(recording_freq)
         self._recording_text = ""
 
     @property

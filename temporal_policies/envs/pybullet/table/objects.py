@@ -120,6 +120,12 @@ class Object(body.Body):
     def __str__(self) -> str:
         return self.name
 
+    def __hash__(self) -> int:
+        return hash(str(self))
+
+    def __eq__(self, other) -> bool:
+        return str(self) == str(other)
+
 
 class Urdf(Object):
     def __init__(
@@ -181,7 +187,6 @@ class Box(Object):
         return self._state.box_size
 
 
-@dataclasses.dataclass
 class Hook(Object):
     @staticmethod
     def compute_link_positions(
@@ -301,49 +306,73 @@ class Hook(Object):
     #     raise NotImplementedError
 
 
+class Null(Object):
+    def __init__(
+        self,
+        physics_id: int,
+        idx_object: int,
+        name: str,
+    ):
+        sphere = shapes.Sphere(radius=0.001)
+        body_id = shapes.create_body(sphere, physics_id=physics_id)
+
+        super().__init__(
+            physics_id=physics_id,
+            body_id=body_id,
+            idx_object=idx_object,
+            name=name,
+            is_static=sphere.mass == 0,
+        )
+
+
 class Variant(Object):
     def __init__(
         self,
         physics_id: int,
         idx_object: int,
         name: str,
-        options: List[Dict[str, Any]],
+        variants: List[Dict[str, Any]],
     ):
         self.physics_id = physics_id
         self.idx_object = idx_object
         self.name = name
 
-        self._objects = [
+        self._variants = [
             Object.create(
                 physics_id=self.physics_id,
                 idx_object=idx_object,
                 name=self.name,
                 **obj_kwargs,
             )
-            for obj_kwargs in options
+            for obj_kwargs in variants
         ]
         self._masses = [
             p.getDynamicsInfo(obj.body_id, -1, physicsClientId=self.physics_id)[0]
-            for obj in self._objects
+            for obj in self.variants
         ]
         self._body: Optional[Object] = None
 
     @property
     def body(self) -> Object:
         if self._body is None:
-            raise RuntimeError("Union.reset() must be called first")
+            raise RuntimeError("Variant.reset() must be called first")
         return self._body
 
-    def reset(self) -> None:
-        idx_body = random.randrange(len(self._objects))
-        for i, body in enumerate(self._objects):
+    @property
+    def variants(self) -> List[Object]:
+        return self._variants
+
+    def set_variant(self, idx_body: int) -> None:
+        for i, body in enumerate(self.variants):
             if i == idx_body:
                 continue
             body.disable_collisions()
             body.set_pose(math.Pose(pos=np.array([0.0, 0.0, -0.5])))
             body.freeze()
+        self._body = self.variants[idx_body]
 
-        self._body = self._objects[idx_body]
+    def reset(self) -> None:
+        self.set_variant(idx_body=random.randrange(len(self.variants)))
         self.body.enable_collisions()
         self.body.unfreeze()
         self.body.reset()
@@ -380,30 +409,33 @@ class Variant(Object):
     def is_static(self) -> bool:  # type: ignore
         return self.body.is_static
 
-    # Box methods.
-
     @property
     def size(self) -> np.ndarray:
-        return self.body.size  # type: ignore
+        return self.body.size
 
     # Hook methods.
 
     @property
     def head_length(self) -> float:
-        return self.body.head_length  # type: ignore
+        assert isinstance(self.body, Hook)
+        return self.body.head_length
 
     @property
     def handle_length(self) -> float:
-        return self.body.handle_length  # type: ignore
+        assert isinstance(self.body, Hook)
+        return self.body.handle_length
 
     @property
     def handle_y(self) -> float:
-        return self.body.handle_y  # type: ignore
+        assert isinstance(self.body, Hook)
+        return self.body.handle_y
 
     @property
     def radius(self) -> float:
-        return self.body.radius  # type: ignore
+        assert isinstance(self.body, Hook)
+        return self.body.radius
 
     @property
     def bbox(self) -> np.ndarray:
-        return self.body.bbox  # type: ignore
+        assert isinstance(self.body, Hook)
+        return self.body.bbox
