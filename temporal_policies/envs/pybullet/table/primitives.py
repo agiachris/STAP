@@ -9,7 +9,7 @@ import symbolic
 from temporal_policies.envs import base as envs
 from temporal_policies.envs.pybullet.sim import robot
 from temporal_policies.envs.pybullet.sim.robot import ControlException
-from temporal_policies.envs.pybullet.table import objects
+from temporal_policies.envs.pybullet.table import objects, primitive_actions
 
 dbprint = lambda *args: None  # noqa
 # dbprint = print
@@ -36,7 +36,7 @@ class Primitive(envs.Primitive, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def sample_action(self) -> np.ndarray:
+    def sample_action(self) -> primitive_actions.PrimitiveAction:
         pass
 
     @staticmethod
@@ -55,17 +55,12 @@ class Primitive(envs.Primitive, abc.ABC):
 
 class Pick(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
-    action_scale = gym.spaces.Box(
-        low=np.array([-0.1, -0.1, -0.05, -np.pi], dtype=np.float32),
-        high=np.array([0.2, 0.1, 0.05, np.pi], dtype=np.float32),
-    )
+    action_scale = gym.spaces.Box(*primitive_actions.PickAction.range())
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         # Parse action.
-        action = self.scale_action(action)
-        pos = action[:3]
-        theta = action[3]
-        dbprint(f"{self}: pos: {pos}, theta: {theta}")
+        a = primitive_actions.PickAction(self.scale_action(action))
+        dbprint(a)
 
         # Get object pose.
         obj = self.policy_args[0]
@@ -73,11 +68,11 @@ class Pick(Primitive):
         obj_quat = eigen.Quaterniond(obj_pose.quat)
 
         # Compute position.
-        command_pos = obj_pose.pos + obj_quat * pos
+        command_pos = obj_pose.pos + obj_quat * a.pos
 
         # Compute orientation.
         command_quat = compute_top_down_orientation(
-            eigen.Quaterniond(robot.home_pose.quat), obj_quat, theta
+            eigen.Quaterniond(robot.home_pose.quat), obj_quat, a.theta.item()
         )
 
         pre_pos = np.append(command_pos[:2], obj.aabb()[1, 2] + 0.1)
@@ -93,26 +88,22 @@ class Pick(Primitive):
 
         return True
 
-    def sample_action(self) -> np.ndarray:
+    def sample_action(self) -> primitive_actions.PrimitiveAction:
         if self.policy_args[0].isinstance(objects.Hook):
-            return np.array([-0.1, -0.1, 0.0, 0.0], dtype=np.float32)
+            pos = np.array([-0.1, -0.1, 0.0])
         else:
-            return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+            pos = np.array([0.0, 0.0, 0.0])
+        return primitive_actions.PickAction(pos=pos, theta=0.0)
 
 
 class Place(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
-    action_scale = gym.spaces.Box(
-        low=np.array([-0.3, -0.5, -0.05, -np.pi], dtype=np.float32),
-        high=np.array([0.9, 0.5, 0.1, np.pi], dtype=np.float32),
-    )
+    action_scale = gym.spaces.Box(*primitive_actions.PlaceAction.range())
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         # Parse action.
-        action = self.scale_action(action)
-        pos = action[:3]
-        theta = action[3]
-        dbprint(f"{self}: pos: {pos}, theta: {theta}")
+        a = primitive_actions.PlaceAction(self.scale_action(action))
+        dbprint(a)
 
         # Get target pose.
         target = self.policy_args[1]
@@ -120,11 +111,11 @@ class Place(Primitive):
         target_quat = eigen.Quaterniond(target_pose.quat)
 
         # Compute position.
-        command_pos = target_pose.pos + target_quat * pos
+        command_pos = target_pose.pos + target_quat * a.pos
 
         # Compute orientation.
         command_quat = compute_top_down_orientation(
-            eigen.Quaterniond(robot.home_pose.quat), target_quat, theta
+            eigen.Quaterniond(robot.home_pose.quat), target_quat, a.theta.item()
         )
 
         pre_pos = np.append(command_pos[:2], target.aabb()[1, 2] + 0.1)
@@ -138,24 +129,23 @@ class Place(Primitive):
 
         return True
 
-    def sample_action(self) -> np.ndarray:
-        return np.array([0.4, 0.0, 0.04, 0.0], dtype=np.float32)
+    def sample_action(self) -> primitive_actions.PrimitiveAction:
+        return primitive_actions.PlaceAction(
+            pos=np.array([0.4, 0.0, self.policy_args[0].size[2]]), theta=0.0
+        )
 
 
 class Pull(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
-    action_scale = gym.spaces.Box(
-        low=np.array([-0.4, 0.0, -0.1, -np.pi], dtype=np.float32),
-        high=np.array([0.0, 0.4, 0.1, np.pi], dtype=np.float32),
-    )
+    action_scale = gym.spaces.Box(*primitive_actions.PullAction.range())
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         PULL_HEIGHT = 0.03
         MIN_PULL_DISTANCE = 0.01
 
         # Parse action.
-        r_reach, r_pull, y, theta = self.scale_action(action)
-        dbprint(f"{self}: r_reach: {r_reach}, r_pull: {r_pull}, y: {y}, theta: {theta}")
+        a = primitive_actions.PullAction(self.scale_action(action))
+        dbprint(a)
 
         # Get target pose in polar coordinates
         target, hook = self.policy_args
@@ -172,14 +162,14 @@ class Pull(Primitive):
         target_pos = np.append(target_pose.pos[:2], PULL_HEIGHT)
 
         # Compute position.
-        pos_reach = np.array([r_reach, y, 0.0])
+        pos_reach = np.array([a.r_reach, a.y, 0.0])
         command_pos_reach = target_pos + target_quat * pos_reach
-        pos_pull = np.array([r_reach - r_pull, y, 0.0])
+        pos_pull = np.array([a.r_reach - a.r_pull, a.y, 0.0])
         command_pos_pull = target_pos + target_quat * pos_pull
 
         # Compute orientation.
         command_quat = compute_top_down_orientation(
-            eigen.Quaterniond(robot.home_pose.quat), target_quat, theta
+            eigen.Quaterniond(robot.home_pose.quat), target_quat, a.theta.item()
         )
 
         pre_pos = np.append(command_pos_reach[:2], target.aabb()[1, 2] + 0.1)
@@ -203,5 +193,5 @@ class Pull(Primitive):
 
         return True
 
-    def sample_action(self) -> np.ndarray:
-        return np.array([-0.1, 0.2, -0.1, 0.0], dtype=np.float32)
+    def sample_action(self) -> primitive_actions.PrimitiveAction:
+        return primitive_actions.PullAction(r_reach=-0.1, r_pull=0.2, y=-0.1, theta=0.0)

@@ -351,6 +351,7 @@ class Variant(Object):
             for obj in self.variants
         ]
         self._body: Optional[Object] = None
+        self._idx_variant: Optional[int] = None
 
     @property
     def body(self) -> Object:
@@ -362,17 +363,22 @@ class Variant(Object):
     def variants(self) -> List[Object]:
         return self._variants
 
-    def set_variant(self, idx_body: int) -> None:
+    def set_variant(self, idx_variant: Optional[int], lock: bool = False) -> None:
+        if idx_variant is None:
+            idx_variant = random.randrange(len(self.variants))
+
         for i, body in enumerate(self.variants):
-            if i == idx_body:
+            if i == idx_variant:
                 continue
             body.disable_collisions()
             body.set_pose(math.Pose(pos=np.array([0.0, 0.0, -0.5])))
             body.freeze()
-        self._body = self.variants[idx_body]
+        self._body = self.variants[idx_variant]
+
+        self._idx_variant = idx_variant if lock else None
 
     def reset(self) -> None:
-        self.set_variant(idx_body=random.randrange(len(self.variants)))
+        self.set_variant(self._idx_variant)
         self.body.enable_collisions()
         self.body.unfreeze()
         self.body.reset()
