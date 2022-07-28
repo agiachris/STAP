@@ -64,8 +64,8 @@ EXP_NAME="20220726/workspace"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 POLICY_CHECKPOINTS=(
-    "models/${EXP_NAME}/pick/best_model.pt"
-    "models/${EXP_NAME}/place/best_model.pt"
-    "models/${EXP_NAME}/pull/best_model.pt"
+    "models/${EXP_NAME}/pick/final_model.pt"
+    "models/${EXP_NAME}/place/final_model.pt"
+    "models/${EXP_NAME}/pull/final_model.pt"
 )
 train_dynamics

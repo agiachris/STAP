@@ -274,7 +274,7 @@ def evaluate_place_action(
             path_obj=path_obj,
             path=path,
             name=f"action_values_{view}",
-            opacity=0.75,
+            opacity=0.9,
             view=view,
         )
 

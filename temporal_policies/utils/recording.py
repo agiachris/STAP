@@ -99,12 +99,13 @@ class Recorder:
         Returns:
             True if a frame was added.
         """
+        self._timestep += 1
 
         if self._buffer is None:
             return False
         if self.max_size is not None and len(self._buffer) >= self.max_size:
             return False
-        if self._timestep % self.frequency != 0:
+        if (self._timestep - 1) % self.frequency != 0:
             return False
 
         if grab_frame_fn is not None:
@@ -114,5 +115,4 @@ class Recorder:
 
         self._buffer.append(frame)
 
-        self._timestep += 1
         return True

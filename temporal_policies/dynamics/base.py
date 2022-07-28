@@ -138,7 +138,7 @@ class Dynamics(abc.ABC):
             actions[:, t, : action.shape[-1]] = action
 
             # Dynamics state -> dynamics state.
-            state = self.forward(
+            state = self.forward_eval(
                 state, action, primitive.idx_policy, primitive.policy_args
             )
             states[:, t + 1] = state
@@ -168,6 +168,26 @@ class Dynamics(abc.ABC):
             Prediction of next state.
         """
         raise NotImplementedError
+
+    def forward_eval(
+        self,
+        state: torch.Tensor,
+        action: torch.Tensor,
+        idx_policy: int,
+        policy_args: Optional[Any],
+    ) -> torch.Tensor:
+        """Predicts the next state for planning.
+
+        Args:
+            state: Current state.
+            action: Policy action.
+            idx_policy: Index of executed policy.
+            policy_args: Auxiliary policy arguments.
+
+        Returns:
+            Prediction of next state.
+        """
+        return self.forward(state, action, idx_policy, policy_args)
 
     def encode(
         self,
@@ -205,6 +225,8 @@ class Dynamics(abc.ABC):
         policy_args: Optional[Any],
     ) -> torch.Tensor:
         """Decodes the dynamics state into policy states.
+
+        This is only used during planning, not training.
 
         Args:
             state: Encoded state state.

@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, List
+from typing import Dict, List, Type
 
 from ctrlutils import eigen
 import gym
@@ -31,6 +31,8 @@ def is_upright(quat: np.ndarray) -> bool:
 
 
 class Primitive(envs.Primitive, abc.ABC):
+    Action: Type[primitive_actions.PrimitiveAction]
+
     @abc.abstractmethod
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         pass
@@ -56,6 +58,7 @@ class Primitive(envs.Primitive, abc.ABC):
 class Pick(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PickAction.range())
+    Action = primitive_actions.PickAction
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         # Parse action.
@@ -99,6 +102,7 @@ class Pick(Primitive):
 class Place(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PlaceAction.range())
+    Action = primitive_actions.PlaceAction
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         # Parse action.
@@ -134,10 +138,15 @@ class Place(Primitive):
             pos=np.array([0.4, 0.0, self.policy_args[0].size[2]]), theta=0.0
         )
 
+    @classmethod
+    def action(cls, action: np.ndarray) -> primitive_actions.PrimitiveAction:
+        return primitive_actions.PlaceAction(action)
+
 
 class Pull(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PullAction.range())
+    Action = primitive_actions.PullAction
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         PULL_HEIGHT = 0.03

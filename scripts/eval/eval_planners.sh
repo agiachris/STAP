@@ -46,10 +46,10 @@ function visualize_results {
 
 # Setup.
 
-DEBUG=1
+DEBUG=0
 
 PLANNERS=(
-# # Q-value / Latent dynamics.
+# Q-value / Latent dynamics.
     "policy_cem"
     "random_cem"
     "policy_shooting"
@@ -59,18 +59,19 @@ PLANNERS=(
     # "random_cem_oracle_value"
     # "policy_shooting_oracle_value"
     # "random_shooting_oracle_value"
-# # Q-value / Oracle dynamics.
-    # "policy_cem_oracle_dynamics"
-    # "random_cem_oracle_dynamics"
-    # "policy_shooting_oracle_dynamics"
-    # "random_shooting_oracle_dynamics"
+# Q-value / Oracle dynamics.
+    "policy_cem_oracle_dynamics"
+    "random_cem_oracle_dynamics"
+    "policy_shooting_oracle_dynamics"
+    "random_shooting_oracle_dynamics"
 # # Oracle value / Oracle dynamics.
     # "policy_cem_oracle_value_dynamics"
     # "random_cem_oracle_value_dynamics"
     # "policy_shooting_oracle_value_dynamics"
     # "random_shooting_oracle_value_dynamics"
-# Random.
-    # "random"
+# Greedy.
+    "greedy_oracle_dynamics"
+    "greedy"
 )
 
 # Evaluate planners.
@@ -102,10 +103,10 @@ for EXP_NAME in "${experiments[@]}"; do
         ENV_CONFIG=configs/${DOMAIN}/envs/${planner_env}.yaml
         POLICY_CHECKPOINTS=()
         for policy_env in "${policy_envs[@]}"; do
-            POLICY_CHECKPOINTS+=("models/${EXP_NAME}/${policy_env}/best_model.pt")
+            POLICY_CHECKPOINTS+=("models/${EXP_NAME}/${policy_env}/final_model.pt")
         done
         POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
-        if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
+        if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
         else
             DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics/best_model.pt"

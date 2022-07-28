@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Dict, Optional, Sequence, Type, Union
 
 import torch
 
@@ -15,27 +15,7 @@ class TableEnvDynamics(LatentDynamics):
 
         z^(t+1) = z^(t) + T_a(z^(t), a^(t))
 
-    for every action a..
-
-    policy observation: np.ndarray
-    env observation: Dict[str, np.ndarray]
-
-    dynamics state: np.ndarray
-    next dynamics state: np.ndarray
-
-    STANDARD
-    encode: env -> dynamics
-    forward: dynamics -> dynamics
-    rollout: dynamics, actions, p_transitions
-    decode: dynamics -> policy
-
-    NEW
-    encode: env -> dynamics
-    forward: dynamics -> dynamics
-    decode_observation: env, dynamics -> env
-    rollout: env, actions, p_transitions
-    decode: env -> policy
-
+    for every action a.
     """
 
     def __init__(
@@ -91,7 +71,12 @@ class TableEnvDynamics(LatentDynamics):
         idx_policy: Union[int, torch.Tensor],
         policy_args: Optional[Any],
     ) -> torch.Tensor:
-        """Returns the full TableEnv observation as is.
+        """Encodes the observation into a dynamics state.
+
+        During training, the dynamics state is equivalent to the policy state
+        (normalized vector containing state for 3 objects). During planning, the
+        dynamics state is equivalent to the environment observation
+        (unnormalized matrix containing state for all objects).
 
         Args:
             observation: Common observation across all policies.
@@ -102,8 +87,13 @@ class TableEnvDynamics(LatentDynamics):
             Encoded latent state vector.
         """
         if isinstance(idx_policy, int):
+            policy = self.policies[idx_policy]
+            if tuple(observation.shape[1:]) != policy.state_space.shape:
+                # Full TableEnv observation.
+                return observation
+
             # [B, O] => [B, Z].
-            return self.policies[idx_policy].encoder.encode(observation)
+            return policy.encoder.encode(observation)
 
         # Assume all encoders are the same.
         return self.policies[0].encoder.encode(observation)
@@ -116,8 +106,11 @@ class TableEnvDynamics(LatentDynamics):
     ) -> torch.Tensor:
         """Decodes the dynamics state into policy states.
 
+        This is only used during planning, not training, so the input state will
+        be the environment state.
+
         Args:
-            state: Encoded state state.
+            state: Full TableEnv observation.
             idx_policy: Index of executed policy.
             policy_args: Auxiliary policy arguments.
 
@@ -125,99 +118,63 @@ class TableEnvDynamics(LatentDynamics):
             Decoded observation.
         """
         assert self.env is not None
+        env_state = state
+
         idx_args = self.env.get_arg_indices(idx_policy, policy_args)
-        policy_state = state[..., idx_args, :].view(*state.shape[:-2], -1)
+        observation = env_state[..., idx_args, :].view(*state.shape[:-2], -1)
+        policy_state = self.encode(observation, idx_policy, policy_args)
+
         return policy_state
 
-    def update_state(
+    def forward_eval(
         self,
         state: torch.Tensor,
-        dynamics_state: torch.Tensor,
+        action: torch.Tensor,
         idx_policy: int,
         policy_args: Optional[Any],
     ) -> torch.Tensor:
-        assert self.env is not None
-        idx_args = self.env.get_arg_indices(idx_policy, policy_args)
-        next_state = state.clone()
-        next_state[..., idx_args, :] = dynamics_state.view(
-            *dynamics_state.shape[:-1], len(idx_args), -1
-        )
-        return next_state
+        """Predicts the next state for planning.
 
-    def rollout(
-        self,
-        observation: torch.Tensor,
-        action_skeleton: Sequence[envs.Primitive],
-        policies: Optional[Sequence[agents.Agent]] = None,
-        batch_size: Optional[int] = None,
-        time_index: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Rolls out trajectories according to the action skeleton.
+        During planning, the state is an unnormalized matrix with one row for
+        each object. This gets transformed into a normalized policy state vector
+        according to the current primitive and fed to the dynamics model. The
+        row entries in the state corresponding to the objects involved with the
+        primitive are updated according to the dynamics prediction.
 
         Args:
-            observation: Initial observation.
-            action_skeleton: List of primitives.
-            policies: Optional policies to use. Otherwise uses `self.policies`.
-            batch_size: Number of trajectories to roll out.
-            time_index: True if policies are indexed by time instead of idx_policy.
+            state: Current state.
+            action: Policy action.
+            idx_policy: Index of executed policy.
+            policy_args: Auxiliary policy arguments.
 
         Returns:
-            3-tuple (
-                states [batch_size, T + 1],
-                actions [batch_size, T],
-                p_transitions [batch_size, T],
-            ).
+            Prediction of next state.
         """
-        if policies is None:
-            policies = [
-                self.policies[primitive.idx_policy] for primitive in action_skeleton
-            ]
-            time_index = False
+        assert self.env is not None
+        env_state = state
 
-        _batch_size = 1 if batch_size is None else batch_size
-        env_state = observation.unsqueeze(0).repeat(
-            _batch_size, *([1] * len(observation.shape))
-        )
+        # Env state -> dynamics state (= policy state).
+        dynamics_state = self.decode(env_state, idx_policy, policy_args)
 
-        # Initialize variables.
-        T = len(action_skeleton)
-        states = spaces.null_tensor(
-            self.state_space, (_batch_size, T + 1), device=self.device
-        )
-        states[:, 0] = env_state
-        actions = spaces.null_tensor(
-            self.action_space, (_batch_size, T), device=self.device
-        )
-        p_transitions = torch.ones(
-            (_batch_size, T), dtype=torch.float32, device=self.device
+        # Dynamics state -> dynamics state.
+        next_dynamics_state = self.forward(
+            dynamics_state, action, idx_policy, policy_args
         )
 
-        # Rollout.
-        for t, primitive in enumerate(action_skeleton):
-            # Env state -> policy state.
-            policy_state = self.decode(
-                env_state, primitive.idx_policy, primitive.policy_args
+        # Dynamics state -> new unnormalized observation.
+        next_dynamics_state = torch.from_numpy(
+            spaces.transform(
+                next_dynamics_state.cpu().numpy(),
+                self.policies[idx_policy].state_space,
+                self.env.observation_space,
             )
-            policy = policies[t] if time_index else policies[primitive.idx_policy]
-            action = policy.actor.predict(policy_state)
-            actions[:, t, : action.shape[-1]] = action
+        ).to(next_dynamics_state.device)
 
-            # Env state -> dynamics state.
-            dynamics_state = policy_state
+        # Update env state with new unnormalized observation.
+        next_env_state = env_state.clone()
+        idx_args = self.env.get_arg_indices(idx_policy, policy_args)
+        next_env_state[..., idx_args, :] = next_dynamics_state.view(
+            *next_dynamics_state.shape[:-1], len(idx_args), -1
+        )
 
-            # Dynamics state -> dynamics state.
-            dynamics_state = self.forward(
-                dynamics_state, action, primitive.idx_policy, primitive.policy_args
-            )
-
-            # Dynamics state -> env state.
-            env_state = self.update_state(
-                env_state, dynamics_state, primitive.idx_policy, primitive.policy_args
-            )
-
-            states[:, t + 1] = env_state
-
-        if batch_size is None:
-            return states[0], actions[0], p_transitions[0]
-
-        return states, actions, p_transitions
+        return next_env_state
