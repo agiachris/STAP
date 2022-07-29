@@ -11,7 +11,7 @@ import torch  # type: ignore
 import yaml  # type: ignore
 
 import temporal_policies
-from temporal_policies import agents, envs, encoders, schedulers
+from temporal_policies import agents, envs, encoders, schedulers, scod
 from temporal_policies.utils import configs
 
 
@@ -24,6 +24,7 @@ class AgentFactory(configs.Factory):
         env: Optional[envs.Env] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        scod_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
         """Creates the agent factory from an agent config or checkpoint.
@@ -35,6 +36,7 @@ class AgentFactory(configs.Factory):
             checkpoint: Policy checkpoint path. Either env or checkpoint must be
                 specified.
             encoder_checkpoint: Encoder checkpoint path.
+            scod_checkpoint: SCOD checkpoint path.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -53,11 +55,26 @@ class AgentFactory(configs.Factory):
         super().__init__(config, "agent", agents)
 
         if issubclass(self.cls, agents.WrapperAgent):
+            # Get policy
             agent_factory = AgentFactory(
                 self.kwargs["agent_config"], env, checkpoint, device
             )
-            del self.kwargs["agent_config"]
             self.kwargs["policy"] = agent_factory()
+            del self.kwargs["agent_config"]
+            # Optionally get SCOD wrapper
+            if "scod" in self.kwargs:
+                assert scod_checkpoint is not None, "WrapperAgent requires scod_checkpoint"
+                scod_config = dict(
+                    scod=self.kwargs["scod"],
+                    scod_kwargs={
+                        **self.kwargs.pop("scod_config")["scod_kwargs"], 
+                        **self.kwargs["scod_kwargs"]
+                    }
+                )
+                self.kwargs["scod_wrapper"] = scod.load(scod_config, checkpoint=scod_checkpoint)
+                for k in ["scod", "scod_config", "scod_kwargs"]:
+                    del self.kwargs[k]
+
         elif checkpoint is not None:
             if self.config["agent"] != ckpt_agent_config["agent"]:
                 raise ValueError(
