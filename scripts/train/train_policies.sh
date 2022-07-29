@@ -20,6 +20,7 @@ function train_policy {
     # args="${args} --encoder-checkpoint ${ENCODER_CHECKPOINT}"
     args="${args} --path models/${EXP_NAME}"
     args="${args} --seed 0"
+    args="${args} ${ENV_KWARGS}"
     # args="${args} --overwrite"
 
     CMD="python scripts/train/train_policy.py ${args}"
@@ -62,7 +63,8 @@ train_policy
 # ENV_CONFIG="configs/pybox2d/envs/pushleft_img.yaml"
 # train_policy
 
-EXP_NAME="20220725/workspace"
+EXP_NAME="20220728/workspace"
+ENV_KWARGS="--gui 0"
 
 TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
