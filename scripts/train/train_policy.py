@@ -19,6 +19,7 @@ def train(
     overwrite: bool = False,
     device: str = "auto",
     seed: Optional[int] = None,
+    gui: Optional[int] = None,
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
@@ -34,10 +35,14 @@ def train(
         if env_config is None:
             raise ValueError("env_config must be specified")
 
+        env_kwargs = {}
+        if gui is not None:
+            env_kwargs["gui"] = bool(gui)
+
         env_factory = envs.EnvFactory(config=env_config)
         agent_factory = agents.AgentFactory(
             config=agent_config,
-            env=env_factory(),
+            env=env_factory(**env_kwargs),
             encoder_checkpoint=encoder_checkpoint,
             device=device,
         )
@@ -87,5 +92,6 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite", action="store_true", default=False)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, help="Random seed")
+    parser.add_argument("--gui", type=int, help="Show pybullet gui")
 
     main(parser.parse_args())
