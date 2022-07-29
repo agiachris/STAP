@@ -19,6 +19,9 @@ function eval_planner {
     if [ ! -z "${POLICY_CHECKPOINTS}" ]; then
         args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS}"
     fi
+    if [ ! -z "${SCOD_CHECKPOINTS}" ]; then
+        args="${args} --scod-checkpoints ${SCOD_CHECKPOINTS}"
+    fi
     if [ ! -z "${DYNAMICS_CHECKPOINT}" ]; then
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
@@ -112,8 +115,10 @@ PLANNERS=(
     # "policy_shooting_oracle_value_dynamics"
     # "random_shooting_oracle_value_dynamics"
 # SCOD value / Oracle dynamics
-    "policy_cem_scod_value_oracle_dynamics"
-    "policy_shooting_scod_value_oracle_dynamics"
+    "policy_cem_var_scod_value_oracle_dynamics"
+    "policy_shooting_var_scod_value_oracle_dynamics"
+    "policy_cem_cvar_scod_value_oracle_dynamics"
+    "policy_shooting_cvar_scod_value_oracle_dynamics"
 # SCOD value / Latent dynamics
     # "policy_cem_scod_value"
     # "policy_shooting_scod_value"

@@ -57,23 +57,30 @@ class AgentFactory(configs.Factory):
         if issubclass(self.cls, agents.WrapperAgent):
             # Get policy
             agent_factory = AgentFactory(
-                self.kwargs["agent_config"], env, checkpoint, device
+                config=self.kwargs["agent_config"], 
+                env=env, 
+                checkpoint=checkpoint, 
+                device=device
             )
             self.kwargs["policy"] = agent_factory()
             del self.kwargs["agent_config"]
+
             # Optionally get SCOD wrapper
             if "scod" in self.kwargs:
                 assert scod_checkpoint is not None, "WrapperAgent requires scod_checkpoint"
                 scod_config = dict(
                     scod=self.kwargs["scod"],
                     scod_kwargs={
-                        **self.kwargs.pop("scod_config")["scod_kwargs"], 
+                        **scod.load_config(self.kwargs.pop("scod_config"))["scod_kwargs"], 
                         **self.kwargs["scod_kwargs"]
                     }
                 )
-                self.kwargs["scod_wrapper"] = scod.load(scod_config, checkpoint=scod_checkpoint)
-                for k in ["scod", "scod_config", "scod_kwargs"]:
-                    del self.kwargs[k]
+                self.kwargs["scod_wrapper"] = scod.load(
+                    config=scod_config, 
+                    checkpoint=scod_checkpoint
+                )
+                del self.kwargs["scod"]
+                del self.kwargs["scod_kwargs"]
 
         elif checkpoint is not None:
             if self.config["agent"] != ckpt_agent_config["agent"]:
@@ -96,6 +103,7 @@ def load(
     config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     env: Optional[envs.Env] = None,
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    scod_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     device: str = "auto",
     **kwargs,
 ) -> agents.Agent:
@@ -107,6 +115,7 @@ def load(
         env: Optional env. Either env or checkpoint must be specified.
         checkpoint: Policy checkpoint path. Either env or checkpoint must be
             specified.
+        scod_checkpoint: SCOD checkpoint path.
         device: Torch device.
         kwargs: Optional agent constructor kwargs.
 
@@ -117,6 +126,7 @@ def load(
         config=config,
         env=env,
         checkpoint=checkpoint,
+        scod_checkpoint=scod_checkpoint,
         device=device,
     )
     return agent_factory(**kwargs)

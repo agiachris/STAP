@@ -287,6 +287,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--policy-checkpoints", "-p", nargs="+", help="Policy checkpoints"
     )
+    parser.add_argument(
+        "--scod-checkpoints", "-s", nargs="+", help="SCOD checkpoints"
+    )
     parser.add_argument("--dynamics-checkpoint", "-d", help="Dynamics checkpoint")
     parser.add_argument("--device", default="auto", help="Torch device")
     parser.add_argument(

@@ -60,7 +60,10 @@ class PlannerFactory(configs.Factory):
                     "{AGENT_CONFIG}",
                     agent_config,
                 )
-                if "scod" in self.config["agent_configs"][idx_policy]["agent_kwargs"]:
+                if (
+                    "agent_kwargs" in self.config["agent_configs"][idx_policy]
+                    and "scod" in self.config["agent_configs"][idx_policy]["agent_kwargs"]
+                ):
                     scod_config = str(
                         pathlib.Path(scod_checkpoints[idx_policy]).parent / "scod_config.yaml"
                     )
@@ -121,6 +124,7 @@ def load(
     config: Union[str, pathlib.Path, Dict[str, Any]],
     env: envs.SequentialEnv,
     policy_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
+    scod_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
     dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     device: str = "auto",
     **kwargs,
@@ -131,6 +135,7 @@ def load(
         config: Planner config path or dict.
         env: Sequential env.
         policy_checkpoints: Policy checkpoint paths if required.
+        scod_checkpoints: SCOD checkpoint paths if required.
         dynamics_checkpoint: Dynamics checkpoint path if required.
         device: Torch device.
         **kwargs: Planner constructor kwargs.
@@ -142,6 +147,7 @@ def load(
         config=config,
         env=env,
         policy_checkpoints=policy_checkpoints,
+        scod_checkpoints=scod_checkpoints,
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
