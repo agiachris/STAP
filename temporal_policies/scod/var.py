@@ -46,6 +46,8 @@ class VaRSCOD(scod.WrapperSCOD):
             metric: Posterior predictive confidence lower-bound (B) or (B x d_out)
         """
         output, variance, _ = super().forward(*input, detach=detach)
+        # Normalize variance to scale: TODO: design more principled rescaling
+        variance = (variance - variance.min()) / (variance.max() - variance.min())
         metric = output + variance * self.zscore
         if metric.size(-1) == 1:
             metric = metric.squeeze(-1)

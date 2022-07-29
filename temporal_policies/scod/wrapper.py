@@ -15,13 +15,15 @@ class WrapperSCOD(scod.SCOD, abc.ABC):
         output_agg_func: Optional[Union[str, Callable]] = None, 
         num_eigs: int = 10,
         device: Optional[Union[str, torch.device]] = None,
+        checkpoint: Optional[str] = None,
     ):
         """Construct the SCOD wrapper."""
         super().__init__(
             model, 
             output_agg_func=output_agg_func, 
             num_eigs=num_eigs, 
-            device=device
+            device=device,
+            checkpoint=checkpoint,
         )
 
     @property

@@ -49,6 +49,7 @@ class CVaRSCOD(scod.WrapperSCOD):
             metric: Posterior predictive expected confidence lower-bound (B) or (B x d_out)
         """
         output, variance, _ = super().forward(*input, detach=detach)
+        variance = (variance - variance.min()) / (variance.max() - variance.min())
         metric = output + variance * self.zscore
         if metric.size(-1) == 1:
             metric = metric.squeeze(-1)

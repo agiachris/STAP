@@ -56,15 +56,16 @@ class SCODFactory(configs.Factory):
             )
 
         super().__init__(config, "scod", scod)
-
-        if (
-            checkpoint is not None
-            and self.config["scod"] != ckpt_config["scod"]
-        ):
-            raise ValueError(
-                f"Config SCOD [{self.config['scod']}] and checkpoint"
-                f"SCOD [{ckpt_config['scod']}] must be the same"
-            )
+        
+        if checkpoint is not None:
+            self.kwargs["checkpoint"] = checkpoint
+            if (self.config["scod"] != ckpt_config["scod"]
+                and not issubclass(self.cls, scod.WrapperSCOD)
+            ):
+                raise ValueError(
+                    f"Config SCOD [{self.config['scod']}] and checkpoint"
+                    f"SCOD [{ckpt_config['scod']}] must be the same"
+                )
 
         self.kwargs["model"] = getattr(model, model_network)
         self.kwargs["device"] = device
