@@ -1,0 +1,23 @@
+planner: ShootingPlanner
+planner_kwargs:
+  num_samples: 128
+
+agent_configs:
+  - agent: SCODCriticGaussianAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      std: 0.5
+      scod: VaRSCOD
+      scod_config: "{SCOD_CONFIG}"
+      scod_kwargs:
+        alpha: 0.9
+  - agent: SCODCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod: VaRSCOD 
+      scod_config: "{SCOD_CONFIG}"
+      scod_kwargs:
+        alpha: 0.9
+
+dynamics_config:
+  dynamics: OracleDynamics

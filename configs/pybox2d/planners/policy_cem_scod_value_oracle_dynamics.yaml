@@ -1,0 +1,23 @@
+planner: CEMPlanner
+planner_kwargs:
+  num_samples: 16
+  num_iterations: 8
+
+agent_configs:
+  - agent: SCODCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod: VaRSCOD
+      scod_config: "{SCOD_CONFIG}"
+      scod_kwargs:
+        alpha: 0.9
+  - agent: SCODCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod: VaRSCOD 
+      scod_config: "{SCOD_CONFIG}"
+      scod_kwargs:
+        alpha: 0.9
+
+dynamics_config:
+  dynamics: OracleDynamics
