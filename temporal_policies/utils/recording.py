@@ -76,7 +76,11 @@ class Recorder:
             if len(recording) == 0:
                 continue
 
-            path_video = path.parent / f"{path.stem}-{id}{path.suffix}"
+            if id is None or id == "":
+                path_video = path
+            else:
+                path_video = path.parent / f"{path.stem}-{id}{path.suffix}"
+
             imageio.mimsave(path_video, recording)
             num_saved += 1
 
@@ -99,12 +103,13 @@ class Recorder:
         Returns:
             True if a frame was added.
         """
+        self._timestep += 1
 
         if self._buffer is None:
             return False
         if self.max_size is not None and len(self._buffer) >= self.max_size:
             return False
-        if self._timestep % self.frequency != 0:
+        if (self._timestep - 1) % self.frequency != 0:
             return False
 
         if grab_frame_fn is not None:
@@ -114,5 +119,4 @@ class Recorder:
 
         self._buffer.append(frame)
 
-        self._timestep += 1
         return True

@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, List
+from typing import Dict, List, Type
 
 from ctrlutils import eigen
 import gym
@@ -15,13 +15,10 @@ dbprint = lambda *args: None  # noqa
 # dbprint = print
 
 
-def compute_top_down_orientation(
-    quat_home: eigen.Quaterniond, quat_obj: eigen.Quaterniond, theta: float
-) -> eigen.Quaterniond:
-    quat_ee_to_obj = quat_home
+def compute_top_down_orientation(quat_obj: eigen.Quaterniond, theta: float) -> eigen.Quaterniond:
     quat_obj_to_world = eigen.AngleAxisd(quat_obj)
     command_aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-    command_quat = quat_obj_to_world * command_aa * quat_ee_to_obj
+    command_quat = quat_obj_to_world * command_aa
     return command_quat
 
 
@@ -31,6 +28,8 @@ def is_upright(quat: np.ndarray) -> bool:
 
 
 class Primitive(envs.Primitive, abc.ABC):
+    Action: Type[primitive_actions.PrimitiveAction]
+
     @abc.abstractmethod
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         pass
@@ -56,6 +55,7 @@ class Primitive(envs.Primitive, abc.ABC):
 class Pick(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PickAction.range())
+    Action = primitive_actions.PickAction
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         # Parse action.
@@ -71,9 +71,7 @@ class Pick(Primitive):
         command_pos = obj_pose.pos + obj_quat * a.pos
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(
-            eigen.Quaterniond(robot.home_pose.quat), obj_quat, a.theta.item()
-        )
+        command_quat = compute_top_down_orientation(obj_quat, a.theta.item())
 
         pre_pos = np.append(command_pos[:2], obj.aabb()[1, 2] + 0.1)
         try:
@@ -99,6 +97,7 @@ class Pick(Primitive):
 class Place(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PlaceAction.range())
+    Action = primitive_actions.PlaceAction
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         # Parse action.
@@ -114,9 +113,7 @@ class Place(Primitive):
         command_pos = target_pose.pos + target_quat * a.pos
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(
-            eigen.Quaterniond(robot.home_pose.quat), target_quat, a.theta.item()
-        )
+        command_quat = compute_top_down_orientation(target_quat, a.theta.item())
 
         pre_pos = np.append(command_pos[:2], target.aabb()[1, 2] + 0.1)
         try:
@@ -134,10 +131,15 @@ class Place(Primitive):
             pos=np.array([0.4, 0.0, self.policy_args[0].size[2]]), theta=0.0
         )
 
+    @classmethod
+    def action(cls, action: np.ndarray) -> primitive_actions.PrimitiveAction:
+        return primitive_actions.PlaceAction(action)
+
 
 class Pull(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PullAction.range())
+    Action = primitive_actions.PullAction
 
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         PULL_HEIGHT = 0.03
@@ -168,9 +170,7 @@ class Pull(Primitive):
         command_pos_pull = target_pos + target_quat * pos_pull
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(
-            eigen.Quaterniond(robot.home_pose.quat), target_quat, a.theta.item()
-        )
+        command_quat = compute_top_down_orientation(target_quat, a.theta.item())
 
         pre_pos = np.append(command_pos_reach[:2], target.aabb()[1, 2] + 0.1)
         post_pos = np.append(command_pos_pull[:2], target.aabb()[1, 2] + 0.1)

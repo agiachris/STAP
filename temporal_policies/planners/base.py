@@ -1,11 +1,22 @@
 import abc
-from typing import Sequence, Tuple, Union
+import dataclasses
+from typing import Sequence, Union
 
 import numpy as np
 import torch
 
 from temporal_policies import agents, dynamics, envs
 from temporal_policies.utils import tensors
+
+
+@dataclasses.dataclass
+class PlanningResult:
+    actions: np.ndarray  # [T, dim_actions]
+    states: np.ndarray  # [T+1, dim_states]
+    p_success: float
+    visited_actions: np.ndarray  # [num_visited, T, dim_actions]
+    visited_states: np.ndarray  # [num_visited, T+1, dim_states]
+    p_visited_success: np.ndarray  # [num_visited]
 
 
 class Planner(abc.ABC):
@@ -54,7 +65,7 @@ class Planner(abc.ABC):
     @abc.abstractmethod
     def plan(
         self, observation: np.ndarray, action_skeleton: Sequence[envs.Primitive]
-    ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray]:
+    ) -> PlanningResult:
         """Plans a sequence of actions following the given action skeleton.
 
         Args:
@@ -62,11 +73,6 @@ class Planner(abc.ABC):
             action_skeleton: List of (idx_policy, policy_args) 2-tuples.
 
         Returns:
-            4-tuple (
-                actions [T, dim_actions],
-                success_probability,
-                visited actions [num_visited, T, dim_actions],
-                visited success_probability [num_visited])
-            ).
+            Planning result.
         """
         pass

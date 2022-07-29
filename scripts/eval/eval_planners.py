@@ -6,7 +6,7 @@ import numpy as np
 import tqdm
 
 from temporal_policies import dynamics, envs, planners
-from temporal_policies.utils import random, spaces, timing
+from temporal_policies.utils import random, recording, spaces, timing
 
 import eval_pybox2d_planners as pybox2d
 
@@ -80,21 +80,19 @@ def evaluate_planners(
             env.record_start("timelapse", mode="timelapse")
 
         timer.tic("planner")
-        actions, p_success, visited_actions, p_visited_success = planner.plan(
-            observation, action_skeleton
-        )
+        plan = planner.plan(observation, action_skeleton)
         t_planner = timer.toc("planner")
 
         env.record_save(path / f"planning_{i}.gif")
 
         rewards = planners.evaluate_plan(
-            env, action_skeleton, state, actions, gif_path=path / f"exec_{i}.gif"
+            env, action_skeleton, state, plan.actions, gif_path=path / f"exec_{i}.gif"
         )
 
         if verbose:
             print("success:", rewards.prod())
-            print("predicted success:", p_success)
-            print(actions)
+            print("predicted success:", plan.p_success)
+            print(plan.actions)
             print("time:", t_planner)
 
         if isinstance(env, envs.pybox2d.Sequential2D):
@@ -105,14 +103,33 @@ def evaluate_planners(
             pybox2d.plot_critic_functions(
                 env=env,
                 action_skeleton=action_skeleton,
-                actions=visited_actions,
-                p_success=p_visited_success,
+                actions=plan.visited_actions,
+                p_success=plan.p_visited_success,
                 rewards=rewards,
                 grid_q_values=grid_q_values,
                 grid_actions=grid_actions,
                 path=path / f"values_{i}.png",
                 title=f"{pathlib.Path(config).stem}: {t_planner:0.2f}s",
             )
+        elif isinstance(env, envs.pybullet.TableEnv):
+            recorder = recording.Recorder()
+            recorder.start()
+            env.set_state(state)
+            for primitive, predicted_state, action in zip(
+                action_skeleton, plan.states[1:], plan.actions
+            ):
+                env.set_primitive(primitive)
+                env._recording_text = (
+                    "Action: ["
+                    + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+                    + "]"
+                )
+
+                recorder.add_frame(frame=env.render())
+                env.set_observation(predicted_state)
+                recorder.add_frame(frame=env.render())
+            print(recorder.stop())
+            print(recorder.save(path / "predicted_trajectory.gif"))
 
         with open(path / f"results_{i}.npz", "wb") as f:
             save_dict = {
@@ -130,15 +147,17 @@ def evaluate_planners(
                 },
                 "observation": observation,
                 "state": state,
-                "actions": actions,
-                "scaled_actions": scale_actions(actions, env, action_skeleton),
-                "p_success": p_success,
+                "actions": plan.actions,
+                "states": plan.states,
+                "scaled_actions": scale_actions(plan.actions, env, action_skeleton),
+                "p_success": plan.p_success,
                 "rewards": rewards,
-                "visited_actions": visited_actions,
+                "visited_actions": plan.visited_actions,
                 "scaled_visited_actions": scale_actions(
-                    visited_actions, env, action_skeleton
+                    plan.visited_actions, env, action_skeleton
                 ),
-                "p_visited_success": p_visited_success,
+                "visited_states": plan.visited_states,
+                "p_visited_success": plan.p_visited_success,
                 "t_planner": t_planner,
             }
             if isinstance(env, envs.pybox2d.Sequential2D):
