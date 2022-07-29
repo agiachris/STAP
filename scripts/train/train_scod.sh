@@ -37,11 +37,11 @@ checkpoints=(
     "ckpt_model_100000"
 )
 for ckpt in "${checkpoints[@]}"; do
-    EXP_NAME="20220722/decoupled_state/placeright"
+    EXP_NAME="20220727/decoupled_state/placeright"
     MODEL_CHECKPOINT="${EXP_NAME}/${ckpt}.pt"
     train_scod
 
-    EXP_NAME="20220722/decoupled_state/pushleft"
+    EXP_NAME="20220727/decoupled_state/pushleft"
     MODEL_CHECKPOINT="${EXP_NAME}/${ckpt}.pt"
     train_scod
 done

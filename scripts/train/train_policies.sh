@@ -27,7 +27,7 @@ function train_policy {
 }
 
 OUTPUT_PATH="${OUTPUTS}/temporal_policies/models"
-EXP_NAME="20220722/decoupled_state"
+EXP_NAME="20220727/decoupled_state"
 TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
 

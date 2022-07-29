@@ -171,6 +171,7 @@ def evaluate_planners(
     config: Union[str, pathlib.Path],
     env_config: Union[str, pathlib.Path, Dict[str, Any]],
     policy_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]],
+    scod_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]],
     dynamics_checkpoint: Optional[Union[str, pathlib.Path]],
     device: str,
     num_eval: int,
@@ -189,6 +190,7 @@ def evaluate_planners(
         config=config,
         env=env,
         policy_checkpoints=policy_checkpoints,
+        scod_checkpoints=scod_checkpoints,
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
