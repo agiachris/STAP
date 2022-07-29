@@ -66,8 +66,8 @@ class SCODFactory(configs.Factory):
                 f"SCOD [{ckpt_config['scod']}] must be the same"
             )
 
-        self.kwargs["device"] = device
         self.kwargs["model"] = getattr(model, model_network)
+        self.kwargs["device"] = device
 
         self._model_checkpoint = model_checkpoint
         self._model_network = model_network
