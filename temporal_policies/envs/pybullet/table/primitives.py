@@ -15,13 +15,10 @@ dbprint = lambda *args: None  # noqa
 # dbprint = print
 
 
-def compute_top_down_orientation(
-    quat_home: eigen.Quaterniond, quat_obj: eigen.Quaterniond, theta: float
-) -> eigen.Quaterniond:
-    quat_ee_to_obj = quat_home
+def compute_top_down_orientation(quat_obj: eigen.Quaterniond, theta: float) -> eigen.Quaterniond:
     quat_obj_to_world = eigen.AngleAxisd(quat_obj)
     command_aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-    command_quat = quat_obj_to_world * command_aa * quat_ee_to_obj
+    command_quat = quat_obj_to_world * command_aa
     return command_quat
 
 
@@ -74,9 +71,7 @@ class Pick(Primitive):
         command_pos = obj_pose.pos + obj_quat * a.pos
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(
-            eigen.Quaterniond(robot.home_pose.quat), obj_quat, a.theta.item()
-        )
+        command_quat = compute_top_down_orientation(obj_quat, a.theta.item())
 
         pre_pos = np.append(command_pos[:2], obj.aabb()[1, 2] + 0.1)
         try:
@@ -118,9 +113,7 @@ class Place(Primitive):
         command_pos = target_pose.pos + target_quat * a.pos
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(
-            eigen.Quaterniond(robot.home_pose.quat), target_quat, a.theta.item()
-        )
+        command_quat = compute_top_down_orientation(target_quat, a.theta.item())
 
         pre_pos = np.append(command_pos[:2], target.aabb()[1, 2] + 0.1)
         try:
@@ -177,9 +170,7 @@ class Pull(Primitive):
         command_pos_pull = target_pos + target_quat * pos_pull
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(
-            eigen.Quaterniond(robot.home_pose.quat), target_quat, a.theta.item()
-        )
+        command_quat = compute_top_down_orientation(target_quat, a.theta.item())
 
         pre_pos = np.append(command_pos_reach[:2], target.aabb()[1, 2] + 0.1)
         post_pos = np.append(command_pos_pull[:2], target.aabb()[1, 2] + 0.1)

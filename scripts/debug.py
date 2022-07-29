@@ -22,7 +22,7 @@ def main() -> None:
 
         timer.tic("step")
         action = primitive.sample_action()
-        obs, success, _, _ = env.step(primitive.normalize_action(action))
+        obs, success, _, _ = env.step(primitive.normalize_action(action.vector))
         input("continue?")
         dt_step = timer.toc("step")
 

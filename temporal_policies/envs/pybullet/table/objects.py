@@ -93,6 +93,9 @@ class Object(body.Body):
 
         return self._state
 
+    def set_state(self, state: object_state.ObjectState) -> None:
+        self.set_pose(state.pose())
+
     def reset(self) -> None:
         pass
 

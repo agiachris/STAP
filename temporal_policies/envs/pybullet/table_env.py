@@ -3,7 +3,6 @@ import enum
 import pathlib
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ctrlutils import eigen
 import gym
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -239,7 +238,7 @@ class TableEnv(PybulletEnv):
             arg_states = [
                 obj_states[arg.name].vector for arg in self.get_primitive().policy_args
             ]
-            arg_states.append(obj_states["gripper"].vector)
+            arg_states.append(obj_states["TableEnv.robot.arm.ee_pose"].vector)
             return np.concatenate(arg_states, axis=0)
         elif self._observation_mode == ObservationMode.FULL:
             obj_states = self.object_states()
@@ -250,15 +249,29 @@ class TableEnv(PybulletEnv):
                 f"TableEnv.get_observation() not implemented for observation mode: {self._observation_mode}"
             )
 
+    def set_observation(self, observation: np.ndarray) -> None:
+        # print("TableEnv.set_observation(): ", object_state.ObjectState(observation))
+        if self._observation_mode == ObservationMode.FULL:
+            assert len(self.objects) == observation.shape[0] - 1
+            for i, object in enumerate(self.objects.values()):
+                obj_state = object_state.ObjectState(observation[i])
+                object.set_state(obj_state)
+        else:
+            raise NotImplementedError
+
+        ee_state = object_state.ObjectState(observation[-1])
+        ee_pose = ee_state.pose()
+        try:
+            self.robot.goto_pose(pos=ee_pose.pos, quat=ee_pose.quat)
+        except robot.ControlException:
+            print(f"TableEnv.set_observation(): Failed to reach pose {ee_pose}.")
+
     def object_states(self) -> Dict[str, object_state.ObjectState]:
         state = {obj.name: obj.state() for name, obj in self.objects.items()}
 
-        gripper_state = object_state.ObjectState()
-        ee_pose = self.robot.arm.ee_pose()
-        aa_pose = eigen.AngleAxisd(eigen.Quaterniond(ee_pose.quat))
-        gripper_state.pos = ee_pose.pos
-        gripper_state.aa = aa_pose.axis * aa_pose.angle
-        state["gripper"] = gripper_state
+        ee_state = object_state.ObjectState()
+        ee_state.set_pose(self.robot.arm.ee_pose())
+        state["TableEnv.robot.arm.ee_pose"] = ee_state
 
         return state
 

@@ -5,13 +5,7 @@ import numpy as np
 import pybullet as p
 import spatialdyn as dyn
 
-from temporal_policies.envs.pybullet.sim import (
-    articulated_body,
-    arm,
-    body,
-    gripper,
-    math,
-)
+from temporal_policies.envs.pybullet.sim import articulated_body, arm, body, gripper
 
 
 class ControlException(Exception):
@@ -56,9 +50,7 @@ class Robot(body.Body):
         )
 
         self.reset()
-        self.home_pose = math.Pose.from_eigen(
-            dyn.cartesian_pose(self.arm.ab, offset=self.arm.ee_offset)
-        )
+        self.home_pose = self.arm.ee_pose()
 
         self.step_simulation = step_simulation_fn
         self._table: Optional[body.Body] = None

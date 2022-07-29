@@ -1,6 +1,9 @@
 from typing import Optional, Union
 
+from ctrlutils import eigen
 import numpy as np
+
+from temporal_policies.envs.pybullet.sim import math
 
 
 class ObjectState:
@@ -14,8 +17,8 @@ class ObjectState:
         ("box_size_x", 0.0, 0.1),
         ("box_size_y", 0.0, 0.1),
         ("box_size_z", 0.0, 0.2),
-        ("head_length", 0.1, 0.3),
-        ("handle_length", 0.3, 0.5),
+        ("head_length", 0.0, 0.3),
+        ("handle_length", 0.0, 0.5),
         ("handle_y", -1.0, 1.0),
     ]
 
@@ -89,6 +92,17 @@ class ObjectState:
     @classmethod
     def range(cls) -> np.ndarray:
         return np.array([r[1:3] for r in cls.RANGES], dtype=np.float32).T
+
+    def pose(self) -> math.Pose:
+        angle = np.linalg.norm(self.aa)
+        axis = self.aa / angle
+        quat = eigen.Quaterniond(eigen.AngleAxisd(angle, axis))
+        return math.Pose(pos=self.pos, quat=quat.coeffs)
+
+    def set_pose(self, pose: math.Pose) -> None:
+        aa = eigen.AngleAxisd(eigen.Quaterniond(pose.quat))
+        self.pos = pose.pos
+        self.aa = aa.angle * aa.axis
 
     def __repr__(self) -> str:
         return (

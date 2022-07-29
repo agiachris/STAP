@@ -122,7 +122,7 @@ class CEMPlanner(planners.Planner):
 
     def plan(
         self, observation: np.ndarray, action_skeleton: Sequence[envs.Primitive]
-    ) -> Tuple[np.ndarray, float, np.ndarray, np.ndarray]:
+    ) -> planners.PlanningResult:
         """Runs `num_iterations` of CEM.
 
         Args:
@@ -130,18 +130,15 @@ class CEMPlanner(planners.Planner):
             action_skeleton: List of (idx_policy, policy_args) 2-tuples.
 
         Returns:
-            4-tuple (
-                actions [T, dim_actions],
-                success_probability,
-                visited actions [num_visited, T, dim_actions],
-                visited success_probability [num_visited])
-            ).
+            Planning result.
         """
         num_samples = self.num_samples
 
         best_actions: Optional[np.ndarray] = None
+        best_states: Optional[np.ndarray] = None
         p_best_success: float = -float("inf")
         visited_actions = []
+        visited_states = []
         p_visited_success = []
 
         value_fns = [
@@ -193,19 +190,21 @@ class CEMPlanner(planners.Planner):
                     )
                     for t, primitive in enumerate(action_skeleton)
                 ]
-                states, t_actions, p_transitions = self.dynamics.rollout(
+                t_states, t_actions, p_transitions = self.dynamics.rollout(
                     t_observation, action_skeleton, policies, batch_size=num_samples
                 )
 
                 # Evaluate trajectories.
                 p_success = utils.evaluate_trajectory(
-                    value_fns, decode_fns, states, t_actions, p_transitions
+                    value_fns, decode_fns, t_states, t_actions, p_transitions
                 )
 
                 # Convert to numpy.
                 actions = t_actions.cpu().numpy()
+                states = t_states.cpu().numpy()
                 p_success = p_success.cpu().numpy()
                 visited_actions.append(actions)
+                visited_states.append(states)
                 p_visited_success.append(p_success)
 
                 # Append subset of elites from previous iteration.
@@ -229,6 +228,7 @@ class CEMPlanner(planners.Planner):
                 if p_success[0] > p_best_success:
                     p_best_success = p_success[0]
                     best_actions = actions[idx_sorted[0]]
+                    best_states = states[idx_sorted[0]]
 
                 # Update distribution.
                 mean = self.momentum * mean + (1 - self.momentum) * elites.mean(axis=0)
@@ -238,8 +238,13 @@ class CEMPlanner(planners.Planner):
                 num_samples = int(self.population_decay * num_samples + 0.5)
                 num_samples = max(num_samples, 2 * self.num_elites)
 
-        np_visited_actions = np.concatenate(visited_actions, axis=0)
-        np_p_visited_success = np.concatenate(p_visited_success, axis=0)
-        assert best_actions is not None
+        assert best_actions is not None and best_states is not None
 
-        return best_actions, p_best_success, np_visited_actions, np_p_visited_success
+        return planners.PlanningResult(
+            actions=best_actions,
+            states=best_states,
+            p_success=p_best_success,
+            visited_actions=np.concatenate(visited_actions, axis=0),
+            visited_states=np.concatenate(visited_states, axis=0),
+            p_visited_success=np.concatenate(p_visited_success, axis=0),
+        )

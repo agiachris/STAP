@@ -212,7 +212,6 @@ def evaluate_pick_action(
                 [obs.pos[0, 0], -obs.pos[0, 1], env.robot.home_pose.pos[2] + z]
             ),
             quat=primitives.compute_top_down_orientation(
-                eigen.Quaterniond(env.robot.home_pose.quat),
                 eigen.Quaterniond(env.get_primitive().policy_args[0].pose().quat),
                 theta=theta,
             ),

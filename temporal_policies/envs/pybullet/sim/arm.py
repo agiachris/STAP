@@ -78,6 +78,8 @@ class Arm(articulated_body.ArticulatedBody):
 
         self._ab = dyn.ArticulatedBody(dyn.urdf.load_model(arm_urdf))
         self.ab.q, self.ab.dq = self.get_joint_state(self.torque_joints)
+        T_home_to_world = dyn.cartesian_pose(self.ab, offset=self.ee_offset)
+        self.quat_home = eigen.Quaterniond(T_home_to_world.linear)
 
         self._q_limits = np.array(
             [self.link(link_id).joint_limits for link_id in self.torque_joints]
@@ -129,9 +131,10 @@ class Arm(articulated_body.ArticulatedBody):
         if pos is not None:
             self._arm_state.pos_des = pos
         if quat is not None:
-            if isinstance(quat, eigen.Quaterniond):
-                quat = quat.coeffs
-            self._arm_state.quat_des = quat
+            if isinstance(quat, np.ndarray):
+                quat = eigen.Quaterniond(quat)
+            quat = quat * self.quat_home.inverse()
+            self._arm_state.quat_des = quat.coeffs
         if timeout is None:
             timeout = self.timeout
         self._arm_state.pos_gains = self.pos_gains if pos_gains is None else pos_gains
@@ -145,9 +148,9 @@ class Arm(articulated_body.ArticulatedBody):
     def ee_pose(self) -> math.Pose:
         self.ab.q, self.ab.dq = self.get_joint_state(self.torque_joints)
         T_ee_to_world = dyn.cartesian_pose(self.ab, offset=self.ee_offset)
-        return math.Pose(
-            T_ee_to_world.translation, eigen.Quaterniond(T_ee_to_world.linear).coeffs
-        )
+        quat_ee_to_world = eigen.Quaterniond(T_ee_to_world.linear)
+        quat_ee = quat_ee_to_world * self.quat_home.inverse()
+        return math.Pose(T_ee_to_world.translation, quat_ee.coeffs)
 
     def update_torques(self) -> articulated_body.ControlStatus:
         """Computes and applies the torques to control the articulated body to the goal set with `Arm.set_pose_goal().
