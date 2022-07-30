@@ -1,6 +1,7 @@
 import pathlib
 from typing import Any, Dict, Optional, Sequence, Type, Union
 
+import numpy as np
 import torch
 
 from temporal_policies import agents, envs, networks
