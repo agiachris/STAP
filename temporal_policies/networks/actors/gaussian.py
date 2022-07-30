@@ -17,6 +17,9 @@ class GaussianActor(Actor):
             action_space: Policy action space.
         """
         super().__init__()
+
+        # Scale the standard deviations by the action space.
+        std = 0.5 * std * (action_space.high - action_space.low)
         self.network = Gaussian(actor, std, min=action_space.low, max=action_space.high)
 
     def forward(self, state: torch.Tensor) -> torch.distributions.Distribution:

@@ -12,7 +12,7 @@ class Gaussian(torch.nn.Module):
     def __init__(
         self,
         mean: torch.nn.Module,
-        std: float,
+        std: Union[np.ndarray, float],
         min: Optional[Union[torch.Tensor, np.ndarray, float, int]] = None,
         max: Optional[Union[torch.Tensor, np.ndarray, float, int]] = None,
     ):
@@ -24,12 +24,13 @@ class Gaussian(torch.nn.Module):
         """
         super().__init__()
         self.mean = mean
-        self.std = std
+        self.std = tensors.to_tensor(std)
         self.min = None if min is None else tensors.to_tensor(min)
         self.max = None if max is None else tensors.to_tensor(max)
 
     def _apply(self, fn):
         super()._apply(fn)
+        self.std = fn(self.std)
         if self.min is not None:
             self.min = fn(self.min)
         if self.max is not None:

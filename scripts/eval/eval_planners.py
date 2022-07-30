@@ -112,24 +112,25 @@ def evaluate_planners(
                 title=f"{pathlib.Path(config).stem}: {t_planner:0.2f}s",
             )
         elif isinstance(env, envs.pybullet.TableEnv):
-            recorder = recording.Recorder()
-            recorder.start()
-            env.set_state(state)
-            for primitive, predicted_state, action in zip(
-                action_skeleton, plan.states[1:], plan.actions
-            ):
-                env.set_primitive(primitive)
-                env._recording_text = (
-                    "Action: ["
-                    + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
-                    + "]"
-                )
+            if not isinstance(planner.dynamics, dynamics.OracleDynamics):
+                recorder = recording.Recorder()
+                recorder.start()
+                env.set_state(state)
+                for primitive, predicted_state, action in zip(
+                    action_skeleton, plan.states[1:], plan.actions
+                ):
+                    env.set_primitive(primitive)
+                    env._recording_text = (
+                        "Action: ["
+                        + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+                        + "]"
+                    )
 
-                recorder.add_frame(frame=env.render())
-                env.set_observation(predicted_state)
-                recorder.add_frame(frame=env.render())
-            print(recorder.stop())
-            print(recorder.save(path / "predicted_trajectory.gif"))
+                    recorder.add_frame(frame=env.render())
+                    env.set_observation(predicted_state)
+                    recorder.add_frame(frame=env.render())
+                print(recorder.stop())
+                print(recorder.save(path / "predicted_trajectory.gif"))
 
         with open(path / f"results_{i}.npz", "wb") as f:
             save_dict = {

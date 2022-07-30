@@ -60,7 +60,7 @@ function train_dynamics {
 # )
 # train_dynamics
 
-EXP_NAME="20220726/workspace"
+EXP_NAME="20220728/workspace"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 POLICY_CHECKPOINTS=(

@@ -64,7 +64,7 @@ PLANNERS=(
     "random_cem_oracle_dynamics"
     "policy_shooting_oracle_dynamics"
     "random_shooting_oracle_dynamics"
-# # Oracle value / Oracle dynamics.
+# Oracle value / Oracle dynamics.
     # "policy_cem_oracle_value_dynamics"
     # "random_cem_oracle_value_dynamics"
     # "policy_shooting_oracle_value_dynamics"
@@ -95,7 +95,7 @@ policy_envs=(
     "pull"
 )
 experiments=(
-    "20220726/workspace"
+    "20220728/workspace"
 )
 
 for EXP_NAME in "${experiments[@]}"; do
@@ -109,7 +109,7 @@ for EXP_NAME in "${experiments[@]}"; do
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
         else
-            DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics/best_model.pt"
+            DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics/final_model.pt"
         fi
         PLANNER_CONFIG="configs/${DOMAIN}/planners/${planner}.yaml"
 

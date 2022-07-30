@@ -66,7 +66,7 @@ class PlannerFactory(configs.Factory):
             )
 
         if isinstance(env, envs.pybox2d.Sequential2D):
-            # TODO: CHeck if this special case is necessary.
+            # TODO: Check if this special case is necessary.
             policies = [
                 agents.load(
                     config=agent_config,

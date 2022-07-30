@@ -103,9 +103,7 @@ class Dynamics(abc.ABC):
             ).
         """
         if policies is None:
-            policies = [
-                self.policies[primitive.idx_policy] for primitive in action_skeleton
-            ]
+            policies = self.policies
             time_index = False
 
         state = self.encode(

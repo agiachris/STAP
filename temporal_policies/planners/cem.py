@@ -191,7 +191,11 @@ class CEMPlanner(planners.Planner):
                     for t, primitive in enumerate(action_skeleton)
                 ]
                 t_states, t_actions, p_transitions = self.dynamics.rollout(
-                    t_observation, action_skeleton, policies, batch_size=num_samples
+                    t_observation,
+                    action_skeleton,
+                    policies,
+                    batch_size=num_samples,
+                    time_index=True,
                 )
 
                 # Evaluate trajectories.

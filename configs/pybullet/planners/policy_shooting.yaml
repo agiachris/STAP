@@ -6,11 +6,14 @@ agent_configs:
   - agent: GaussianAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
-      std: 0.3
+      std: 0.1
   - agent: GaussianAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
-      std: 0.3
-  - "{AGENT_CONFIG}"
+      std: 0.1
+  - agent: GaussianAgent  # TODO: Find way to make last policy non-gaussian
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      std: 0.1
 
 dynamics_config: "{DYNAMICS_CONFIG}"

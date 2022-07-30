@@ -1,6 +1,6 @@
 import abc
 import pathlib
-from typing import Any, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import gym
 import numpy as np
@@ -81,6 +81,10 @@ class Env(gym.Env[np.ndarray, np.ndarray], abc.ABC):
     ) -> Primitive:
         """Gets the primitive info."""
 
+    def create_primitive_env(self, primitive: Primitive) -> "Env":
+        """Creates an child env with a fixed primitive mode."""
+        return PrimitiveEnv(self, primitive)
+
     # @abc.abstractmethod
     # def create_policy_env(self, idx_policy: int, policy_args: Optional[Any]) -> "Env":
     #     raise NotImplementedError
@@ -142,6 +146,110 @@ class Env(gym.Env[np.ndarray, np.ndarray], abc.ABC):
             Whether any recordings were saved.
         """
         return False
+
+
+class PrimitiveEnv(Env):
+    class Scope:
+        def __init__(self, primitive_env: "PrimitiveEnv"):
+            self._primitive_env = primitive_env
+            self._env = primitive_env._env
+
+        def __enter__(self):
+            self._primitive = self._env.get_primitive()
+            self._env.set_primitive(self._primitive_env._primitive)
+
+        def __exit__(self, type, value, traceback):
+            self._env.set_primitive(self._primitive)
+
+    def __init__(self, env: Env, primitive: Primitive):
+        self.name = f"{env.name}-{primitive}"
+        self._env = env
+        self._primitive = primitive
+
+    def get_primitive(self) -> Primitive:
+        return self._primitive
+
+    def set_primitive(
+        self,
+        primitive: Optional[Primitive] = None,
+        action_call: Optional[str] = None,
+        idx_policy: Optional[int] = None,
+        policy_args: Optional[Any] = None,
+    ) -> Env:
+        if primitive is None:
+            primitive = self.get_primitive_info(action_call, idx_policy, policy_args)
+        if primitive != self._primitive:
+            raise ValueError("Primitive cannot be set for PrimitiveTableEnv")
+
+        return self
+
+    def get_primitive_info(
+        self,
+        action_call: Optional[str] = None,
+        idx_policy: Optional[int] = None,
+        policy_args: Optional[Any] = None,
+    ) -> Primitive:
+        return self._env.get_primitive_info(action_call, idx_policy, policy_args)
+
+    def create_primitive_env(self, primitive: Primitive) -> Env:
+        if primitive != self._primitive:
+            raise ValueError("Primitive env cannot created from PrimitiveTableEnv")
+        return self
+
+    def get_state(self) -> np.ndarray:
+        with PrimitiveEnv.Scope(self):
+            return self._env.get_state()
+
+    def set_state(self, state: np.ndarray) -> bool:
+        with PrimitiveEnv.Scope(self):
+            return self._env.set_state(state)
+
+    def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
+        with PrimitiveEnv.Scope(self):
+            return self._env.get_observation(image)
+
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        return_info: bool = False,
+        options: Optional[dict] = None,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, Dict]]:
+        with PrimitiveEnv.Scope(self):
+            return self._env.reset(
+                seed=seed,
+                return_info=return_info,
+                options=options,
+            )
+
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
+        with PrimitiveEnv.Scope(self):
+            return self._env.step(action)
+
+    def render(
+        self, view: str = "front", resolution: Optional[Tuple[int, int]] = None
+    ) -> np.ndarray:
+        with PrimitiveEnv.Scope(self):
+            return self.render(view, resolution)
+
+    def record_start(
+        self,
+        prepend_id: Optional[Any] = None,
+        frequency: Optional[int] = None,
+        mode: str = "default",
+    ) -> bool:
+        return self._env.record_start(prepend_id, frequency, mode)
+
+    def record_stop(self, save_id: Optional[Any] = None, mode: str = "default") -> bool:
+        return self._env.record_stop(save_id, mode)
+
+    def record_save(
+        self,
+        path: Union[str, pathlib.Path],
+        reset: bool = True,
+        mode: Optional[str] = None,
+    ) -> bool:
+        return self._env.record_save(path, reset, mode)
 
 
 # class ProcessEnv(Env):
