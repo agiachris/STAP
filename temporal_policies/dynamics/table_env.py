@@ -164,7 +164,11 @@ class TableEnvDynamics(LatentDynamics):
         # Dynamics state -> new unnormalized observation.
         next_dynamics_state = torch.from_numpy(
             spaces.transform(
-                next_dynamics_state.cpu().numpy(),
+                np.clip(
+                    next_dynamics_state.cpu().numpy(),
+                    self.policies[idx_policy].state_space.low,
+                    self.policies[idx_policy].state_space.high,
+                ),
                 self.policies[idx_policy].state_space,
                 self.env.observation_space,
             )
