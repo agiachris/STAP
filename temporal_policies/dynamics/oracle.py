@@ -1,10 +1,11 @@
-from typing import Any, Dict, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 
-from temporal_policies import agents, envs
+from temporal_policies import agents, envs, networks
 from temporal_policies.dynamics import base as dynamics
+from temporal_policies.networks.encoders.oracle import OracleDecoder, OracleEncoder
 from temporal_policies.utils import tensors
 
 
@@ -34,7 +35,12 @@ class OracleDynamics(dynamics.Dynamics):
 
         self._env = env
         self._debug = debug
-        self._cache: Dict[Tuple[Tuple, int, Optional[Any]], np.ndarray] = {}
+
+        self._oracle_decoder = OracleDecoder(self.env)
+        self._oracle_encoder = OracleEncoder(self.env)
+
+        if not hasattr(self.env, "_oracle_sim_result"):
+            self.env._oracle_sim_result: Dict[Tuple[str, Tuple, Tuple], float] = {}  # type: ignore
 
     @property
     def env(self) -> envs.Env:
@@ -107,9 +113,6 @@ class OracleDynamics(dynamics.Dynamics):
         Returns:
             Next state.
         """
-        # print(
-        #     f"OracleDynamics.forward(state={state}, action={action}, idx_policy={idx_policy}, policy_args={policy_args})"
-        # )
         self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
         self.env.set_state(state)
         action = action[: self.policies[idx_policy].action_space.shape[0]]
@@ -117,56 +120,44 @@ class OracleDynamics(dynamics.Dynamics):
         if self._debug:
             self.env.record_start(state)
 
-        self.env.step(action)
+        result = self.env.step(action)
         next_state = self.env.get_state()
+
+        # Cache results for oracle critic.
+        self.env._oracle_sim_result[  # type: ignore
+            str(self.env.get_primitive()), tuple(state), tuple(action)
+        ] = result
 
         if self._debug:
             self.env.record_stop(next_state)
 
         return next_state
 
-    @tensors.torch_wrap
     def encode(
         self,
-        observation: np.ndarray,
-        idx_policy: int,
+        observation: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
         policy_args: Optional[Any],
-    ) -> np.ndarray:
+    ) -> torch.Tensor:
         """Returns the current environment state.
 
         WARNING: This ignores the input observation and instead returns the
         environment's current ground truth state. Be careful that the state
         matches the observation as expected.
         """
-        # print(
-        #     f"OracleDynamics.encode(observation={observation}, idx_policy={idx_policy}, policy_args={policy_args})"
-        # )
-        prev_primitive = self.env.get_primitive()
+        assert isinstance(idx_policy, int)
 
         self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
-        env_observation = self.env.get_observation()
-        assert observation.ndim == env_observation.ndim
-        if (observation != env_observation).any():
-            # May happen if self.env is not updated by the dynamics factory.
-            raise ValueError("Observation does not match the current env state")
-        state = self.env.get_state()
-
-        # Restore env to the way it was before.
-        self.env.set_primitive(prev_primitive)
-
-        # Save in cache.
-        self._cache[OracleDynamics._get_cache_key(state, idx_policy, policy_args)] = observation
+        state = self._oracle_encoder(observation)
 
         return state
 
-    @tensors.torch_wrap
-    @tensors.vmap(dims=1)
     def decode(
         self,
-        state: np.ndarray,
-        idx_policy: int,
+        state: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
         policy_args: Optional[Any],
-    ) -> np.ndarray:
+    ) -> torch.Tensor:
         """Returns the encoded state for the policy.
 
         Args:
@@ -177,36 +168,18 @@ class OracleDynamics(dynamics.Dynamics):
         Returs:
             Encoded state for policy.
         """
-        # print(
-        #     f"OracleDynamics.decode(state={state}, idx_policy={idx_policy}, policy_args={policy_args})"
-        # )
-        try:
-            observation = self._cache[OracleDynamics._get_cache_key(state, idx_policy, policy_args)]
-            reset_env = False
-        except KeyError:
-            prev_state = self.env.get_state()
-            prev_primitive = self.env.get_primitive()
+        assert isinstance(idx_policy, int)
+        self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
 
-            self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
-            self.env.set_state(state)
-            observation = self.env.get_observation()
-
-            reset_env = True
-            self._cache[OracleDynamics._get_cache_key(state, idx_policy, policy_args)] = observation
+        observation = self._oracle_decoder(state)
 
         with torch.no_grad():
-            t_observation = torch.from_numpy(observation).to(self.device)
-            t_policy_state = self.policies[idx_policy].encoder.encode(t_observation)
-            policy_state = t_policy_state.cpu().numpy()
-
-        if reset_env:
-            # Restore env to the way it was before.
-            self.env.set_state(prev_state)
-            self.env.set_primitive(prev_primitive)
+            policy_encoder = self.policies[idx_policy].encoder
+            if isinstance(policy_encoder.network, networks.encoders.OracleEncoder):
+                # Oracle policy state is simply the env state.
+                policy_state = state
+            else:
+                # Encode the policy state.
+                policy_state = policy_encoder.encode(observation)
 
         return policy_state
-
-    @staticmethod
-    def _get_cache_key(state: np.ndarray, idx_policy: int, policy_args: Optional[Any]) -> Tuple[Tuple, int, Any]:
-        hash_args = tuple(policy_args) if isinstance(policy_args, list) else policy_args
-        return tuple(state), idx_policy, hash_args

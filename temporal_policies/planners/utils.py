@@ -83,7 +83,6 @@ class PlannerFactory(configs.Factory):
             policies = [
                 agents.load(
                     config=agent_config,
-                    # env=policy_env,
                     env=env,
                     checkpoint=ckpt,
                 )

@@ -1,3 +1,4 @@
+import copy
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from ctrlutils import eigen
@@ -99,7 +100,7 @@ class Robot(body.Body):
         return {
             "arm": self.arm.get_state(),
             "gripper": self.gripper.get_state(),
-            "load": self.arm.ab.inertia_load,
+            "load": copy.deepcopy(self.arm.ab.inertia_load),
         }
 
     def set_state(self, state: Dict[str, Any]) -> None:

@@ -1,3 +1,4 @@
+import os
 import sys
 
 from temporal_policies.envs.base import Env
@@ -11,6 +12,8 @@ def connect_pybullet(gui: bool = True, options: str = "") -> int:
     if not gui:
         with RedirectStream():
             physics_id = p.connect(p.DIRECT, options=options)
+    elif not os.environ["DISPLAY"]:
+        raise p.error
     else:
         with RedirectStream():
             physics_id = p.connect(p.GUI, options=options)

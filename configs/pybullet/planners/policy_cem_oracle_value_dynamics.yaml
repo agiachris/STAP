@@ -1,20 +1,19 @@
-planner: ShootingPlanner
+planner: CEMPlanner
 planner_kwargs:
-  num_samples: 128
+  num_samples: 16
+  num_iterations: 8
+  standard_deviation: 0.1
 
 agent_configs:
-  - agent: GaussianAgent
+  - agent: OracleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
-      std: 0.1
-  - agent: GaussianAgent
+  - agent: OracleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
-      std: 0.1
-  - agent: GaussianAgent
+  - agent: OracleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
-      std: 0.1
 
 dynamics_config:
   dynamics: OracleDynamics

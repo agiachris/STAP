@@ -15,7 +15,9 @@ dbprint = lambda *args: None  # noqa
 # dbprint = print
 
 
-def compute_top_down_orientation(quat_obj: eigen.Quaterniond, theta: float) -> eigen.Quaterniond:
+def compute_top_down_orientation(
+    quat_obj: eigen.Quaterniond, theta: float
+) -> eigen.Quaterniond:
     quat_obj_to_world = eigen.AngleAxisd(quat_obj)
     command_aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
     command_quat = quat_obj_to_world * command_aa
@@ -50,6 +52,12 @@ class Primitive(envs.Primitive, abc.ABC):
         primitive_class = globals()[name.capitalize()]
         idx_policy = primitives.index(name)
         return primitive_class(idx_policy, args)
+
+    def __eq__(self, other) -> bool:
+        if isinstance(other, Primitive):
+            return str(self) == str(other)
+        else:
+            return False
 
 
 class Pick(Primitive):
@@ -122,6 +130,7 @@ class Place(Primitive):
             robot.grasp(0)
             robot.goto_pose(pre_pos, command_quat)
         except ControlException:
+            # If robot fails before grasp(0), object may still be grasped.
             return False
 
         return True
