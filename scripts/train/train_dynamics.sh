@@ -19,9 +19,13 @@ function train_dynamics {
     if [ ${#POLICY_CHECKPOINTS[@]} -gt 0 ]; then
         args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS[@]}"
     fi
-    args="${args} --path models/${EXP_NAME}"
     args="${args} --seed 0"
-    # args="${args} --overwrite"
+    if [[ $DEBUG -ne 0 ]]; then
+        args="${args} --path models/${EXP_NAME}_debug"
+        args="${args} --overwrite"
+    else
+        args="${args} --path models/${EXP_NAME}"
+    fi
 
     CMD="python scripts/train/train_dynamics.py ${args}"
     run_cmd
@@ -59,6 +63,8 @@ function train_dynamics {
 #     "models/${EXP_NAME}/pushleft/best_model.pt"
 # )
 # train_dynamics
+
+DEBUG=0
 
 EXP_NAME="20220728/workspace"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"

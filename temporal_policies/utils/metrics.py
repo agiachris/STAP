@@ -110,6 +110,7 @@ def collect_metrics(metrics_list: List[Dict[str, Any]]) -> Dict[str, np.ndarray]
     """
 
     def stack(*args):
+        args = [arg for arg in args if arg is not None]
         if isinstance(args[0], torch.Tensor):
             return torch.stack(args, dim=0)
         return np.array(args)
