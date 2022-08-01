@@ -1,5 +1,3 @@
-from typing import Union, Sequence
-
 import torch
 
 from temporal_policies import scod
