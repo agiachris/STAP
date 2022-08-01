@@ -169,7 +169,7 @@ def generate_grasp_pose(obj: Object) -> math.Pose:
         theta = np.random.uniform(-np.pi / 2, np.pi / 2)
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
 
-    return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
+    return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa))
 
 
 class Inhand(Predicate):
@@ -193,12 +193,14 @@ class Inhand(Predicate):
         xyz_pick[:2] = np.random.uniform(
             0.9 * table_xyz_min[:2], 0.9 * table_xyz_max[:2]
         )
+        theta = np.random.uniform(-np.pi / 2, np.pi / 2)
+        aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
 
         # Use fake grasp.
         obj.set_pose(obj_pose)
         robot.grasp_object(obj, realistic=False)
         try:
-            robot.goto_pose(pos=xyz_pick, quat=robot.home_pose.quat)
+            robot.goto_pose(pos=xyz_pick, quat=eigen.Quaterniond(aa))
         except ControlException:
             robot.reset()
             return False

@@ -30,7 +30,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
     def get_method_label(method: str) -> str:
         if method == "random":
             return "Random"
-        if method == "greedy":
+        if method in ("greedy", "greedy_oracle_dynamics"):
             return "Greedy"
 
         tokens = method.split("_")
@@ -42,7 +42,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         return f"{policy.capitalize()} {planner}"
 
     def get_value_label(method: str) -> str:
-        if method in ("random", "greedy"):
+        if method in ("random", "greedy", "greedy_oracle_dynamics"):
             return "NA"
 
         tokens = method.split("_")
@@ -52,7 +52,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         return "Q-value"
 
     def get_dynamics_label(method: str) -> str:
-        if method in ("random", "greedy"):
+        if method in ("random", "greedy", "greedy_oracle_dynamics"):
             return "NA"
 
         tokens = method.split("_")

@@ -6,7 +6,7 @@ from temporal_policies.utils import timing
 
 
 def main() -> None:
-    env_factory = envs.EnvFactory(config="configs/pybullet/envs/pick.yaml")
+    env_factory = envs.EnvFactory(config="configs/pybullet/envs/pull.yaml")
     env = env_factory()
     assert isinstance(env, pybullet.TableEnv)
     primitive = env.get_primitive()
@@ -23,10 +23,10 @@ def main() -> None:
         timer.tic("step")
         action = primitive.sample_action()
         obs, success, _, _ = env.step(primitive.normalize_action(action.vector))
-        input("continue?")
         dt_step = timer.toc("step")
 
         print(f"SUCCESS {env.get_primitive()}:", success, ", time:", dt_reset + dt_step)
+        input("continue?")
         if not success:
             continue
 

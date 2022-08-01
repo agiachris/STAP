@@ -7,7 +7,7 @@ import numpy as np
 import symbolic
 
 from temporal_policies.envs import base as envs
-from temporal_policies.envs.pybullet.sim import robot
+from temporal_policies.envs.pybullet.sim import robot, math
 from temporal_policies.envs.pybullet.sim.robot import ControlException
 from temporal_policies.envs.pybullet.table import objects, primitive_actions
 
@@ -16,11 +16,16 @@ dbprint = lambda *args: None  # noqa
 
 
 def compute_top_down_orientation(
-    quat_obj: eigen.Quaterniond, theta: float
+    theta: float, quat_obj: eigen.Quaterniond = eigen.Quaterniond.identity()
 ) -> eigen.Quaterniond:
-    quat_obj_to_world = eigen.AngleAxisd(quat_obj)
+    """Computes the top-down orientation of the end-effector with respect to a target object.
+
+    Args:
+        theta: Angle of the gripper about the world z-axis wrt the target object.
+        quat_obj: Orientation of the target object.
+    """
     command_aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-    command_quat = quat_obj_to_world * command_aa
+    command_quat = quat_obj * eigen.Quaterniond(command_aa)
     return command_quat
 
 
@@ -79,7 +84,7 @@ class Pick(Primitive):
         command_pos = obj_pose.pos + obj_quat * a.pos
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(obj_quat, a.theta.item())
+        command_quat = compute_top_down_orientation(a.theta.item(), obj_quat)
 
         pre_pos = np.append(command_pos[:2], obj.aabb()[1, 2] + 0.1)
         try:
@@ -121,7 +126,7 @@ class Place(Primitive):
         command_pos = target_pose.pos + target_quat * a.pos
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(target_quat, a.theta.item())
+        command_quat = compute_top_down_orientation(a.theta.item(), target_quat)
 
         pre_pos = np.append(command_pos[:2], target.aabb()[1, 2] + 0.1)
         try:
@@ -165,33 +170,47 @@ class Pull(Primitive):
             return False
 
         target_distance = np.linalg.norm(target_pose.pos[:2])
-        target_xy = target_pose.pos[:2] / target_distance
-        target_theta = np.arctan2(target_xy[1], target_xy[0])
-        target_aa = eigen.AngleAxisd(target_theta, np.array([0.0, 0.0, 1.0]))
-        target_quat = eigen.Quaterniond(target_aa)
+        reach_xy = target_pose.pos[:2] / target_distance
+        reach_theta = np.arctan2(reach_xy[1], reach_xy[0])
+        reach_aa = eigen.AngleAxisd(reach_theta, np.array([0.0, 0.0, 1.0]))
+        reach_quat = eigen.Quaterniond(reach_aa)
 
         target_pos = np.append(target_pose.pos[:2], PULL_HEIGHT)
+        T_hook_to_world = hook.pose().to_eigen()
+        T_gripper_to_world = robot.arm.ee_pose().to_eigen()
+        T_gripper_to_hook = T_hook_to_world.inverse() * T_gripper_to_world
 
         # Compute position.
         pos_reach = np.array([a.r_reach, a.y, 0.0])
-        command_pos_reach = target_pos + target_quat * pos_reach
+        hook_pos_reach = target_pos + reach_quat * pos_reach
         pos_pull = np.array([a.r_reach - a.r_pull, a.y, 0.0])
-        command_pos_pull = target_pos + target_quat * pos_pull
+        hook_pos_pull = target_pos + reach_quat * pos_pull
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(target_quat, a.theta.item())
+        hook_quat = compute_top_down_orientation(a.theta.item(), reach_quat)
 
-        pre_pos = np.append(command_pos_reach[:2], target.aabb()[1, 2] + 0.1)
-        post_pos = np.append(command_pos_pull[:2], target.aabb()[1, 2] + 0.1)
+        T_reach_hook_to_world = math.Pose(hook_pos_reach, hook_quat).to_eigen()
+        T_pull_hook_to_world = math.Pose(hook_pos_pull, hook_quat).to_eigen()
+        T_reach_to_world = T_reach_hook_to_world * T_gripper_to_hook
+        T_pull_to_world = T_pull_hook_to_world * T_gripper_to_hook
+        command_pose_reach = math.Pose.from_eigen(T_reach_to_world)
+        command_pose_pull = math.Pose.from_eigen(T_pull_to_world)
+
+        pre_pos = np.append(command_pose_reach.pos[:2], target.aabb()[1, 2] + 0.1)
+        post_pos = np.append(command_pose_pull.pos[:2], target.aabb()[1, 2] + 0.1)
         try:
-            robot.goto_pose(pre_pos, command_quat)
-            robot.goto_pose(command_pos_reach, command_quat)
+            robot.goto_pose(pre_pos, command_pose_reach.quat)
+            robot.goto_pose(command_pose_reach.pos, command_pose_reach.quat)
             if not is_upright(target.pose().quat):
                 return False
-            robot.goto_pose(command_pos_pull, command_quat)
+            robot.goto_pose(
+                command_pose_pull.pos,
+                command_pose_pull.quat,
+                pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
+            )
+            robot.goto_pose(post_pos, command_pose_pull.quat)
             if not is_upright(target.pose().quat):
                 return False
-            robot.goto_pose(post_pos, command_quat)
         except ControlException:
             return False
 
@@ -203,4 +222,8 @@ class Pull(Primitive):
         return True
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
-        return primitive_actions.PullAction(r_reach=-0.1, r_pull=0.2, y=-0.1, theta=0.0)
+        # Handle.
+        return primitive_actions.PullAction(r_reach=-0.1, r_pull=0.2, y=0.0, theta=0.0)
+
+        # Head.
+        # return primitive_actions.PullAction(r_reach=0.0, r_pull=0.2, y=0.0, theta=np.pi/2)
