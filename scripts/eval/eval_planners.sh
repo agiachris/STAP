@@ -28,11 +28,11 @@ function eval_planner {
     args="${args} --seed 0"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 1"
-        args="${args} --path ${SAVE_DIR}/plots_debug"
+        args="${args} --path plots_debug/${OUTPUT_PATH}"
         args="${args} --verbose 1"
     else
         args="${args} --num-eval 100"
-        args="${args} --path ${SAVE_DIR}/plots"
+        args="${args} --path plots/${OUTPUT_PATH}"
         args="${args} --verbose 0"
     fi
     CMD="python scripts/eval/eval_planners.py ${args}"
@@ -44,18 +44,18 @@ function run_planners {
         PLANNER_CONFIG="${CONFIG_PATH}/planners/${planner}.yaml"
 
         for train_step in ${TRAIN_STEPS[@]}; do
-            SAVE_DIR="${OUTPUT_PATH}/${EXP_NAME}/planners_${train_step}"
+            OUTPUT_PATH="${EXP_NAME}/planners_${train_step}"
 
             POLICY_CHECKPOINTS=()
             for policy_env in "${POLICY_ENVS[@]}"; do
-                POLICY_CHECKPOINTS+=("${OUTPUT_PATH}/${EXP_NAME}/${policy_env}/ckpt_model_${train_step}.pt")
+                POLICY_CHECKPOINTS+=("${INPUT_PATH}/${EXP_NAME}/${policy_env}/ckpt_model_${train_step}.pt")
             done
             POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
         
             if [[ "${planner}" == *scod_value* ]]; then
                 SCOD_CHECKPOINTS=()
                 for policy_env in "${POLICY_ENVS[@]}"; do
-                    SCOD_CHECKPOINTS+=("${OUTPUT_PATH}/${EXP_NAME}/${policy_env}/scod_${train_step}/final_scod.pt")
+                    SCOD_CHECKPOINTS+=("${INPUT_PATH}/${EXP_NAME}/${policy_env}/scod_${train_step}/final_scod.pt")
                 done
                 SCOD_CHECKPOINTS="${SCOD_CHECKPOINTS[@]}"
             else
@@ -65,7 +65,7 @@ function run_planners {
             if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
                 DYNAMICS_CHECKPOINT=""
             else
-                DYNAMICS_CHECKPOINT="${OUTPUT_PATH}/${EXP_NAME}/dynamics_${train_step}/dynamics/best_model.pt"
+                DYNAMICS_CHECKPOINT="${INPUT_PATH}/${EXP_NAME}/dynamics_${train_step}/dynamics/best_model.pt"
             fi
 
             eval_planner
@@ -75,7 +75,7 @@ function run_planners {
 
 function visualize_results {
     args=""
-    args="${args} --path ${SAVE_DIR}/plots"
+    args="${args} --path plots/${OUTPUT_PATH}"
     args="${args} --methods ${PLANNERS[@]}"
     CMD="python scripts/visualize/visualize_planners.py ${args}"
     run_cmd
@@ -83,7 +83,7 @@ function visualize_results {
 
 # Setup.
 DEBUG=0
-OUTPUT_PATH="${OUTPUTS}/temporal_policies/models"
+INPUT_PATH="models"
 CONFIG_PATH="configs/pybox2d"
 
 # Policies / experiments.
@@ -123,12 +123,12 @@ PLANNERS=(
 )
 run_planners
 
-# # Visualize results.
-# if [[ `hostname` == "sc.stanford.edu" ]]; then
-#     exit
-# fi
+# Visualize results.
+if [[ `hostname` == "sc.stanford.edu" ]]; then
+    exit
+fi
 
-# for train_step in $TRAIN_STEPS; do
-#     SAVE_DIR="${OUTPUT_PATH}/${EXP_NAME}/planners_${train_step}"
-#     visualize_results
-# done
+for train_step in $TRAIN_STEPS; do
+    OUTPUT_PATH="${EXP_NAME}/planners_${train_step}"
+    visualize_results
+done

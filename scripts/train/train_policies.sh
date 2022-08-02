@@ -26,7 +26,7 @@ function train_policy {
     run_cmd
 }
 
-OUTPUT_PATH="${OUTPUTS}/temporal_policies/models"
+OUTPUT_PATH="models"
 EXP_NAME="20220727/decoupled_state"
 TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"

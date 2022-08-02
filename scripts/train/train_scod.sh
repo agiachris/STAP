@@ -25,7 +25,7 @@ function train_scod {
     run_cmd
 }
 
-OUTPUT_PATH="${OUTPUTS}/temporal_policies/models"
+OUTPUT_PATH="models"
 TRAINER_CONFIG="configs/pybox2d/trainers/scod.yaml"
 SCOD_CONFIG="configs/pybox2d/scod/scod.yaml"
 MODEL_NETWORK="critic"
