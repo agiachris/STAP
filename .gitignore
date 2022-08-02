@@ -3,6 +3,7 @@ archive/
 models/
 juno
 plots/
+plots_debug/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

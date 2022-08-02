@@ -1,6 +1,10 @@
 import abc
 import pathlib
-from typing import Any, Dict, Generic, Mapping, Type, TypedDict, TypeVar, Union
+from typing import Any, Dict, Generic, Mapping, Type, TypeVar, Union
+try:
+    from typing import TypedDict
+except:
+    from typing_extensions import TypedDict
 
 import numpy as np  # type: ignore
 import torch  # type: ignore

@@ -6,6 +6,7 @@ import torch  # type: ignore
 import tqdm  # type: ignore
 
 from temporal_policies import agents, datasets, envs, processors
+from temporal_policies.networks.encoders import OracleEncoder, NormalizeObservation
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.utils import configs, metrics, tensors
@@ -108,6 +109,8 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             key: scheduler_class(optimizer, **scheduler_kwargs)
             for key, optimizer in optimizers.items()
         }
+        
+        self._initialize_collect = True
 
         super().__init__(
             path=path,
@@ -158,10 +161,11 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             Collect metrics.
         """
         with self.profiler.profile("collect"):
-            if self.step == 0:
+            if self._initialize_collect:
                 self.dataset.add(observation=self.env.reset())
                 self._episode_length = 0
                 self._episode_reward = 0
+                self._initialize_collect = False
 
             if random:
                 action = self.agent.action_space.sample()
@@ -171,7 +175,8 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
                     observation = tensors.from_numpy(
                         self.env.get_observation(), self.device
                     )
-                    observation = tensors.rgb_to_cnn(observation)
+                    if not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation)):
+                        observation = tensors.rgb_to_cnn(observation)
                     action = self.agent.actor.predict(
                         self.agent.encoder.encode(observation)
                     )
@@ -222,10 +227,11 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             isinstance(batch["observation"], torch.Tensor)
             and batch["observation"].shape[-1] == 3
             and batch["observation"].dtype == torch.uint8
+            and not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation))
         ):
             batch["observation"] = tensors.rgb_to_cnn(batch["observation"])
             batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])
-        return tensors.to(batch, self.device)
+        return super().process_batch(batch)
 
     def pretrain(self) -> None:
         """Runs the pretrain phase."""
@@ -284,7 +290,8 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
                 while not done:
                     with torch.no_grad():
                         observation = tensors.from_numpy(observation, self.device)
-                        observation = tensors.rgb_to_cnn(observation)
+                        if not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation)):
+                            observation = tensors.rgb_to_cnn(observation)
                         action = self.agent.actor.predict(
                             self.agent.encoder.encode(observation)
                         )
@@ -315,5 +322,6 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             self.eval_dataset.save()
 
         self.train_mode()
+        self._initialize_collect = True
 
         return metrics_list

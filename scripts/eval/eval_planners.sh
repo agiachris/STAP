@@ -19,41 +19,86 @@ function eval_planner {
     if [ ! -z "${POLICY_CHECKPOINTS}" ]; then
         args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS}"
     fi
+    if [ ! -z "${SCOD_CHECKPOINTS}" ]; then
+        args="${args} --scod-checkpoints ${SCOD_CHECKPOINTS}"
+    fi
     if [ ! -z "${DYNAMICS_CHECKPOINT}" ]; then
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
     args="${args} --seed 0"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 1"
-        args="${args} --path plots/${EXP_NAME}_debug"
+        args="${args} --path plots_debug/${OUTPUT_PATH}"
         args="${args} --verbose 1"
     else
         args="${args} --num-eval 100"
-        args="${args} --path plots/${EXP_NAME}"
+        args="${args} --path plots/${OUTPUT_PATH}"
         args="${args} --verbose 0"
     fi
     CMD="python scripts/eval/eval_planners.py ${args}"
     run_cmd
 }
 
+function run_planners {
+    for planner in "${PLANNERS[@]}"; do
+        PLANNER_CONFIG="${CONFIG_PATH}/planners/${planner}.yaml"
+
+        for train_step in ${TRAIN_STEPS[@]}; do
+            OUTPUT_PATH="${EXP_NAME}/planners_${train_step}"
+
+            POLICY_CHECKPOINTS=()
+            for policy_env in "${POLICY_ENVS[@]}"; do
+                POLICY_CHECKPOINTS+=("${INPUT_PATH}/${EXP_NAME}/${policy_env}/ckpt_model_${train_step}.pt")
+            done
+            POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
+        
+            if [[ "${planner}" == *scod_value* ]]; then
+                SCOD_CHECKPOINTS=()
+                for policy_env in "${POLICY_ENVS[@]}"; do
+                    SCOD_CHECKPOINTS+=("${INPUT_PATH}/${EXP_NAME}/${policy_env}/scod_${train_step}/final_scod.pt")
+                done
+                SCOD_CHECKPOINTS="${SCOD_CHECKPOINTS[@]}"
+            else
+                SCOD_CHECKPOINTS=""
+            fi
+
+            if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
+                DYNAMICS_CHECKPOINT=""
+            else
+                DYNAMICS_CHECKPOINT="${INPUT_PATH}/${EXP_NAME}/dynamics_${train_step}/dynamics/best_model.pt"
+            fi
+
+            eval_planner
+        done
+    done
+}
+
 function visualize_results {
     args=""
-    args="${args} --path plots/${EXP_NAME}"
+    args="${args} --path plots/${OUTPUT_PATH}"
     args="${args} --methods ${PLANNERS[@]}"
     CMD="python scripts/visualize/visualize_planners.py ${args}"
     run_cmd
 }
 
 # Setup.
+DEBUG=1
+INPUT_PATH="models"
+CONFIG_PATH="configs/pybox2d"
 
-DEBUG=0
+# Policies / experiments.
+EXP_NAME="20220727/decoupled_state"
+ENV_CONFIG="${CONFIG_PATH}/envs/placeright_pushleft.yaml"
+POLICY_ENVS=("placeright" "pushleft")
+TRAIN_STEPS=(50000 100000)
 
+# Evaluate planners.
 PLANNERS=(
 # Q-value / Latent dynamics.
-    "policy_cem"
-    "random_cem"
-    "policy_shooting"
-    "random_shooting"
+    # "policy_cem"
+    # "random_cem"
+    # "policy_shooting"
+    # "random_shooting"
 # Oracle value / Latent dynamics.
     # "policy_cem_oracle_value"
     # "random_cem_oracle_value"
@@ -64,133 +109,26 @@ PLANNERS=(
     "random_cem_oracle_dynamics"
     "policy_shooting_oracle_dynamics"
     "random_shooting_oracle_dynamics"
+    "policy_cem_var_scod_value_oracle_dynamics"
+    "policy_shooting_var_scod_value_oracle_dynamics"
+    "policy_cem_cvar_scod_value_oracle_dynamics"
+    "policy_shooting_cvar_scod_value_oracle_dynamics"
 # Oracle value / Oracle dynamics.
-    "policy_cem_oracle_value_dynamics"
-    "random_cem_oracle_value_dynamics"
-    "policy_shooting_oracle_value_dynamics"
-    "random_shooting_oracle_value_dynamics"
+    # "policy_cem_oracle_value_dynamics"
+    # "random_cem_oracle_value_dynamics"
+    # "policy_shooting_oracle_value_dynamics"
+    # "random_shooting_oracle_value_dynamics"
 # Random.
-    "random"
+    # "random"
 )
+run_planners
 
-# Evaluate planners.
-
-# planner_env="placeright_pushleft_img"
-# policy_envs=(
-#     "placeright_img"
-#     "pushleft_img"
-# )
-# experiments=(
-#     "20220426/unified"
-#     "20220426/decoupled"
-# )
-#
-# for EXP_NAME in "${experiments[@]}"; do
-#     for planner in "${PLANNERS[@]}"; do
-#         ENV_CONFIG=configs/pybox2d/envs/${planner_env}.yaml
-#         POLICY_CHECKPOINTS=()
-#         for policy_env in "${policy_envs[@]}"; do
-#             POLICY_CHECKPOINTS+=("models/${EXP_NAME}/${policy_env}/final_model.pt")
-#         done
-#         POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
-#         if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
-#             DYNAMICS_CHECKPOINT=""
-#         else
-#             DYNAMICS_CHECKPOINT="models/${EXP_NAME}/dynamics/final_model.pt"
-#         fi
-#         PLANNER_CONFIG="configs/pybox2d/planners/${planner}.yaml"
-#
-#         eval_planner
-#     done
-# done
-
-function test_dynamics {
-    for exp_name in "${EXPERIMENTS[@]}"; do
-        for train_step in 50000 100000 150000 200000; do
-            for planner in "${PLANNERS[@]}"; do
-                EXP_NAME="${exp_name}/${train_step}"
-                ENV_CONFIG=configs/pybox2d/envs/${PLANNER_ENV}.yaml
-                POLICY_CHECKPOINTS=()
-                for policy_env in "${POLICY_ENVS[@]}"; do
-                    POLICY_CHECKPOINTS+=("models/${exp_name}/${policy_env}/ckpt_model_${train_step}.pt")
-                done
-                POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
-                if [[ "${planner}" == *_oracle_*dynamics ]] || [[ "${planner}" == "random" ]]; then
-                    DYNAMICS_CHECKPOINT=""
-                else
-                    DYNAMICS_CHECKPOINT="models/${exp_name}/dynamics_${train_step}/dynamics/best_model.pt"
-                fi
-                PLANNER_CONFIG="configs/pybox2d/planners/${planner}.yaml"
-
-                eval_planner
-            done
-        done
-    done
-}
-
-PLANNER_ENV="placeright_pushleft"
-POLICY_ENVS=(
-    "placeright"
-    "pushleft"
-)
-EXPERIMENTS=(
-    "20220428/decoupled_state"
-)
-test_dynamics
-
-PLANNER_ENV="placeright_pushleft_img"
-POLICY_ENVS=(
-    "placeright_img"
-    "pushleft_img"
-)
-EXPERIMENTS=(
-    "20220428/decoupled_img"
-)
-test_dynamics
-
-
-if [[ `hostname` == "sc.stanford.edu" ]]; then
+# Visualize results.
+if [[ `hostname` == "sc.stanford.edu" ]] || [ $DEBUG -ne 0 ]; then
     exit
 fi
 
-# Visualize results.
-
-PLANNERS=(
-# Q-value / Latent dynamics.
-    "policy_cem"
-    "random_cem"
-    "policy_shooting"
-    "random_shooting"
-# Oracle value / Latent dynamics.
-    # "policy_cem_oracle_value"
-    # "random_cem_oracle_value"
-    # "policy_shooting_oracle_value"
-    # "random_shooting_oracle_value"
-# Q-value / Oracle dynamics.
-    "policy_cem_oracle_dynamics"
-    "random_cem_oracle_dynamics"
-    "policy_shooting_oracle_dynamics"
-    "random_shooting_oracle_dynamics"
-# Oracle value / Oracle dynamics.
-    "policy_cem_oracle_value_dynamics"
-    "random_cem_oracle_value_dynamics"
-    "policy_shooting_oracle_value_dynamics"
-    "random_shooting_oracle_value_dynamics"
-# Random.
-    "random"
-)
-
-experiments=(
-    "20220428/decoupled_state/50000"
-    "20220428/decoupled_state/100000"
-    "20220428/decoupled_state/150000"
-    "20220428/decoupled_state/200000"
-    "20220428/decoupled_img/50000"
-    "20220428/decoupled_img/100000"
-    "20220428/decoupled_img/150000"
-    "20220428/decoupled_img/200000"
-)
-
-for EXP_NAME in "${experiments[@]}"; do
+for train_step in $TRAIN_STEPS; do
+    OUTPUT_PATH="${EXP_NAME}/planners_${train_step}"
     visualize_results
 done

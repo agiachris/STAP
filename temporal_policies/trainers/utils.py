@@ -1,7 +1,7 @@
 import pathlib
 from typing import Any, Dict, Optional, Sequence, Union
 
-from temporal_policies import agents, dynamics, encoders, trainers
+from temporal_policies import agents, dynamics, encoders, trainers, scod as scod_regression
 from temporal_policies.dynamics import load as load_dynamics
 from temporal_policies.dynamics import LatentDynamics, load_policy_checkpoints
 from temporal_policies.utils import configs
@@ -17,6 +17,7 @@ class TrainerFactory(configs.Factory):
         agent: Optional[agents.RLAgent] = None,
         dynamics: Optional[dynamics.LatentDynamics] = None,
         encoder: Optional[encoders.Encoder] = None,
+        scod: Optional[scod_regression.SCOD] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
         agent_trainers: Optional[Sequence["trainers.AgentTrainer"]] = None,
@@ -30,6 +31,8 @@ class TrainerFactory(configs.Factory):
                 checkpoint is None.
             agent: Agent to be trained.
             dynamics: Dynamics model to be trained.
+            encoder: Encoder model to be trained.
+            scod: SCOD model to be trained.
             checkpoint: Optional trainer checkpoint. Must be provided if config
                 is None.
             policy_checkpoints: Optional list of policy checkpoints for dynamics.
@@ -101,6 +104,18 @@ class TrainerFactory(configs.Factory):
                 policy_checkpoints = load_policy_checkpoints(checkpoint)
 
             self.kwargs["policy_checkpoints"] = policy_checkpoints
+        elif issubclass(self.cls, trainers.SCODTrainer):
+            if scod is None:
+                if checkpoint is None:
+                    raise ValueError("EIther scod or checkpoint must be specified")
+                ckpt_scod = scod_regression.load(checkpoint=checkpoint, device=device)
+                if not isinstance(ckpt_scod, scod_regression.SCOD):
+                    raise ValueError("Checkpoint scod must be a SCOD instance")
+                scod = ckpt_scod            
+            self.kwargs["scod"] = scod
+            if len(policy_checkpoints) != 1:
+                raise ValueError("Must specify exactly one policy checkpoint")
+            self.kwargs["policy_checkpoint"] = policy_checkpoints[0]            
         else:
             raise NotImplementedError
 

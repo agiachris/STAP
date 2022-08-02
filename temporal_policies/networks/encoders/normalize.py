@@ -14,7 +14,7 @@ class NormalizeObservation(Encoder):
         state_space = gym.spaces.Box(
             low=-0.5, high=0.5, shape=observation_space.shape, dtype=np.float32
         )
-        super().__init__(state_space, env.observation_space)
+        super().__init__(state_space)
 
         self.observation_mid = torch.from_numpy(
             (observation_space.low + observation_space.high) / 2

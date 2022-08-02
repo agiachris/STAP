@@ -9,3 +9,4 @@ from .sac import SAC
 # from .td3 import TD3
 from .utils import *
 from .wrapper import WrapperAgent
+from .scod_critic import SCODCriticAgent

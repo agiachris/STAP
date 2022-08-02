@@ -1,25 +1,20 @@
 name: temporal_policies
+
 channels:
   - pytorch
   - conda-forge
-  - nvidia
   - default
-dependencies:
-  - python=3.8
-  
-  # pytorch
-  - pytorch
-  - cudatoolkit=11.1
-  - torchvision
-  - torchtext
 
-  # NP Family
+dependencies:
+  - python=3.7
+
+  # NumPy Family
   - numpy
   - scipy
   - networkx
   - scikit-image
 
-  # Environment
+  # Env
   - pybox2d
 
   # IO
@@ -44,5 +39,4 @@ dependencies:
 
   - pip
   - pip:
-      - gym>=0.12
-      - pygame
+      - -r requirements_arm64.txt

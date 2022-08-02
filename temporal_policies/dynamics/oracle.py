@@ -103,6 +103,6 @@ class OracleDynamics(dynamics.Dynamics):
         observation = self.env.get_observation(idx_policy)
         with torch.no_grad():
             observation = torch.from_numpy(observation).to(self.device)
-            policy_state = self.policies[idx_policy].encoder(observation)
+            policy_state = self.policies[idx_policy].encoder.encode(observation)
             policy_state = policy_state.cpu().numpy()
         return policy_state

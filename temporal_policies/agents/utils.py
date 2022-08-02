@@ -11,7 +11,7 @@ import torch  # type: ignore
 import yaml  # type: ignore
 
 import temporal_policies
-from temporal_policies import agents, envs, encoders, schedulers
+from temporal_policies import agents, envs, encoders, schedulers, scod
 from temporal_policies.utils import configs
 
 
@@ -24,6 +24,7 @@ class AgentFactory(configs.Factory):
         env: Optional[envs.Env] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        scod_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
         """Creates the agent factory from an agent config or checkpoint.
@@ -35,6 +36,7 @@ class AgentFactory(configs.Factory):
             checkpoint: Policy checkpoint path. Either env or checkpoint must be
                 specified.
             encoder_checkpoint: Encoder checkpoint path.
+            scod_checkpoint: SCOD checkpoint path.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -53,11 +55,31 @@ class AgentFactory(configs.Factory):
         super().__init__(config, "agent", agents)
 
         if issubclass(self.cls, agents.WrapperAgent):
+            # Get policy
             agent_factory = AgentFactory(
-                self.kwargs["agent_config"], env, checkpoint, device
+                config=self.kwargs["agent_config"], 
+                env=env, 
+                checkpoint=checkpoint,
+                encoder_checkpoint=encoder_checkpoint,
+                scod_checkpoint=scod_checkpoint, 
+                device=device
             )
-            del self.kwargs["agent_config"]
             self.kwargs["policy"] = agent_factory()
+            del self.kwargs["agent_config"]
+
+            # Optionally get SCOD wrapper
+            if "SCOD" in self.cls.__name__:
+                if "scod_config" not in self.kwargs:
+                    raise ValueError(
+                        f'AgentFactory requires agent kwarg "scod_config"'
+                        f'to construct WrapperAgent {self.cls.__name__}'
+                    )
+                self.kwargs["scod_wrapper"] = scod.load(
+                    config=self.kwargs["scod_config"],
+                    checkpoint=scod_checkpoint,
+                )
+                del self.kwargs["scod_config"]
+
         elif checkpoint is not None:
             if self.config["agent"] != ckpt_agent_config["agent"]:
                 raise ValueError(
@@ -79,6 +101,7 @@ def load(
     config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     env: Optional[envs.Env] = None,
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    scod_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     device: str = "auto",
     **kwargs,
 ) -> agents.Agent:
@@ -90,6 +113,7 @@ def load(
         env: Optional env. Either env or checkpoint must be specified.
         checkpoint: Policy checkpoint path. Either env or checkpoint must be
             specified.
+        scod_checkpoint: SCOD checkpoint path.
         device: Torch device.
         kwargs: Optional agent constructor kwargs.
 
@@ -100,6 +124,7 @@ def load(
         config=config,
         env=env,
         checkpoint=checkpoint,
+        scod_checkpoint=scod_checkpoint,
         device=device,
     )
     return agent_factory(**kwargs)

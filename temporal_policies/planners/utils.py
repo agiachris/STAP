@@ -19,6 +19,7 @@ class PlannerFactory(configs.Factory):
         policy_checkpoints: Optional[
             Sequence[Optional[Union[str, pathlib.Path]]]
         ] = None,
+        scod_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
         dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -28,6 +29,7 @@ class PlannerFactory(configs.Factory):
             config: Planner config path or dict.
             env: Sequential env.
             policy_checkpoints: Policy checkpoint paths if required.
+            scod_checkpoints: SCOD checkpoint paths if required.
             dynamics_checkpoint: Dynamics checkpoint path if required.
             device: Torch device.
         """
@@ -40,11 +42,14 @@ class PlannerFactory(configs.Factory):
 
         super().__init__(config, "planner", planners)
 
+        if scod_checkpoints is None:
+            scod_checkpoints = [None] * len(self.config["agent_configs"])
         if policy_checkpoints is None:
             policy_checkpoints = [None] * len(self.config["agent_configs"])
         else:
-            # Get agent configs from checkpoints.
-            for idx_policy, policy_checkpoint in enumerate(policy_checkpoints):
+            assert len(scod_checkpoints) == len(policy_checkpoints), "All policies must have SCOD checkpoints"
+            for idx_policy, (policy_checkpoint, scod_checkpoint) in enumerate(zip(policy_checkpoints, scod_checkpoints)):
+                # Get policy config from checkpoint
                 if policy_checkpoint is None:
                     continue
                 agent_config = str(
@@ -55,6 +60,17 @@ class PlannerFactory(configs.Factory):
                     "{AGENT_CONFIG}",
                     agent_config,
                 )
+                # Optionally get scod config from checkpoint
+                if scod_checkpoint is None:
+                    continue
+                scod_config = str(
+                    pathlib.Path(scod_checkpoints[idx_policy]).parent / "scod_config.yaml"
+                )
+                self.config["agent_configs"][idx_policy] = replace_config(
+                    self.config["agent_configs"][idx_policy],
+                    "{SCOD_CONFIG}",
+                    scod_config,
+                )                    
 
         # Get dynamics config from checkpoint.
         if dynamics_checkpoint is not None:
@@ -69,14 +85,16 @@ class PlannerFactory(configs.Factory):
             agents.load(
                 config=agent_config,
                 env=policy_env,
-                checkpoint=ckpt,
+                checkpoint=policy_ckpt,
+                scod_checkpoint=scod_ckpt,
             )
-            for agent_config, policy_env, ckpt in zip(
+            for agent_config, policy_env, policy_ckpt, scod_ckpt in zip(
                 self.config["agent_configs"],
                 env.envs,
                 policy_checkpoints,
+                scod_checkpoints,
             )
-        ]
+        ]        
 
         # Make sure all policy checkpoints are not None for dynamics.
         dynamics_policy_checkpoints: Optional[List[Union[str, pathlib.Path]]] = []
@@ -105,6 +123,7 @@ def load(
     config: Union[str, pathlib.Path, Dict[str, Any]],
     env: envs.SequentialEnv,
     policy_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
+    scod_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
     dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     device: str = "auto",
     **kwargs,
@@ -115,6 +134,7 @@ def load(
         config: Planner config path or dict.
         env: Sequential env.
         policy_checkpoints: Policy checkpoint paths if required.
+        scod_checkpoints: SCOD checkpoint paths if required.
         dynamics_checkpoint: Dynamics checkpoint path if required.
         device: Torch device.
         **kwargs: Planner constructor kwargs.
@@ -126,6 +146,7 @@ def load(
         config=config,
         env=env,
         policy_checkpoints=policy_checkpoints,
+        scod_checkpoints=scod_checkpoints,
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
