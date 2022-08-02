@@ -47,9 +47,9 @@ class PlannerFactory(configs.Factory):
         if policy_checkpoints is None:
             policy_checkpoints = [None] * len(self.config["agent_configs"])
         else:
-            # Get agent configs from checkpoints.
             assert len(scod_checkpoints) == len(policy_checkpoints), "All policies must have SCOD checkpoints"
-            for idx_policy, policy_checkpoint in enumerate(policy_checkpoints):
+            for idx_policy, (policy_checkpoint, scod_checkpoint) in enumerate(zip(policy_checkpoints, scod_checkpoints)):
+                # Get policy config from checkpoint
                 if policy_checkpoint is None:
                     continue
                 agent_config = str(
@@ -60,18 +60,17 @@ class PlannerFactory(configs.Factory):
                     "{AGENT_CONFIG}",
                     agent_config,
                 )
-                if (
-                    "agent_kwargs" in self.config["agent_configs"][idx_policy]
-                    and "scod" in self.config["agent_configs"][idx_policy]["agent_kwargs"]
-                ):
-                    scod_config = str(
-                        pathlib.Path(scod_checkpoints[idx_policy]).parent / "scod_config.yaml"
-                    )
-                    self.config["agent_configs"][idx_policy] = replace_config(
-                        self.config["agent_configs"][idx_policy],
-                        "{SCOD_CONFIG}",
-                        scod_config,
-                    )
+                # Optionally get scod config from checkpoint
+                if scod_checkpoint is None:
+                    continue
+                scod_config = str(
+                    pathlib.Path(scod_checkpoints[idx_policy]).parent / "scod_config.yaml"
+                )
+                self.config["agent_configs"][idx_policy] = replace_config(
+                    self.config["agent_configs"][idx_policy],
+                    "{SCOD_CONFIG}",
+                    scod_config,
+                )                    
 
         # Get dynamics config from checkpoint.
         if dynamics_checkpoint is not None:
@@ -95,7 +94,7 @@ class PlannerFactory(configs.Factory):
                 policy_checkpoints,
                 scod_checkpoints,
             )
-        ]
+        ]        
 
         # Make sure all policy checkpoints are not None for dynamics.
         dynamics_policy_checkpoints: Optional[List[Union[str, pathlib.Path]]] = []
