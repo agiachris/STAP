@@ -27,16 +27,16 @@ function train_policy {
     run_cmd
 }
 
-EXP_NAME="20220725/pybox2d"
-
-TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
-AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
-
-ENV_CONFIG="configs/pybox2d/envs/placeright.yaml"
-train_policy
-
-ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
-train_policy
+# EXP_NAME="20220725/pybox2d"
+#
+# TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
+# AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
+#
+# ENV_CONFIG="configs/pybox2d/envs/placeright.yaml"
+# train_policy
+#
+# ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
+# train_policy
 
 # EXP_NAME="20220428/decoupled_img_debug"
 #
@@ -63,7 +63,7 @@ train_policy
 # ENV_CONFIG="configs/pybox2d/envs/pushleft_img.yaml"
 # train_policy
 
-EXP_NAME="20220728/workspace"
+EXP_NAME="20220801/workspace"
 ENV_KWARGS="--gui 0"
 
 TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"

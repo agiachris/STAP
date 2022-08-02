@@ -54,21 +54,16 @@ PLANNERS=(
     "random_cem"
     "policy_shooting"
     "random_shooting"
-# Oracle value / Latent dynamics.
-    # "policy_cem_oracle_value"
-    # "random_cem_oracle_value"
-    # "policy_shooting_oracle_value"
-    # "random_shooting_oracle_value"
 # Q-value / Oracle dynamics.
     "policy_cem_oracle_dynamics"
     "random_cem_oracle_dynamics"
     "policy_shooting_oracle_dynamics"
     "random_shooting_oracle_dynamics"
 # Oracle value / Oracle dynamics.
-    # "policy_cem_oracle_value_dynamics"
-    # "random_cem_oracle_value_dynamics"
-    # "policy_shooting_oracle_value_dynamics"
-    # "random_shooting_oracle_value_dynamics"
+    "policy_cem_oracle_value_dynamics"
+    "random_cem_oracle_value_dynamics"
+    "policy_shooting_oracle_value_dynamics"
+    "random_shooting_oracle_value_dynamics"
 # Greedy.
     "greedy_oracle_dynamics"
     "greedy"
