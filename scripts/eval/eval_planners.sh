@@ -109,30 +109,26 @@ PLANNERS=(
     "random_cem_oracle_dynamics"
     "policy_shooting_oracle_dynamics"
     "random_shooting_oracle_dynamics"
+    "policy_cem_var_scod_value_oracle_dynamics"
+    "policy_shooting_var_scod_value_oracle_dynamics"
+    "policy_cem_cvar_scod_value_oracle_dynamics"
+    "policy_shooting_cvar_scod_value_oracle_dynamics"
 # Oracle value / Oracle dynamics.
     # "policy_cem_oracle_value_dynamics"
     # "random_cem_oracle_value_dynamics"
     # "policy_shooting_oracle_value_dynamics"
     # "random_shooting_oracle_value_dynamics"
-# SCOD value / Oracle dynamics
-    "policy_cem_var_scod_value_oracle_dynamics"
-    "policy_shooting_var_scod_value_oracle_dynamics"
-    "policy_cem_cvar_scod_value_oracle_dynamics"
-    "policy_shooting_cvar_scod_value_oracle_dynamics"
-# SCOD value / Latent dynamics
-    # "policy_cem_scod_value"
-    # "policy_shooting_scod_value"
 # Random.
-    "random"
+    # "random"
 )
 run_planners
 
-# Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]]; then
-    exit
-fi
+# # Visualize results.
+# if [[ `hostname` == "sc.stanford.edu" ]]; then
+#     exit
+# fi
 
-for train_step in $TRAIN_STEPS; do
-    SAVE_DIR="${OUTPUT_PATH}/${EXP_NAME}/planners_${train_step}"
-    visualize_results
-done
+# for train_step in $TRAIN_STEPS; do
+#     SAVE_DIR="${OUTPUT_PATH}/${EXP_NAME}/planners_${train_step}"
+#     visualize_results
+# done
