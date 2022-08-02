@@ -3,21 +3,24 @@ planner_kwargs:
   num_samples: 128
 
 agent_configs:
-  - agent: SCODCriticGaussianAgent
+  - agent: GaussianAgent
     agent_kwargs:
-      agent_config: "{AGENT_CONFIG}"
       std: 0.5
-      scod: CVaRSCOD
-      scod_config: "{SCOD_CONFIG}"
-      scod_kwargs:
-        alpha: 0.9
+      agent_config:
+        agent: SCODCriticAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          scod: CVaRSCOD
+          scod_config: "{SCOD_CONFIG}"
+          scod_kwargs:
+            alpha: 0.9
   - agent: SCODCriticAgent
     agent_kwargs:
-      agent_config: "{AGENT_CONFIG}"
-      scod: CVaRSCOD 
+      scod: CVaRSCOD
       scod_config: "{SCOD_CONFIG}"
-      scod_kwargs:
+      scod_kwargs: 
         alpha: 0.9
+      agent_config: "{AGENT_CONFIG}"
 
 dynamics_config:
   dynamics: OracleDynamics
