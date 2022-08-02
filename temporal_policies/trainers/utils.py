@@ -1,7 +1,7 @@
 import pathlib
 from typing import Any, Dict, Optional, Sequence, Union
 
-from temporal_policies import agents, dynamics, encoders, trainers
+from temporal_policies import agents, dynamics, encoders, envs, trainers
 from temporal_policies.dynamics import load as load_dynamics
 from temporal_policies.dynamics import LatentDynamics, load_policy_checkpoints
 from temporal_policies.utils import configs
@@ -15,6 +15,7 @@ class TrainerFactory(configs.Factory):
         path: Optional[Union[str, pathlib.Path]] = None,
         config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
         agent: Optional[agents.RLAgent] = None,
+        eval_env: Optional[envs.Env] = None,
         dynamics: Optional[dynamics.LatentDynamics] = None,
         encoder: Optional[encoders.Encoder] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
@@ -29,6 +30,7 @@ class TrainerFactory(configs.Factory):
             config: Optional dynamics config path or dict. Must be provided if
                 checkpoint is None.
             agent: Agent to be trained.
+            eval_env: Optional env for evaluating the agent.
             dynamics: Dynamics model to be trained.
             checkpoint: Optional trainer checkpoint. Must be provided if config
                 is None.
@@ -56,6 +58,7 @@ class TrainerFactory(configs.Factory):
                 agent = ckpt_agent
 
             self.kwargs["agent"] = agent
+            self.kwargs["eval_env"] = eval_env
         elif issubclass(self.cls, (trainers.DynamicsTrainer, trainers.UnifiedTrainer)):
             if dynamics is None:
                 if checkpoint is None:
@@ -122,6 +125,7 @@ def load(
     path: Optional[Union[str, pathlib.Path]] = None,
     config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     agent: Optional[agents.RLAgent] = None,
+    eval_env: Optional[envs.Env] = None,
     dynamics: Optional[dynamics.LatentDynamics] = None,
     encoder: Optional[encoders.Encoder] = None,
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
@@ -137,6 +141,7 @@ def load(
         config: Optional dynamics config path or dict. Must be provided if
             checkpoint is None.
         agent: Agent to be trained.
+        eval_env: Optional env for evaluating the agent.
         dynamics: Dynamics model to be trained.
         checkpoint: Optional trainer checkpoint. Must be provided if config is
             None.
@@ -152,6 +157,7 @@ def load(
         path=path,
         config=config,
         agent=agent,
+        eval_env=eval_env,
         dynamics=dynamics,
         encoder=encoder,
         checkpoint=checkpoint,

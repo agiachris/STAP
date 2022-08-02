@@ -19,6 +19,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         self,
         path: Union[str, pathlib.Path],
         agent: agents.RLAgent,
+        eval_env: Optional[envs.Env] = None,
         dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
         eval_dataset_kwargs: Optional[Dict[str, Any]] = None,
@@ -51,6 +52,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         Args:
             path: Training output path.
             agent: Agent to be trained.
+            eval_env: Optional env for evaluation. If None, uses the agent's
+                training environment for evaluation.
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
             eval_dataset_kwargs: Kwargs for eval dataset.
@@ -136,6 +139,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 eval_dataset_size=eval_dataset_size,
             )
 
+        self._eval_env = self.agent.env if eval_env is None else eval_env
         self._reset_collect = True
 
     @property
@@ -147,6 +151,11 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     def env(self) -> envs.Env:
         """Agent env."""
         return self.agent.env
+
+    @property
+    def eval_env(self) -> envs.Env:
+        """Agent env."""
+        return self._eval_env
 
     def collect_step(self, random: bool = False) -> Dict[str, Any]:
         """Collects data for the replay buffer.
@@ -282,7 +291,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 dynamic_ncols=True,
             )
             for _ in pbar:
-                observation = self.env.reset()
+                observation = self.eval_env.reset()
                 assert isinstance(observation, np.ndarray)
                 self.eval_dataset.add(observation=observation)
 
@@ -298,7 +307,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                         )
                         action = torch_action.cpu().numpy()
 
-                    observation, reward, done, info = self.env.step(action)
+                    observation, reward, done, info = self.eval_env.step(action)
                     self.eval_dataset.add(
                         action=action,
                         reward=reward,

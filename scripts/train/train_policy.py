@@ -14,6 +14,7 @@ def train(
     trainer_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     agent_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
+    eval_env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     resume: bool = False,
     overwrite: bool = False,
@@ -35,19 +36,28 @@ def train(
         if env_config is None:
             raise ValueError("env_config must be specified")
 
+        env_factory = envs.EnvFactory(config=env_config)
+        eval_env_factory = (
+            None if eval_env_config is None else envs.EnvFactory(config=eval_env_config)
+        )
         env_kwargs = {}
         if gui is not None:
             env_kwargs["gui"] = bool(gui)
+        env = env_factory(**env_kwargs)
+        eval_env = None if eval_env_factory is None else eval_env_factory(**env_kwargs)
 
-        env_factory = envs.EnvFactory(config=env_config)
         agent_factory = agents.AgentFactory(
             config=agent_config,
-            env=env_factory(**env_kwargs),
+            env=env,
             encoder_checkpoint=encoder_checkpoint,
             device=device,
         )
         trainer_factory = trainers.TrainerFactory(
-            path=path, config=trainer_config, agent=agent_factory(), device=device
+            path=path,
+            config=trainer_config,
+            agent=agent_factory(),
+            eval_env=eval_env,
+            device=device,
         )
 
         print("[scripts.train.train_policy] Trainer config:")
@@ -56,6 +66,9 @@ def train(
         pprint(agent_factory.config)
         print("\n[scripts.train.train_policy] Env config:")
         pprint(env_factory.config)
+        if eval_env_factory is not None:
+            print("\n[scripts.train.train_policy] Eval env config:")
+            pprint(eval_env_factory.config)
         print("")
 
         trainer = trainer_factory()
@@ -86,6 +99,7 @@ if __name__ == "__main__":
         "--agent-config", "-a", required=True, help="Path to agent config"
     )
     parser.add_argument("--env-config", "-e", required=True, help="Path to env config")
+    parser.add_argument("--eval-env-config", help="Path to evaluation env config")
     parser.add_argument("--encoder-checkpoint", help="Path to encoder checkpoint")
     parser.add_argument("--path", "-p", required=True)
     parser.add_argument("--resume", action="store_true", default=False)
