@@ -69,21 +69,16 @@ class AgentFactory(configs.Factory):
 
             # Optionally get SCOD wrapper
             if "SCOD" in self.cls.__name__:
-                if not all(x in self.kwargs for x in ["scod", "scod_kwargs"]):
+                if "scod_config" not in self.kwargs:
                     raise ValueError(
-                        f'AgentFactory requires agent_kwargs ["scod", "scod_kwargs"]'
+                        f'AgentFactory requires agent kwarg "scod_config"'
                         f'to construct WrapperAgent {self.cls.__name__}'
                     )
-                if scod_checkpoint is None:
-                    raise ValueError(
-                        f"WrapperAgent {self.cls.__name__} requires a SCOD checkpoint"
-                    )
                 self.kwargs["scod_wrapper"] = scod.load(
-                    config={k: v for k, v in self.kwargs.items() if k in ["scod", "scod_kwargs"]}, 
-                    checkpoint=scod_checkpoint
+                    config=self.kwargs["scod_config"],
+                    checkpoint=scod_checkpoint,
                 )
-                del self.kwargs["scod"]
-                del self.kwargs["scod_kwargs"]
+                del self.kwargs["scod_config"]
 
         elif checkpoint is not None:
             if self.config["agent"] != ckpt_agent_config["agent"]:

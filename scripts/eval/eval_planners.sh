@@ -82,7 +82,7 @@ function visualize_results {
 }
 
 # Setup.
-DEBUG=0
+DEBUG=1
 INPUT_PATH="models"
 CONFIG_PATH="configs/pybox2d"
 
@@ -124,7 +124,7 @@ PLANNERS=(
 run_planners
 
 # Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [ $DEBUG -ne 0 ]; then
     exit
 fi
 

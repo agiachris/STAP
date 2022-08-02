@@ -56,7 +56,7 @@ class SCODFactory(configs.Factory):
                     f"Base config SCOD [{base_config['scod']}] and checkpoint"
                     f"SCOD [{ckpt_config['scod']}] must be the same"
                 )
-                
+
         if checkpoint is not None:
             self.kwargs["checkpoint"] = checkpoint
             if (self.config["scod"] != ckpt_config["scod"]
