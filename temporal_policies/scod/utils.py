@@ -39,6 +39,33 @@ class SCODFactory(configs.Factory):
             if model_checkpoint is None or model_network is None:
                 model_checkpoint, model_network = load_model_checkpoint(checkpoint)
 
+        super().__init__(config, "scod", scod)
+
+        if issubclass(self.cls, scod.WrapperSCOD):
+            base_config_path = pathlib.Path(self.kwargs.pop("scod_config"))
+            base_config = load_config(base_config_path)
+            self.kwargs.update(base_config["scod_kwargs"])
+
+            if checkpoint is None:
+                checkpoint = base_config_path.parent / "final_scod.pt"
+                ckpt_config = load_config(checkpoint)
+                model_checkpoint, model_network = load_model_checkpoint(checkpoint)
+
+            if base_config["scod"] != ckpt_config["scod"]:
+                raise ValueError(
+                    f"Base config SCOD [{base_config['scod']}] and checkpoint"
+                    f"SCOD [{ckpt_config['scod']}] must be the same"
+                )
+                
+        if checkpoint is not None:
+            self.kwargs["checkpoint"] = checkpoint
+            if (self.config["scod"] != ckpt_config["scod"]
+                and not issubclass(self.cls, scod.WrapperSCOD)):
+                raise ValueError(
+                    f"Config SCOD [{self.config['scod']}] and checkpoint"
+                    f"SCOD [{ckpt_config['scod']}] must be the same"
+                )
+
         if config is None:
             raise ValueError("Either config or checkpoint must be specified")
 
@@ -54,18 +81,6 @@ class SCODFactory(configs.Factory):
             raise ValueError(
                 "Model network name must be specified to extract nn.Module for SCOD"
             )
-
-        super().__init__(config, "scod", scod)
-        
-        if checkpoint is not None:
-            self.kwargs["checkpoint"] = checkpoint
-            if (self.config["scod"] != ckpt_config["scod"]
-                and not issubclass(self.cls, scod.WrapperSCOD)
-            ):
-                raise ValueError(
-                    f"Config SCOD [{self.config['scod']}] and checkpoint"
-                    f"SCOD [{ckpt_config['scod']}] must be the same"
-                )
 
         self.kwargs["model"] = getattr(model, model_network)
         self.kwargs["device"] = device
