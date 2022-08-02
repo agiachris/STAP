@@ -59,15 +59,20 @@ class AgentFactory(configs.Factory):
             agent_factory = AgentFactory(
                 config=self.kwargs["agent_config"], 
                 env=env, 
-                checkpoint=checkpoint, 
+                checkpoint=checkpoint,
+                encoder_checkpoint=encoder_checkpoint,
+                scod_checkpoint=scod_checkpoint, 
                 device=device
             )
             self.kwargs["policy"] = agent_factory()
             del self.kwargs["agent_config"]
 
             # Optionally get SCOD wrapper
-            if "scod" in self.kwargs:
-                assert scod_checkpoint is not None, "WrapperAgent requires scod_checkpoint"
+            if "SCOD" in self.cls.__name__:
+                assert all(x in self.kwargs for x in ["scod", "scod_config"]), \
+                    f'AgentFactory requires agent_kwargs ["scod", "scod_config"] to construct WrapperAgent {self.cls.__name__}'
+                assert scod_checkpoint is not None, \
+                    f"WrapperAgent {self.cls.__name__} requires a SCOD checkpoint"
                 scod_config = dict(
                     scod=self.kwargs["scod"],
                     scod_kwargs={
