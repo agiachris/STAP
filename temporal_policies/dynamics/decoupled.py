@@ -73,7 +73,7 @@ class DecoupledDynamics(LatentDynamics[ObsType], Generic[ObsType]):
             Concatenated latent state vector of size [Z * A].
         """
         with torch.no_grad():
-            zs = [policy.encoder(observation) for policy in self.policies]
+            zs = [policy.encoder.encode(observation) for policy in self.policies]
             z = torch.cat(zs, dim=-1)
         return z
 

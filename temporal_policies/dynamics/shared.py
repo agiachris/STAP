@@ -70,10 +70,10 @@ class SharedDynamics(LatentDynamics[ObsType], Generic[ObsType]):
         """
         if isinstance(idx_policy, int):
             # [B, O] => [B, Z].
-            return self.policies[idx_policy].encoder(observation)
+            return self.policies[idx_policy].encoder.encode(observation)
 
         # Assume all encoders are the same.
-        return self.policies[0].encoder(observation)
+        return self.policies[0].encoder.encode(observation)
 
         # # [B, O] => [A, B, Z].
         # policy_latents = torch.stack(

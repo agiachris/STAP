@@ -5,7 +5,7 @@ import numpy as np  # type: ignore
 import torch  # type: ignore
 
 from temporal_policies.agents import base as agents
-from temporal_policies import envs, networks
+from temporal_policies import encoders, envs, networks
 from temporal_policies.utils import spaces, tensors
 
 
@@ -59,6 +59,6 @@ class ConstantAgent(agents.Agent):
             observation_space=observation_space,
             actor=networks.Constant(action, input_dim=dim_states + dim_batch),
             critic=networks.Constant(0.0, input_dim=dim_states),
-            encoder=torch.nn.Identity(),
+            encoder=encoders.IdentityEncoder(env, action_space, observation_space),
             device=device,
         )
