@@ -3,6 +3,7 @@ archive/
 models/
 juno
 plots/
+plots_debug/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -130,6 +131,7 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+.mypy.ini
 
 # Pyre type checker
 .pyre/

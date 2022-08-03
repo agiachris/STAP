@@ -1,6 +1,11 @@
 import abc
 import pathlib
-from typing import Any, Dict, Generic, Mapping, Type, TypedDict, TypeVar, Union
+from typing import Any, Dict, Generic, Mapping, Type, TypeVar, Union
+
+try:
+    from typing import TypedDict
+except ModuleNotFoundError:
+    from typing_extensions import TypedDict
 
 import numpy as np
 import torch

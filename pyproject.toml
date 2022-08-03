@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=40.8.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "temporal_policies"
+version = "0.0.1"
+authors = [
+  { name = "Christopher Agia", email = "cagia@cs.stanford.edu" },
+  { name = "Toki Migimatsu", email = "takatoki@cs.stanford.edu" }
+]
+description = "Learning compositional policies for long horizon planning."
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+dependencies = [
+  # Computing
+  "numpy",
+  "scipy",
+  "torch==1.11",
+  # Image processing
+  "imageio",
+  "pillow",
+  "scikit-image",
+  # IO
+  "pyyaml",
+  "tensorboard",
+  "tqdm",
+  # Env
+  "box2d-py",
+  "gym>=0.12,<0.25",
+  "pybullet",
+  # Ours
+  "ctrlutils==1.4.1",
+  "pysymbolic==1.0.0",
+  # scod-regression,
+  "spatialdyn==1.4.4",
+]
+
+[tools.setuptools]
+packages = ["temporal_policies"]
+
+[tools.mypy]
+ignore_missing_imports = true

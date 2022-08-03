@@ -1,0 +1,9 @@
+trainer: SCODTrainer
+trainer_kwargs:
+  dataset_class: ReplayBuffer
+  dataset_kwargs:
+    batch_size: 128
+    sample_strategy: sequential
+
+  num_train_steps: 10000
+  log_freq: 100

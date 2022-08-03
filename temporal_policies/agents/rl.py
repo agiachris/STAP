@@ -1,5 +1,5 @@
 import pathlib
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, OrderedDict, Union
 
 import torch
 
@@ -51,7 +51,7 @@ class RLAgent(Agent, Model[Batch]):
         return self._env
 
     def load_state_dict(
-        self, state_dict: Dict[str, Dict[str, torch.Tensor]], strict: bool = True
+        self, state_dict: Dict[str, OrderedDict[str, torch.Tensor]], strict: bool = True
     ) -> None:
         """Loads the agent state dict.
 

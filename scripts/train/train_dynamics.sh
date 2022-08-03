@@ -20,58 +20,53 @@ function train_dynamics {
         args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS[@]}"
     fi
     args="${args} --seed 0"
+
     if [[ $DEBUG -ne 0 ]]; then
-        args="${args} --path models/${EXP_NAME}_debug"
+        args="${args} --path ${DYNAMICS_OUTPUT_PATH}_debug"
         args="${args} --overwrite"
     else
-        args="${args} --path models/${EXP_NAME}"
+        args="${args} --path ${DYNAMICS_OUTPUT_PATH}"
     fi
 
     CMD="python scripts/train/train_dynamics.py ${args}"
     run_cmd
 }
 
-# for train_step in 50000 100000 150000 200000; do
-#     EXP_NAME="20220428/decoupled_state"
-#     TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
-#     DYNAMICS_CONFIG="configs/pybox2d/dynamics/decoupled.yaml"
-#     POLICY_CHECKPOINTS=(
-#         "models/${EXP_NAME}/placeright/ckpt_model_${train_step}.pt"
-#         "models/${EXP_NAME}/pushleft/ckpt_model_${train_step}.pt"
-#     )
-#     EXP_NAME="${EXP_NAME}/dynamics_${train_step}"
-#     train_dynamics
-# done
+# Setup.
+DEBUG=0
+output_path="models"
 
-# for train_step in 50000 100000 150000 200000; do
-#     EXP_NAME="20220428/decoupled_img"
-#     TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
-#     DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
-#     POLICY_CHECKPOINTS=(
-#         "models/${EXP_NAME}/placeright_img/ckpt_model_${train_step}.pt"
-#         "models/${EXP_NAME}/pushleft_img/ckpt_model_${train_step}.pt"
-#     )
-#     EXP_NAME="${EXP_NAME}/dynamics_${train_step}"
-#     train_dynamics
-# done
+# Experiments.
 
-# EXP_NAME="20220721/pybox2d"
+# exp_name="20220721/pybox2d"
 # TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
 # DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
-# POLICY_CHECKPOINTS=(
-#     "models/${EXP_NAME}/placeright/best_model.pt"
-#     "models/${EXP_NAME}/pushleft/best_model.pt"
+# policy_envs=("placeright" "pushleft")
+# checkpoints=(
+#     "final_model"
+#     "best_model"
+#     "ckpt_model_50000"
+#     "ckpt_model_100000"
 # )
-# train_dynamics
 
-DEBUG=0
-
-EXP_NAME="20220801/workspace"
+exp_name="20220801/workspace"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
-POLICY_CHECKPOINTS=(
-    "models/${EXP_NAME}/pick/final_model.pt"
-    "models/${EXP_NAME}/place/final_model.pt"
-    "models/${EXP_NAME}/pull/final_model.pt"
+policy_envs=("pick" "place" "pull")
+checkpoints=(
+    "final_model"
+    "best_model"
+    "ckpt_model_50000"
+    "ckpt_model_100000"
 )
-train_dynamics
+
+for ckpt in "${checkpoints[@]}"; do
+    POLICY_CHECKPOINTS=()
+    for policy_env in "${policy_envs[@]}"; do
+        POLICY_CHECKPOINTS+=("${output_path}/${exp_name}/${policy_env}/${ckpt}.pt")
+    done
+    POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
+
+    DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}/${ckpt}"
+    train_dynamics
+done

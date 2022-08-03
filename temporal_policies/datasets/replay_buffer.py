@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 
+
 import datetime
 import enum
 import functools
 import pathlib
-from typing import Generator, Optional, Sequence, TypedDict, Union
+from typing import Generator, Optional, Sequence, Union
+
+try:
+    from typing import TypedDict
+except ModuleNotFoundError:
+    from typing_extensions import TypedDict
 
 import gym
 import numpy as np

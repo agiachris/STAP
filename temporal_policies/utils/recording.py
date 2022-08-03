@@ -81,7 +81,7 @@ class Recorder:
             else:
                 path_video = path.parent / f"{path.stem}-{id}{path.suffix}"
 
-            imageio.mimsave(path_video, recording)
+            imageio.mimsave(path_video, recording)  # type: ignore
             num_saved += 1
 
         if reset:

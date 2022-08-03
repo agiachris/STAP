@@ -5,3 +5,5 @@ from .identity import IdentityEncoder
 from .normalize import NormalizeObservation
 from .oracle import OracleEncoder
 from .resnet import ResNet
+
+BASIC_ENCODERS = (OracleEncoder, NormalizeObservation)

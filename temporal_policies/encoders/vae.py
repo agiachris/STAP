@@ -1,6 +1,6 @@
 import pathlib
 import random
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, OrderedDict, Tuple, Type, Union
 
 import gym
 import torch
@@ -85,7 +85,7 @@ class VAE(Autoencoder):
         }
 
     def load_state_dict(
-        self, state_dict: Dict[str, Dict[str, torch.Tensor]], strict: bool = True
+        self, state_dict: Dict[str, OrderedDict[str, torch.Tensor]], strict: bool = True
     ):
         """Loads the encoder state dict.
 

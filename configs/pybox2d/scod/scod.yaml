@@ -1,0 +1,4 @@
+scod: SCOD
+scod_kwargs:
+  num_eigs: 50
+  output_agg_func: mean

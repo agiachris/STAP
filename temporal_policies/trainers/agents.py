@@ -6,6 +6,7 @@ import torch
 import tqdm
 
 from temporal_policies import agents, datasets, envs, processors
+from temporal_policies.networks.encoders import BASIC_ENCODERS
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.utils import configs, metrics, tensors
@@ -183,12 +184,12 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     t_observation = tensors.from_numpy(
                         self.env.get_observation(), self.device
                     )
-                    # TODO: Make this configurable in yaml.
-                    # observation = tensors.rgb_to_cnn(observation)
-                    torch_action = self.agent.actor.predict(
+                    if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
+                        t_observation = tensors.rgb_to_cnn(t_observation)
+                    t_action = self.agent.actor.predict(
                         self.agent.encoder.encode(t_observation)
                     )
-                    action = torch_action.cpu().numpy()
+                    action = t_action.cpu().numpy()
                 self.train_mode()
 
             next_observation, reward, done, info = self.env.step(action)
@@ -237,10 +238,11 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             isinstance(batch["observation"], torch.Tensor)
             and batch["observation"].shape[-1] == 3
             and batch["observation"].dtype == torch.uint8
+            and not isinstance(self.agent.encoder.network, BASIC_ENCODERS)
         ):
             batch["observation"] = tensors.rgb_to_cnn(batch["observation"])  # type: ignore
             batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])  # type: ignore
-        return tensors.to(batch, self.device)
+        return super().process_batch(batch)
 
     def pretrain(self) -> None:
         """Runs the pretrain phase."""
@@ -300,12 +302,12 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 while not done:
                     with torch.no_grad():
                         t_observation = tensors.from_numpy(observation, self.device)
-                        # TODO: Make this configurable in yaml.
-                        # observation = tensors.rgb_to_cnn(observation)
-                        torch_action = self.agent.actor.predict(
+                        if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
+                            t_observation = tensors.rgb_to_cnn(t_observation)
+                        t_action = self.agent.actor.predict(
                             self.agent.encoder.encode(t_observation)
                         )
-                        action = torch_action.cpu().numpy()
+                        action = t_action.cpu().numpy()
 
                     observation, reward, done, info = self.eval_env.step(action)
                     self.eval_dataset.add(

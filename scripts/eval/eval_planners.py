@@ -32,6 +32,7 @@ def evaluate_planners(
     config: Union[str, pathlib.Path],
     env_config: Union[str, pathlib.Path, Dict[str, Any]],
     policy_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]],
+    scod_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]],
     dynamics_checkpoint: Optional[Union[str, pathlib.Path]],
     device: str,
     num_eval: int,
@@ -50,6 +51,7 @@ def evaluate_planners(
         config=config,
         env=env,
         policy_checkpoints=policy_checkpoints,
+        scod_checkpoints=scod_checkpoints,
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
@@ -179,6 +181,9 @@ if __name__ == "__main__":
     parser.add_argument("--env-config", "--env", "-e", help="Path to env config")
     parser.add_argument(
         "--policy-checkpoints", "-p", nargs="+", help="Policy checkpoints"
+    )
+    parser.add_argument(
+        "--scod-checkpoints", "-s", nargs="+", help="SCOD checkpoints"
     )
     parser.add_argument("--dynamics-checkpoint", "-d", help="Dynamics checkpoint")
     parser.add_argument("--device", default="auto", help="Torch device")

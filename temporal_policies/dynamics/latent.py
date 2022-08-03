@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Dict, Optional, OrderedDict, Sequence, Tuple, Type, Union
 
 import gym
 import numpy as np
@@ -54,7 +54,7 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         return self._network
 
     def load_state_dict(
-        self, state_dict: Dict[str, Dict[str, torch.Tensor]], strict: bool = True
+        self, state_dict: Dict[str, OrderedDict[str, torch.Tensor]], strict: bool = True
     ):
         """Loads the dynamics state dict.
 

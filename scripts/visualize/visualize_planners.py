@@ -49,6 +49,14 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         if "oracle" in tokens and "value" in tokens:
             return "Oracle"
 
+        if "scod" in tokens:
+            if "var" in tokens:
+                return "VaR SCOD"
+            elif "cvar" in tokens:
+                return "CVaR SCOD"
+            else:
+                raise ValueError(f"Unrecognized SCOD variant {tokens}")
+
         return "Q-value"
 
     def get_dynamics_label(method: str) -> str:
@@ -131,17 +139,36 @@ def plot_planning_results(
 
         # Change colors and shift bars.
         num_methods = len(df_plans["Method"].unique())
+        num_value_dynamics = len(df_plans["Value / Dynamics"].unique())
+        idx_na_value_dynamics = num_value_dynamics - 1
+        assert df_plans["Value / Dynamics"].unique()[idx_na_value_dynamics] == "NA / NA"
         for idx_bar, (bar, line) in enumerate(zip(ax.patches, ax.lines)):
             idx_method = idx_bar % num_methods
             idx_value_dynamics = idx_bar // num_methods
 
             # Compute color.
-            a = idx_value_dynamics * 0.4 if idx_value_dynamics < 3 else 0
+            # Colors should increase in lightness with idx_value_dynamics,
+            # except for the last one, which is NA / NA.
+            a = (
+                0
+                if idx_value_dynamics == idx_na_value_dynamics
+                else idx_value_dynamics * 0.8 / (num_value_dynamics - 2)
+            )
             color = 0.8 * np.array(sns.color_palette()[idx_method])
             color = (1 - a) * color + a * np.ones(3)
 
             # Compute position.
-            dx = 0.1 if idx_value_dynamics < 3 else -0.3
+            # A column will either contain NA / NA or all the other
+            # value/dynamics variants. Since NA / NA is the only bar in its
+            # column and is by default placed on the right side of the column,
+            # it should be shifted left to center it. All the other variants
+            # should be shifted right to make up for the gap left by the missing
+            # NA / NA bar.
+            dx = (
+                -0.5 * (num_value_dynamics - 1)
+                if idx_value_dynamics == idx_na_value_dynamics
+                else 0.5
+            ) * bar.get_width()
 
             # Modify plot.
             bar.set_color(color)
@@ -232,9 +259,14 @@ def plot_planning_results(
     ax.set_title("Sample quality")
     ax.set_ylabel("Predicted success > 0.5")
 
+    unique_value_dynamics = df_plans["Value / Dynamics"].unique()[:-1]
+    num_value_dynamics = len(unique_value_dynamics)
     patches = [
-        matplotlib.patches.Patch(color=np.full(3, 0.4 + i * 0.25), label=label)
-        for i, label in enumerate(df_plans["Value / Dynamics"].unique()[:-1])
+        matplotlib.patches.Patch(
+            color=np.full(num_value_dynamics, 0.4 + i * 0.5 / (num_value_dynamics - 1)),
+            label=label,
+        )
+        for i, label in enumerate(unique_value_dynamics)
     ]
     axes[0, 2].legend(title="Value / Dynamics", handles=patches, loc="upper right")
 
