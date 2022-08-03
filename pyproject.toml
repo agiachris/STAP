@@ -42,8 +42,23 @@ dependencies = [
   "spatialdyn==1.4.4",
 ]
 
-[tools.setuptools]
+[tool.setuptools]
 packages = ["temporal_policies"]
 
-[tools.mypy]
+[[tool.mypy.overrides]]
+module = [
+  "Box2D",
+  "ctrlutils",
+  "matplotlib.*",
+  "pandas",
+  "PIL",
+  "pybullet",
+  "scipy.*",
+  "scod_regression",
+  "seaborn",
+  "skimage",
+  "spatialdyn",
+  "symbolic",
+  "tqdm"
+]
 ignore_missing_imports = true
