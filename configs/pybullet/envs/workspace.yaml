@@ -18,6 +18,7 @@ env_kwargs:
     - on(hook, table)
     - on(a, table)
     - inworkspace(a)
+    - inworkspace(hook)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
