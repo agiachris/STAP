@@ -128,7 +128,7 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [ $DEBUG -ne 0 ]; then
     exit
 fi
 
-for train_step in $TRAIN_STEPS; do
+for train_step in ${TRAIN_STEPS[@]}; do
     OUTPUT_PATH="${EXP_NAME}/planners_${train_step}"
     visualize_results
 done

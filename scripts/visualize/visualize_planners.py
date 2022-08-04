@@ -46,9 +46,6 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
             return "NA"
 
         tokens = method.split("_")
-        if "oracle" in tokens and "value" in tokens:
-            return "Oracle"
-
         if "scod" in tokens:
             if "var" in tokens:
                 return "VaR SCOD"
@@ -56,6 +53,9 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
                 return "CVaR SCOD"
             else:
                 raise ValueError(f"Unrecognized SCOD variant {tokens}")
+
+        if "oracle" in tokens and "value" in tokens:
+            return "Oracle"
 
         return "Q-value"
 
@@ -139,9 +139,12 @@ def plot_planning_results(
 
         # Change colors and shift bars.
         num_methods = len(df_plans["Method"].unique())
-        num_value_dynamics = len(df_plans["Value / Dynamics"].unique())
-        idx_na_value_dynamics = num_value_dynamics - 1
-        assert df_plans["Value / Dynamics"].unique()[idx_na_value_dynamics] == "NA / NA"
+        unique_value_dynamics = df_plans["Value / Dynamics"].unique()
+        num_value_dynamics = len(unique_value_dynamics)
+        try:
+            idx_na_value_dynamics = np.where(unique_value_dynamics == "NA / NA")[0][0]
+        except IndexError:
+            idx_na_value_dynamics = num_value_dynamics
         for idx_bar, (bar, line) in enumerate(zip(ax.patches, ax.lines)):
             idx_method = idx_bar % num_methods
             idx_value_dynamics = idx_bar // num_methods
@@ -149,11 +152,12 @@ def plot_planning_results(
             # Compute color.
             # Colors should increase in lightness with idx_value_dynamics,
             # except for the last one, which is NA / NA.
-            a = (
-                0
-                if idx_value_dynamics == idx_na_value_dynamics
-                else idx_value_dynamics * 0.8 / (num_value_dynamics - 2)
-            )
+            if idx_value_dynamics == idx_na_value_dynamics:
+                a = 0
+            elif idx_na_value_dynamics == num_value_dynamics:
+                a = idx_value_dynamics * 0.8 / (num_value_dynamics - 1)
+            else:
+                a = idx_value_dynamics * 0.8 / (num_value_dynamics - 2)
             color = 0.8 * np.array(sns.color_palette()[idx_method])
             color = (1 - a) * color + a * np.ones(3)
 
@@ -164,11 +168,13 @@ def plot_planning_results(
             # it should be shifted left to center it. All the other variants
             # should be shifted right to make up for the gap left by the missing
             # NA / NA bar.
-            dx = (
-                -0.5 * (num_value_dynamics - 1)
-                if idx_value_dynamics == idx_na_value_dynamics
-                else 0.5
-            ) * bar.get_width()
+            if idx_value_dynamics == idx_na_value_dynamics:
+                dx = -0.5 * (num_value_dynamics - 1)
+            elif idx_na_value_dynamics == num_value_dynamics:
+                dx = 0
+            else:
+                dx = 0.5
+            dx *= bar.get_width()
 
             # Modify plot.
             bar.set_color(color)
@@ -259,11 +265,12 @@ def plot_planning_results(
     ax.set_title("Sample quality")
     ax.set_ylabel("Predicted success > 0.5")
 
-    unique_value_dynamics = df_plans["Value / Dynamics"].unique()[:-1]
+    unique_value_dynamics = df_plans["Value / Dynamics"].unique()
+    unique_value_dynamics = unique_value_dynamics[unique_value_dynamics != "NA / NA"]
     num_value_dynamics = len(unique_value_dynamics)
     patches = [
         matplotlib.patches.Patch(
-            color=np.full(num_value_dynamics, 0.4 + i * 0.5 / (num_value_dynamics - 1)),
+            color=np.full(3, 0.4 + i * 0.5 / (num_value_dynamics - 1)),
             label=label,
         )
         for i, label in enumerate(unique_value_dynamics)
