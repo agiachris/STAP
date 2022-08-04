@@ -1,6 +1,7 @@
 from typing import Optional
 
 from temporal_policies.agents import base, random, wrapper
+from temporal_policies.encoders import base as encoders
 from temporal_policies import envs, networks
 
 
@@ -31,7 +32,7 @@ class OracleAgent(wrapper.WrapperAgent):
             observation_space=policy.observation_space,
             actor=networks.actors.OracleActor(env, policy),
             critic=networks.critics.OracleCritic(env),
-            encoder=networks.encoders.OracleEncoder(env),
+            encoder=encoders.Encoder(env, networks.encoders.OracleEncoder),
             device=device,
         )
 

@@ -4,24 +4,16 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-numpy = "*"
-imageio = "*"
-temporal-policies = {editable = true, path = "."}
-torch = "1.10.2"
-torchvision = "*"
-tensorboard = "*"
-setuptools = "==59.5.0"
-gym = "*"
+temporal-policies = { editable = true, path = "." }
+scod-regression = { editable = true, path = "third_party/scod-regression" }
 matplotlib = "*"
-scikit-image = "*"
-pyyaml = "*"
-tqdm = "*"
-box2d-py = "*"
-h5py = "*"
 pandas = "*"
 seaborn = "*"
 
 [dev-packages]
+black = "*"
+mypy = "*"
+flake8 = "*"
 
 [requires]
 python_version = "3.8"

@@ -15,7 +15,7 @@ class Encoder(Generic[ObsType]):
         self,
         env: envs.Env,
         network_class: Union[str, Type[networks.encoders.Encoder]],
-        network_kwargs: Dict[str, Any],
+        network_kwargs: Dict[str, Any] = {},
         device: str = "auto",
     ):
         """Initializes the dynamics model network, dataset, and optimizer.

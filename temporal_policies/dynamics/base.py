@@ -170,7 +170,7 @@ class Dynamics(abc.ABC, Generic[ObsType]):
         def _encode(idx_policy: Union[int, torch.Tensor], observation: Any):
             if isinstance(idx_policy, torch.Tensor):
                 idx_policy = idx_policy.item()
-            return self.policies[idx_policy].encoder(observation)
+            return self.policies[idx_policy].encoder.encode(observation)
 
         return _encode(idx_policy, observation)
 

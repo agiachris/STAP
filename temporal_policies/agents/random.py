@@ -4,7 +4,7 @@ import gym  # type: ignore
 import torch  # type: ignore
 
 from temporal_policies.agents import base, wrapper
-from temporal_policies import envs, networks
+from temporal_policies import encoders, envs, networks
 
 
 class RandomAgent(wrapper.WrapperAgent):
@@ -54,7 +54,7 @@ class RandomAgent(wrapper.WrapperAgent):
             state_space = observation_space
             dim_states = len(state_space.shape)
             critic = networks.Constant(0.0, input_dim=dim_states)
-            encoder = torch.nn.Identity()
+            encoder = encoders.IdentityEncoder(env, action_space, observation_space)
 
         super().__init__(
             state_space=state_space,
