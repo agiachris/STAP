@@ -78,6 +78,10 @@ def train(
         trainer_factory.save_config(trainer.path)
         agent_factory.save_config(trainer.path)
         env_factory.save_config(trainer.path)
+        if eval_env_factory is not None:
+            eval_path = trainer.path / "eval"
+            eval_path.mkdir(parents=True, exist_ok=overwrite)
+            eval_env_factory.save_config(eval_path)
 
     trainer.train()
 
