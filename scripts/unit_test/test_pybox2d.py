@@ -38,7 +38,7 @@ if __name__ == "__main__":
             # Simulate forward randomly
             for _ in range(curr_env.unwrapped._max_episode_steps):
                 action = curr_env.action_space.sample()
-                obs, rew, done, info = curr_env.step(action)
+                obs, rew, terminated, truncated, info = curr_env.step(action)
                 if done: break
             if not info["success"]: break
 

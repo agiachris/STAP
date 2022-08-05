@@ -9,7 +9,7 @@ from temporal_policies import datasets, dynamics, processors
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.base import Trainer
-from temporal_policies.trainers.utils import load as load_trainer
+from temporal_policies.trainers.utils import TrainerFactory
 from temporal_policies.utils import configs, tensors
 from temporal_policies.utils.typing import WrappedBatch, DynamicsBatch, Scalar
 
@@ -23,6 +23,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         dynamics: dynamics.LatentDynamics,
         dataset_class: Union[str, Type[datasets.StratifiedReplayBuffer]],
         dataset_kwargs: Dict[str, Any],
+        skip_truncated: bool = True,
         processor_class: Union[
             str, Type[processors.Processor]
         ] = processors.IdentityProcessor,
@@ -53,7 +54,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             dynamics: Dynamics model to train.
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
-            eval_dataset_kwargs: Kwargs for eval dataset.
+            skip_truncated: Whether to skip truncated episodes.
             processor_class: Batch data processor calss.
             processor_kwargs: Kwargs for processor.
             optimizer_class: Dynamics model optimizer class.
@@ -94,7 +95,21 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                     )
                 else:
                     trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
-                agent_trainer = load_trainer(checkpoint=trainer_checkpoint)
+                agent_trainer_factory = TrainerFactory(checkpoint=trainer_checkpoint)
+
+                agent_trainer = agent_trainer_factory(
+                    dataset_kwargs=dict(
+                        agent_trainer_factory.kwargs["dataset_kwargs"],
+                        skip_truncated=skip_truncated,
+                    ),
+                    eval_dataset_kwargs=None
+                    if "eval_dataset_kwargs" not in agent_trainer_factory.kwargs
+                    or agent_trainer_factory.kwargs["eval_dataset_kwargs"] is None
+                    else dict(
+                        agent_trainer_factory.kwargs["eval_dataset_kwargs"],
+                        skip_truncated=skip_truncated,
+                    ),
+                )
                 assert isinstance(agent_trainer, AgentTrainer)
                 agent_trainers.append(agent_trainer)
 

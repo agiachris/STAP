@@ -144,7 +144,8 @@ class DRQV2(rl.RLAgent):
                 action = TruncatedNormal(mu, std).sample(clip=None).cpu().numpy()
             self.train_mode()
 
-        next_obs, reward, done, info = self.env.step(action)
+        next_obs, reward, terminated, truncated, info = self.env.step(action)
+        done = terminated or truncated
         self._episode_length += 1
         self._episode_reward += reward
 
@@ -159,7 +160,7 @@ class DRQV2(rl.RLAgent):
             discount = 1 - float(done)
 
         # Store the consequences
-        self.dataset.add(next_obs, action, reward, done, discount)
+        self.dataset.add(next_obs, action, reward, terminated, truncated, discount)
 
         if done:
             self._num_ep += 1

@@ -22,7 +22,7 @@ def main() -> None:
 
         timer.tic("step")
         action = primitive.sample_action()
-        obs, success, _, _ = env.step(primitive.normalize_action(action.vector))
+        obs, success, _, _, _ = env.step(primitive.normalize_action(action.vector))
         dt_step = timer.toc("step")
 
         print(f"SUCCESS {env.get_primitive()}:", success, ", time:", dt_reset + dt_step)
@@ -38,7 +38,7 @@ def main() -> None:
         # xyz[:2] = np.random.uniform(0.9 * xyz_min[:2], 0.9 * xyz_max[:2])
         # xyz[2] = xyz_max[2] + 0.05
         #
-        # obs, success, _, _ = env.step(np.array([*xyz, 0.0]))
+        # obs, success, _, _, _ = env.step(np.array([*xyz, 0.0]))
         # print("SUCCESS", success)
 
 

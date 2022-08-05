@@ -27,8 +27,10 @@ function train_policy {
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${POLICY_OUTPUT_PATH}_debug"
-        args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}_debug"
+        # args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}_debug"
         args="${args} --overwrite"
+        args="${args} --num-pretrain-steps 100"
+        args="${args} --num-train-steps 100"
     else
         args="${args} --path ${POLICY_OUTPUT_PATH}"
         args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
@@ -46,20 +48,20 @@ plots_path="plots"
 # Experiments.
 
 # Pybox2d.
-exp_name="20220804/pybox2d"
-TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
-AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
-POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
-EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
-
-ENV_CONFIG="configs/pybox2d/envs/placeright.yaml"
-train_policy
-
-ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
-train_policy
+# exp_name="20220804/pybox2d"
+# TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
+# AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
+# POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
+# EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
+#
+# ENV_CONFIG="configs/pybox2d/envs/placeright.yaml"
+# train_policy
+#
+# ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
+# train_policy
 
 # Pybullet.
-exp_name="20220804/workspace"
+exp_name="20220805/workspace"
 TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"

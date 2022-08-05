@@ -291,8 +291,8 @@ class IOManager(TaskManager):
 
         for _ in range(envs._max_episode_steps):
             # print(actions)
-            state, _, done, info = envs.step(actions)
-            if done:
+            state, _, terminated, truncated, info = envs.step(actions)
+            if terminated or truncated:
                 break
             actions = self._actor_interface(idx, envs=envs, states=state)
         return envs._get_observation(), info["success"]

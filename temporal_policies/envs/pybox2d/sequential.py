@@ -97,7 +97,7 @@ class Sequential2D(base.Env):
             idx_policy = 0
         return self.envs[idx_policy].get_observation()
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
         """Executes the step in the current env."""
         return self.current_env.step(action)
 
@@ -154,7 +154,7 @@ class Sequential2D(base.Env):
         Returns:
             Whether recording was stopped.
         """
-        return self.current_env.record_start(save_id, mode)
+        return self.current_env.record_stop(save_id, mode)
 
     def record_save(
         self,

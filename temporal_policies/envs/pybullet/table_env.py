@@ -46,6 +46,8 @@ class TableEnv(PybulletEnv):
         high=np.tile(object_state.ObjectState.range()[1], 3),
     )
 
+    metadata = {"render_modes": ["default", "front_high_res", "top_high_res"]}
+
     def __init__(
         self,
         name: str,
@@ -133,6 +135,7 @@ class TableEnv(PybulletEnv):
                 projection_matrix=PROJECTION_MATRIX,
             ),
         }
+        self.render_mode = "default"
 
         self._timelapse = recording.Recorder()
         self._recorder = recording.Recorder(recording_freq)
@@ -316,7 +319,7 @@ class TableEnv(PybulletEnv):
 
         return self.get_observation()
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
         primitive = self.get_primitive()
         assert isinstance(primitive, Primitive)
 
@@ -329,12 +332,14 @@ class TableEnv(PybulletEnv):
 
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
-        success = primitive.execute(action, self.robot)
+        result = primitive.execute(action, self.robot)
         obs = self.get_observation()
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
 
-        return obs, float(success), True, {}
+        reward = float(result.success)
+        terminated = not result.truncated
+        return obs, reward, terminated, result.truncated, {}
 
     def wait_until_stable(
         self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)
@@ -361,12 +366,17 @@ class TableEnv(PybulletEnv):
         p.stepSimulation(physicsClientId=self.physics_id)
         self._recorder.add_frame(self.render)
 
-    def render(
-        self, view: str = "front", resolution: Optional[Tuple[int, int]] = None
-    ) -> np.ndarray:
+    def render(self) -> np.ndarray:  # type: ignore
+        if "top" in self.render_mode:
+            view = "top"
+        else:
+            view = "front"
         camera_view = self._camera_views[view]
-        width = camera_view.width if resolution is None else resolution[0]
-        height = camera_view.height if resolution is None else resolution[1]
+
+        if "high_res" in self.render_mode:
+            width, height = (1620, 1080)
+        else:
+            width, height = camera_view.width, camera_view.height
         img_rgba = p.getCameraImage(
             width,
             height,

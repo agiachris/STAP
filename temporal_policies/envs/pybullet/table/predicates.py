@@ -6,7 +6,7 @@ import numpy as np
 import symbolic
 
 from temporal_policies.envs.pybullet.table.objects import Hook, Object
-from temporal_policies.envs.pybullet.table.primitives import is_upright, Pick
+from temporal_policies.envs.pybullet.table.primitives import is_above, is_upright, Pick
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
 
@@ -119,7 +119,7 @@ class On(Predicate):
     ) -> bool:
         child_obj, parent_obj = self._get_arg_objects(objects)
 
-        if child_obj.aabb()[0, 2] < parent_obj.aabb()[1, 2] - 0.01:
+        if not is_above(child_obj.aabb(), parent_obj.aabb()):
             return False
 
         if f"istippable({child_obj})" not in state or child_obj.isinstance(Hook):

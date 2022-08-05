@@ -192,15 +192,19 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     action = t_action.cpu().numpy()
                 self.train_mode()
 
-            next_observation, reward, done, info = self.env.step(action)
-            discount = 1.0 - done
+            next_observation, reward, terminated, truncated, info = self.env.step(
+                action
+            )
+            done = terminated or truncated
+            discount = 1.0 - float(done)
 
             self.dataset.add(
                 action=action,
                 reward=reward,
                 next_observation=next_observation,
                 discount=discount,
-                done=done,
+                terminated=terminated,
+                truncated=truncated,
             )
 
             self._episode_length += 1
@@ -277,6 +281,11 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
         return {**collect_metrics, **train_metrics}
 
+    def train(self) -> None:
+        """Trains the model."""
+        super().train()
+        self.dataset.save()
+
     def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
@@ -326,13 +335,17 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 )
                 action = t_action.cpu().numpy()
 
-            observation, reward, done, info = self.eval_env.step(action)
+            observation, reward, terminated, truncated, info = self.eval_env.step(
+                action
+            )
+            done = terminated or truncated
             self.eval_dataset.add(
                 action=action,
                 reward=reward,
                 next_observation=observation,
                 discount=1.0 - done,
-                done=done,
+                terminated=terminated,
+                truncated=truncated,
             )
 
             step_metrics = {

@@ -1,4 +1,3 @@
-import abc
 import pathlib
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -42,13 +41,16 @@ class Primitive:
         return f"{type(self).__name__}({args})"
 
 
-class Env(gym.Env[np.ndarray, np.ndarray], abc.ABC):
+class Env(gym.Env[np.ndarray, np.ndarray]):
     """Base env class with a separate state space for dynamics."""
 
     name: str
     observation_space: gym.spaces.Box
     state_space: gym.spaces.Box
     image_space: gym.spaces.Box
+
+    render_mode: str  # type: ignore
+    reward_range = (0.0, 1.0)
 
     @property
     def action_space(self) -> gym.spaces.Box:  # type: ignore
@@ -58,11 +60,10 @@ class Env(gym.Env[np.ndarray, np.ndarray], abc.ABC):
     def action_scale(self) -> gym.spaces.Box:
         return self.get_primitive().action_scale
 
-    @abc.abstractmethod
     def get_primitive(self) -> Primitive:
         """Gets the environment primitive."""
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def set_primitive(
         self,
         primitive: Optional[Primitive] = None,
@@ -71,8 +72,8 @@ class Env(gym.Env[np.ndarray, np.ndarray], abc.ABC):
         policy_args: Optional[Any] = None,
     ) -> "Env":
         """Sets the environment primitive."""
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def get_primitive_info(
         self,
         action_call: Optional[str] = None,
@@ -80,6 +81,7 @@ class Env(gym.Env[np.ndarray, np.ndarray], abc.ABC):
         policy_args: Optional[Any] = None,
     ) -> Primitive:
         """Gets the primitive info."""
+        raise NotImplementedError
 
     def create_primitive_env(self, primitive: Primitive) -> "Env":
         """Creates an child env with a fixed primitive mode."""
@@ -89,17 +91,23 @@ class Env(gym.Env[np.ndarray, np.ndarray], abc.ABC):
     # def create_policy_env(self, idx_policy: int, policy_args: Optional[Any]) -> "Env":
     #     raise NotImplementedError
 
-    @abc.abstractmethod
     def get_state(self) -> np.ndarray:
         """Gets the environment state."""
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def set_state(self, state: np.ndarray) -> bool:
         """Sets the environment state."""
+        raise NotImplementedError
 
-    @abc.abstractmethod
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
         """Gets an observation for the current environment state."""
+        raise NotImplementedError
+
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
+        raise NotImplementedError
+
+    def render(self) -> np.ndarray:  # type: ignore
+        raise NotImplementedError
 
     def record_start(
         self,
@@ -222,15 +230,13 @@ class PrimitiveEnv(Env):
                 options=options,
             )
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, dict]:
+    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
         with PrimitiveEnv.Scope(self):
             return self._env.step(action)
 
-    def render(
-        self, view: str = "front", resolution: Optional[Tuple[int, int]] = None
-    ) -> np.ndarray:
+    def render(self) -> np.ndarray:
         with PrimitiveEnv.Scope(self):
-            return self.render(view, resolution)
+            return self.render()
 
     def record_start(
         self,
@@ -282,7 +288,7 @@ class PrimitiveEnv(Env):
 #     def get_observation(self) -> np.ndarray:
 #         return self._call("get_observation")
 #
-#     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, Dict]:
+#     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict]:
 #         return self._call("step", action)
 #
 #     def reset(

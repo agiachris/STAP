@@ -238,15 +238,17 @@ class SCODTrainer:
                 action = t_action.cpu().numpy()
             self.train_mode()
 
-        next_observation, reward, done, info = self.env.step(action)
-        discount = 1.0 - done
+        next_observation, reward, terminated, truncated, info = self.env.step(action)
+        done = terminated or truncated
+        discount = 1.0 - float(done)
 
         self.dataset.add(
             action=action,
             reward=reward,
             next_observation=next_observation,
             discount=discount,
-            done=done,
+            terminated=terminated,
+            truncated=truncated,
         )
 
         self._episode_length += 1

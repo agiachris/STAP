@@ -24,6 +24,7 @@ function train_dynamics {
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${DYNAMICS_OUTPUT_PATH}_debug"
         args="${args} --overwrite"
+        args="${args} --num-train-steps 1000"
     else
         args="${args} --path ${DYNAMICS_OUTPUT_PATH}"
     fi
@@ -49,15 +50,15 @@ output_path="models"
 #     "ckpt_model_100000"
 # )
 
-exp_name="20220801/workspace"
+exp_name="20220805/workspace"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 policy_envs=("pick" "place" "pull")
 checkpoints=(
     "final_model"
-    "best_model"
-    "ckpt_model_50000"
-    "ckpt_model_100000"
+    # "best_model"
+    # "ckpt_model_50000"
+    # "ckpt_model_100000"
 )
 
 for ckpt in "${checkpoints[@]}"; do

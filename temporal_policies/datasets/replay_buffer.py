@@ -26,7 +26,8 @@ class StorageBatch(TypedDict):
     action: np.ndarray
     reward: np.ndarray
     discount: np.ndarray
-    done: np.ndarray
+    terminated: np.ndarray
+    truncated: np.ndarray
 
 
 class ReplayBuffer(torch.utils.data.IterableDataset):
@@ -48,6 +49,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         sample_strategy: Union[str, SampleStrategy] = "uniform",
         nstep: int = 1,
         save_frequency: Optional[int] = None,
+        skip_truncated: bool = False,
     ):
         """Stores the configuration parameters for the replay buffer.
 
@@ -63,6 +65,9 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             sample_strategy: Sample strategy.
             nstep: Number of steps between sample and next observation.
             save_frequency: Frequency of optional automatic saving to disk.
+            skip_truncated: Whether to mark truncated episodes as invalid when
+                adding to the replay buffer. If true, truncated episodes won't
+                be sampled.
         """
         self._observation_space = observation_space
         self._action_space = action_space
@@ -80,6 +85,8 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         if save_frequency is not None and save_frequency <= 0:
             save_frequency = None
         self._save_frequency = save_frequency
+
+        self._skip_truncated = skip_truncated
 
         # if self.path is not None and self.path.exists():
         #     if num_load_entries is None:
@@ -192,14 +199,16 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             size: Batch size.
 
         Returns:
-            Batch dict with observation, action, reward, discount, done fields.
+            Batch dict with observation, action, reward, discount, terminated,
+            truncated fields.
         """
         return {
             "observation": spaces.null(self.observation_space, size),
             "action": spaces.null(self.action_space, size),
             "reward": np.full(size, float("nan"), dtype=np.float32),
             "discount": np.full(size, float("nan"), dtype=np.float32),
-            "done": np.zeros(size, dtype=bool),
+            "terminated": np.zeros(size, dtype=bool),
+            "truncated": np.zeros(size, dtype=bool),
         }
 
     def add(
@@ -209,15 +218,16 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         reward: Optional[Union[np.ndarray, float]] = None,
         next_observation: Optional[np.ndarray] = None,
         discount: Optional[Union[np.ndarray, float]] = None,
-        done: Optional[Union[np.ndarray, bool]] = None,
+        terminated: Optional[Union[np.ndarray, bool]] = None,
+        truncated: Optional[Union[np.ndarray, bool]] = None,
         batch: Optional[StorageBatch] = None,
         max_entries: Optional[int] = None,
     ) -> int:
         """Adds an experience tuple to the replay buffer.
 
         The experience can either be a single initial `observation`, a 5-tuple
-        (`action`, `reward`, `next_observation`, `discount`, `done`), or a
-        `batch` dict from buffer storage.
+        (`action`, `reward`, `next_observation`, `discount`, `terminated`,
+        `truncated`), or a `batch` dict from buffer storage.
 
         The inputs can be single entries or batches.
 
@@ -227,7 +237,8 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             reward: Reward.
             next_observation: Next observation.
             discount: Discount factor.
-            done: Whether episode is done.
+            terminated: Whether episode terminated normally.
+            truncated: Whether episode terminated abnormally.
             batch: Batch dict. Useful for loading from disk.
             max_entries: Limit the number of entries to add.
 
@@ -243,10 +254,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             == (reward is None)
             == (next_observation is None)
             == (discount is None)
-            == (done is None)
+            == (terminated is None)
+            == (truncated is None)
         ):
             raise ValueError(
-                "(action, reward, next_observation, discount, done) need to be set together."
+                "(action, reward, next_observation, discount, terminated, truncated) need to be set together."
             )
 
         # Prepare batch.
@@ -267,13 +279,15 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             assert action is not None
             assert reward is not None
             assert discount is not None
-            assert done is not None
+            assert terminated is not None
+            assert truncated is not None
             batch = {
                 "observation": next_observation,
                 "action": action,
                 "reward": reward,  # type: ignore
                 "discount": discount,  # type: ignore
-                "done": done,  # type: ignore
+                "terminated": terminated,  # type: ignore
+                "truncated": truncated,  # type: ignore
             }
 
         # Insert batch and advance indices.
@@ -292,20 +306,38 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
 
         # Compute valid samples.
         idx_batch = slice(max(0, idx_start - self.nstep), idx_stop)
-        batch_done = _wrap_get(self.worker_buffers["done"], idx_batch)
+        batch_terminated = _wrap_get(self.worker_buffers["terminated"], idx_batch)
+        batch_truncated = _wrap_get(self.worker_buffers["truncated"], idx_batch)
         batch_discount = _wrap_get(self.worker_buffers["discount"], idx_batch)
+        batch_done = batch_terminated | batch_truncated
         batch_valid = np.zeros_like(batch_done)
 
-        # Ensure steps [t, t + nstep) are valid, non-terminal steps.
-        batch_valid[:-1] = ~batch_done[:-1] & ~np.isnan(batch_discount[1:])
+        # Ensure steps [t, t + nstep) are valid, non-terminal steps. A valid
+        # index means index + nstep is a valid batch entry. Since nstep >= 1,
+        # the last index is automatically invalid.
+        idx_begin = np.isnan(batch_discount)
+        idx_skip = idx_begin
+        if self._skip_truncated:
+            # Skip entire episodes if truncated.
+            idx_skip |= batch_truncated
+        # done:           0 1 0 1
+        # begin:          1 0 1 0
+        # truncated:      0 0 0 1
+        # -----------------------
+        # ~done[:-1]:     1 0 1
+        # ~begin[1:]:     1 0 1
+        # ~truncated[1:]: 1 1 0
+        # valid:          1 0 0 0
+        batch_valid[:-1] = ~batch_done[:-1] & ~idx_skip[1:]
         for i in range(1, self.nstep):
             j = i + 1
-            batch_valid[:-j] &= batch_done[i:-1] & ~np.isnan(batch_discount[j:])
+            batch_valid[:-j] &= batch_done[i:-1] & ~idx_skip[j:]
         _wrap_insert(self._worker_valid_samples, batch_valid, idx_batch.start)
 
         # Save checkpoint.
-        if (isinstance(done, bool) and done) or (
-            isinstance(done, np.ndarray) and np.any(done)
+        assert type(terminated) == type(truncated)
+        if (isinstance(terminated, bool) and (terminated or truncated)) or (
+            isinstance(terminated, np.ndarray) and np.any(terminated | truncated)
         ):
             len_checkpoint = self._worker_idx - self._worker_idx_checkpoint
             if (
@@ -590,7 +622,11 @@ if __name__ == "__main__":
     observation_space = gym.spaces.Box(low=np.full(2, 0), high=np.full(2, 1))
     action_space = gym.spaces.Box(low=0, high=1, shape=(1,))
     replay_buffer = ReplayBuffer(
-        observation_space, action_space, capacity=5, batch_size=4
+        observation_space,
+        action_space,
+        capacity=5,
+        batch_size=4,
+        skip_truncated=True,
     )
 
     replay_buffer.initialize()
@@ -609,7 +645,8 @@ if __name__ == "__main__":
             action=np.full(1, v + 0.1),
             reward=v,
             discount=0.99,
-            done=True,
+            terminated=True,
+            truncated=i == 1,
         )
         print("")
         print(replay_buffer.worker_buffers)

@@ -47,7 +47,7 @@ if __name__ == "__main__":
     for i in range(args.num_eps):
         step = 0
         reward = 0
-        ep_time = 0
+        ep_time = 0.0
         prev_env = None
         for j, env in enumerate(env_cls):
             config = deepcopy(planner._get_config(j))
@@ -56,10 +56,10 @@ if __name__ == "__main__":
             st = time.time()
             for _ in range(curr_env._max_episode_steps):
                 action = planner.plan(j, curr_env)
-                obs, rew, done, info = curr_env.step(action)
+                obs, rew, terminated, truncated, info = curr_env.step(action)
                 reward += rew
                 step += 1
-                if done: break
+                if terminated or truncated: break
 
             ep_time += time.time() - st
             if not info["success"]: break

@@ -247,7 +247,7 @@ def evaluate_plan(
     for t, primitive in enumerate(action_skeleton):
         env.set_primitive(primitive)
         action = actions[t, : env.action_space.shape[0]]
-        _, reward, _, _ = env.step(action)
+        _, reward, _, _, _ = env.step(action)
         rewards[t] = reward
 
     if gif_path is not None:
