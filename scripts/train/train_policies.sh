@@ -64,7 +64,9 @@ TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
-# ENV_KWARGS="--gui 0"
+if [[ `hostname` == "sc.stanford.edu" ]]; then
+    ENV_KWARGS="--gui 0"
+fi
 
 ENV_CONFIG="configs/pybullet/envs/pick.yaml"
 EVAL_ENV_CONFIG="configs/pybullet/envs/pick_eval.yaml"
