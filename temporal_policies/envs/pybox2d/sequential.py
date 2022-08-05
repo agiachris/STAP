@@ -142,17 +142,7 @@ class Sequential2D(base.Env):
         Returns:
             Whether recording was started.
         """
-        if isinstance(prepend_id, np.ndarray):
-            prepend_id = prepend_id.item()
-        if prepend_id is not None:
-            prepend_id = str(prepend_id)
-
-        if mode == "default":
-            self.current_env._recorder.start(prepend_id, frequency)
-        else:
-            return False
-
-        return True
+        return self.current_env.record_start(prepend_id, frequency, mode)
 
     def record_stop(self, save_id: Optional[Any] = None, mode: str = "default") -> bool:
         """Stops recording the simulation.
@@ -164,15 +154,7 @@ class Sequential2D(base.Env):
         Returns:
             Whether recording was stopped.
         """
-        if isinstance(save_id, np.ndarray):
-            save_id = save_id.item()
-        if save_id is not None:
-            save_id = str(save_id)
-
-        if mode == "default":
-            return self.current_env._recorder.stop(save_id)
-        else:
-            return False
+        return self.current_env.record_start(save_id, mode)
 
     def record_save(
         self,
@@ -189,8 +171,4 @@ class Sequential2D(base.Env):
         Returns:
             Whether any recordings were saved.
         """
-        is_saved = False
-        if mode is None or mode == "default":
-            is_saved |= self.current_env._recorder.save(path, reset)
-
-        return is_saved
+        return self.current_env.record_save(path, reset, mode)

@@ -70,6 +70,7 @@ class Recorder:
         """
         if not isinstance(path, pathlib.Path):
             path = pathlib.Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
         num_saved = 0
         for id, recording in self._recordings.items():
@@ -93,6 +94,7 @@ class Recorder:
         self,
         grab_frame_fn: Optional[Callable[[], np.ndarray]] = None,
         frame: Optional[np.ndarray] = None,
+        override_frequency: bool = False,
     ) -> bool:
         """Adds a frame to the buffer.
 
@@ -100,6 +102,7 @@ class Recorder:
             grab_frame_fn: Callback function for grabbing a frame that is only
                 called if a frame is needed. Use this if rendering is expensive.
             frame: Frame to add.
+            override_frequency: Add a frame regardless of the frequency.
         Returns:
             True if a frame was added.
         """
@@ -109,7 +112,7 @@ class Recorder:
             return False
         if self.max_size is not None and len(self._buffer) >= self.max_size:
             return False
-        if (self._timestep - 1) % self.frequency != 0:
+        if not override_frequency and (self._timestep - 1) % self.frequency != 0:
             return False
 
         if grab_frame_fn is not None:

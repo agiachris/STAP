@@ -5,6 +5,8 @@ import pathlib
 from pprint import pprint
 from typing import Any, Dict, Optional, Union
 
+import tqdm
+
 from temporal_policies import agents, envs, trainers
 from temporal_policies.utils import configs, random
 
@@ -16,6 +18,7 @@ def train(
     env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     eval_env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    eval_recording_path: Optional[Union[str, pathlib.Path]] = None,
     resume: bool = False,
     overwrite: bool = False,
     device: str = "auto",
@@ -85,6 +88,24 @@ def train(
 
     trainer.train()
 
+    # Record gifs of the trained policy.
+    if eval_recording_path is not None:
+        eval_recording_path = pathlib.Path(eval_recording_path)
+
+        trainer.eval_mode()
+        pbar = tqdm.tqdm(
+            range(trainer.num_eval_steps),
+            desc=f"Record {trainer.name}",
+            dynamic_ncols=True,
+        )
+        for i in pbar:
+            trainer.eval_env.record_start()
+            trainer.evaluate_step()
+            trainer.eval_env.record_stop()
+            trainer.eval_env.record_save(
+                eval_recording_path / trainer.env.name / f"eval_{i}.gif", reset=True
+            )
+
 
 def main(args: argparse.Namespace) -> None:
     train(**vars(args))
@@ -106,6 +127,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval-env-config", help="Path to evaluation env config")
     parser.add_argument("--encoder-checkpoint", help="Path to encoder checkpoint")
     parser.add_argument("--path", "-p", required=True)
+    parser.add_argument("--eval-recording-path")
     parser.add_argument("--resume", action="store_true", default=False)
     parser.add_argument("--overwrite", action="store_true", default=False)
     parser.add_argument("--device", default="auto")

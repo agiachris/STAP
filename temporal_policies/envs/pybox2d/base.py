@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
-from typing import Optional
+import pathlib
+from typing import Any, Optional, Union
 
 import Box2D
 import gym
@@ -36,6 +37,7 @@ class Box2DBase(base.Env, Generator, ABC):
         steps: int = 0,
         physics_steps: int = 0,
         physics_steps_buffer: int = 0,
+        recording_freq: int = 3,
         **kwargs,
     ):
         """Box2D environment base class.
@@ -55,6 +57,7 @@ class Box2DBase(base.Env, Generator, ABC):
             steps: initial step of the gym environment
             physics_steps: number of time_steps occured
             physics_steps_buffer: number of extra time_steps after episode has terminated
+            recording_freq: Recording frequency
         """
         Generator.__init__(self, **kwargs)
         self.name = name
@@ -72,7 +75,7 @@ class Box2DBase(base.Env, Generator, ABC):
         self._physics_steps = physics_steps
         self._physics_steps_buffer = physics_steps_buffer
 
-        self._recorder = recording.Recorder()
+        self._recorder = recording.Recorder(frequency=recording_freq)
 
         self._setup_spaces()
         self._render_setup()
@@ -265,6 +268,8 @@ class Box2DBase(base.Env, Generator, ABC):
 
         if not done:
             obs = self.get_observation()
+
+        self._recorder.add_frame(self.render, override_frequency=True)
 
         self.world.ClearForces()
         return obs, reward, done, info
@@ -702,3 +707,73 @@ class Box2DBase(base.Env, Generator, ABC):
         caption = f"Env: {type(self).__name__} | Step: {self._steps} | "
         caption += f"Time: {self._physics_steps} | Reward: {self._cumulative_reward}"
         return caption
+
+    def record_start(
+        self,
+        prepend_id: Optional[Any] = None,
+        frequency: Optional[int] = None,
+        mode: str = "default",
+    ) -> bool:
+        """Starts recording the simulation.
+
+        Args:
+            prepend_id: Prepends the new recording with the existing recording
+                saved under this id.
+            frequency: Recording frequency.
+            mode: Recording mode. Options:
+                - 'default': record at fixed frequency.
+        Returns:
+            Whether recording was started.
+        """
+        if isinstance(prepend_id, np.ndarray):
+            prepend_id = prepend_id.item()
+        if prepend_id is not None:
+            prepend_id = str(prepend_id)
+
+        if mode == "default":
+            self._recorder.start(prepend_id, frequency)
+        else:
+            return False
+
+        return True
+
+    def record_stop(self, save_id: Optional[Any] = None, mode: str = "default") -> bool:
+        """Stops recording the simulation.
+
+        Args:
+            save_id: Saves the recording to this id.
+            mode: Recording mode. Options:
+                - 'default': record at fixed frequency.
+        Returns:
+            Whether recording was stopped.
+        """
+        if isinstance(save_id, np.ndarray):
+            save_id = save_id.item()
+        if save_id is not None:
+            save_id = str(save_id)
+
+        if mode == "default":
+            return self._recorder.stop(save_id)
+        else:
+            return False
+
+    def record_save(
+        self,
+        path: Union[str, pathlib.Path],
+        reset: bool = True,
+        mode: Optional[str] = None,
+    ) -> bool:
+        """Saves all the recordings.
+
+        Args:
+            path: Path for the recording.
+            reset: Reset the recording after saving.
+            mode: Recording mode to save. If None, saves all recording modes.
+        Returns:
+            Whether any recordings were saved.
+        """
+        is_saved = False
+        if mode is None or mode == "default":
+            is_saved |= self._recorder.save(path, reset)
+
+        return is_saved

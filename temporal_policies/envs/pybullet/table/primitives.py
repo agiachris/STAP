@@ -70,6 +70,8 @@ class Pick(Primitive):
     action_scale = gym.spaces.Box(*primitive_actions.PickAction.range())
     Action = primitive_actions.PickAction
 
+    PICK_HEIGHT = 0.15
+
     def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
         # Parse action.
         a = primitive_actions.PickAction(self.scale_action(action))
@@ -86,7 +88,7 @@ class Pick(Primitive):
         # Compute orientation.
         command_quat = compute_top_down_orientation(a.theta.item(), obj_quat)
 
-        pre_pos = np.append(command_pos[:2], obj.aabb()[1, 2] + 0.1)
+        pre_pos = np.append(command_pos[:2], obj.aabb()[1, 2] + self.PICK_HEIGHT)
         try:
             robot.goto_pose(pre_pos, command_quat)
             robot.goto_pose(command_pos, command_quat)

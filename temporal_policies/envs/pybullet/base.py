@@ -52,7 +52,8 @@ class PybulletEnv(Env):
         )
         try:
             self._physics_id = connect_pybullet(gui=gui, options=options)
-        except p.error:
+        except p.error as e:
+            print(e)
             print("Unable to connect to pybullet with gui. Connecting without gui...")
             self._physics_id = connect_pybullet(gui=False, options=options)
 

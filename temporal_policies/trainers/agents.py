@@ -293,42 +293,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 dynamic_ncols=True,
             )
             for _ in pbar:
-                observation = self.eval_env.reset()
-                assert isinstance(observation, np.ndarray)
-                self.eval_dataset.add(observation=observation)
-
-                step_metrics_list = []
-                done = False
-                while not done:
-                    with torch.no_grad():
-                        t_observation = tensors.from_numpy(observation, self.device)
-                        if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
-                            t_observation = tensors.rgb_to_cnn(t_observation)
-                        t_action = self.agent.actor.predict(
-                            self.agent.encoder.encode(t_observation)
-                        )
-                        action = t_action.cpu().numpy()
-
-                    observation, reward, done, info = self.eval_env.step(action)
-                    self.eval_dataset.add(
-                        action=action,
-                        reward=reward,
-                        next_observation=observation,
-                        discount=1.0 - done,
-                        done=done,
-                    )
-
-                    step_metrics = {
-                        metric: value
-                        for metric, value in info.items()
-                        if metric in metrics.METRIC_AGGREGATION_FNS
-                    }
-                    step_metrics["reward"] = reward
-                    step_metrics["length"] = 1
-                    step_metrics_list.append(step_metrics)
-
-                episode_metrics = metrics.aggregate_metrics(step_metrics_list)
-                metrics_list.append(episode_metrics)  # type: ignore
+                episode_metrics = self.evaluate_step()
+                metrics_list.append(episode_metrics)
                 pbar.set_postfix({self.eval_metric: episode_metrics[self.eval_metric]})
 
             self.eval_dataset.save()
@@ -337,3 +303,47 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         self._reset_collect = True
 
         return metrics_list
+
+    def evaluate_step(self) -> Dict[str, Union[Scalar, np.ndarray]]:
+        """Performs a single evaluation step.
+
+        Returns:
+            Dict of eval metrics for one episode.
+        """
+        observation = self.eval_env.reset()
+        assert isinstance(observation, np.ndarray)
+        self.eval_dataset.add(observation=observation)
+
+        step_metrics_list = []
+        done = False
+        while not done:
+            with torch.no_grad():
+                t_observation = tensors.from_numpy(observation, self.device)
+                if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
+                    t_observation = tensors.rgb_to_cnn(t_observation)
+                t_action = self.agent.actor.predict(
+                    self.agent.encoder.encode(t_observation)
+                )
+                action = t_action.cpu().numpy()
+
+            observation, reward, done, info = self.eval_env.step(action)
+            self.eval_dataset.add(
+                action=action,
+                reward=reward,
+                next_observation=observation,
+                discount=1.0 - done,
+                done=done,
+            )
+
+            step_metrics = {
+                metric: value
+                for metric, value in info.items()
+                if metric in metrics.METRIC_AGGREGATION_FNS
+            }
+            step_metrics["reward"] = reward
+            step_metrics["length"] = 1
+            step_metrics_list.append(step_metrics)
+
+        episode_metrics = metrics.aggregate_metrics(step_metrics_list)
+
+        return episode_metrics
