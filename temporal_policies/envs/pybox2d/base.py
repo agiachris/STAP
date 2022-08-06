@@ -216,7 +216,7 @@ class Box2DBase(base.Env, Generator):
         obs, reward, terminated, truncated, info = self.simulate()
         self._steps += 1
         if self._steps >= self._max_episode_steps:
-            terminated = False
+            terminated = True
             truncated = False
             info["success"] = info.get("success", False)
         return obs, reward, terminated, truncated, info

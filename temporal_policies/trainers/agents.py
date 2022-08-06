@@ -259,7 +259,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         metrics_list = []
         for _ in pbar:
             collect_metrics = self.collect_step(random=True)
-            pbar.set_postfix({self.eval_metric: collect_metrics[self.eval_metric]})
+            if collect_metrics:
+                pbar.set_postfix({self.eval_metric: collect_metrics[self.eval_metric]})
 
             metrics_list.append(collect_metrics)
             metrics_list = self.log_step(metrics_list, stage="pretrain")
