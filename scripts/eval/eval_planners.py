@@ -92,8 +92,8 @@ def evaluate_planners(
         )
 
         if verbose:
-            print("success:", rewards.prod())
-            print("predicted success:", plan.p_success)
+            print("success:", rewards.prod(), rewards)
+            print("predicted success:", plan.p_success, plan.values)
             print(plan.actions)
             print("time:", t_planner)
 

@@ -76,7 +76,7 @@ class ShootingPlanner(planners.Planner):
                 )
                 for primitive in action_skeleton
             ]
-            p_success = utils.evaluate_trajectory(
+            p_success, t_values = utils.evaluate_trajectory(
                 value_fns, decode_fns, t_states, t_actions, p_transitions
             )
 
@@ -84,6 +84,7 @@ class ShootingPlanner(planners.Planner):
         actions = t_actions.cpu().numpy()
         states = t_states.cpu().numpy()
         p_success = p_success.cpu().numpy()
+        values = t_values.cpu().numpy()
 
         # Select best trajectory.
         idx_best = p_success.argmax()
@@ -92,7 +93,9 @@ class ShootingPlanner(planners.Planner):
             actions=actions[idx_best],
             states=states[idx_best],
             p_success=p_success[idx_best],
+            values=values[idx_best],
             visited_actions=actions,
             visited_states=states,
             p_visited_success=p_success,
+            visited_values=values,
         )

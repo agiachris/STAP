@@ -14,9 +14,11 @@ class PlanningResult:
     actions: np.ndarray  # [T, dim_actions]
     states: np.ndarray  # [T+1, dim_states]
     p_success: float
+    values: np.ndarray  # [T]
     visited_actions: np.ndarray  # [num_visited, T, dim_actions]
     visited_states: np.ndarray  # [num_visited, T+1, dim_states]
     p_visited_success: np.ndarray  # [num_visited]
+    visited_values: np.ndarray  # [num_visited, T]
 
 
 class Planner(abc.ABC):

@@ -16,11 +16,11 @@ function eval_planner {
     args=""
     args="${args} --planner-config ${PLANNER_CONFIG}"
     args="${args} --env-config ${ENV_CONFIG}"
-    if [ ! -z "${POLICY_CHECKPOINTS}" ]; then
-        args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS}"
+    if [ ${#POLICY_CHECKPOINTS[@]} -gt 0 ]; then
+        args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS[@]}"
     fi
-    if [ ! -z "${SCOD_CHECKPOINTS}" ]; then
-        args="${args} --scod-checkpoints ${SCOD_CHECKPOINTS}"
+    if [ ${#SCOD_CHECKPOINTS[@]} -gt 0 ]; then
+        args="${args} --scod-checkpoints ${SCOD_CHECKPOINTS[@]}"
     fi
     if [ ! -z "${DYNAMICS_CHECKPOINT}" ]; then
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
@@ -45,24 +45,20 @@ function run_planners {
 
         POLICY_CHECKPOINTS=()
         for policy_env in "${POLICY_ENVS[@]}"; do
-            POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${ckpt}.pt")
+            POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${ckpt}.pt")
         done
-        POLICY_CHECKPOINTS="${POLICY_CHECKPOINTS[@]}"
 
+        SCOD_CHECKPOINTS=()
         if [[ "${planner}" == *scod_value* ]]; then
-            SCOD_CHECKPOINTS=()
             for policy_env in "${POLICY_ENVS[@]}"; do
                 SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${policy_env}/scod/final_scod.pt")
             done
-            SCOD_CHECKPOINTS="${SCOD_CHECKPOINTS[@]}"
-        else
-            SCOD_CHECKPOINTS=""
         fi
 
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
         else
-            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${ckpt}/final_model.pt"
+            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/dynamics/final_model.pt"
         fi
 
         eval_planner
@@ -122,14 +118,14 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220728/workspace"
+exp_name="20220806/workspace"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENV_CONFIG="configs/pybullet/envs/workspace.yaml"
 POLICY_ENVS=("pick" "place" "pull")
 checkpoints=(
     "final_model"
-    "best_model"
-    "ckpt_model_50000"
+    # "best_model"
+    # "ckpt_model_50000"
 )
 
 # Run planners.

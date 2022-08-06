@@ -39,18 +39,18 @@ output_path="models"
 
 # Experiments.
 
-# exp_name="20220721/pybox2d"
+# exp_name="20220806/pybox2d"
 # TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
 # DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
 # policy_envs=("placeright" "pushleft")
 # checkpoints=(
 #     "final_model"
-#     "best_model"
-#     "ckpt_model_50000"
-#     "ckpt_model_100000"
+#     # "best_model"
+#     # "ckpt_model_50000"
+#     # "ckpt_model_100000"
 # )
 
-exp_name="20220805/workspace"
+exp_name="20220806/workspace"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 policy_envs=("pick" "place" "pull")
@@ -60,17 +60,6 @@ checkpoints=(
     # "ckpt_model_50000"
     # "ckpt_model_100000"
 )
-
-# exp_name="20220806/workspace"
-# TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
-# DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
-# policy_envs=("pick" "place" "pull")
-# checkpoints=(
-#     "final_model"
-#     # "best_model"
-#     # "ckpt_model_50000"
-#     # "ckpt_model_100000"
-# )
 
 for ckpt in "${checkpoints[@]}"; do
     POLICY_CHECKPOINTS=()
