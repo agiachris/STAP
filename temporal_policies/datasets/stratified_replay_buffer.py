@@ -136,6 +136,10 @@ class StratifiedReplayBuffer(ReplayBuffer):
         stratified_batches = []
         for idx_replay_buffer, batch in enumerate(batches):
             if batch is None:
+                print(
+                    "[temporal_policies.datasets.StratifiedReplayBuffer.sample]: "
+                    f"WARNING: Batch {idx_replay_buffer} is empty."
+                )
                 continue
             assert isinstance(batch["action"], np.ndarray)
             stratified_batch = WrappedBatch(
