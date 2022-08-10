@@ -26,6 +26,7 @@ function eval_planner {
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
     args="${args} --seed 0"
+    args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 1"
         args="${args} --path ${PLANNER_OUTPUT_PATH}_debug"
@@ -127,6 +128,9 @@ checkpoints=(
     # "best_model"
     # "ckpt_model_50000"
 )
+if [[ `hostname` == "sc.stanford.edu" ]]; then
+    ENV_KWARGS="--gui 0"
+fi
 
 # Run planners.
 POLICY_INPUT_PATH="${input_path}/${exp_name}"
