@@ -42,7 +42,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         return f"{policy.capitalize()} {planner}"
 
     def get_value_label(method: str) -> str:
-        if method in ("random", "greedy", "greedy_oracle_dynamics"):
+        if method in ("random"):
             return "NA"
 
         tokens = method.split("_")
@@ -60,7 +60,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         return "Q-value"
 
     def get_dynamics_label(method: str) -> str:
-        if method in ("random", "greedy", "greedy_oracle_dynamics"):
+        if method in ("random"):
             return "NA"
 
         tokens = method.split("_")
@@ -144,7 +144,7 @@ def plot_planning_results(
         try:
             idx_na_value_dynamics = np.where(unique_value_dynamics == "NA / NA")[0][0]
         except IndexError:
-            idx_na_value_dynamics = num_value_dynamics
+            idx_na_value_dynamics = None
         for idx_bar, (bar, line) in enumerate(zip(ax.patches, ax.lines)):
             idx_method = idx_bar % num_methods
             idx_value_dynamics = idx_bar // num_methods
@@ -152,9 +152,9 @@ def plot_planning_results(
             # Compute color.
             # Colors should increase in lightness with idx_value_dynamics,
             # except for the last one, which is NA / NA.
-            if idx_value_dynamics == idx_na_value_dynamics:
-                a = 0
-            elif idx_na_value_dynamics == num_value_dynamics:
+            if idx_value_dynamics == idx_na_value_dynamics or num_value_dynamics == 1:
+                a = 0.0
+            elif idx_na_value_dynamics is None:
                 a = idx_value_dynamics * 0.8 / (num_value_dynamics - 1)
             else:
                 a = idx_value_dynamics * 0.8 / (num_value_dynamics - 2)
@@ -170,7 +170,7 @@ def plot_planning_results(
             # NA / NA bar.
             if idx_value_dynamics == idx_na_value_dynamics:
                 dx = -0.5 * (num_value_dynamics - 1)
-            elif idx_na_value_dynamics == num_value_dynamics:
+            elif idx_na_value_dynamics is None or num_value_dynamics == 1:
                 dx = 0
             else:
                 dx = 0.5
@@ -270,7 +270,7 @@ def plot_planning_results(
     num_value_dynamics = len(unique_value_dynamics)
     patches = [
         matplotlib.patches.Patch(
-            color=np.full(3, 0.4 + i * 0.5 / (num_value_dynamics - 1)),
+            color=np.full(3, 0.4 + i * 0.5 / max(1, num_value_dynamics - 1)),
             label=label,
         )
         for i, label in enumerate(unique_value_dynamics)

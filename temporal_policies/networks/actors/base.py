@@ -19,11 +19,12 @@ class Actor(torch.nn.Module, abc.ABC):
         pass
 
     @abc.abstractmethod
-    def predict(self, state: torch.Tensor) -> torch.Tensor:
+    def predict(self, state: torch.Tensor, sample: bool = False) -> torch.Tensor:
         """Outputs the actor prediction.
 
         Args:
             state: Environment state.
+            sample: Whether to sample from the distribution or return the mode.
 
         Returns:
             Action.

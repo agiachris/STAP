@@ -187,7 +187,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
                         t_observation = tensors.rgb_to_cnn(t_observation)
                     t_action = self.agent.actor.predict(
-                        self.agent.encoder.encode(t_observation)
+                        self.agent.encoder.encode(t_observation), sample=True
                     )
                     action = t_action.cpu().numpy()
                 self.train_mode()
@@ -332,7 +332,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
                     t_observation = tensors.rgb_to_cnn(t_observation)
                 t_action = self.agent.actor.predict(
-                    self.agent.encoder.encode(t_observation)
+                    self.agent.encoder.encode(t_observation, sample=False)
                 )
                 action = t_action.cpu().numpy()
 
@@ -358,6 +358,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             step_metrics["length"] = 1
             step_metrics_list.append(step_metrics)
 
-        episode_metrics = metrics.aggregate_metrics(step_metrics_list)
+        episode_metrics: Dict[str, Union[Scalar, np.ndarray]] = metrics.aggregate_metrics(step_metrics_list)  # type: ignore
 
         return episode_metrics

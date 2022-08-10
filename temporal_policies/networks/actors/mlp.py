@@ -1,19 +1,22 @@
+from typing import Sequence, Type
+
 import gym
 import torch
 
 from temporal_policies.networks.mlp import MLP, weight_init
+from temporal_policies.networks.actors import base
 from temporal_policies.networks.utils import SquashedNormal
 
 
-class ContinuousMLPActor(torch.nn.Module):
+class ContinuousMLPActor(base.Actor):
     def __init__(
         self,
         state_space: gym.spaces.Box,
         action_space: gym.spaces.Box,
-        hidden_layers=[256, 256],
-        act=torch.nn.ReLU,
-        output_act=torch.nn.Tanh,
-        ortho_init=False,
+        hidden_layers: Sequence[int] = [256, 256],
+        act: Type[torch.nn.Module] = torch.nn.ReLU,
+        output_act: Type[torch.nn.Module] = torch.nn.Tanh,
+        ortho_init: bool = False,
     ):
         super().__init__()
         self.mlp = MLP(
@@ -26,19 +29,22 @@ class ContinuousMLPActor(torch.nn.Module):
         if ortho_init:
             self.apply(weight_init)
 
-    def forward(self, obs):
-        return self.mlp(obs)
+    def forward(self, state: torch.Tensor) -> torch.distributions.Distribution:
+        return self.mlp(state)
+
+    def predict(self, state: torch.Tensor, sample: bool = False) -> torch.Tensor:
+        return self.mlp(state)
 
 
-class DiagonalGaussianMLPActor(torch.nn.Module):
+class DiagonalGaussianMLPActor(base.Actor):
     def __init__(
         self,
         state_space: gym.spaces.Box,
         action_space: gym.spaces.Box,
-        hidden_layers=[256, 256],
-        act=torch.nn.ReLU,
-        ortho_init=False,
-        log_std_bounds=[-5, 2],
+        hidden_layers: Sequence[int] = [256, 256],
+        act: Type[torch.nn.Module] = torch.nn.ReLU,
+        ortho_init: bool = False,
+        log_std_bounds: Sequence[int] = [-5, 2],
     ):
         super().__init__()
         self.log_std_bounds = log_std_bounds
@@ -58,21 +64,21 @@ class DiagonalGaussianMLPActor(torch.nn.Module):
             float(action_space.high.max()),
         ]
 
-    def forward(self, obs):
-        mu, log_std = self.mlp(obs).chunk(2, dim=-1)
+    def forward(self, state: torch.Tensor) -> torch.distributions.Distribution:
+        mu, log_std = self.mlp(state).chunk(2, dim=-1)
         if self.log_std_bounds is not None:
             log_std = torch.tanh(log_std)
             log_std_min, log_std_max = self.log_std_bounds
             log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
-            dist_class = SquashedNormal
+            dist_class: Type[torch.distributions.Distribution] = SquashedNormal
         else:
             dist_class = torch.distributions.Normal
         std = log_std.exp()
         dist = dist_class(mu, std)
         return dist
 
-    def predict(self, obs, sample=False):
-        dist = self(obs)
+    def predict(self, state: torch.Tensor, sample: bool = False) -> torch.Tensor:
+        dist = self(state)
         if sample:
             action = dist.sample()
         else:
