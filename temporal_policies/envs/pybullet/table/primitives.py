@@ -1,9 +1,10 @@
 import abc
-from typing import Dict, List, NamedTuple, Type
+from typing import Callable, Dict, List, NamedTuple, Type
 
 from ctrlutils import eigen
 import gym
 import numpy as np
+import pybullet as p
 import symbolic
 
 from temporal_policies.envs import base as envs
@@ -38,6 +39,14 @@ def is_upright(quat: np.ndarray) -> bool:
     return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= 0.99
 
 
+def is_within_distance(
+    body_id_a: int, body_id_b: int, distance: float, physics_id: int
+) -> bool:
+    return bool(
+        p.getClosestPoints(body_id_a, body_id_b, distance, physicsClientId=physics_id)
+    )
+
+
 class ExecutionResult(NamedTuple):
     """Return tuple from Primitive.execute()."""
 
@@ -52,12 +61,18 @@ class Primitive(envs.Primitive, abc.ABC):
     Action: Type[primitive_actions.PrimitiveAction]
 
     @abc.abstractmethod
-    def execute(self, action: np.ndarray, robot: robot.Robot) -> ExecutionResult:
+    def execute(
+        self,
+        action: np.ndarray,
+        robot: robot.Robot,
+        wait_until_stable_fn: Callable[[], int],
+    ) -> ExecutionResult:
         """Executes the primitive.
 
         Args:
             action: Normalized action (inside action_space, not action_scale).
             robot: Robot to control.
+            wait_until_stable_fn: Function to run sim until environment is stable.
         Returns:
             (success, truncated) 2-tuple.
         """
@@ -93,9 +108,15 @@ class Pick(Primitive):
 
     @classmethod
     def compute_pick_height(cls, obj: objects.Object):
-        return obj.size[2] + 0.15
+        LIFT_HEIGHT = 0.15
+        return obj.size[2] + LIFT_HEIGHT
 
-    def execute(self, action: np.ndarray, robot: robot.Robot) -> ExecutionResult:
+    def execute(
+        self,
+        action: np.ndarray,
+        robot: robot.Robot,
+        wait_until_stable_fn: Callable[[], int],
+    ) -> ExecutionResult:
         # Parse action.
         a = primitive_actions.PickAction(self.scale_action(action))
         dbprint(a)
@@ -137,13 +158,22 @@ class Place(Primitive):
     action_scale = gym.spaces.Box(*primitive_actions.PlaceAction.range())
     Action = primitive_actions.PlaceAction
 
-    def execute(self, action: np.ndarray, robot: robot.Robot) -> ExecutionResult:
+    def execute(
+        self,
+        action: np.ndarray,
+        robot: robot.Robot,
+        wait_until_stable_fn: Callable[[], int],
+    ) -> ExecutionResult:
+        MAX_DROP_DISTANCE = 0.05
+
         # Parse action.
         a = primitive_actions.PlaceAction(self.scale_action(action))
         dbprint(a)
 
-        # Get target pose.
+        obj: objects.Object = self.policy_args[0]  # type: ignore
         target: objects.Object = self.policy_args[1]  # type: ignore
+
+        # Get target pose.
         target_pose = target.pose()
         target_quat = eigen.Quaterniond(target_pose.quat)
 
@@ -157,13 +187,21 @@ class Place(Primitive):
         try:
             robot.goto_pose(pre_pos, command_quat)
             robot.goto_pose(command_pos, command_quat)
+
+            # Make sure object won't drop from too high.
+            if not is_within_distance(
+                obj.body_id, target.body_id, MAX_DROP_DISTANCE, robot.physics_id
+            ):
+                raise ControlException
+
             robot.grasp(0)
             robot.goto_pose(pre_pos, command_quat)
         except ControlException:
             # If robot fails before grasp(0), object may still be grasped.
             return ExecutionResult(success=False, truncated=True)
 
-        obj: objects.Object = self.policy_args[0]  # type: ignore
+        wait_until_stable_fn()
+
         obj_pose = obj.pose()
         if not is_upright(obj_pose.quat) or not is_above(obj.aabb(), target.aabb()):
             return ExecutionResult(success=False, truncated=False)
@@ -185,7 +223,12 @@ class Pull(Primitive):
     action_scale = gym.spaces.Box(*primitive_actions.PullAction.range())
     Action = primitive_actions.PullAction
 
-    def execute(self, action: np.ndarray, robot: robot.Robot) -> ExecutionResult:
+    def execute(
+        self,
+        action: np.ndarray,
+        robot: robot.Robot,
+        wait_until_stable_fn: Callable[[], int],
+    ) -> ExecutionResult:
         PULL_HEIGHT = 0.03
         MIN_PULL_DISTANCE = 0.01
 
@@ -241,6 +284,8 @@ class Pull(Primitive):
             robot.goto_pose(post_pos, command_pose_pull.quat)
         except ControlException:
             return ExecutionResult(success=False, truncated=True)
+
+        wait_until_stable_fn()
 
         new_target_pose = target.pose()
         if not is_upright(new_target_pose.quat):

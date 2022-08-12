@@ -231,7 +231,7 @@ def evaluate_plan(
 
     Args:
         env: Sequential env.
-        action_skeleton: List of (idx_policy, policy_args) 2-tuples.
+        action_skeleton: List of primitives.
         state: Initial state.
         actions: Planned actions [T, A].
         gif_path: Optional path to save a rendered gif.
