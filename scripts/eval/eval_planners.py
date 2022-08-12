@@ -6,7 +6,8 @@ import numpy as np
 import tqdm
 
 from temporal_policies import dynamics, envs, planners
-from temporal_policies.utils import random, recording, spaces, timing
+from temporal_policies.envs.pybullet.table import primitives as table_primitives
+from temporal_policies.utils import random, recording, timing
 
 import eval_pybox2d_planners as pybox2d
 
@@ -19,10 +20,8 @@ def scale_actions(
     scaled_actions = actions.copy()
     for t, primitive in enumerate(action_skeleton):
         action_dims = primitive.action_space.shape[0]
-        scaled_actions[..., t, :action_dims] = spaces.transform(
-            actions[..., t, :action_dims],
-            from_space=primitive.action_space,
-            to_space=primitive.action_scale,
+        scaled_actions[..., t, :action_dims] = primitive.scale_action(
+            actions[..., t, :action_dims]
         )
 
     return scaled_actions
@@ -100,7 +99,15 @@ def evaluate_planners(
         if verbose:
             print("success:", rewards.prod(), rewards)
             print("predicted success:", plan.p_success, plan.values)
-            print(plan.actions)
+            for primitive, action in zip(action_skeleton, plan.actions):
+                if isinstance(primitive, table_primitives.Primitive):
+                    primitive_action = str(primitive.Action(action))
+                    primitive_action = primitive_action.replace("\n", "\n  ")
+                    print(
+                        "-", primitive, primitive_action[primitive_action.find("{") :]
+                    )
+                else:
+                    print("-", primitive, action)
             print("time:", t_planner)
 
         if isinstance(env, envs.pybox2d.Sequential2D):
@@ -130,7 +137,9 @@ def evaluate_planners(
                     env.set_primitive(primitive)
                     env._recording_text = (
                         "Action: ["
-                        + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+                        + ", ".join(
+                            [f"{a:.2f}" for a in primitive.scale_action(action)]
+                        )
                         + "]"
                     )
 
@@ -188,9 +197,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--policy-checkpoints", "-p", nargs="+", help="Policy checkpoints"
     )
-    parser.add_argument(
-        "--scod-checkpoints", "-s", nargs="+", help="SCOD checkpoints"
-    )
+    parser.add_argument("--scod-checkpoints", "-s", nargs="+", help="SCOD checkpoints")
     parser.add_argument("--dynamics-checkpoint", "-d", help="Dynamics checkpoint")
     parser.add_argument("--device", default="auto", help="Torch device")
     parser.add_argument(
