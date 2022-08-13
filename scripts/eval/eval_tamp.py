@@ -217,7 +217,7 @@ def eval_tamp(
                     env.set_observation(predicted_state)
                     recorder.add_frame(frame=env.render())
                 recorder.stop()
-                recorder.save(path / "predicted_trajectory.gif")
+                recorder.save(path / "predicted_trajectory_{i}.gif")
 
         # Save planning results.
         with open(path / f"results_{i}.npz", "wb") as f:

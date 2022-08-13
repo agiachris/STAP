@@ -147,7 +147,7 @@ def evaluate_planners(
                     env.set_observation(predicted_state)
                     recorder.add_frame(frame=env.render())
                 recorder.stop()
-                recorder.save(path / "predicted_trajectory.gif")
+                recorder.save(path / "predicted_trajectory_{i}.gif")
 
         with open(path / f"results_{i}.npz", "wb") as f:
             save_dict = {
