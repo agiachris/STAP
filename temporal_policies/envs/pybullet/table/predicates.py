@@ -3,12 +3,33 @@ from typing import Dict, List, Sequence
 
 from ctrlutils import eigen
 import numpy as np
+import pybullet as p
 import symbolic
 
 from temporal_policies.envs.pybullet.table.objects import Hook, Object
-from temporal_policies.envs.pybullet.table.primitives import is_above, is_upright, Pick
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
+
+
+def is_above(child_aabb: np.ndarray, parent_aabb: np.ndarray) -> bool:
+    return child_aabb[0, 2] > parent_aabb[1, 2] - 0.01
+
+
+def is_upright(quat: np.ndarray) -> bool:
+    aa = eigen.AngleAxisd(eigen.Quaterniond(quat))
+    return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= 0.99
+
+
+def is_within_distance(
+    body_id_a: int, body_id_b: int, distance: float, physics_id: int
+) -> bool:
+    return bool(
+        p.getClosestPoints(body_id_a, body_id_b, distance, physicsClientId=physics_id)
+    )
+
+
+def is_moving(twist: np.ndarray) -> bool:
+    return bool((np.abs(twist) > 0.001).any())
 
 
 @dataclasses.dataclass
@@ -67,7 +88,7 @@ class InWorkspace(Predicate):
         obj = self._get_arg_objects(objects)[0]
         xyz = obj.pose().pos
         distance = float(np.linalg.norm(xyz[:2]))
-        return self.MIN_X < xyz[0] and distance < BeyondWorkspace.WORKSPACE_RADIUS
+        return self.MIN_X < xyz[0] and distance <= BeyondWorkspace.WORKSPACE_RADIUS
 
 
 class IsTippable(Predicate):
@@ -92,8 +113,8 @@ class On(Predicate):
 
         # Generate pose on parent.
         xyz = np.zeros(3)
-        xyz[:2] = np.random.uniform(0.9 * xyz_min[:2], 0.9 * xyz_max[:2])
-        xyz[2] = xyz_max[2] + 0.6 * child_obj.size[2]
+        xyz[:2] = np.random.uniform(xyz_min[:2], xyz_max[:2])
+        xyz[2] = xyz_max[2] + 0.5 * child_obj.size[2] + 0.01
         theta = np.random.uniform(-np.pi / 2, np.pi / 2)
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
         quat = eigen.Quaterniond(aa)
@@ -176,6 +197,8 @@ class Inhand(Predicate):
     def sample(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
+        from temporal_policies.envs.pybullet.table.primitives import compute_lift_height
+
         obj = self._get_arg_objects(objects)[0]
         if obj.is_static:
             return True
@@ -189,10 +212,12 @@ class Inhand(Predicate):
 
         # Generate post-pick pose.
         table_xyz_min, table_xyz_max = objects["table"].aabb()
-        xyz_pick = np.array([0.0, 0.0, Pick.compute_pick_height(obj)])
-        xyz_pick[:2] = np.random.uniform(
-            0.9 * table_xyz_min[:2], 0.9 * table_xyz_max[:2]
-        )
+        table_xyz_min[0] = InWorkspace.MIN_X
+        xyz_pick = np.array([0.0, 0.0, compute_lift_height(obj.size)])
+        for _ in range(100):
+            xyz_pick[:2] = np.random.uniform(table_xyz_min[:2], table_xyz_max[:2])
+            if np.linalg.norm(xyz_pick[:2]) <= BeyondWorkspace.WORKSPACE_RADIUS:
+                break
         theta = np.random.uniform(-np.pi / 2, np.pi / 2)
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
 

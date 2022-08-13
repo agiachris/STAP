@@ -1,7 +1,7 @@
 import dataclasses
 import enum
 import pathlib
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import gym
 import numpy as np
@@ -309,7 +309,7 @@ class TableEnv(PybulletEnv):
             ):
                 continue
 
-            self.wait_until_stable(1)
+            self.wait_until_stable(min_iters=1)
 
             if all(
                 prop.value(self.robot, self.objects, self.initial_state)
@@ -345,10 +345,9 @@ class TableEnv(PybulletEnv):
         self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)
     ) -> int:
         def is_any_object_moving() -> bool:
-            for obj in self.objects.values():
-                if (np.abs(obj.twist()) > 0.001).any():
-                    return True
-            return False
+            return any(
+                predicates.is_moving(obj.twist()) for obj in self.objects.values()
+            )
 
         num_iters = 0
         while num_iters < max_iters and (

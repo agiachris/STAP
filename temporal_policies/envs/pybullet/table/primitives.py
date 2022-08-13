@@ -4,13 +4,12 @@ from typing import Callable, Dict, List, NamedTuple, Type
 from ctrlutils import eigen
 import gym
 import numpy as np
-import pybullet as p
 import symbolic
 
 from temporal_policies.envs import base as envs
 from temporal_policies.envs.pybullet.sim import robot, math
 from temporal_policies.envs.pybullet.sim.robot import ControlException
-from temporal_policies.envs.pybullet.table import objects, primitive_actions
+from temporal_policies.envs.pybullet.table import objects, predicates, primitive_actions
 
 dbprint = lambda *args: None  # noqa
 # dbprint = print
@@ -30,21 +29,9 @@ def compute_top_down_orientation(
     return command_quat
 
 
-def is_above(child_aabb: np.ndarray, parent_aabb: np.ndarray) -> bool:
-    return child_aabb[0, 2] > parent_aabb[1, 2] - 0.01
-
-
-def is_upright(quat: np.ndarray) -> bool:
-    aa = eigen.AngleAxisd(eigen.Quaterniond(quat))
-    return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= 0.99
-
-
-def is_within_distance(
-    body_id_a: int, body_id_b: int, distance: float, physics_id: int
-) -> bool:
-    return bool(
-        p.getClosestPoints(body_id_a, body_id_b, distance, physicsClientId=physics_id)
-    )
+def compute_lift_height(obj_size: np.ndarray) -> float:
+    LIFT_HEIGHT = 0.15
+    return obj_size[2] + LIFT_HEIGHT
 
 
 class ExecutionResult(NamedTuple):
@@ -106,11 +93,6 @@ class Pick(Primitive):
     action_scale = gym.spaces.Box(*primitive_actions.PickAction.range())
     Action = primitive_actions.PickAction
 
-    @classmethod
-    def compute_pick_height(cls, obj: objects.Object):
-        LIFT_HEIGHT = 0.15
-        return obj.size[2] + LIFT_HEIGHT
-
     def execute(
         self,
         action: np.ndarray,
@@ -132,7 +114,7 @@ class Pick(Primitive):
         # Compute orientation.
         command_quat = compute_top_down_orientation(a.theta.item(), obj_quat)
 
-        pre_pos = np.append(command_pos[:2], self.compute_pick_height(obj))
+        pre_pos = np.append(command_pos[:2], compute_lift_height(obj.size))
         try:
             robot.goto_pose(pre_pos, command_quat)
             robot.goto_pose(command_pos, command_quat)
@@ -183,13 +165,15 @@ class Place(Primitive):
         # Compute orientation.
         command_quat = compute_top_down_orientation(a.theta.item(), target_quat)
 
-        pre_pos = np.append(command_pos[:2], target.aabb()[1, 2] + 0.1)
+        pre_pos = np.append(
+            command_pos[:2], command_pos[2] + compute_lift_height(obj.size)
+        )
         try:
             robot.goto_pose(pre_pos, command_quat)
             robot.goto_pose(command_pos, command_quat)
 
             # Make sure object won't drop from too high.
-            if not is_within_distance(
+            if not predicates.is_within_distance(
                 obj.body_id, target.body_id, MAX_DROP_DISTANCE, robot.physics_id
             ):
                 raise ControlException
@@ -203,7 +187,9 @@ class Place(Primitive):
         wait_until_stable_fn()
 
         obj_pose = obj.pose()
-        if not is_upright(obj_pose.quat) or not is_above(obj.aabb(), target.aabb()):
+        if not predicates.is_upright(obj_pose.quat) or not predicates.is_above(
+            obj.aabb(), target.aabb()
+        ):
             return ExecutionResult(success=False, truncated=False)
 
         return ExecutionResult(success=True, truncated=False)
@@ -269,12 +255,12 @@ class Pull(Primitive):
         command_pose_reach = math.Pose.from_eigen(T_reach_to_world)
         command_pose_pull = math.Pose.from_eigen(T_pull_to_world)
 
-        pre_pos = np.append(command_pose_reach.pos[:2], target.aabb()[1, 2] + 0.1)
-        post_pos = np.append(command_pose_pull.pos[:2], target.aabb()[1, 2] + 0.1)
+        pre_pos = np.append(command_pose_reach.pos[:2], compute_lift_height(hook.size))
+        post_pos = np.append(command_pose_pull.pos[:2], compute_lift_height(hook.size))
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             robot.goto_pose(command_pose_reach.pos, command_pose_reach.quat)
-            if not is_upright(target.pose().quat):
+            if not predicates.is_upright(target.pose().quat):
                 raise ControlException
             robot.goto_pose(
                 command_pose_pull.pos,
@@ -288,7 +274,7 @@ class Pull(Primitive):
         wait_until_stable_fn()
 
         new_target_pose = target.pose()
-        if not is_upright(new_target_pose.quat):
+        if not predicates.is_upright(new_target_pose.quat):
             return ExecutionResult(success=False, truncated=False)
 
         new_target_distance = np.linalg.norm(new_target_pose.pos[:2])
