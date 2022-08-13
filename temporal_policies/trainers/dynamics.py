@@ -24,6 +24,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         dataset_class: Union[str, Type[datasets.StratifiedReplayBuffer]],
         dataset_kwargs: Dict[str, Any],
         skip_truncated: bool = True,
+        skip_failed: bool = True,
         processor_class: Union[
             str, Type[processors.Processor]
         ] = processors.IdentityProcessor,
@@ -55,6 +56,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
             skip_truncated: Whether to skip truncated episodes.
+            skip_failed: Whether to skip failed episodes.
             processor_class: Batch data processor calss.
             processor_kwargs: Kwargs for processor.
             optimizer_class: Dynamics model optimizer class.
@@ -101,6 +103,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                     dataset_kwargs=dict(
                         agent_trainer_factory.kwargs["dataset_kwargs"],
                         skip_truncated=skip_truncated,
+                        skip_failed=skip_failed,
                     ),
                     eval_dataset_kwargs=None
                     if "eval_dataset_kwargs" not in agent_trainer_factory.kwargs
@@ -108,6 +111,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                     else dict(
                         agent_trainer_factory.kwargs["eval_dataset_kwargs"],
                         skip_truncated=skip_truncated,
+                        skip_failed=skip_failed,
                     ),
                 )
                 assert isinstance(agent_trainer, AgentTrainer)

@@ -50,6 +50,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         nstep: int = 1,
         save_frequency: Optional[int] = None,
         skip_truncated: bool = False,
+        skip_failed: bool = False,
     ):
         """Stores the configuration parameters for the replay buffer.
 
@@ -68,6 +69,9 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             skip_truncated: Whether to mark truncated episodes as invalid when
                 adding to the replay buffer. If true, truncated episodes won't
                 be sampled.
+            skip_failed: Whether to mark reward < 1 episodes as invalid when
+                adding to the replay buffer. If true, failed episodes won't be
+                sampled.
         """
         self._observation_space = observation_space
         self._action_space = action_space
@@ -87,6 +91,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self._save_frequency = save_frequency
 
         self._skip_truncated = skip_truncated
+        self._skip_failed = skip_failed
 
         # if self.path is not None and self.path.exists():
         #     if num_load_entries is None:
@@ -309,6 +314,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         batch_terminated = _wrap_get(self.worker_buffers["terminated"], idx_batch)
         batch_truncated = _wrap_get(self.worker_buffers["truncated"], idx_batch)
         batch_discount = _wrap_get(self.worker_buffers["discount"], idx_batch)
+        batch_reward = _wrap_get(self.worker_buffers["reward"], idx_batch)
         batch_done = batch_terminated | batch_truncated
         batch_valid = np.zeros_like(batch_done)
 
@@ -320,6 +326,8 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         if self._skip_truncated:
             # Skip entire episodes if truncated.
             idx_skip |= batch_truncated
+        if self._skip_failed:
+            idx_skip |= (batch_reward < 1.0) & batch_done
         # done:           0 1 0 1
         # begin:          1 0 1 0
         # truncated:      0 0 0 1
