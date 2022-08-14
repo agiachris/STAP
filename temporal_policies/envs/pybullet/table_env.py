@@ -346,7 +346,8 @@ class TableEnv(PybulletEnv):
     ) -> int:
         def is_any_object_moving() -> bool:
             return any(
-                predicates.is_moving(obj.twist()) for obj in self.objects.values()
+                not obj.is_static and predicates.is_moving(obj.twist())
+                for obj in self.objects.values()
             )
 
         num_iters = 0

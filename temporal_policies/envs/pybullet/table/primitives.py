@@ -242,7 +242,7 @@ class Pull(Primitive):
         # Compute position.
         pos_reach = np.array([a.r_reach, a.y, 0.0])
         hook_pos_reach = target_pos + reach_quat * pos_reach
-        pos_pull = np.array([a.r_reach - a.r_pull, a.y, 0.0])
+        pos_pull = np.array([a.r_reach + a.r_pull, a.y, 0.0])
         hook_pos_pull = target_pos + reach_quat * pos_pull
 
         # Compute orientation.
@@ -285,7 +285,7 @@ class Pull(Primitive):
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         # Handle.
-        return primitive_actions.PullAction(r_reach=-0.1, r_pull=0.2, y=0.0, theta=0.0)
+        return primitive_actions.PullAction(r_reach=-0.1, r_pull=-0.2, y=0.0, theta=0.0)
 
         # Head.
         # return primitive_actions.PullAction(r_reach=0.0, r_pull=0.2, y=0.0, theta=np.pi/2)

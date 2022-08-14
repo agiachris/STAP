@@ -26,10 +26,10 @@ class PrimitiveAction:
 
 class PickAction(PrimitiveAction):
     RANGES = [
-        ("x", -0.1, 0.2),
+        ("x", -0.2, 0.2),
         ("y", -0.1, 0.1),
         ("z", -0.05, 0.05),
-        ("theta", -np.pi, np.pi),
+        ("theta", -0.25 * np.pi, 0.75 * np.pi),
     ]
 
     def __init__(
@@ -66,10 +66,10 @@ class PickAction(PrimitiveAction):
 
 class PlaceAction(PrimitiveAction):
     RANGES = [
-        ("x", -0.3, 0.9),
-        ("y", -0.5, 0.5),
-        ("z", -0.05, 0.1),
-        ("theta", -np.pi, np.pi),
+        ("x", -0.2, 0.8),
+        ("y", -0.4, 0.4),
+        ("z", 0.0, 0.1),
+        ("theta", -0.25 * np.pi, 0.75 * np.pi),
     ]
 
     def __init__(
@@ -106,10 +106,10 @@ class PlaceAction(PrimitiveAction):
 
 class PullAction(PrimitiveAction):
     RANGES = [
-        ("r_reach", -0.4, 0.0),
-        ("r_pull", 0.0, 0.4),
-        ("y", -0.1, 0.1),
-        ("theta", -np.pi, np.pi),
+        ("r_reach", -0.2, 0.0),
+        ("r_pull", -0.4, -0.1),
+        ("y", -0.01, 0.01),
+        ("theta", -0.5 * np.pi, 0.5 * np.pi),
     ]
 
     def __init__(
