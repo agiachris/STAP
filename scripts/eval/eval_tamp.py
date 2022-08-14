@@ -246,6 +246,7 @@ def eval_tamp(
                     motion_plans[idx_best].actions, env, task_plans[idx_best]
                 ),
                 "p_success": motion_plans[idx_best].p_success,
+                "values": motion_plans[idx_best].values,
                 "rewards": rewards,
                 "visited_actions": motion_plans[idx_best].visited_actions,
                 "scaled_visited_actions": scale_actions(
@@ -253,6 +254,7 @@ def eval_tamp(
                 ),
                 "visited_states": motion_plans[idx_best].visited_states,
                 "p_visited_success": motion_plans[idx_best].p_visited_success,
+                "visited_values": motion_plans[idx_best].visited_values,
                 "t_task_planner": t_task_planner,
                 "t_motion_planner": t_motion_planner,
                 "discarded": [
@@ -264,12 +266,14 @@ def eval_tamp(
                             motion_plans[i].actions, env, task_plans[i]
                         ),
                         "p_success": motion_plans[i].p_success,
+                        "values": motion_plans[i].values,
                         "visited_actions": motion_plans[i].visited_actions,
                         "scaled_visited_actions": scale_actions(
                             motion_plans[i].visited_actions, env, action_skeleton
                         ),
                         "visited_states": motion_plans[i].visited_states,
                         "p_visited_success": motion_plans[i].p_visited_success,
+                        "visited_values": motion_plans[i].visited_values,
                     }
                     for i in range(len(task_plans))
                     if i != idx_best

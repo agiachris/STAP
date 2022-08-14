@@ -169,6 +169,7 @@ def evaluate_planners(
                 "states": plan.states,
                 "scaled_actions": scale_actions(plan.actions, env, action_skeleton),
                 "p_success": plan.p_success,
+                "values": plan.values,
                 "rewards": rewards,
                 "visited_actions": plan.visited_actions,
                 "scaled_visited_actions": scale_actions(
@@ -176,6 +177,7 @@ def evaluate_planners(
                 ),
                 "visited_states": plan.visited_states,
                 "p_visited_success": plan.p_visited_success,
+                "visited_values": plan.visited_values,
                 "t_planner": t_planner,
             }
             if isinstance(env, envs.pybox2d.Sequential2D):
