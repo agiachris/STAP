@@ -32,6 +32,10 @@ def is_moving(twist: np.ndarray) -> bool:
     return bool((np.abs(twist) > 0.001).any())
 
 
+def is_below_table(pos: np.ndarray) -> bool:
+    return pos[2] < 0.0
+
+
 @dataclasses.dataclass
 class Predicate:
     args: List[str]

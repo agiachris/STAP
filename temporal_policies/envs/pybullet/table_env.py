@@ -311,6 +311,9 @@ class TableEnv(PybulletEnv):
 
             self.wait_until_stable(min_iters=1)
 
+            if self._is_any_object_below_table():
+                continue
+
             if all(
                 prop.value(self.robot, self.objects, self.initial_state)
                 for prop in self.initial_state
@@ -341,6 +344,12 @@ class TableEnv(PybulletEnv):
         terminated = not result.truncated
         return obs, reward, terminated, result.truncated, {}
 
+    def _is_any_object_below_table(self) -> bool:
+        return any(
+            not obj.is_static and predicates.is_below_table(obj.pose().pos)
+            for obj in self.objects.values()
+        )
+
     def wait_until_stable(
         self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)
     ) -> int:
@@ -351,8 +360,10 @@ class TableEnv(PybulletEnv):
             )
 
         num_iters = 0
-        while num_iters < max_iters and (
-            num_iters < min_iters or is_any_object_moving()
+        while (
+            num_iters < max_iters
+            and (num_iters < min_iters or is_any_object_moving())
+            and not self._is_any_object_below_table()
         ):
             self.robot.arm.update_torques()
             self.robot.gripper.update_torques()
