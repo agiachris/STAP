@@ -23,6 +23,11 @@ class PrimitiveAction:
     def range(cls) -> np.ndarray:
         return np.array([r[1:3] for r in cls.RANGES], dtype=np.float32).T
 
+    @classmethod
+    def random(cls):
+        r = cls.range()
+        return cls(np.random.uniform(r[0], r[1]))
+
 
 class PickAction(PrimitiveAction):
     RANGES = [

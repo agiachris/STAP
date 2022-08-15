@@ -1,4 +1,5 @@
 import abc
+import random
 from typing import Callable, Dict, List, NamedTuple, Type
 
 from ctrlutils import eigen
@@ -64,6 +65,15 @@ class Primitive(envs.Primitive, abc.ABC):
             (success, truncated) 2-tuple.
         """
 
+    def sample(self) -> np.ndarray:
+        if random.random() < 0.9:
+            action = self.normalize_action(self.sample_action().vector)
+            action = np.random.normal(loc=action, scale=0.05)
+            action = action.clip(self.action_space.low, self.action_space.high)
+            return action
+        else:
+            return super().sample()
+
     @abc.abstractmethod
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         pass
@@ -128,11 +138,31 @@ class Pick(Primitive):
         return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
-        if self.policy_args[0].isinstance(objects.Hook):
-            pos = np.array([-0.1, -0.1, 0.0])
+        obj = self.policy_args[0]
+        if obj.isinstance(objects.Hook):
+            pos_handle, pos_head, _ = objects.Hook.compute_link_positions(
+                obj.head_length, obj.handle_length, obj.handle_y, obj.radius
+            )
+            action_range = self.Action.range()
+            if random.random() < obj.handle_length / (
+                obj.handle_length + obj.head_length
+            ):
+                # Handle.
+                random_x = np.random.uniform(*action_range[:, 0])
+                pos = np.array([random_x, pos_handle[1], 0])
+                theta = 0.0
+            else:
+                # Head.
+                random_y = np.random.uniform(*action_range[:, 1])
+                pos = np.array([pos_head[0], random_y, 0])
+                theta = np.pi / 2
+        elif obj.isinstance(objects.Box):
+            pos = np.array([0.0, 0.0, 0.0])
+            theta = 0.0 if random.random() <= 0.5 else np.pi / 2
         else:
             pos = np.array([0.0, 0.0, 0.0])
-        return primitive_actions.PickAction(pos=pos, theta=0.0)
+            theta = 0.0
+        return primitive_actions.PickAction(pos=pos, theta=theta)
 
 
 class Place(Primitive):
@@ -195,9 +225,21 @@ class Place(Primitive):
         return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
-        return primitive_actions.PlaceAction(
-            pos=np.array([0.4, 0.0, self.policy_args[0].size[2]]), theta=0.0
-        )
+        action = self.Action.random()
+
+        obj = self.policy_args[0]
+        z_gripper = compute_lift_height(obj.size)
+        z_obj = obj.pose().pos[2]
+        action.pos[2] = z_gripper - z_obj + 0.5 * obj.size[2]
+
+        action_range = action.range()
+        action.pos[2] = np.clip(action.pos[2], action_range[0, 2], action_range[1, 2])
+
+        return action
+
+        # return primitive_actions.PlaceAction(
+        #     pos=np.array([0.4, 0.0, self.policy_args[0].size[2]]), theta=0.0
+        # )
 
     @classmethod
     def action(cls, action: np.ndarray) -> primitive_actions.PrimitiveAction:
@@ -284,8 +326,18 @@ class Pull(Primitive):
         return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
+        action = self.Action.random()
+
+        obj, hook = self.policy_args
+        obj_halfsize = 0.5 * np.linalg.norm(obj.size[:2])
+        collision_length = 0.5 * hook.size[0] - 2 * hook.radius - obj_halfsize
+        action.r_reach = -collision_length
+        action.theta = 0.125 * np.pi
+
+        return action
+
         # Handle.
-        return primitive_actions.PullAction(r_reach=-0.1, r_pull=-0.2, y=0.0, theta=0.0)
+        # return primitive_actions.PullAction(r_reach=-0.1, r_pull=-0.2, y=0.0, theta=0.0)
 
         # Head.
         # return primitive_actions.PullAction(r_reach=0.0, r_pull=0.2, y=0.0, theta=np.pi/2)

@@ -177,7 +177,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 self._episode_reward = 0.0
 
             if random:
-                action = self.agent.action_space.sample()
+                action = self.env.get_primitive().sample()
             else:
                 self.eval_mode()
                 with torch.no_grad():

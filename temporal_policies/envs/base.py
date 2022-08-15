@@ -36,6 +36,9 @@ class Primitive:
             action, from_space=cls.action_scale, to_space=cls.action_space
         )
 
+    def sample(self) -> np.ndarray:
+        return self.action_space.sample()
+
     def __str__(self) -> str:
         args = "" if self.policy_args is None else ", ".join(map(str, self.policy_args))
         return f"{type(self).__name__}({args})"
