@@ -20,6 +20,7 @@ function train_dynamics {
         args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS[@]}"
     fi
     args="${args} --seed 0"
+    args="${args} ${ENV_KWARGS}"
 
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${DYNAMICS_OUTPUT_PATH}_debug"
@@ -60,6 +61,9 @@ checkpoints=(
     # "ckpt_model_50000"
     # "ckpt_model_100000"
 )
+if [[ `hostname` == "sc.stanford.edu" ]]; then
+    ENV_KWARGS="--gui 0"
+fi
 
 for ckpt in "${checkpoints[@]}"; do
     POLICY_CHECKPOINTS=()

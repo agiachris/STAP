@@ -14,6 +14,7 @@ class DynamicsFactory(configs.Factory):
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         policies: Optional[Sequence[agents.Agent]] = None,
         policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
+        env_kwargs: Dict[str, Any] = {},
         env: Optional[envs.Env] = None,
         device: str = "auto",
     ):
@@ -28,6 +29,7 @@ class DynamicsFactory(configs.Factory):
                 policy_checkpoints is None.
             policy_checkpoints: Optional list of policy checkpoints. Must be
                 provided if policies is None.
+            env_kwargs: Kwargs passed to EnvFactory for each policy checkpoint.
             env: Env required only for OracleDynamics and TableEnvDynamics.
             device: Torch device.
         """
@@ -43,7 +45,7 @@ class DynamicsFactory(configs.Factory):
 
         if policies is None and policy_checkpoints is not None:
             policies = [
-                agents.load(checkpoint=policy_checkpoint)
+                agents.load(checkpoint=policy_checkpoint, env_kwargs=env_kwargs)
                 for policy_checkpoint in policy_checkpoints
             ]
 
@@ -96,6 +98,7 @@ def load(
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
     policies: Optional[Sequence[agents.Agent]] = None,
     policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
+    env_kwargs: Dict[str, Any] = {},
     env: Optional[envs.Env] = None,
     device: str = "auto",
     **kwargs,
@@ -111,6 +114,7 @@ def load(
             policy_checkpoints is None.
         policy_checkpoints: Optional list of policy checkpoints. Must be
             provided if policies is None.
+        env_kwargs: Kwargs passed to EnvFactory for each policy checkpoint.
         env: Env required only for OracleDynamics.
         device: Torch device.
         kwargs: Optional dynamics constructor kwargs.
@@ -123,6 +127,7 @@ def load(
         checkpoint=checkpoint,
         policies=policies,
         policy_checkpoints=policy_checkpoints,
+        env_kwargs=env_kwargs,
         env=env,
         device=device,
     )

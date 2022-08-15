@@ -5,7 +5,8 @@ import pathlib
 from pprint import pprint
 from typing import Any, Dict, Optional, Sequence, Union
 
-from temporal_policies import dynamics, trainers
+from temporal_policies import trainers
+from temporal_policies.dynamics import DynamicsFactory
 from temporal_policies.utils import configs, random
 
 
@@ -18,6 +19,7 @@ def train(
     overwrite: bool = False,
     device: str = "auto",
     seed: Optional[int] = None,
+    gui: Optional[int] = None,
     num_train_steps: Optional[int] = None,
 ) -> None:
     if resume:
@@ -31,14 +33,22 @@ def train(
         if seed is not None:
             random.seed(seed)
 
-        dynamics_factory = dynamics.DynamicsFactory(
-            config=dynamics_config, policy_checkpoints=policy_checkpoints, device=device
+        env_kwargs = {}
+        if gui is not None:
+            env_kwargs["gui"] = bool(gui)
+        dynamics_factory = DynamicsFactory(
+            config=dynamics_config,
+            policy_checkpoints=policy_checkpoints,
+            env_kwargs=env_kwargs,
+            device=device,
         )
+        dynamics = dynamics_factory()
         trainer_factory = trainers.TrainerFactory(
             path=path,
             config=trainer_config,
-            dynamics=dynamics_factory(),
+            dynamics=dynamics,
             policy_checkpoints=policy_checkpoints,
+            policies=dynamics.policies,
             device=device,
         )
         trainer_kwargs = {}
@@ -88,6 +98,7 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite", action="store_true", default=False)
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--seed", type=int, help="Random seed")
+    parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument("--num-train-steps", type=int, help="Number of steps to train")
 
     main(parser.parse_args())
