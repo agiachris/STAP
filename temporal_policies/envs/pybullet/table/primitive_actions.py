@@ -26,7 +26,7 @@ class PrimitiveAction:
     @classmethod
     def random(cls):
         r = cls.range()
-        return cls(np.random.uniform(r[0], r[1]))
+        return cls(np.random.uniform(r[0], r[1]).astype(np.float32))
 
 
 class PickAction(PrimitiveAction):

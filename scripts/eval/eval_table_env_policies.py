@@ -119,8 +119,8 @@ def evaluate_place_critic_action(
     # Create grid of xy place positions.
     xy_min = np.array(primitives.Place.action_scale.low[:2])
     xy_max = np.array(primitives.Place.action_scale.high[:2])
-    xy_min[1] = max(-0.45, xy_min[1])
-    xy_max[1] = min(0.45, xy_max[1])
+    # xy_min[1] = max(-0.45, xy_min[1])
+    # xy_max[1] = min(0.45, xy_max[1])
     xs, ys = np.meshgrid(*np.linspace(xy_min, xy_max, grid_resolution).T)
 
     # Create action batch.

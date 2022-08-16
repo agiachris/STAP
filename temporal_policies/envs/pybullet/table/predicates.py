@@ -111,13 +111,20 @@ class On(Predicate):
 
         # Get parent aabb.
         xyz_min, xyz_max = parent_obj.aabb()
-        if parent_obj.name == "table" and f"beyondworkspace({child_obj})" in state:
-            # Increase the likelihood of sampling outside the workspace.
-            r = BeyondWorkspace.WORKSPACE_RADIUS
-            xyz_min[0] = r * np.cos(np.arcsin(0.5 * (xyz_max[1] - xyz_min[1]) / r))
-            xyz_max[0] -= 0.05
-            xyz_min[1] += 0.05
-            xyz_max[1] -= 0.05
+        if parent_obj.name == "table":
+            if f"beyondworkspace({child_obj})" in state:
+                # Increase the likelihood of sampling outside the workspace.
+                r = BeyondWorkspace.WORKSPACE_RADIUS
+                xyz_min[0] = r * np.cos(np.arcsin(0.5 * (xyz_max[1] - xyz_min[1]) / r))
+                xyz_max[0] -= 0.05
+                xyz_min[1] += 0.05
+                xyz_max[1] -= 0.05
+            elif f"inworkspace({child_obj})" in state:
+                # Increase the likelihood of sampling inside the workspace.
+                xyz_min[0] = InWorkspace.MIN_X
+                xyz_max[0] = BeyondWorkspace.WORKSPACE_RADIUS
+                xyz_min[1] += 0.05
+                xyz_max[1] -= 0.05
 
         # Generate pose on parent.
         xyz = np.zeros(3)
