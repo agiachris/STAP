@@ -26,6 +26,7 @@ class AgentFactory(configs.Factory):
         encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         scod_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         policy: Optional[agents.Agent] = None,
+        env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
     ):
         """Creates the agent factory from an agent config or checkpoint.
@@ -39,6 +40,8 @@ class AgentFactory(configs.Factory):
             encoder_checkpoint: Encoder checkpoint path.
             scod_checkpoint: SCOD checkpoint path.
             policy: Optional loaded policy to replace first non-wrapper agent.
+            env_kwargs: Kwargs passed to EnvFactory if env is loaded from
+                checkpoint.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -47,7 +50,7 @@ class AgentFactory(configs.Factory):
                 config = ckpt_agent_config
             if env is None:
                 ckpt_env_config = envs.load_config(checkpoint)
-                env = envs.EnvFactory(ckpt_env_config)()
+                env = envs.EnvFactory(ckpt_env_config)(**env_kwargs)
 
         if config is None:
             raise ValueError("Either config or checkpoint must be specified")
@@ -110,6 +113,7 @@ def load(
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
     scod_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     policy: Optional[agents.Agent] = None,
+    env_kwargs: Dict[str, Any] = {},
     device: str = "auto",
     **kwargs,
 ) -> agents.Agent:
@@ -123,6 +127,8 @@ def load(
             specified.
         scod_checkpoint: SCOD checkpoint path.
         policy: Optional loaded policy to replace first non-wrapper agent.
+        env_kwargs: Kwargs passed to EnvFactory if env is loaded from
+            checkpoint.
         device: Torch device.
         kwargs: Optional agent constructor kwargs.
 
@@ -135,6 +141,7 @@ def load(
         checkpoint=checkpoint,
         scod_checkpoint=scod_checkpoint,
         policy=policy,
+        env_kwargs=env_kwargs,
         device=device,
     )
     return agent_factory(**kwargs)
