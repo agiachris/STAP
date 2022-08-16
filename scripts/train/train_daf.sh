@@ -23,6 +23,7 @@ function train_daf {
         args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS}"
     fi
     args="${args} --seed 0"
+    args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${OUTPUT_PATH}_debug"
         args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}_debug"
@@ -54,5 +55,8 @@ ENV_CONFIG="configs/pybullet/envs/workspace.yaml"
 PLANNER_CONFIG="configs/pybullet/planners/policy_shooting.yaml"
 OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
+if [[ `hostname` == "sc.stanford.edu" ]]; then
+    ENV_KWARGS="--gui 0"
+fi
 
 train_daf

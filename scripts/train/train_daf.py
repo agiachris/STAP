@@ -80,7 +80,6 @@ def train(
             path=path,
             config=trainer_config,
             dynamics=dynamics_model,
-            planner_config=planner_config,
             device=device,
         )
 
