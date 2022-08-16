@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import gym
 import numpy as np
@@ -62,6 +62,11 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
     @property
     def action_scale(self) -> gym.spaces.Box:
         return self.get_primitive().action_scale
+
+    @property
+    def primitives(self) -> List[str]:
+        """Set of all environment primitive names."""
+        raise NotImplementedError
 
     def get_primitive(self) -> Primitive:
         """Gets the environment primitive."""

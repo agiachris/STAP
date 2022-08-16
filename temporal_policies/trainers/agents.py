@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Mapping, Optional, Type, Union
 
 import numpy as np
 import torch
@@ -47,6 +47,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         num_data_workers: int = 0,
         dataset_size: Optional[int] = None,
         eval_dataset_size: Optional[int] = None,
+        name: Optional[str] = None,
     ):
         """Prepares the agent trainer for training.
 
@@ -76,8 +77,11 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             profile_freq: Profiling frequency.
             eval_metric: Metric to use for evaluation.
             num_data_workers: Number of workers to use for dataloader.
+            name: Optional trainer name. Uses env name by default.
         """
-        path = pathlib.Path(path) / agent.env.name
+        if name is None:
+            name = agent.env.name
+        path = pathlib.Path(path) / name
 
         dataset_class = configs.get_class(dataset_class, datasets)
         dataset_kwargs = dict(dataset_kwargs)
@@ -158,7 +162,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         """Agent env."""
         return self._eval_env
 
-    def collect_step(self, random: bool = False) -> Dict[str, Any]:
+    def collect_step(self, random: bool = False) -> Mapping[str, Any]:
         """Collects data for the replay buffer.
 
         Args:
@@ -267,7 +271,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
             self.increment_step()
 
-    def train_step(self, step: int, batch: Batch) -> Dict[str, float]:
+    def train_step(self, step: int, batch: Batch) -> Mapping[str, float]:
         """Performs a single training step.
 
         Args:
@@ -287,7 +291,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         super().train()
         self.dataset.save()
 
-    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
+    def evaluate(self) -> List[Mapping[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:
@@ -296,7 +300,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         self.eval_mode()
 
         with self.profiler.profile("evaluate"):
-            metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]] = []
+            metrics_list: List[Mapping[str, Union[Scalar, np.ndarray]]] = []
             pbar = tqdm.tqdm(
                 range(self.num_eval_steps),
                 desc=f"Eval {self.name}",

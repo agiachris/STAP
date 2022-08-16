@@ -6,6 +6,7 @@ import torch
 import yaml
 
 from temporal_policies import agents, dynamics, envs, networks, planners
+from temporal_policies.dynamics import load as load_dynamics
 from temporal_policies.utils import configs, tensors
 
 
@@ -19,8 +20,10 @@ class PlannerFactory(configs.Factory):
         policy_checkpoints: Optional[
             Sequence[Optional[Union[str, pathlib.Path]]]
         ] = None,
+        policies: Optional[Sequence[agents.Agent]] = None,
         scod_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
         dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        dynamics: Optional[dynamics.Dynamics] = None,
         device: str = "auto",
     ):
         """Creates the planner factory from a planner_config.
@@ -29,8 +32,10 @@ class PlannerFactory(configs.Factory):
             config: Planner config path or dict.
             env: Sequential env.
             policy_checkpoints: Policy checkpoint paths if required.
+            policies: Optional policies to replace policy_checkpoints.
             scod_checkpoints: SCOD checkpoint paths if required.
             dynamics_checkpoint: Dynamics checkpoint path if required.
+            dynamics: Optional dynamics to replace dynamics_checkpoints.
             device: Torch device.
         """
 
@@ -102,49 +107,59 @@ class PlannerFactory(configs.Factory):
                 )
             ]
         else:
+            maybe_policies = (
+                [None] * len(self.config["agent_configs"])
+                if policies is None
+                else policies
+            )
             policies = [
                 agents.load(
                     config=agent_config,
                     env=env,
                     checkpoint=ckpt,
                     scod_checkpoint=scod_ckpt,
+                    policy=policy,
                 )
-                for agent_config, ckpt, scod_ckpt in zip(
+                for agent_config, ckpt, scod_ckpt, policy in zip(
                     self.config["agent_configs"],
                     policy_checkpoints,
                     scod_checkpoints,
+                    maybe_policies,
                 )
             ]
 
-        # Make sure all policy checkpoints are not None for dynamics.
-        dynamics_policy_checkpoints: Optional[List[Union[str, pathlib.Path]]] = []
-        for policy_checkpoint in policy_checkpoints:
-            if policy_checkpoint is None:
-                dynamics_policy_checkpoints = None
-                break
-            assert dynamics_policy_checkpoints is not None
-            dynamics_policy_checkpoints.append(policy_checkpoint)
+        if dynamics is None:
+            # Make sure all policy checkpoints are not None for dynamics.
+            dynamics_policy_checkpoints: Optional[List[Union[str, pathlib.Path]]] = []
+            for policy_checkpoint in policy_checkpoints:
+                if policy_checkpoint is None:
+                    dynamics_policy_checkpoints = None
+                    break
+                assert dynamics_policy_checkpoints is not None
+                dynamics_policy_checkpoints.append(policy_checkpoint)
 
-        dynamics_model = dynamics.load(
-            config=self.config["dynamics_config"],
-            checkpoint=dynamics_checkpoint,
-            policies=policies,
-            policy_checkpoints=dynamics_policy_checkpoints,
-            env=env,
-            device=device,
-        )
+            dynamics = load_dynamics(
+                config=self.config["dynamics_config"],
+                checkpoint=dynamics_checkpoint,
+                policies=policies,
+                policy_checkpoints=dynamics_policy_checkpoints,
+                env=env,
+                device=device,
+            )
 
         self.kwargs["policies"] = policies
-        self.kwargs["dynamics"] = dynamics_model
+        self.kwargs["dynamics"] = dynamics
         self.kwargs["device"] = device
 
 
 def load(
     config: Union[str, pathlib.Path, Dict[str, Any]],
     env: envs.Env,
+    policies: Optional[Sequence[agents.Agent]] = None,
     policy_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
     scod_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
     dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    dynamics: Optional[dynamics.Dynamics] = None,
     device: str = "auto",
     **kwargs,
 ) -> planners.Planner:
@@ -154,8 +169,10 @@ def load(
         config: Planner config path or dict.
         env: Sequential env.
         policy_checkpoints: Policy checkpoint paths if required.
+        policies: Optional policies to replace policy_checkpoints.
         scod_checkpoints: SCOD checkpoint paths if required.
         dynamics_checkpoint: Dynamics checkpoint path if required.
+        dynamics: Optional dynamics to replace dynamics_checkpoints.
         device: Torch device.
         **kwargs: Planner constructor kwargs.
 

@@ -311,7 +311,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         else:
             self.profiler.disable()
 
-    def train_step(self, step: int, batch: DatasetBatchType) -> Dict[str, float]:
+    def train_step(self, step: int, batch: DatasetBatchType) -> Mapping[str, float]:
         """Performs a single training step.
 
         Args:
@@ -328,8 +328,8 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             )
 
     def log_step(
-        self, metrics_list: List[Dict[str, float]], stage: str = "train"
-    ) -> List[Dict[str, float]]:
+        self, metrics_list: List[Mapping[str, float]], stage: str = "train"
+    ) -> List[Mapping[str, float]]:
         """Logs the metrics to Tensorboard if enabled for the current step.
 
         Args:
@@ -340,7 +340,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         Returns:
             List of metric dicts which haven't been logged yet.
         """
-        if self.step % self.log_freq == 0:
+        if self.step % self.log_freq == 0 or not metrics_list:
             return metrics_list
 
         log_metrics = metrics.collect_metrics(metrics_list)
@@ -352,7 +352,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         return []
 
     def post_evaluate_step(
-        self, eval_metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]]
+        self, eval_metrics_list: List[Mapping[str, Union[Scalar, np.ndarray]]]
     ) -> None:
         """Logs the eval results and saves checkpoints.
 
@@ -360,6 +360,9 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             eval_metrics_list: List of eval metric dicts accumulated since the
                 last post_evaluate_step.
         """
+        if not eval_metrics_list:
+            return
+
         eval_metrics = metrics.collect_metrics(eval_metrics_list)
         self.log.log("eval", eval_metrics)
         self.log.flush(step=self.step, dump_csv=True)
@@ -470,7 +473,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
                 self.model.save(self.path, f"ckpt_model_{eval_step}")
 
     @abc.abstractmethod
-    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
+    def evaluate(self) -> List[Mapping[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:

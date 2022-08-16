@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import numpy as np
 import torch
@@ -22,7 +22,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         path: Union[str, pathlib.Path],
         dynamics: dynamics.LatentDynamics,
         dynamics_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
-        agent_trainer_configs: Sequence[Union[str, pathlib.Path, Dict[str, Any]]],
+        agent_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
         num_pretrain_steps: int = 1000,
@@ -39,7 +39,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
             path: Output path.
             dynamics: Dynamics model.
             dynamics_trainer_config: Dynamics trainer config.
-            agent_trainer_configs: Agent trainer configs.
+            agent_trainer_config: Agent trainer config.
             checkpoint: Optional path to trainer checkpoint.
             device: Torch device.
             num_pretrain_steps: Number of steps to pretrain. Overrides
@@ -74,15 +74,16 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         }
 
         agent_trainers: List[AgentTrainer] = []
-        for agent_trainer_config, agent in zip(
-            agent_trainer_configs, dynamics.policies
-        ):
+        assert isinstance(dynamics.policies[0], agents.RLAgent)
+        env = dynamics.policies[0].env
+        for agent, primitive in zip(dynamics.policies, env.primitives):
             assert isinstance(agent, agents.RLAgent)
             agent_trainer = load_trainer(
                 path=path,
                 config=agent_trainer_config,
                 agent=agent,
                 device=device,
+                name=primitive,
                 **agent_trainer_kwargs,  # type: ignore
             )
             if not isinstance(agent_trainer, AgentTrainer):
@@ -215,7 +216,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         for trainer in self.trainers:
             trainer.eval_mode()
 
-    def collect_step(self, random: bool = False) -> Dict[str, Dict[str, float]]:
+    def collect_step(self, random: bool = False) -> Dict[str, Mapping[str, float]]:
         """Collects data for the replay buffer.
 
         Args:
@@ -233,12 +234,14 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
     def pretrain(self) -> None:
         """Runs the pretrain phase for each agent."""
+        self.dynamics_trainer.dataset.initialize()
+
         pbar = tqdm.tqdm(
             range(self.step, self.num_pretrain_steps),
             desc=f"Pretrain {self.name}",
             dynamic_ncols=True,
         )
-        metrics_list: Dict[str, List[Dict[str, float]]] = {
+        metrics_list: Dict[str, List[Mapping[str, float]]] = {
             trainer.name: [] for trainer in self.trainers
         }
         for step in pbar:
@@ -249,6 +252,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
                         trainer.name
                     ][trainer.eval_metric]
                     for trainer in self.agent_trainers
+                    if trainer.name in collect_metrics
                 }
             )
 
@@ -265,7 +269,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
     def train_step(  # type: ignore
         self, step: int, batch: WrappedBatch
-    ) -> Dict[str, Dict[str, float]]:
+    ) -> Dict[str, Mapping[str, float]]:
         """Performs a single training step.
 
         Args:
@@ -286,9 +290,11 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
                 lambda x: x[idx_batch],
                 {key: val for key, val in batch.items() if key != "idx_replay_buffer"},
             )
-            assert isinstance(agent_batch["action"], np.ndarray)
+
+            # Torch dataloader makes it a tensor?
+            assert isinstance(agent_batch["action"], torch.Tensor)
             agent_batch["action"] = spaces.subspace(
-                agent_batch["action"], agent_trainer.agent.action_space
+                agent_batch["action"].numpy(), agent_trainer.agent.action_space
             )
             agent_train_metrics = agent_trainer.train_step(step, agent_batch)
             train_metrics[agent_trainer.name] = agent_train_metrics
@@ -296,15 +302,18 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         dynamics_train_metrics = self.dynamics_trainer.train_step(step, batch)
         train_metrics[self.dynamics_trainer.name] = dynamics_train_metrics
 
+        for key in train_metrics:
+            if key not in collect_metrics:
+                collect_metrics[key] = {}
         return {
             key: {**collect_metrics[key], **train_metrics[key]} for key in train_metrics
         }
 
     def log_step(  # type: ignore
         self,
-        metrics_list: Dict[str, List[Dict[str, float]]],
+        metrics_list: Dict[str, List[Mapping[str, float]]],
         stage: str = "train",
-    ) -> Dict[str, List[Dict[str, float]]]:
+    ) -> Dict[str, List[Mapping[str, float]]]:
         """Logs the metrics to Tensorboard if enabled for the current step.
 
         Args:
@@ -322,7 +331,8 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         return metrics_list
 
     def post_evaluate_step(  # type: ignore
-        self, eval_metrics_list: Dict[str, List[Dict[str, Union[Scalar, np.ndarray]]]]
+        self,
+        eval_metrics_list: Dict[str, List[Mapping[str, Union[Scalar, np.ndarray]]]],
     ) -> None:
         """Logs the eval results and saves checkpoints.
 
@@ -352,7 +362,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
         # Train.
         self.train_mode()
-        metrics_list: Dict[str, List[Dict[str, float]]] = {
+        metrics_list: Dict[str, List[Mapping[str, float]]] = {
             trainer.name: [] for trainer in self.trainers
         }
         batches = iter(dataloader)
@@ -405,7 +415,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
                     trainer.save(trainer.path, f"ckpt_trainer_{eval_step}")
                     trainer.model.save(trainer.path, f"ckpt_model_{eval_step}")
 
-    def evaluate(self) -> Dict[str, List[Dict[str, Union[Scalar, np.ndarray]]]]:  # type: ignore
+    def evaluate(self) -> Dict[str, List[Mapping[str, Union[Scalar, np.ndarray]]]]:  # type: ignore
         """Evaluates the policies and dynamics model.
 
         Returns:

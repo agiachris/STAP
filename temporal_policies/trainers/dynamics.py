@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, List, Optional, Sequence, Type, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Type, Union
 
 import numpy as np
 import torch
@@ -185,7 +185,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         )
         return tensors.to(dynamics_batch, self.device)
 
-    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
+    def evaluate(self) -> List[Mapping[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:
@@ -196,7 +196,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
 
         self.eval_mode()
 
-        eval_metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]] = []
+        eval_metrics_list: List[Mapping[str, Union[Scalar, np.ndarray]]] = []
         pbar = tqdm.tqdm(
             self._eval_dataloader,
             desc=f"Eval {self.name}",

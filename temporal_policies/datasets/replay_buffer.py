@@ -490,8 +490,10 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         idx_stop = self._worker_idx
         if idx_stop < idx_start:
             idx_stop += self.worker_capacity
-        checkpoint = self[idx_start:idx_stop]
         len_checkpoint = idx_stop - idx_start
+        if len_checkpoint == 0:
+            return 0
+        checkpoint = self[idx_start:idx_stop]
 
         path.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")

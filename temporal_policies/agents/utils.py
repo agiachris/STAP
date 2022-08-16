@@ -25,6 +25,7 @@ class AgentFactory(configs.Factory):
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         scod_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        policy: Optional[agents.Agent] = None,
         device: str = "auto",
     ):
         """Creates the agent factory from an agent config or checkpoint.
@@ -37,6 +38,7 @@ class AgentFactory(configs.Factory):
                 specified.
             encoder_checkpoint: Encoder checkpoint path.
             scod_checkpoint: SCOD checkpoint path.
+            policy: Optional loaded policy to replace first non-wrapper agent.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -55,16 +57,21 @@ class AgentFactory(configs.Factory):
         super().__init__(config, "agent", agents)
 
         if issubclass(self.cls, agents.WrapperAgent):
-            # Get policy
-            agent_factory = AgentFactory(
-                config=self.kwargs["agent_config"],
-                env=env,
-                checkpoint=checkpoint,
-                encoder_checkpoint=encoder_checkpoint,
-                scod_checkpoint=scod_checkpoint,
-                device=device,
-            )
-            self.kwargs["policy"] = agent_factory()
+            if self.kwargs["agent_config"] == "{AGENT_CONFIG}":
+                # DAF doesn't load config from checkpoint.
+                assert policy is not None
+            else:
+                # Get policy
+                policy = agents.load(
+                    config=self.kwargs["agent_config"],
+                    env=env,
+                    checkpoint=checkpoint,
+                    encoder_checkpoint=encoder_checkpoint,
+                    scod_checkpoint=scod_checkpoint,
+                    policy=policy,
+                    device=device,
+                )
+            self.kwargs["policy"] = policy
             del self.kwargs["agent_config"]
 
             # Optionally get SCOD wrapper
@@ -102,6 +109,7 @@ def load(
     env: Optional[envs.Env] = None,
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
     scod_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    policy: Optional[agents.Agent] = None,
     device: str = "auto",
     **kwargs,
 ) -> agents.Agent:
@@ -114,6 +122,7 @@ def load(
         checkpoint: Policy checkpoint path. Either env or checkpoint must be
             specified.
         scod_checkpoint: SCOD checkpoint path.
+        policy: Optional loaded policy to replace first non-wrapper agent.
         device: Torch device.
         kwargs: Optional agent constructor kwargs.
 
@@ -125,6 +134,7 @@ def load(
         env=env,
         checkpoint=checkpoint,
         scod_checkpoint=scod_checkpoint,
+        policy=policy,
         device=device,
     )
     return agent_factory(**kwargs)
