@@ -52,15 +52,11 @@ class ShootingPlanner(planners.Planner):
             t_observation = torch.from_numpy(observation).to(self.dynamics.device)
 
             # Roll out trajectories.
-            policies = [
-                self.policies[primitive.idx_policy] for primitive in action_skeleton
-            ]
             t_states, t_actions, p_transitions = self.dynamics.rollout(
                 t_observation,
                 action_skeleton,
-                policies,
+                self.policies,
                 batch_size=self.num_samples,
-                time_index=True,
             )
 
             # Evaluate trajectories.
