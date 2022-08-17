@@ -75,7 +75,9 @@ def evaluate_planners(
         if isinstance(planner.dynamics, dynamics.TableEnvDynamics):
             env.set_observation_mode(envs.pybullet.table_env.ObservationMode.FULL)
 
-    for i in tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True):
+    num_success = 0
+    pbar = tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True)
+    for i in pbar:
         if seed is not None:
             random.seed(i)
 
@@ -94,6 +96,11 @@ def evaluate_planners(
 
         rewards = planners.evaluate_plan(
             env, action_skeleton, state, plan.actions, gif_path=path / f"exec_{i}.gif"
+        )
+        if rewards.prod() > 0:
+            num_success += 1
+        pbar.set_postfix(
+            dict(success=rewards.prod(), **{f"r{t}": r for t, r in enumerate(rewards)})
         )
 
         if verbose:
@@ -184,6 +191,8 @@ def evaluate_planners(
                 save_dict["grid_q_values"] = grid_q_values
                 save_dict["grid_actions"] = grid_actions
             np.savez_compressed(f, **save_dict)  # type: ignore
+
+    print("Successes:", num_success, "/", num_eval)
 
 
 def main(args: argparse.Namespace) -> None:

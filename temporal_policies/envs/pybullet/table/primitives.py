@@ -129,10 +129,10 @@ class Pick(Primitive):
             robot.goto_pose(pre_pos, command_quat)
             robot.goto_pose(command_pos, command_quat)
             if not robot.grasp_object(obj):
-                dbprint(f"Robot.grasp_object({obj}) failed")
-                raise ControlException
+                raise ControlException(f"Robot.grasp_object({obj}) failed")
             robot.goto_pose(pre_pos, command_quat)
-        except ControlException:
+        except ControlException as e:
+            dbprint("Pick.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
 
         return ExecutionResult(success=True, truncated=False)
@@ -210,8 +210,9 @@ class Place(Primitive):
 
             robot.grasp(0)
             robot.goto_pose(pre_pos, command_quat)
-        except ControlException:
+        except ControlException as e:
             # If robot fails before grasp(0), object may still be grasped.
+            dbprint("Place.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
 
         wait_until_stable_fn()
@@ -310,7 +311,8 @@ class Pull(Primitive):
                 pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
             )
             robot.goto_pose(post_pos, command_pose_pull.quat)
-        except ControlException:
+        except ControlException as e:
+            dbprint("Pull.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
 
         wait_until_stable_fn()
