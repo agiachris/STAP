@@ -25,6 +25,7 @@ def load_results(
         ):
             with open(npz_file, "rb") as f:
                 results[method_name].append(dict(np.load(f, allow_pickle=True)))
+            # print(npz_file, results[method_name][-1]["rewards"])
 
     return results
 
@@ -37,6 +38,14 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
             return "Greedy"
 
         tokens = method.split("_")
+        if tokens[0] == "daf":
+            policy = tokens[1]
+            planner = tokens[2]
+            if planner == "cem":
+                planner = planner.upper()
+
+            return f"DAF {policy} {planner}"
+
         policy = tokens[0]
         planner = tokens[1]
         if planner == "cem":
