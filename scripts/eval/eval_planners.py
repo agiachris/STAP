@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Sequence, Union
 import numpy as np
 import tqdm
 
-from temporal_policies import dynamics, envs, planners
+from temporal_policies import agents, dynamics, envs, planners
 from temporal_policies.envs.pybullet.table import primitives as table_primitives
 from temporal_policies.utils import random, recording, timing
 
@@ -81,6 +81,11 @@ def evaluate_planners(
         if seed is not None:
             random.seed(i)
 
+        if isinstance(planner.dynamics, dynamics.OracleDynamics):
+            planner.dynamics.reset_cache()
+        for policy in planner.policies:
+            if isinstance(policy, agents.OracleAgent):
+                policy.reset_cache()
         observation = env.reset()
         assert isinstance(observation, np.ndarray)
         state = env.get_state()

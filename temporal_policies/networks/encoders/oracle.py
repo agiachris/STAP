@@ -46,6 +46,9 @@ class OracleEncoder(Encoder):
 
         self._forward = forward
 
+    def reset_cache(self) -> None:
+        self.env._state_obs_cache.clear()  # type: ignore
+
     @tensors.torch_wrap
     def forward(self, observation: np.ndarray) -> np.ndarray:
         """Returns the current environment state.
@@ -99,6 +102,9 @@ class OracleDecoder(Decoder):
             return observation
 
         self._forward = forward
+
+    def reset_cache(self) -> None:
+        self.env._state_obs_cache.clear()  # type: ignore
 
     @tensors.torch_wrap
     def forward(self, state: np.ndarray) -> np.ndarray:

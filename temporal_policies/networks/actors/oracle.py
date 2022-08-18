@@ -23,6 +23,9 @@ class OracleActor(Actor):
 
         self._oracle_decoder = OracleDecoder(self.env)
 
+    def reset_cache(self) -> None:
+        self._oracle_decoder.reset_cache()
+
     def forward(self, state: torch.Tensor) -> torch.distributions.Distribution:
         """Outputs the predicted distribution from the child policy.
 

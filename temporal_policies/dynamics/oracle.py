@@ -52,6 +52,11 @@ class OracleDynamics(dynamics.Dynamics):
         """Updates the oracle environment."""
         self._env = env
 
+    def reset_cache(self) -> None:
+        self.env._oracle_sim_result.clear()  # type: ignore
+        self._oracle_encoder.reset_cache()
+        self._oracle_decoder.reset_cache()
+
     def rollout(
         self,
         observation: torch.Tensor,
