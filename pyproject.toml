@@ -37,7 +37,7 @@ dependencies = [
   "pybullet",
   # Ours
   "ctrlutils==1.4.1",
-  "pysymbolic==1.0.0",
+  "pysymbolic>=1.0.1",
   # scod-regression,
   "spatialdyn==1.4.4",
 ]
@@ -58,7 +58,7 @@ module = [
   "seaborn",
   "skimage",
   "spatialdyn",
-  "symbolic>=1.0.1",
+  "symbolic",
   "tqdm"
 ]
 ignore_missing_imports = true
