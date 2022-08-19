@@ -218,6 +218,10 @@ class Place(Primitive):
         wait_until_stable_fn()
 
         obj_pose = obj.pose()
+        if predicates.is_below_table(obj_pose.pos):
+            # Falling off the table is an exception.
+            return ExecutionResult(success=False, truncated=True)
+
         if not predicates.is_upright(obj_pose.quat) or not predicates.is_above(
             obj.aabb(), target.aabb()
         ):
