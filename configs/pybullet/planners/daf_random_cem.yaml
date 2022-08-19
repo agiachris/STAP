@@ -1,9 +1,9 @@
 planner: CEMPlanner
 planner_kwargs:
-  num_samples: 200
+  num_samples: 200000
   num_iterations: 5
-  num_elites: 20
-  standard_deviation: 0
+  num_elites: 10
+  standard_deviation: 1.0
 
 agent_configs:
   - agent: RandomAgent
