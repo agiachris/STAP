@@ -1,1 +1,1 @@
-from .table_env import TableEnv
+from .table_env import TableEnv, VariantTableEnv

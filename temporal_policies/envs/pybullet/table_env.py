@@ -1,7 +1,7 @@
 import dataclasses
 import enum
 import pathlib
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import gym
 import numpy as np
@@ -14,6 +14,7 @@ from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates
 from temporal_policies.envs.pybullet.table.primitives import Primitive
 from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.envs.variant import VariantEnv
 from temporal_policies.utils import recording
 
 import pybullet as p  # Import after envs.pybullet.base to avoid print statement.
@@ -485,3 +486,58 @@ class TableEnv(PybulletEnv):
             is_saved |= self._recorder.save(path, reset)
 
         return is_saved
+
+
+class VariantTableEnv(VariantEnv, TableEnv):  # type: ignore
+    def __init__(self, variants: Sequence[envs.Env]):
+        for env in variants:
+            assert isinstance(env, TableEnv)
+        super().__init__(variants)
+
+    @property
+    def env(self) -> TableEnv:
+        env = super().env
+        assert isinstance(env, TableEnv)
+        return env
+
+    @property
+    def action_skeleton(self) -> List[str]:
+        return self.env.action_skeleton
+
+    @property
+    def initial_state(self) -> List[predicates.Predicate]:
+        return self.env.initial_state
+
+    @property
+    def robot(self) -> robot.Robot:
+        return self.env.robot
+
+    @property
+    def objects(self) -> Dict[str, Object]:
+        return self.env.objects
+
+    @property
+    def full_observation_space(self) -> gym.spaces.Box:
+        return self.env.full_observation_space
+
+    def set_observation_mode(self, mode: ObservationMode) -> None:
+        for env in self.variants:
+            assert isinstance(env, TableEnv)
+            env.set_observation_mode(mode)
+
+    def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
+        return self.env.get_arg_indices(idx_policy, policy_args)
+
+    def set_observation(self, observation: np.ndarray) -> None:
+        return self.env.set_observation(observation)
+
+    def object_states(self) -> Dict[str, object_state.ObjectState]:
+        return self.env.object_states()
+
+    def wait_until_stable(
+        self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)
+    ) -> int:
+        return self.env.wait_until_stable(min_iters, max_iters)
+
+    def step_simulation(self) -> None:
+        return self.env.step_simulation()

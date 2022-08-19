@@ -6,11 +6,8 @@ from temporal_policies.utils import timing
 
 
 def main() -> None:
-    env_factory = envs.EnvFactory(config="configs/pybullet/envs/pull.yaml")
+    env_factory = envs.EnvFactory(config="configs/pybullet/envs/pick.yaml")
     env = env_factory()
-    assert isinstance(env, pybullet.TableEnv)
-    primitive = env.get_primitive()
-    assert isinstance(primitive, pybullet.table.primitives.Primitive)
 
     timer = timing.Timer()
     while True:
@@ -21,6 +18,8 @@ def main() -> None:
         dt_reset = timer.toc("reset")
 
         timer.tic("step")
+        primitive = env.get_primitive()
+        assert isinstance(primitive, pybullet.table.primitives.Primitive)
         action = primitive.sample_action()
         obs, success, _, _, _ = env.step(primitive.normalize_action(action.vector))
         dt_step = timer.toc("step")
