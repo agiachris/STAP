@@ -1,8 +1,22 @@
-from typing import Optional, Type
+from typing import Optional, Tuple
 
+import torch
+
+from temporal_policies import envs, networks, scod
 from temporal_policies.agents import base, wrapper
-from temporal_policies import envs
-from temporal_policies import scod
+
+
+class SCODCritic(networks.critics.Critic):
+    def __init__(self, scod_wrapper: scod.WrapperSCOD):
+        self.scod_wrapper = scod_wrapper
+
+    def forward(  # type: ignore
+        self, state: torch.Tensor, action: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        return self.scod_wrapper.forward(state, action)
+
+    def predict(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+        return self.scod_wrapper.predict(state, action)
 
 
 class SCODCriticAgent(wrapper.WrapperAgent):
@@ -11,7 +25,7 @@ class SCODCriticAgent(wrapper.WrapperAgent):
     def __init__(
         self,
         policy: base.Agent,
-        scod_wrapper: Type[scod.WrapperSCOD],
+        scod_wrapper: scod.WrapperSCOD,
         env: Optional[envs.Env] = None,
         device: str = "auto",
     ):
@@ -29,7 +43,7 @@ class SCODCriticAgent(wrapper.WrapperAgent):
             action_space=policy.action_space,
             observation_space=policy.observation_space,
             actor=policy.actor,
-            critic=scod_wrapper,
+            critic=SCODCritic(scod_wrapper),
             encoder=policy.encoder,
             device=device,
         )

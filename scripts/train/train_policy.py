@@ -58,10 +58,12 @@ def train(
             encoder_checkpoint=encoder_checkpoint,
             device=device,
         )
+        agent = agent_factory()
+        assert isinstance(agent, agents.RLAgent)
         trainer_factory = trainers.TrainerFactory(
             path=path,
             config=trainer_config,
-            agent=agent_factory(),
+            agent=agent,
             eval_env=eval_env,
             device=device,
         )

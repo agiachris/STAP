@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Union, Type
+from typing import Any, Dict, Mapping, Optional, Union, Type
 
 import numpy as np
 import torch
@@ -206,7 +206,7 @@ class SCODTrainer:
         self.model.eval_mode()
         self.agent.eval_mode()
 
-    def collect_step(self, random: bool = False) -> Dict[str, Any]:
+    def collect_step(self, random: bool = False) -> Mapping[str, Any]:
         """Collects data for the replay buffer.
 
         Args:

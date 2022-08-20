@@ -242,7 +242,7 @@ class PrimitiveEnv(Env):
         with PrimitiveEnv.Scope(self):
             return self._env.step(action)
 
-    def render(self) -> np.ndarray:
+    def render(self) -> np.ndarray:  # type: ignore
         with PrimitiveEnv.Scope(self):
             return self.render()
 
