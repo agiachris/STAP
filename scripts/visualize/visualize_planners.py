@@ -2,35 +2,54 @@
 
 import argparse
 import pathlib
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import tqdm
 
 
 def load_results(
-    path: Union[str, pathlib.Path], methods: Sequence[str]
-) -> Dict[str, List[Dict[str, Any]]]:
+    path: Union[str, pathlib.Path],
+    methods: Sequence[str],
+    plot_action_statistics: int = 0,
+) -> Generator[Tuple[str, List[Dict[str, Any]]], None, None]:
     path = pathlib.Path(path)
 
-    results: Dict[str, List[Dict[str, Any]]] = {}
     for method_name in methods:
-        results[method_name] = []
-        for npz_file in sorted(
-            (path / method_name).glob("results_*.npz"),
-            key=lambda x: int(x.stem.split("_")[-1]),
+        print(method_name)
+        method_results = []
+        for npz_file in tqdm.tqdm(
+            sorted(
+                (path / method_name).glob("results_*.npz"),
+                key=lambda x: int(x.stem.split("_")[-1]),
+            )
         ):
             with open(npz_file, "rb") as f:
-                results[method_name].append(dict(np.load(f, allow_pickle=True)))
+                npz = np.load(f, allow_pickle=True)
+                d = {
+                    "scaled_actions": npz["scaled_actions"],
+                    "p_success": npz["p_success"],
+                    "values": npz["values"],
+                    "rewards": npz["rewards"],
+                    "p_visited_success": npz["p_visited_success"],
+                    "t_planner": npz["t_planner"],
+                }
+                if plot_action_statistics:
+                    d["scaled_visited_actions"] = npz["scaled_visited_actions"]
+                method_results.append(d)
+
             # print(npz_file, results[method_name][-1]["rewards"])
+        yield method_name, method_results
 
-    return results
 
-
-def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
+def create_dataframes(
+    results: Generator[Tuple[str, List[Dict[str, Any]]], None, None],
+    plot_action_statistics: int = 0,
+) -> pd.DataFrame:
     def get_method_label(method: str) -> str:
         if method == "random":
             return "Random"
@@ -85,52 +104,65 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         "Method": [],
         "Value": [],
         "Dynamics": [],
+        "Value / Dynamics": [],
         "Predicted success": [],
         "Ground truth success": [],
         "Num sampled": [],
         "Time": [],
-        "Position": [],
-        "Angle": [],
     }
-    for method, method_results in results.items():
-        for result in method_results:
-            df_plans["Method"].append(get_method_label(method))
-            df_plans["Value"].append(get_value_label(method))
-            df_plans["Dynamics"].append(get_dynamics_label(method))
-            df_plans["Predicted success"].append(result["p_success"].item())
-            df_plans["Ground truth success"].append(result["rewards"].prod())
-            df_plans["Num sampled"].append(result["p_visited_success"].shape[0])
-            df_plans["Time"].append(result["t_planner"].item())
-            df_plans["Position"].append(result["scaled_actions"][0, 0])
-            df_plans["Angle"].append(result["scaled_actions"][0, 1])
-
     df_samples: Dict[str, List[Any]] = {
         "Method": [],
         "Value": [],
         "Dynamics": [],
+        "Value / Dynamics": [],
         "Predicted success": [],
-        "Position": [],
-        "Angle": [],
     }
-    for method, method_results in results.items():
-        for result in method_results:
-            actions = result["scaled_visited_actions"][:, 0]
-            num_samples = actions.shape[0]
-            df_samples["Method"] += [get_method_label(method)] * num_samples
-            df_samples["Value"] += [get_value_label(method)] * num_samples
-            df_samples["Dynamics"] += [get_dynamics_label(method)] * num_samples
+    if plot_action_statistics:
+        df_plans["Position"] = []
+        df_plans["Angle"] = []
+        df_samples["Position"] = []
+        df_samples["Angle"] = []
 
+    for method, method_results in results:
+        method_label = get_method_label(method)
+        value_label = get_value_label(method)
+        dynamics_label = get_dynamics_label(method)
+        for result in method_results:
+            df_plans["Method"].append(method_label)
+            df_plans["Value"].append(value_label)
+            df_plans["Dynamics"].append(dynamics_label)
+            df_plans["Value / Dynamics"].append(f"{value_label} / {dynamics_label}")
+            df_plans["Predicted success"].append(result["p_success"].item())
+            df_plans["Ground truth success"].append(result["rewards"].prod())
+            df_plans["Num sampled"].append(result["p_visited_success"].shape[0])
+            df_plans["Time"].append(result["t_planner"].item())
+
+            num_samples = result["p_visited_success"].shape[0]
+            df_samples["Method"] += [method_label] * num_samples
+            df_samples["Value"] += [value_label] * num_samples
+            df_samples["Dynamics"] += [dynamics_label] * num_samples
+            df_samples["Value / Dynamics"] += [
+                f"{value_label} / {dynamics_label}"
+            ] * num_samples
             # np.ndarray.tolist() converts to float64. Use list comprehension to
             # preserve data type.
             df_samples["Predicted success"] += [x for x in result["p_visited_success"]]
-            df_samples["Position"] += [x for x in actions[:, 0]]
-            df_samples["Angle"] += [x for x in actions[:, 1]]
+
+            if plot_action_statistics:
+                df_plans["Position"].append(result["scaled_actions"][0, 0])
+                df_plans["Angle"].append(result["scaled_actions"][0, 1])
+                actions = result["scaled_visited_actions"][:, 0]
+                df_samples["Position"] += [x for x in actions[:, 0]]
+                df_samples["Angle"] += [x for x in actions[:, 1]]
 
     return pd.DataFrame(df_plans), pd.DataFrame(df_samples)
 
 
 def plot_planning_results(
-    df_plans: pd.DataFrame, df_samples: pd.DataFrame, path: Union[str, pathlib.Path]
+    df_plans: pd.DataFrame,
+    df_samples: pd.DataFrame,
+    path: Union[str, pathlib.Path],
+    plot_action_statistics: int = 0,
 ) -> None:
     def barplot(
         ax: plt.Axes,
@@ -193,10 +225,7 @@ def plot_planning_results(
             bar.set_x(bar.get_x() + dx)
             line.set_xdata(line.get_xdata() + dx)
 
-    df_plans = df_plans.copy()
-    df_plans["Value / Dynamics"] = df_plans.apply(
-        lambda x: f"{x['Value']} / {x['Dynamics']}", axis=1
-    )
+    # df_plans = df_plans.copy()
     df_plans["Predicted success error"] = (
         df_plans["Predicted success"] - df_plans["Ground truth success"]
     )
@@ -206,10 +235,7 @@ def plot_planning_results(
     # df_plans.loc[idx_random, "Predicted success"] = 0.0
     # df_plans.loc[idx_random, "Predicted success error"] = 0.0
 
-    df_samples = df_samples.copy()
-    df_samples["Value / Dynamics"] = df_samples.apply(
-        lambda x: f"{x['Value']} / {x['Dynamics']}", axis=1
-    )
+    # df_samples = df_samples.copy()
 
     # Change Random method's value function to oracle.
     # idx_samples_random = df_samples["Method"] == "Random"
@@ -218,7 +244,8 @@ def plot_planning_results(
     #     "Ground truth success"
     # ][idx_random].to_numpy()
 
-    df_samples["Predicted success > 0.5"] = df_samples["Predicted success"] > 0.5
+    if plot_action_statistics:
+        df_samples["Predicted success > 0.5"] = df_samples["Predicted success"] > 0.5
 
     fig, axes = plt.subplots(2, 3, figsize=(12, 6))
 
@@ -259,23 +286,26 @@ def plot_planning_results(
     barplot(ax, df_plans, x="Method", y="Time", hue="Value / Dynamics")
     ax.set_title("Planning time")
     ax.set_ylabel("Time [s]")
+    ax.set_yscale("log")
 
     ax = axes[1, 1]
     barplot(ax, df_plans, x="Method", y="Num sampled", hue="Value / Dynamics")
     ax.set_title("Sample quantity")
     ax.set_ylabel("# samples")
+    ax.set_yscale("log")
 
     ax = axes[1, 2]
-    barplot(
-        ax,
-        df_samples,
-        x="Method",
-        y="Predicted success > 0.5",
-        hue="Value / Dynamics",
-        # ylim=(0, 0.4),
-    )
-    ax.set_title("Sample quality")
-    ax.set_ylabel("Predicted success > 0.5")
+    if plot_action_statistics:
+        barplot(
+            ax,
+            df_samples,
+            x="Method",
+            y="Predicted success > 0.5",
+            hue="Value / Dynamics",
+            # ylim=(0, 0.4),
+        )
+        ax.set_title("Sample quality")
+        ax.set_ylabel("Predicted success > 0.5")
 
     unique_value_dynamics = df_plans["Value / Dynamics"].unique()
     unique_value_dynamics = unique_value_dynamics[unique_value_dynamics != "NA / NA"]
@@ -287,7 +317,7 @@ def plot_planning_results(
         )
         for i, label in enumerate(unique_value_dynamics)
     ]
-    axes[0, 2].legend(title="Value / Dynamics", handles=patches, loc="upper right")
+    axes[1, 2].legend(title="Value / Dynamics", handles=patches, loc="upper right")
 
     path = pathlib.Path(path)
     fig.suptitle(f"{path.name} planning results")
@@ -356,11 +386,12 @@ def plot_action_statistics(
 
 
 def main(args: argparse.Namespace) -> None:
-    results = load_results(args.path, args.methods)
+    results = load_results(args.path, args.methods, args.plot_action_statistics)
 
-    df_plans, df_samples = create_dataframes(results)
+    df_plans, df_samples = create_dataframes(results, args.plot_action_statistics)
     print(df_plans, "\n")
-    print(df_samples, "\n")
+    if args.plot_action_statistics:
+        print(df_samples, "\n")
 
     # methods = df_plans["Method"].unique()
     # num_trials = (df_plans["Method"] == df_plans["Method"][0]).sum()
@@ -374,13 +405,17 @@ def main(args: argparse.Namespace) -> None:
     # print(rewards)
 
     plot_planning_results(df_plans, df_samples, args.path)
-    plot_action_statistics(df_plans, df_samples, args.path)
+    if args.plot_action_statistics:
+        plot_action_statistics(df_plans, df_samples, args.path)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", help="Path for output plots")
     parser.add_argument("--methods", nargs="+", help="Method subdirectories")
+    parser.add_argument(
+        "--plot-action-statistics", type=int, default=0, help="Plot action statistics"
+    )
     args = parser.parse_args()
 
     main(args)

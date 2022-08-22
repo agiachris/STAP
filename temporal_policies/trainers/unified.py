@@ -91,7 +91,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
             agent_trainers.append(agent_trainer)
 
         dynamics_trainer = load_trainer(
-            path=pathlib.Path(path) / "final_model",
+            path=path,
             config=dynamics_trainer_config,
             dynamics=dynamics,
             agent_trainers=agent_trainers,
