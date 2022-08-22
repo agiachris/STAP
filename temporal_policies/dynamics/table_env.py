@@ -50,7 +50,7 @@ class TableEnvDynamics(LatentDynamics):
             state_space = policies[0].state_space
         else:
             # State space required for planning.
-            state_space = self.env.full_observation_space
+            state_space = self.env.observation_space
 
         super().__init__(
             policies=policies,
@@ -95,6 +95,8 @@ class TableEnvDynamics(LatentDynamics):
 
             # [B, O] => [B, Z].
             return policy.encoder.encode(observation)
+
+        raise NotImplementedError
 
         # Assume all encoders are the same.
         return self.policies[0].encoder.encode(observation)

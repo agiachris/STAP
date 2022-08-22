@@ -184,27 +184,12 @@ class DafTrainer(UnifiedTrainer):
             )
         else:
             with self.dynamics_trainer.profiler.profile("plan"):
-                # Change observation mode for planning.
-                dynamics = self.dynamics_trainer.dynamics
-                if isinstance(dynamics, dynamics_module.TableEnvDynamics):
-                    assert dynamics.env is not None
-                    dynamics.env.set_observation_mode(
-                        envs.pybullet.table_env.ObservationMode.FULL
-                    )
-
                 # Plan.
                 self.env.set_primitive(self.action_skeleton[0])
                 observation = self.env.get_observation()
                 actions = self.planner.plan(
                     observation=observation, action_skeleton=self.action_skeleton
                 ).actions
-
-                # Restore observation mode for training.
-                if isinstance(dynamics, dynamics_module.TableEnvDynamics):
-                    assert dynamics.env is not None
-                    dynamics.env.set_observation_mode(
-                        envs.pybullet.table_env.ObservationMode.PRIMITIVE
-                    )
 
         failure = False
         collect_metrics: Dict[str, Mapping[str, float]] = {}

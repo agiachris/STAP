@@ -5,5 +5,6 @@ from .identity import IdentityEncoder
 from .normalize import NormalizeObservation
 from .oracle import OracleEncoder
 from .resnet import ResNet
+from .table_env import TableEnvEncoder
 
-BASIC_ENCODERS = (OracleEncoder, NormalizeObservation)
+IMAGE_ENCODERS = (ConvEncoder, ResNet, VAE)

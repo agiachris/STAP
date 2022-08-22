@@ -83,10 +83,6 @@ def eval_tamp(
     path = pathlib.Path(path) / pathlib.Path(planner_config).stem
     path.mkdir(parents=True, exist_ok=True)
 
-    if isinstance(env, envs.pybullet.TableEnv):
-        if isinstance(planner.dynamics, dynamics.TableEnvDynamics):
-            env.set_observation_mode(envs.pybullet.table_env.ObservationMode.FULL)
-
     # Load pddl.
     pddl = symbolic.Pddl(pddl_domain, pddl_problem)
 

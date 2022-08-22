@@ -72,8 +72,6 @@ def evaluate_planners(
         action_skeleton = [
             env.get_primitive_info(action_call) for action_call in env.action_skeleton
         ]
-        if isinstance(planner.dynamics, dynamics.TableEnvDynamics):
-            env.set_observation_mode(envs.pybullet.table_env.ObservationMode.FULL)
 
     num_success = 0
     pbar = tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True)

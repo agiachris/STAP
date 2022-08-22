@@ -64,7 +64,7 @@ class ResNet(Encoder):
         self.img_stddev = fn(self.img_stddev)
         return self
 
-    def forward(self, observation: torch.Tensor) -> torch.Tensor:
+    def forward(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
         # Make sure input has one batch dimension.
         if observation.dim() < 4:
             squeeze = True

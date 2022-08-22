@@ -63,5 +63,5 @@ class Encoder:
         """Switches the networks to eval mode."""
         self.network.eval()
 
-    def encode(self, observation: torch.Tensor) -> torch.Tensor:
-        return self.network.predict(observation)
+    def encode(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
+        return self.network.predict(observation, **kwargs)
