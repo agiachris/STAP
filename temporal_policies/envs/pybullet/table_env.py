@@ -1,5 +1,4 @@
 import dataclasses
-import enum
 import pathlib
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -26,11 +25,6 @@ class CameraView:
     height: int
     view_matrix: np.ndarray
     projection_matrix: np.ndarray
-
-
-class ObservationMode(enum.Enum):
-    PRIMITIVE = 0
-    FULL = 1
 
 
 MAX_NUM_OBJECTS = 5
@@ -95,7 +89,6 @@ class TableEnv(PybulletEnv):
         ]
         self._objects = {obj.name: obj for obj in object_list}
         self.robot.table = self.objects["table"]
-        self._observation_mode = ObservationMode.FULL
 
         self._initial_state_id = p.saveState(physicsClientId=self.physics_id)
         self._states: Dict[int, Dict[str, Any]] = {}  # Saved states.
