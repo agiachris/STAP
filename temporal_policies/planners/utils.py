@@ -261,11 +261,13 @@ def evaluate_plan(
     if gif_path is not None:
         env.record_start()
 
+    reward = float("nan")
     rewards = np.zeros(len(action_skeleton), dtype=np.float32)
     for t, primitive in enumerate(action_skeleton):
         env.set_primitive(primitive)
-        action = actions[t, : env.action_space.shape[0]]
-        _, reward, _, _, _ = env.step(action)
+        if reward != 0.0:
+            action = actions[t, : env.action_space.shape[0]]
+            _, reward, _, _, _ = env.step(action)
         rewards[t] = reward
 
     if gif_path is not None:

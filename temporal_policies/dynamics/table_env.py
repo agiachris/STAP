@@ -209,6 +209,9 @@ class TableEnvDynamics(LatentDynamics):
         Returns:
             Decoded observation.
         """
+        # Decode is only called during planning.
+        assert self.env is not None
+        self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
         return self.policies[idx_policy].encoder.encode(state, env=self.env)
 
     def forward_eval(
