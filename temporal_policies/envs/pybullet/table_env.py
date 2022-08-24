@@ -214,14 +214,13 @@ class TableEnv(PybulletEnv):
         return observation
 
     def set_observation(self, observation: np.ndarray) -> None:
-        ee_state = object_state.ObjectState(observation[-1])
+        ee_state = object_state.ObjectState(observation[len(self.objects)])
         ee_pose = ee_state.pose()
         try:
             self.robot.goto_pose(pos=ee_pose.pos, quat=ee_pose.quat)
         except robot.ControlException:
             print(f"TableEnv.set_observation(): Failed to reach pose {ee_pose}.")
 
-        assert len(self.objects) == observation.shape[0] - 1
         for i, object in enumerate(self.objects.values()):
             obj_state = object_state.ObjectState(observation[i])
             object.set_state(obj_state)

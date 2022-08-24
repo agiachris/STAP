@@ -132,6 +132,7 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         action: torch.Tensor,
         next_observation: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
+        **kwargs,
     ) -> Tuple[torch.Tensor, Dict[str, Union[Scalar, np.ndarray]]]:
         """Computes the L2 loss between the predicted next latent and the latent
         encoded from the given next observation.
@@ -147,14 +148,16 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         """
         # Predict next latent state.
         # [B, 3, H, W], [B] => [B, Z].
-        latent = self.encode(observation, idx_policy, policy_args=None)
+        latent = self.encode(observation, idx_policy, policy_args=None, **kwargs)
 
         # [B, Z], [B], [B, A] => [B, Z].
         next_latent_pred = self.forward(latent, action, idx_policy, policy_args=None)
 
         # Encode next latent state.
         # [B, 3, H, W], [B] => [B, Z].
-        next_latent = self.encode(next_observation, idx_policy, policy_args=None)
+        next_latent = self.encode(
+            next_observation, idx_policy, policy_args=None, **kwargs
+        )
 
         # Compute L2 loss.
         # [B, Z], [B, Z] => [1].

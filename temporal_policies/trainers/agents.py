@@ -143,6 +143,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 dataset_size=dataset_size,
                 eval_dataset_size=eval_dataset_size,
             )
+            eval_env_config = pathlib.Path(checkpoint).parent / "eval/env_config.yaml"
+            if eval_env_config.exists():
+                eval_env = envs.load(eval_env_config)
 
         self._eval_env = self.agent.env if eval_env is None else eval_env
         self._reset_collect = True
