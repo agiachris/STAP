@@ -154,11 +154,11 @@ class TableEnvDynamics(LatentDynamics):
 
         # Scale from [-0.5, 0.5].
         state_mid = torch.from_numpy(
-            (self.flat_state_space.low + self.flat_state_space.high) / 2
+            (self.state_space.low + self.state_space.high) / 2
         ).to(state.device)
 
         state_range = torch.from_numpy(
-            self.flat_state_space.high - self.flat_state_space.low
+            self.state_space.high - self.state_space.low
         ).to(state.device)
 
         return state * state_range + state_mid
