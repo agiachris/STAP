@@ -11,6 +11,45 @@ from temporal_policies.trainers.utils import load as load_trainer
 from temporal_policies.utils import configs, tensors, logging, metrics
 
 
+class SCODReplayBuffer(torch.utils.data.IterableDataset):
+    """Wrapper around the ReplayBuffer to encode observations for SCOD."""
+
+    def __init__(
+        self,
+        agent: agents.RLAgent,
+        replay_buffer: datasets.ReplayBuffer,
+        batch_size: int = 128,
+        sample_strategy: Union[
+            str, datasets.ReplayBuffer.SampleStrategy
+        ] = "sequential",
+        **kwargs,
+    ):
+        self.agent = agent
+        self.replay_buffer = replay_buffer
+        self.replay_buffer._batch_size = batch_size
+        self.replay_buffer._sample_strategy = (
+            datasets.ReplayBuffer.SampleStrategy[sample_strategy.upper()]
+            if isinstance(sample_strategy, str)
+            else sample_strategy
+        )
+
+    def __iter__(self):
+        self.replay_buffer.initialize()
+
+        for batch in tqdm.tqdm(
+            self.replay_buffer,
+            total=len(self.replay_buffer) // self.replay_buffer.batch_size,
+        ):
+            t_observation = tensors.from_numpy(batch["observation"], self.agent.device)
+            if isinstance(self.agent.encoder.network, IMAGE_ENCODERS):
+                t_observation = tensors.rgb_to_cnn(t_observation)
+
+            yield {
+                "state": self.agent.encoder.encode(t_observation).cpu().numpy(),
+                "action": batch["action"],
+            }
+
+
 class SCODTrainer:
     """SCOD trainer."""
 
@@ -21,6 +60,7 @@ class SCODTrainer:
         dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
         policy_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        collect_dataset: bool = False,
         device: str = "auto",
         num_train_steps: int = 10000,
         log_freq: int = 100,
@@ -34,6 +74,8 @@ class SCODTrainer:
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
             policy_checkpoint: Policy checkpoint.
+            collect_dataset: Whether to collect a new dataset or use the agent's
+                saved replay buffer.
             device: Torch device.
             num_train_steps: Number of steps to train.
             log_freq: Logging frequency.
@@ -56,12 +98,19 @@ class SCODTrainer:
         self._scod = scod
         self._agent_trainer = agent_trainer
 
-        self._dataset = configs.get_class(dataset_class, datasets)(
-            observation_space=self.agent.observation_space,
-            action_space=self.agent.action_space,
-            path=self.path / "train_data",
-            capacity=num_train_steps,
-            **dataset_kwargs,
+        self._collect_dataset = collect_dataset
+        if self.collect_dataset:
+            self._dataset = configs.get_class(dataset_class, datasets)(
+                observation_space=self.agent.observation_space,
+                action_space=self.agent.action_space,
+                path=self.path / "train_data",
+                capacity=num_train_steps,
+                **dataset_kwargs,
+            )
+        else:
+            self._dataset = agent_trainer.dataset
+        self._scod_dataset = SCODReplayBuffer(
+            agent_trainer.model, self.dataset, **dataset_kwargs
         )
 
         self.num_train_steps = num_train_steps
@@ -105,6 +154,10 @@ class SCODTrainer:
     def dataset(self) -> datasets.ReplayBuffer:
         """Train dataset."""
         return self._dataset
+
+    @property
+    def collect_dataset(self) -> bool:
+        return self._collect_dataset
 
     @property
     def log(self) -> logging.Logger:
@@ -278,29 +331,29 @@ class SCODTrainer:
         self.dataset.initialize()
         metrics_list = []
 
-        pbar = tqdm.tqdm(
-            range(self.num_train_steps), desc="Collect transitions", dynamic_ncols=True
-        )
-        for _ in pbar:
-            # Collect transition
-            metrics_dict = self.collect_step(random=False)
-            metrics_list.append(metrics_dict)
-            pbar.set_postfix({"Reward": metrics_dict["reward"]})
-            self.increment_step()
+        if self.collect_dataset:
+            pbar = tqdm.tqdm(
+                range(self.num_train_steps),
+                desc="Collect transitions",
+                dynamic_ncols=True,
+            )
+            for _ in pbar:
+                # Collect transition
+                metrics_dict = self.collect_step(random=False)
+                metrics_list.append(metrics_dict)
+                pbar.set_postfix({"Reward": metrics_dict["reward"]})
+                self.increment_step()
 
-            # Log metrics
-            if self.step % self.log_freq == 0:
-                log_metrics = metrics.collect_metrics(metrics_list)
-                self.log.log("collect", log_metrics)
-                self.log.flush(step=self.step)
-                metrics_list = []
+                # Log metrics
+                if self.step % self.log_freq == 0:
+                    log_metrics = metrics.collect_metrics(metrics_list)
+                    self.log.log("collect", log_metrics)
+                    self.log.flush(step=self.step)
+                    metrics_list = []
 
         # SCOD pre-processing
         self.model.eval_mode()
-        self.model.process_dataset(
-            self.dataset,
-            input_keys=["observation", "action"],
-        )
+        self.model.process_dataset(self._scod_dataset, input_keys=["state", "action"])
 
         self.save(self.path, "final_trainer")
         self.model.save(self.path / "final_scod.pt")
