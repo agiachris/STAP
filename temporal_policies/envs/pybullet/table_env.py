@@ -1,5 +1,6 @@
 import dataclasses
 import pathlib
+import random
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import gym
@@ -27,6 +28,24 @@ class CameraView:
     projection_matrix: np.ndarray
 
 
+@dataclasses.dataclass
+class Task:
+    action_skeleton: List[Primitive]
+    initial_state: List[predicates.Predicate]
+
+    @staticmethod
+    def create(
+        env: "TableEnv", action_skeleton: List[str], initial_state: List[str]
+    ) -> "Task":
+        primitives = []
+        for action_call in action_skeleton:
+            primitive = env.get_primitive_info(action_call=action_call)
+            assert isinstance(primitive, Primitive)
+            primitives.append(primitive)
+        propositions = [predicates.Predicate.create(prop) for prop in initial_state]
+        return Task(action_skeleton=primitives, initial_state=propositions)
+
+
 MAX_NUM_OBJECTS = 5
 
 
@@ -50,8 +69,7 @@ class TableEnv(PybulletEnv):
         self,
         name: str,
         primitives: List[str],
-        action_skeleton: List[str],
-        initial_state: List[str],
+        tasks: List[Dict[str, List[str]]],
         robot_config: Union[str, Dict[str, Any]],
         objects: Union[str, List[Dict[str, Any]]],
         gui: bool = True,
@@ -68,18 +86,12 @@ class TableEnv(PybulletEnv):
                 robot_config = yaml.safe_load(f)
         assert not isinstance(robot_config, str)
 
-        self._action_skeleton = action_skeleton
         self._primitives = primitives
-        self._initial_state = [
-            predicates.Predicate.create(prop) for prop in initial_state
-        ]
-
         self._robot = robot.Robot(
             physics_id=self.physics_id,
             step_simulation_fn=self.step_simulation,
             **robot_config,
         )
-        # self.step_simulation()
 
         object_list = [
             Object.create(
@@ -93,7 +105,10 @@ class TableEnv(PybulletEnv):
         self._initial_state_id = p.saveState(physicsClientId=self.physics_id)
         self._states: Dict[int, Dict[str, Any]] = {}  # Saved states.
 
-        self.set_primitive(action_call=self.action_skeleton[0])
+        self._tasks = [Task.create(self, **task) for task in tasks]
+        self._task = self.tasks[0]
+
+        self.set_primitive(self.action_skeleton[0])
 
         WIDTH, HEIGHT = 405, 270
         PROJECTION_MATRIX = p.computeProjectionMatrixFOV(
@@ -131,16 +146,20 @@ class TableEnv(PybulletEnv):
         self._recording_text = ""
 
     @property
-    def action_skeleton(self) -> List[str]:
-        return self._action_skeleton
+    def tasks(self) -> List[Task]:
+        return self._tasks
+
+    @property
+    def task(self) -> Task:
+        return self._task
+
+    @property
+    def action_skeleton(self) -> Sequence[envs.Primitive]:
+        return self.task.action_skeleton
 
     @property
     def primitives(self) -> List[str]:
         return self._primitives
-
-    @property
-    def initial_state(self) -> List[predicates.Predicate]:
-        return self._initial_state
 
     @property
     def robot(self) -> robot.Robot:
@@ -245,7 +264,8 @@ class TableEnv(PybulletEnv):
         for state_id in self._states:
             p.removeState(state_id, physicsClientId=self.physics_id)
         self._states.clear()
-        self.set_primitive(action_call=self.action_skeleton[0])
+        self._task = random.choice(self.tasks)
+        self.set_primitive(self.task.action_skeleton[0])
 
         while True:
             self.robot.reset()
@@ -258,10 +278,10 @@ class TableEnv(PybulletEnv):
 
             if not all(
                 any(
-                    prop.sample(self.robot, self.objects, self.initial_state)
+                    prop.sample(self.robot, self.objects, self.task.initial_state)
                     for _ in range(max_attempts)
                 )
-                for prop in self.initial_state
+                for prop in self.task.initial_state
             ):
                 continue
 
@@ -271,8 +291,8 @@ class TableEnv(PybulletEnv):
                 continue
 
             if all(
-                prop.value(self.robot, self.objects, self.initial_state)
-                for prop in self.initial_state
+                prop.value(self.robot, self.objects, self.task.initial_state)
+                for prop in self.task.initial_state
             ):
                 break
 
@@ -456,12 +476,12 @@ class VariantTableEnv(VariantEnv, TableEnv):  # type: ignore
         return env
 
     @property
-    def action_skeleton(self) -> List[str]:
-        return self.env.action_skeleton
+    def tasks(self) -> List[Task]:
+        return self.env.tasks
 
     @property
-    def initial_state(self) -> List[predicates.Predicate]:
-        return self.env.initial_state
+    def task(self) -> Task:
+        return self.env.task
 
     @property
     def robot(self) -> robot.Robot:
