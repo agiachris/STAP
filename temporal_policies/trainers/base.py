@@ -340,7 +340,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         Returns:
             List of metric dicts which haven't been logged yet.
         """
-        if self.step % self.log_freq == 0 or not metrics_list:
+        if self.step % self.log_freq != 0 or not metrics_list:
             return metrics_list
 
         log_metrics = metrics.collect_metrics(metrics_list)
@@ -452,7 +452,10 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
 
             # Train step.
             train_metrics = self.train_step(self.step, batch)
-            pbar.set_postfix({self.eval_metric: train_metrics[self.eval_metric]})
+            try:
+                pbar.set_postfix({self.eval_metric: train_metrics[self.eval_metric]})
+            except KeyError:
+                pass
 
             # Log.
             metrics_list.append(train_metrics)
