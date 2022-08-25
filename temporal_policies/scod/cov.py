@@ -22,6 +22,7 @@ class CoVSCOD(scod.WrapperSCOD):
             metric: Posterior predictive coefficienct of variation (B) or (B x d_out)
         """
         output, variance, _ = self.forward(*input, detach=detach)
+        assert variance is not None
         variance = (variance - variance.min()) / (variance.max() - variance.min())
         metric = output / variance
         if metric.size(-1) == 1:

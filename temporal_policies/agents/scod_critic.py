@@ -8,6 +8,7 @@ from temporal_policies.agents import base, wrapper
 
 class SCODCritic(networks.critics.Critic):
     def __init__(self, scod_wrapper: scod.WrapperSCOD):
+        super().__init__()
         self.scod_wrapper = scod_wrapper
 
     def forward(  # type: ignore

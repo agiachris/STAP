@@ -19,6 +19,7 @@ function train_scod {
     args="${args} --model-checkpoint ${MODEL_CHECKPOINT}"
     args="${args} --model-network ${MODEL_NETWORK}"
     args="${args} --seed 0"
+    args="${args} ${ENV_KWARGS}"
 
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${SCOD_OUTPUT_PATH}_debug"
@@ -60,6 +61,9 @@ checkpoints=(
     # "ckpt_model_50000"
     # "ckpt_model_100000"
 )
+if [[ `hostname` == "sc.stanford.edu" ]]; then
+    ENV_KWARGS="--gui 0"
+fi
 
 for ckpt in "${checkpoints[@]}"; do
     for policy_env in "${policy_envs[@]}"; do

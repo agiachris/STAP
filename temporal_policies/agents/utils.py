@@ -88,6 +88,7 @@ class AgentFactory(configs.Factory):
                     )
                 self.kwargs["scod_wrapper"] = scod.load(
                     config=self.kwargs["scod_config"],
+                    model=policy,
                     checkpoint=scod_checkpoint,
                 )
                 del self.kwargs["scod_config"]

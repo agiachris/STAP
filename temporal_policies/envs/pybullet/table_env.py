@@ -13,7 +13,7 @@ from temporal_policies.envs.pybullet.base import PybulletEnv
 from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates
 from temporal_policies.envs.pybullet.table.primitives import Primitive
-from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.envs.pybullet.table.objects import Null, Object, ObjectGroup
 from temporal_policies.envs.variant import VariantEnv
 from temporal_policies.utils import recording
 
@@ -72,11 +72,13 @@ class TableEnv(PybulletEnv):
         tasks: List[Dict[str, List[str]]],
         robot_config: Union[str, Dict[str, Any]],
         objects: Union[str, List[Dict[str, Any]]],
+        object_groups: Optional[List[Dict[str, Any]]] = None,
         gui: bool = True,
         recording_freq: int = 10,
     ):
         super().__init__(name=name, gui=gui)
 
+        # Load configs.
         if isinstance(objects, str):
             with open(objects, "r") as f:
                 objects = yaml.safe_load(f)
@@ -86,30 +88,48 @@ class TableEnv(PybulletEnv):
                 robot_config = yaml.safe_load(f)
         assert not isinstance(robot_config, str)
 
+        # Set primitive names.
         self._primitives = primitives
+
+        # Create robot.
         self._robot = robot.Robot(
             physics_id=self.physics_id,
             step_simulation_fn=self.step_simulation,
             **robot_config,
         )
 
+        # Create object groups.
+        if object_groups is None:
+            object_group_list = []
+        else:
+            object_group_list = [
+                ObjectGroup(physics_id=self.physics_id, **group_config)
+                for group_config in object_groups
+            ]
+        self._object_groups = {group.name: group for group in object_group_list}
+
+        # Create objects.
         object_list = [
             Object.create(
-                physics_id=self.physics_id, idx_object=idx_object, **obj_kwargs
+                physics_id=self.physics_id,
+                object_groups=self.object_groups,
+                **obj_config,
             )
-            for idx_object, obj_kwargs in enumerate(objects)
+            for obj_config in objects
         ]
         self._objects = {obj.name: obj for obj in object_list}
         self.robot.table = self.objects["table"]
 
+        # Create tasks.
+        self._tasks = [Task.create(self, **task) for task in tasks]
+        self._task = self.tasks[0]
+        self.set_primitive(self.action_skeleton[0])
+
+        # Initialize pybullet state cache.
         self._initial_state_id = p.saveState(physicsClientId=self.physics_id)
         self._states: Dict[int, Dict[str, Any]] = {}  # Saved states.
 
-        self._tasks = [Task.create(self, **task) for task in tasks]
-        self._task = self.tasks[0]
-
-        self.set_primitive(self.action_skeleton[0])
-
+        # Initialize rendering.
         WIDTH, HEIGHT = 405, 270
         PROJECTION_MATRIX = p.computeProjectionMatrixFOV(
             fov=37.8,
@@ -168,6 +188,10 @@ class TableEnv(PybulletEnv):
     @property
     def objects(self) -> Dict[str, Object]:
         return self._objects
+
+    @property
+    def object_groups(self) -> Dict[str, ObjectGroup]:
+        return self._object_groups
 
     def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
         assert isinstance(policy_args, list)
@@ -273,9 +297,20 @@ class TableEnv(PybulletEnv):
                 stateId=self._initial_state_id, physicsClientId=self.physics_id
             )
 
+            # Reset variants.
+            for object_group in self.object_groups.values():
+                object_group.reset()
             for obj in self.objects.values():
                 obj.reset()
 
+            # Make sure none of the action sksleton args is Null.
+            if any(
+                any(obj.isinstance(Null) for obj in primitive.policy_args)
+                for primitive in self.task.action_skeleton
+            ):
+                continue
+
+            # Sample initial state.
             if not all(
                 any(
                     prop.sample(self.robot, self.objects, self.task.initial_state)
@@ -283,8 +318,10 @@ class TableEnv(PybulletEnv):
                 )
                 for prop in self.task.initial_state
             ):
+                # Continue if a proposition failed after max_attempts.
                 continue
 
+            # Check state again after objects have settled.
             self.wait_until_stable(min_iters=1)
 
             if self._is_any_object_below_table():
@@ -294,6 +331,7 @@ class TableEnv(PybulletEnv):
                 prop.value(self.robot, self.objects, self.task.initial_state)
                 for prop in self.task.initial_state
             ):
+                # Break if all propositions in the initial state are true.
                 break
 
         return self.get_observation()

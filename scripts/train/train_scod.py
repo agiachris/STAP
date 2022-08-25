@@ -19,6 +19,7 @@ def train(
     overwrite: bool = False,
     device: str = "auto",
     seed: Optional[int] = None,
+    gui: Optional[int] = None,
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
@@ -31,10 +32,14 @@ def train(
         if seed is not None:
             random.seed(seed)
 
+        env_kwargs = {}
+        if gui is not None:
+            env_kwargs["gui"] = bool(gui)
         scod_factory = scod.SCODFactory(
             config=scod_config,
             model_checkpoint=model_checkpoint,
             model_network=model_network,
+            env_kwargs=env_kwargs,
             device=device,
         )
         trainer_factory = trainers.TrainerFactory(
@@ -93,5 +98,6 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite", action="store_true", default=False)
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--seed", type=int, help="Random seed")
+    parser.add_argument("--gui", type=int, help="Show pybullet gui")
 
     main(parser.parse_args())

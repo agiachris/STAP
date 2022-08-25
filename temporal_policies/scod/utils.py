@@ -15,6 +15,7 @@ class SCODFactory(configs.Factory):
         model: Optional[agents.Agent] = None,
         model_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         model_network: Optional[str] = None,
+        env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
     ):
         """Creates the SCOD model factory from a config or checkpoint.
@@ -30,6 +31,7 @@ class SCODFactory(configs.Factory):
                 provided if model is None.
             model_network: Model network name. Must be provided as
                 if model and model_checkpoint relate an agents.Agent.
+            env_kwargs: Kwargs passed to EnvFactory for each policy checkpoint.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -74,7 +76,7 @@ class SCODFactory(configs.Factory):
             raise ValueError("Either config or checkpoint must be specified")
 
         if model is None and model_checkpoint is not None:
-            model = agents.load(checkpoint=model_checkpoint)
+            model = agents.load(checkpoint=model_checkpoint, env_kwargs=env_kwargs)
 
         if model is None:
             raise ValueError(
@@ -113,6 +115,7 @@ def load(
     model: Optional[agents.Agent] = None,
     model_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     model_network: Optional[str] = None,
+    env_kwargs: Dict[str, Any] = {},
     device: str = "auto",
     **kwargs,
 ) -> scod.SCOD:
@@ -129,6 +132,7 @@ def load(
                 provided if model is None.
         model_network: Model network name. Must be provided as
                 if model and model_checkpoint relate an agents.Agent.
+        env_kwargs: Kwargs passed to EnvFactory for each policy checkpoint.
         device: Torch device.
         kwargs: Optional SCOD constructor kwargs.
 
@@ -141,6 +145,7 @@ def load(
         model=model,
         model_checkpoint=model_checkpoint,
         model_network=model_network,
+        env_kwargs=env_kwargs,
         device=device,
     )
     return scod_factory(**kwargs)
