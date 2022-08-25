@@ -25,7 +25,7 @@ class Encoder(torch.nn.Module, abc.ABC):
         return self._state_space
 
     @abc.abstractmethod
-    def forward(self, observation: torch.Tensor) -> torch.Tensor:
+    def forward(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
         """Encodes the observation to the policy latent state.
 
         For VAEs, this will return the latent distribution parameters.
@@ -38,7 +38,7 @@ class Encoder(torch.nn.Module, abc.ABC):
         """
         pass
 
-    def predict(self, observation: torch.Tensor) -> torch.Tensor:
+    def predict(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
         """Encodes the observation to the policy latent state.
 
         Args:
@@ -47,7 +47,7 @@ class Encoder(torch.nn.Module, abc.ABC):
         Returns:
             Encoded policy state.
         """
-        return self.forward(observation)
+        return self.forward(observation, **kwargs)
 
 
 class Decoder(torch.nn.Module, abc.ABC):

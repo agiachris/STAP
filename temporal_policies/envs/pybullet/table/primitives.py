@@ -69,7 +69,7 @@ class Primitive(envs.Primitive, abc.ABC):
         if random.random() < 0.9:
             action = self.normalize_action(self.sample_action().vector)
             action = np.random.normal(loc=action, scale=0.05)
-            action = action.clip(self.action_space.low, self.action_space.high)
+            action = action.astype(np.float32).clip(self.action_space.low, self.action_space.high)
             return action
         else:
             return super().sample()
@@ -218,6 +218,10 @@ class Place(Primitive):
         wait_until_stable_fn()
 
         obj_pose = obj.pose()
+        if predicates.is_below_table(obj_pose.pos):
+            # Falling off the table is an exception.
+            return ExecutionResult(success=False, truncated=True)
+
         if not predicates.is_upright(obj_pose.quat) or not predicates.is_above(
             obj.aabb(), target.aabb()
         ):

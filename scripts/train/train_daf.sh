@@ -47,16 +47,27 @@ plots_path="plots"
 
 # Experiments.
 
-exp_name="20220816/workspace_daf"
+exp_name="20220818/workspace"
+
+planners=(
+    "daf_policy_cem"
+    # "daf_random_cem"
+    # "daf_policy_shooting"
+    "daf_random_shooting"
+)
+
 TRAINER_CONFIG="configs/pybullet/trainers/daf.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 ENV_CONFIG="configs/pybullet/envs/workspace.yaml"
-PLANNER_CONFIG="configs/pybullet/planners/policy_shooting.yaml"
-OUTPUT_PATH="${output_path}/${exp_name}"
-EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 if [[ `hostname` == "sc.stanford.edu" ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
-train_daf
+for planner in "${planners[@]}"; do
+    PLANNER_CONFIG="configs/pybullet/planners/${planner}.yaml"
+    OUTPUT_PATH="${output_path}/${exp_name}/${planner}"
+    EVAL_RECORDING_PATH="${plots_path}/${exp_name}/${planner}"
+
+    train_daf
+done

@@ -46,20 +46,26 @@ function run_planners {
 
         POLICY_CHECKPOINTS=()
         for policy_env in "${POLICY_ENVS[@]}"; do
-            POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${ckpt}.pt")
+            if [[ "${planner}" == daf_* ]]; then
+                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${planner}/${policy_env}/${CKPT}.pt")
+            else
+                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${CKPT}.pt")
+            fi
         done
 
         SCOD_CHECKPOINTS=()
         if [[ "${planner}" == *scod_value* ]]; then
             for policy_env in "${POLICY_ENVS[@]}"; do
-                SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${policy_env}/scod/final_scod.pt")
+                SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${CKPT}/${policy_env}/scod/final_scod.pt")
             done
         fi
 
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
+        elif [[ "${planner}" == daf_* ]]; then
+            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${planner}/dynamics/final_model.pt"
         else
-            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/dynamics/final_model.pt"
+            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CKPT}/dynamics/final_model.pt"
         fi
 
         eval_planner
@@ -100,6 +106,11 @@ PLANNERS=(
     "random_cem_oracle_value_dynamics"
     "policy_shooting_oracle_value_dynamics"
     "random_shooting_oracle_value_dynamics"
+# DAF.
+    "daf_policy_cem"
+    "daf_policy_shooting"
+    "daf_random_cem"
+    "daf_random_shooting"
 # Greedy.
     "greedy_oracle_dynamics"
     "greedy"
@@ -134,12 +145,12 @@ fi
 
 # Run planners.
 POLICY_INPUT_PATH="${input_path}/${exp_name}"
-for ckpt in "${checkpoints[@]}"; do
-    SCOD_INPUT_PATH="${input_path}/${exp_name}/${ckpt}"
-    DYNAMICS_INPUT_PATH="${input_path}/${exp_name}/${ckpt}"
-    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${ckpt}"
-    run_planners
-done
+SCOD_INPUT_PATH="${input_path}/${exp_name}"
+DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
+PLANNER_OUTPUT_PATH="${output_path}/${exp_name}"
+# for CKPT in "${checkpoints[@]}"; do
+#     run_planners
+# done
 
 # Visualize results.
 if [[ `hostname` == "sc.stanford.edu" ]] || [ $DEBUG -ne 0 ]; then

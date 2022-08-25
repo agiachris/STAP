@@ -10,14 +10,15 @@ env_kwargs:
 
   action_skeleton:
     - pick(hook, table)
-    # - pull(a, hook)
+    - pull(a, hook)
     - place(hook, table)
     - pick(a, table)
 
   initial_state:
     - on(hook, table)
     - on(a, table)
-    - inworkspace(a)
+    # - inworkspace(a)
+    - beyondworkspace(a)
     - inworkspace(hook)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml

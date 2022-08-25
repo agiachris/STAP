@@ -57,28 +57,30 @@ class AgentFactory(configs.Factory):
         if env is None:
             raise ValueError("Either env or checkpoint must be specified")
 
+        if config == "{AGENT_CONFIG}":
+            # DAF doesn't load config from checkpoint.
+            assert policy is not None
+            self._policy = policy
+            return
+
         super().__init__(config, "agent", agents)
 
         if issubclass(self.cls, agents.WrapperAgent):
-            if self.kwargs["agent_config"] == "{AGENT_CONFIG}":
-                # DAF doesn't load config from checkpoint.
-                assert policy is not None
-            else:
-                # Get policy
-                policy = agents.load(
-                    config=self.kwargs["agent_config"],
-                    env=env,
-                    checkpoint=checkpoint,
-                    encoder_checkpoint=encoder_checkpoint,
-                    scod_checkpoint=scod_checkpoint,
-                    policy=policy,
-                    device=device,
-                )
+            # Get policy
+            policy = agents.load(
+                config=self.kwargs["agent_config"],
+                env=env,
+                checkpoint=checkpoint,
+                encoder_checkpoint=encoder_checkpoint,
+                scod_checkpoint=scod_checkpoint,
+                policy=policy,
+                device=device,
+            )
             self.kwargs["policy"] = policy
             del self.kwargs["agent_config"]
 
             # Optionally get SCOD wrapper
-            if "SCOD" in self.cls.__name__:
+            if issubclass(self.cls, agents.SCODCriticAgent):
                 if "scod_config" not in self.kwargs:
                     raise ValueError(
                         f'AgentFactory requires agent kwarg "scod_config"'
@@ -105,6 +107,12 @@ class AgentFactory(configs.Factory):
 
         self.kwargs["env"] = env
         self.kwargs["device"] = device
+
+    def __call__(self, *args, **kwargs) -> agents.Agent:
+        if hasattr(self, "_policy"):
+            return self._policy
+
+        return super().__call__(*args, **kwargs)
 
 
 def load(

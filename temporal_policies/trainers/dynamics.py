@@ -89,10 +89,12 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                 raise ValueError(
                     "One of agent_trainers or policy_checkpoints must be specified"
                 )
-            if policies is None:
-                policies = [None] * len(policy_checkpoints)
+            if policies is not None:
+                maybe_policies: Sequence[Optional[agents.RLAgent]] = policies
+            else:
+                maybe_policies = [None] * len(policy_checkpoints)
             agent_trainers = []
-            for policy, policy_checkpoint in zip(policies, policy_checkpoints):
+            for policy, policy_checkpoint in zip(maybe_policies, policy_checkpoints):
                 policy_checkpoint = pathlib.Path(policy_checkpoint)
                 if policy_checkpoint.is_file():
                     trainer_checkpoint = (

@@ -73,7 +73,7 @@ class ConvEncoder(Encoder):
 
         self._latent_dim = latent_dim
 
-    def forward(self, observation: torch.Tensor) -> torch.Tensor:
+    def forward(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
         """Encodes the observation to the policy latent state.
 
         Args:
@@ -92,7 +92,7 @@ class ConvEncoder(Encoder):
 
         return latent
 
-    def predict(self, observation: torch.Tensor) -> torch.Tensor:
+    def predict(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
         # Make sure input has one batch dimension.
         if observation.dim() < 4:
             squeeze = True

@@ -10,6 +10,6 @@ class IdentityEncoder(Encoder):
     def __init__(self, env: envs.Env):
         super().__init__(env, env.observation_space)
 
-    def forward(self, observation: torch.Tensor) -> torch.Tensor:
+    def forward(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
         """Returns the original observation."""
         return observation

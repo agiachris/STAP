@@ -48,7 +48,7 @@ plots_path="plots"
 # Experiments.
 
 # Pybox2d.
-# exp_name="20220804/pybox2d"
+# exp_name="20220806/pybox2d"
 # TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
 # AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
 # POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
@@ -56,12 +56,12 @@ plots_path="plots"
 #
 # ENV_CONFIG="configs/pybox2d/envs/placeright.yaml"
 # train_policy
-#
+
 # ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
 # train_policy
 
 # Pybullet.
-exp_name="20220805/workspace"
+exp_name="20220819/workspace_multi"
 TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
@@ -75,9 +75,9 @@ EVAL_ENV_CONFIG="configs/pybullet/envs/pick_eval.yaml"
 train_policy
 
 ENV_CONFIG="configs/pybullet/envs/place.yaml"
-EVAL_ENV_CONFIG=""
+EVAL_ENV_CONFIG="configs/pybullet/envs/place_eval.yaml"
 train_policy
 
 ENV_CONFIG="configs/pybullet/envs/pull.yaml"
-EVAL_ENV_CONFIG=""
+EVAL_ENV_CONFIG="configs/pybullet/envs/pull_eval.yaml"
 train_policy

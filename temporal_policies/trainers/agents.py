@@ -5,8 +5,8 @@ import numpy as np
 import torch
 import tqdm
 
-from temporal_policies import agents, datasets, envs, processors
-from temporal_policies.networks.encoders import BASIC_ENCODERS
+from temporal_policies import agents, datasets, envs, networks, processors
+from temporal_policies.networks.encoders import IMAGE_ENCODERS
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.utils import configs, metrics, tensors
@@ -188,11 +188,12 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     t_observation = tensors.from_numpy(
                         self.env.get_observation(), self.device
                     )
-                    if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
+                    if isinstance(self.agent.encoder.network, IMAGE_ENCODERS):
                         t_observation = tensors.rgb_to_cnn(t_observation)
-                    t_action = self.agent.actor.predict(
-                        self.agent.encoder.encode(t_observation), sample=True
+                    t_observation = self.agent.encoder.encode(
+                        t_observation, env=self.eval_env
                     )
+                    t_action = self.agent.actor.predict(t_observation, sample=True)
                     action = t_action.cpu().numpy()
                 self.train_mode()
 
@@ -246,7 +247,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             isinstance(batch["observation"], torch.Tensor)
             and batch["observation"].shape[-1] == 3
             and batch["observation"].dtype == torch.uint8
-            and not isinstance(self.agent.encoder.network, BASIC_ENCODERS)
+            and isinstance(self.agent.encoder.network, IMAGE_ENCODERS)
         ):
             batch["observation"] = tensors.rgb_to_cnn(batch["observation"])  # type: ignore
             batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])  # type: ignore
@@ -333,11 +334,12 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         while not done:
             with torch.no_grad():
                 t_observation = tensors.from_numpy(observation, self.device)
-                if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
+                if isinstance(self.agent.encoder.network, IMAGE_ENCODERS):
                     t_observation = tensors.rgb_to_cnn(t_observation)
-                t_action = self.agent.actor.predict(
-                    self.agent.encoder.encode(t_observation), sample=False
+                t_observation = self.agent.encoder.encode(
+                    t_observation, env=self.eval_env
                 )
+                t_action = self.agent.actor.predict(t_observation, sample=False)
                 action = t_action.cpu().numpy()
 
             observation, reward, terminated, truncated, info = self.eval_env.step(

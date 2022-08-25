@@ -1,7 +1,6 @@
 import dataclasses
-import enum
 import pathlib
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import gym
 import numpy as np
@@ -14,6 +13,7 @@ from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates
 from temporal_policies.envs.pybullet.table.primitives import Primitive
 from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.envs.variant import VariantEnv
 from temporal_policies.utils import recording
 
 import pybullet as p  # Import after envs.pybullet.base to avoid print statement.
@@ -27,9 +27,7 @@ class CameraView:
     projection_matrix: np.ndarray
 
 
-class ObservationMode(enum.Enum):
-    PRIMITIVE = 0
-    FULL = 1
+MAX_NUM_OBJECTS = 5
 
 
 class TableEnv(PybulletEnv):
@@ -42,8 +40,8 @@ class TableEnv(PybulletEnv):
     # object states for each of the policy_args and an additional object state
     # for the gripper.
     observation_space = gym.spaces.Box(
-        low=np.tile(object_state.ObjectState.range()[0], 3),
-        high=np.tile(object_state.ObjectState.range()[1], 3),
+        low=np.tile(object_state.ObjectState.range()[0], (MAX_NUM_OBJECTS, 1)),
+        high=np.tile(object_state.ObjectState.range()[1], (MAX_NUM_OBJECTS, 1)),
     )
 
     metadata = {"render_modes": ["default", "front_high_res", "top_high_res"]}
@@ -91,15 +89,6 @@ class TableEnv(PybulletEnv):
         ]
         self._objects = {obj.name: obj for obj in object_list}
         self.robot.table = self.objects["table"]
-        self._full_observation_space = gym.spaces.Box(
-            low=np.tile(
-                object_state.ObjectState.range()[0:1], (len(self.objects) + 1, 1)
-            ),
-            high=np.tile(
-                object_state.ObjectState.range()[1:2], (len(self.objects) + 1, 1)
-            ),
-        )
-        self._observation_mode = ObservationMode.PRIMITIVE
 
         self._initial_state_id = p.saveState(physicsClientId=self.physics_id)
         self._states: Dict[int, Dict[str, Any]] = {}  # Saved states.
@@ -161,26 +150,6 @@ class TableEnv(PybulletEnv):
     def objects(self) -> Dict[str, Object]:
         return self._objects
 
-    @property
-    def full_observation_space(self) -> gym.spaces.Box:
-        """Observation space containing all the objects in the scene, including the gripper.
-
-        `self.observation_space` is a flattened vector, while
-        `self.full_observation_space` is a matrix.
-
-        The number of objects is determined by the yaml config.
-        """
-        return self._full_observation_space
-
-    def set_observation_mode(self, mode: ObservationMode) -> None:
-        """Sets the observation type returned by `self.get_observation()`.
-
-        Args:
-            mode: Observation mode (PRIMITIVE for `observation_space`, FULL for
-                    `full_observation_space`).
-        """
-        self._observation_mode = mode
-
     def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
         assert isinstance(policy_args, list)
         return [arg.idx_object for arg in policy_args] + [len(self.objects)]
@@ -236,21 +205,13 @@ class TableEnv(PybulletEnv):
         return True
 
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
-        if self._observation_mode == ObservationMode.PRIMITIVE:
-            obj_states = self.object_states()
-            arg_states = [
-                obj_states[arg.name].vector for arg in self.get_primitive().policy_args
-            ]
-            arg_states.append(obj_states["TableEnv.robot.arm.ee_pose"].vector)
-            return np.concatenate(arg_states, axis=0)
-        elif self._observation_mode == ObservationMode.FULL:
-            obj_states = self.object_states()
-            ordered_states = [obj_state.vector for obj_state in obj_states.values()]
-            return np.stack(ordered_states, axis=0)
-        else:
-            raise NotImplementedError(
-                f"TableEnv.get_observation() not implemented for observation mode: {self._observation_mode}"
-            )
+        obj_states = self.object_states()
+        observation = np.zeros(
+            self.observation_space.shape, dtype=self.observation_space.dtype
+        )
+        for i, obj_state in enumerate(obj_states.values()):
+            observation[i] = obj_state.vector
+        return observation
 
     def set_observation(self, observation: np.ndarray) -> None:
         ee_state = object_state.ObjectState(observation[-1])
@@ -260,14 +221,10 @@ class TableEnv(PybulletEnv):
         except robot.ControlException:
             print(f"TableEnv.set_observation(): Failed to reach pose {ee_pose}.")
 
-        # print("TableEnv.set_observation(): ", object_state.ObjectState(observation))
-        if self._observation_mode == ObservationMode.FULL:
-            assert len(self.objects) == observation.shape[0] - 1
-            for i, object in enumerate(self.objects.values()):
-                obj_state = object_state.ObjectState(observation[i])
-                object.set_state(obj_state)
-        else:
-            raise NotImplementedError
+        assert len(self.objects) == observation.shape[0] - 1
+        for i, object in enumerate(self.objects.values()):
+            obj_state = object_state.ObjectState(observation[i])
+            object.set_state(obj_state)
 
     def object_states(self) -> Dict[str, object_state.ObjectState]:
         state = {obj.name: obj.state() for name, obj in self.objects.items()}
@@ -485,3 +442,49 @@ class TableEnv(PybulletEnv):
             is_saved |= self._recorder.save(path, reset)
 
         return is_saved
+
+
+class VariantTableEnv(VariantEnv, TableEnv):  # type: ignore
+    def __init__(self, variants: Sequence[envs.Env]):
+        for env in variants:
+            assert isinstance(env, TableEnv)
+        super().__init__(variants)
+
+    @property
+    def env(self) -> TableEnv:
+        env = super().env
+        assert isinstance(env, TableEnv)
+        return env
+
+    @property
+    def action_skeleton(self) -> List[str]:
+        return self.env.action_skeleton
+
+    @property
+    def initial_state(self) -> List[predicates.Predicate]:
+        return self.env.initial_state
+
+    @property
+    def robot(self) -> robot.Robot:
+        return self.env.robot
+
+    @property
+    def objects(self) -> Dict[str, Object]:
+        return self.env.objects
+
+    def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
+        return self.env.get_arg_indices(idx_policy, policy_args)
+
+    def set_observation(self, observation: np.ndarray) -> None:
+        return self.env.set_observation(observation)
+
+    def object_states(self) -> Dict[str, object_state.ObjectState]:
+        return self.env.object_states()
+
+    def wait_until_stable(
+        self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)
+    ) -> int:
+        return self.env.wait_until_stable(min_iters, max_iters)
+
+    def step_simulation(self) -> None:
+        return self.env.step_simulation()

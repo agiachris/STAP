@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, List, Optional, Sequence, Type, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Type, Union
 
 import numpy as np
 import torch
@@ -15,6 +15,7 @@ from temporal_policies.utils.typing import Scalar, StateBatch, StateEncoderBatch
 
 
 # TODO: Not fully implemented
+
 
 class StateEncoderTrainer(
     Trainer[encoders.StateEncoder, StateEncoderBatch, StateBatch]
@@ -103,12 +104,8 @@ class StateEncoderTrainer(
                 agent_trainers.append(agent_trainer)
 
         dataset_class = configs.get_class(dataset_class, datasets)
-        dataset = dataset_class(
-            [trainer.dataset for trainer in agent_trainers], **dataset_kwargs
-        )
-        eval_dataset = dataset_class(
-            [trainer.eval_dataset for trainer in agent_trainers], **dataset_kwargs
-        )
+        dataset = dataset_class(**dataset_kwargs)
+        eval_dataset = dataset_class(**dataset_kwargs)
 
         processor_class = configs.get_class(processor_class, processors)
         processor = processor_class(
@@ -170,7 +167,7 @@ class StateEncoderTrainer(
         )
         return tensors.to(encoder_batch, self.device)
 
-    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
+    def evaluate(self) -> List[Mapping[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:
@@ -181,7 +178,7 @@ class StateEncoderTrainer(
 
         self.eval_mode()
 
-        eval_metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]] = []
+        eval_metrics_list: List[Mapping[str, Union[Scalar, np.ndarray]]] = []
         pbar = tqdm.tqdm(
             self._eval_dataloader,
             desc=f"Eval {self.name}",

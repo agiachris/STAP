@@ -1,12 +1,12 @@
 import pathlib
-from typing import Any, Dict, Optional, Union, Type
+from typing import Any, Dict, Mapping, Optional, Union, Type
 
 import numpy as np
 import torch
 import tqdm
 
 from temporal_policies import agents, datasets, envs, scod, trainers
-from temporal_policies.networks.encoders import BASIC_ENCODERS
+from temporal_policies.networks.encoders import IMAGE_ENCODERS
 from temporal_policies.trainers.utils import load as load_trainer
 from temporal_policies.utils import configs, tensors, logging, metrics
 
@@ -206,7 +206,7 @@ class SCODTrainer:
         self.model.eval_mode()
         self.agent.eval_mode()
 
-    def collect_step(self, random: bool = False) -> Dict[str, Any]:
+    def collect_step(self, random: bool = False) -> Mapping[str, Any]:
         """Collects data for the replay buffer.
 
         Args:
@@ -230,7 +230,7 @@ class SCODTrainer:
                 t_observation = tensors.from_numpy(
                     self.env.get_observation(), self.device
                 )
-                if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
+                if isinstance(self.agent.encoder.network, IMAGE_ENCODERS):
                     t_observation = tensors.rgb_to_cnn(t_observation)
                 t_action = self.agent.actor.predict(
                     self.agent.encoder.encode(t_observation)

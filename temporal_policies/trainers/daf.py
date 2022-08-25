@@ -5,7 +5,14 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 import numpy as np
 import tqdm
 
-from temporal_policies import datasets, dynamics as dynamics_module, envs, planners
+from temporal_policies import (
+    agents,
+    datasets,
+    dynamics as dynamics_module,
+    envs,
+    networks,
+    planners,
+)
 from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.unified import UnifiedTrainer
 from temporal_policies.utils import metrics
@@ -25,6 +32,7 @@ class DafTrainer(UnifiedTrainer):
         dynamics_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         agent_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        sample_primitive_actions: bool = False,
         device: str = "auto",
         num_pretrain_steps: int = 1000,
         num_train_steps: int = 100000,
@@ -43,6 +51,8 @@ class DafTrainer(UnifiedTrainer):
             dynamics_trainer_config: Dynamics trainer config.
             agent_trainer_config: Agent trainer config.
             checkpoint: Optional path to trainer checkpoint.
+            sample_primitive_actions: Whether to sample actions from the
+                primitive distribution.
             device: Torch device.
             num_pretrain_steps: Number of steps to pretrain. Overrides
                 agent trainer configs.
@@ -78,6 +88,12 @@ class DafTrainer(UnifiedTrainer):
         self._env = env
         self._action_skeleton = action_skeleton
         self._planner = planner
+
+        if sample_primitive_actions:
+            for policy, primitive in zip(self.planner.policies, self.action_skeleton):
+                if isinstance(policy, agents.RandomAgent):
+                    assert isinstance(policy.actor, networks.actors.RandomActor)
+                    policy.actor.set_primitive(primitive)
 
     @property
     def env(self) -> envs.Env:
@@ -168,27 +184,12 @@ class DafTrainer(UnifiedTrainer):
             )
         else:
             with self.dynamics_trainer.profiler.profile("plan"):
-                # Change observation mode for planning.
-                dynamics = self.dynamics_trainer.dynamics
-                if isinstance(dynamics, dynamics_module.TableEnvDynamics):
-                    assert dynamics.env is not None
-                    dynamics.env.set_observation_mode(
-                        envs.pybullet.table_env.ObservationMode.FULL
-                    )
-
                 # Plan.
                 self.env.set_primitive(self.action_skeleton[0])
                 observation = self.env.get_observation()
                 actions = self.planner.plan(
                     observation=observation, action_skeleton=self.action_skeleton
                 ).actions
-
-                # Restore observation mode for training.
-                if isinstance(dynamics, dynamics_module.TableEnvDynamics):
-                    assert dynamics.env is not None
-                    dynamics.env.set_observation_mode(
-                        envs.pybullet.table_env.ObservationMode.PRIMITIVE
-                    )
 
         failure = False
         collect_metrics: Dict[str, Mapping[str, float]] = {}

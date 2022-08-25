@@ -58,7 +58,6 @@ class WrapperSCOD(scod.SCOD, abc.ABC):
         self,
         *input: torch.Tensor,
         detach: bool = True,
-        mode: int = 1,
     ) -> torch.Tensor:
         """Compute custom output quantity from outputs, posterior predictive
         variances, and uncertaintites.
@@ -66,7 +65,6 @@ class WrapperSCOD(scod.SCOD, abc.ABC):
         Args:
             input: Model inputs of shape (B x d_in)
             detach: Remove jacobians and model outputs from the computation graph (default: True)
-            mode: Int defining the return uncertainty metrics from SCOD (default: 1)
 
         Returns:
             metric: Uncertainty-derived metric of shape (B x 1)

@@ -25,14 +25,14 @@ class StorageBatch(TypedDict):
     image: np.ndarray
 
 
-class StateBuffer(torch.utils.data.IterableDataset):
+class StateBuffer(ReplayBuffer):
     """Replay buffer class."""
 
     def __init__(
         self,
-        state_space: gym.spaces.Space,
-        observation_space: gym.spaces.Space,
-        image_space: gym.spaces.Space,
+        state_space: gym.spaces.Box,
+        observation_space: gym.spaces.Box,
+        image_space: gym.spaces.Box,
         path: Optional[Union[str, pathlib.Path]] = None,
         capacity: int = 100000,
         batch_size: Optional[int] = None,
@@ -72,17 +72,17 @@ class StateBuffer(torch.utils.data.IterableDataset):
         self._save_frequency = save_frequency
 
     @property
-    def state_space(self) -> gym.spaces.Space:
+    def state_space(self) -> gym.spaces.Box:
         """Batch state space."""
         return self._state_space
 
     @property
-    def observation_space(self) -> gym.spaces.Space:
+    def observation_space(self) -> gym.spaces.Box:
         """Batch observation space."""
         return self._observation_space
 
     @property
-    def image_space(self) -> gym.spaces.Space:
+    def image_space(self) -> gym.spaces.Box:
         """Batch image space."""
         return self._image_space
 
@@ -161,12 +161,12 @@ class StateBuffer(torch.utils.data.IterableDataset):
             raise NotImplementedError("Multiple workers not supported yet.")
 
         self._worker_capacity = self.capacity // self.num_workers
-        self._worker_buffers = self.create_default_batch(self.worker_capacity)
+        self._worker_buffers = self.create_default_batch(self.worker_capacity)  # type: ignore
         self._worker_size = 0
         self._worker_idx = 0
         self._worker_idx_checkpoint = 0
 
-    def create_default_batch(self, size: int) -> StorageBatch:
+    def create_default_batch(self, size: int) -> StorageBatch:  # type: ignore
         """Creates a batch of the specified size with default values.
 
         Args:
@@ -181,7 +181,7 @@ class StateBuffer(torch.utils.data.IterableDataset):
             "image": spaces.null(self.image_space, size),
         }
 
-    def add(
+    def add(  # type: ignore
         self,
         state: Optional[np.ndarray] = None,
         observation: Optional[np.ndarray] = None,
@@ -244,7 +244,7 @@ class StateBuffer(torch.utils.data.IterableDataset):
 
         return num_added
 
-    def sample(
+    def sample(  # type: ignore
         self,
         sample_strategy: Optional[ReplayBuffer.SampleStrategy] = None,
         batch_size: Optional[int] = None,
@@ -403,7 +403,7 @@ class StateBuffer(torch.utils.data.IterableDataset):
             atom_type=np.ndarray,
         )
 
-    def __iter__(self) -> Generator[StateBatch, None, None]:
+    def __iter__(self) -> Generator[StateBatch, None, None]:  # type: ignore
         """Iterates over the replay buffer."""
         self.initialize()
 

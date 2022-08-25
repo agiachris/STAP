@@ -25,6 +25,11 @@ class EnvFactory(configs.Factory[envs.Env]):
             ]
             del self.kwargs["env_configs"]
 
+        if issubclass(self.cls, envs.VariantEnv):
+            self._variants = [
+                EnvFactory(env_config) for env_config in self.kwargs["variants"]
+            ]
+
     @property
     def env_factories(self) -> List["EnvFactory"]:
         """Primitive env factories for sequential env."""
@@ -52,6 +57,10 @@ class EnvFactory(configs.Factory[envs.Env]):
             # self.run_post_hooks(instance)
             #
             # return instance
+
+        if issubclass(self.cls, envs.VariantEnv):
+            variants = [env_factory(*args, **kwargs) for env_factory in self._variants]
+            return super().__call__(variants=variants)
 
         return super().__call__(*args, **kwargs)
 

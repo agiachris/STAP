@@ -3,6 +3,8 @@ trainer_kwargs:
   dynamics_trainer_config: configs/pybox2d/trainers/dynamics.yaml
   agent_trainer_config: configs/pybox2d/trainers/agent.yaml
 
+  sample_primitive_actions: false
+
   num_pretrain_steps: 1000
   num_train_steps: 50000
   num_eval_steps: 100

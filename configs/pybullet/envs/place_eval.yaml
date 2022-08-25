@@ -1,19 +1,16 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: pick
+  name: place
   gui: true
 
   primitives:
-    - pick
+    - place
 
   action_skeleton:
-    - pick(a, table)
+    - place(a, table)
 
   initial_state:
-    - on(a, table)
-    - istippable(a)
-    - on(b, table)
-    - istippable(b)
+    - inhand(a)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -25,7 +22,7 @@ env_kwargs:
         is_static: true
     # - object_type: Box
     #   object_kwargs:
-    #     name: a
+    #     name: aj
     #     size: [0.05, 0.05, 0.1]
     #     color: [1.0, 0.0, 0.0, 1.0]
     # - object_type: Hook
@@ -38,20 +35,6 @@ env_kwargs:
     - object_type: Variant
       object_kwargs:
         name: a
-        variants:
-          - object_type: Box
-            object_kwargs:
-              size: [0.05, 0.05, 0.1]
-              color: [1.0, 0.0, 0.0, 1.0]
-          - object_type: Hook
-            object_kwargs:
-              head_length: 0.2
-              handle_length: 0.38
-              handle_y: -1.0
-              color: [0.4, 0.2, 0.0, 1.0]
-    - object_type: Variant
-      object_kwargs:
-        name: b
         variants:
           - object_type: Box
             object_kwargs:

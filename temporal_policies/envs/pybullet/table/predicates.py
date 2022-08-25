@@ -166,7 +166,7 @@ class On(Predicate):
         return True
 
 
-def generate_grasp_pose(obj: Object) -> math.Pose:
+def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
     if obj.isinstance(Hook):
         hook: Hook = obj  # type: ignore
         pos_handle, pos_head, pos_joint = Hook.compute_link_positions(
@@ -175,7 +175,7 @@ def generate_grasp_pose(obj: Object) -> math.Pose:
             handle_y=hook.handle_y,
             radius=hook.radius,
         )
-        if np.random.random() < hook.handle_length / (
+        if handlegrasp or np.random.random() < hook.handle_length / (
             hook.handle_length + hook.head_length
         ):
             # Handle.
@@ -208,6 +208,10 @@ def generate_grasp_pose(obj: Object) -> math.Pose:
     return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa))
 
 
+class HandleGrasp(Predicate):
+    pass
+
+
 class Inhand(Predicate):
     def sample(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
@@ -221,7 +225,7 @@ class Inhand(Predicate):
         obj.disable_collisions()
 
         # Generate grasp pose.
-        grasp_pose = generate_grasp_pose(obj)
+        grasp_pose = generate_grasp_pose(obj, f"handlegrasp({obj})" in state)
         obj_pose = math.Pose.from_eigen(grasp_pose.to_eigen().inverse())
         obj_pose.pos += robot.home_pose.pos
 
