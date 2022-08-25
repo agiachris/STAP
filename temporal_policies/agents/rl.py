@@ -1,14 +1,14 @@
 import pathlib
-from typing import Dict, Generic, Optional, Union
+from typing import Dict, Optional, OrderedDict, Union
 
-import torch  # type: ignore
+import torch
 
 from temporal_policies import encoders, envs, networks
 from temporal_policies.agents.base import Agent
-from temporal_policies.utils.typing import Batch, Model, ObsType
+from temporal_policies.utils.typing import Batch, Model
 
 
-class RLAgent(Agent[ObsType], Model[Batch], Generic[ObsType]):
+class RLAgent(Agent, Model[Batch]):
     """RL agent base class."""
 
     def __init__(
@@ -16,7 +16,7 @@ class RLAgent(Agent[ObsType], Model[Batch], Generic[ObsType]):
         env: envs.Env,
         actor: networks.actors.Actor,
         critic: networks.critics.Critic,
-        encoder: encoders.Encoder[ObsType],
+        encoder: encoders.Encoder,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -51,7 +51,7 @@ class RLAgent(Agent[ObsType], Model[Batch], Generic[ObsType]):
         return self._env
 
     def load_state_dict(
-        self, state_dict: Dict[str, Dict[str, torch.Tensor]], strict: bool = True
+        self, state_dict: Dict[str, OrderedDict[str, torch.Tensor]], strict: bool = True
     ) -> None:
         """Loads the agent state dict.
 

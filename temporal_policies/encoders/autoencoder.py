@@ -1,15 +1,15 @@
 import pathlib
-from typing import Any, Dict, Generic, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
-import torch  # type: ignore
+import torch
 
 from temporal_policies import envs, networks
 from temporal_policies.encoders.base import Encoder
 from temporal_policies.utils import configs
-from temporal_policies.utils.typing import AutoencoderBatch, Model, ObsType
+from temporal_policies.utils.typing import AutoencoderBatch, Model
 
 
-class Autoencoder(Encoder[ObsType], Model[AutoencoderBatch], Generic[ObsType]):
+class Autoencoder(Encoder, Model[AutoencoderBatch]):
     """Vanilla autoencoder."""
 
     def __init__(
@@ -22,15 +22,15 @@ class Autoencoder(Encoder[ObsType], Model[AutoencoderBatch], Generic[ObsType]):
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
-        """Initializes the dynamics model network, dataset, and optimizer.
+        """Initializes the autoencoder network.
 
         Args:
-            policies: Ordered list of all policies.
-            network_class: Dynamics model network class.
-            network_kwargs: Kwargs for network class.
-            state_space: Optional state space.
-            action_space: Optional action space.
-            checkpoint: Dynamics checkpoint.
+            env: Encoder env.
+            encoder_class: Encoder network class.
+            encoder_kwargs: Kwargs for encoder network class.
+            decoder_class: decoder network class.
+            decoder_kwargs: Kwargs for decoder network class.
+            checkpoint: Autoencoder checkpoint.
             device: Torch device.
         """
         decoder_class = configs.get_class(decoder_class, networks)
@@ -79,7 +79,7 @@ class Autoencoder(Encoder[ObsType], Model[AutoencoderBatch], Generic[ObsType]):
         """
         raise NotImplementedError
 
-    def to(self, device: Union[str, torch.device]) -> "Autoencoder[ObsType]":
+    def to(self, device: Union[str, torch.device]) -> "Autoencoder":
         """Transfers networks to device."""
         super().to(device)
         self.decoder.to(self.device)
@@ -95,5 +95,5 @@ class Autoencoder(Encoder[ObsType], Model[AutoencoderBatch], Generic[ObsType]):
         self.encoder.eval()
         self.decoder.eval()
 
-    def decode(self, latent: torch.Tensor) -> ObsType:
+    def decode(self, latent: torch.Tensor) -> torch.Tensor:
         return self.decoder(latent)

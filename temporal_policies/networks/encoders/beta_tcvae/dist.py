@@ -1,7 +1,7 @@
 import math
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import numpy as np
+import torch
 
 from . import functions
 
@@ -217,15 +217,15 @@ class Bernoulli(torch.nn.Module):
 
     def _sample_logistic(self, size):
         u = torch.autograd.Variable(torch.rand(size))
-        l = torch.log(u + eps) - torch.log(1 - u + eps)
-        return l
+        ll = torch.log(u + eps) - torch.log(1 - u + eps)
+        return ll
 
     def sample(self, size=None, params=None):
         presigm_ps = self._check_inputs(size, params)
         logp = torch.nn.functional.logsigmoid(presigm_ps)
         logq = torch.nn.functional.logsigmoid(-presigm_ps)
-        l = self._sample_logistic(logp.size()).type_as(presigm_ps)
-        z = logp - logq + l
+        ll = self._sample_logistic(logp.size()).type_as(presigm_ps)
+        z = logp - logq + ll
         b = functions.STHeaviside.apply(z)
         return b if self.stgradient else b.detach()
 

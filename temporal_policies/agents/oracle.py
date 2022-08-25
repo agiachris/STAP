@@ -47,6 +47,6 @@ class OracleAgent(wrapper.WrapperAgent):
     def env(self, env: envs.Env) -> None:
         """Sets the last generated env."""
         self._env = env
-        self.actor.env = env
-        self.critic.env = env
-        self.encoder._env = env
+        self.actor.env = env  # type: ignore
+        self.critic.env = env  # type: ignore
+        self.encoder.network.env = env  # type: ignore

@@ -1,0 +1,54 @@
+urdf: configs/pybullet/envs/assets/franka_panda/franka_panda_robotiq.urdf
+
+arm_kwargs:
+  arm_urdf: configs/pybullet/envs/assets/franka_panda/franka_panda.urdf
+  torque_joints:
+    - joint1
+    - joint2
+    - joint3
+    - joint4
+    - joint5
+    - joint6
+    - joint7
+
+  q_home: [0.0, -0.52359878, 0.0, -2.61799388, 0.0, 2.0943951, 0.0]
+  ee_offset: [0.0, 0.0, 0.251]
+
+  pos_gains: [121, 22]
+  ori_gains: [121, 16]
+  nullspace_joint_gains: [5, 1]
+
+  pos_threshold: [0.01, 0.01]
+  ori_threshold: [0.01, 0.01]
+  timeout: 10.0
+
+gripper_kwargs:
+  torque_joints:
+    - left_inner_finger_pad_prismatic
+
+  position_joints:
+    - right_inner_finger_pad_prismatic
+    - finger_joint
+    - left_inner_knuckle_joint
+    - left_inner_finger_joint
+    - right_outer_knuckle_joint
+    - right_inner_knuckle_joint
+    - right_inner_finger_joint
+
+  finger_links:
+    - left_inner_finger_pad_collision
+    - right_inner_finger_pad_collision
+
+  base_link: robotiq_arg2f_base_link
+
+  command_multipliers:
+    [0.04, -0.04, 0.813, 0.813, -0.813, 0.813, 0.813, -0.813]
+
+  inertia_kwargs:
+    mass: 0.83
+    com: [0, 0, 0.11]
+    inertia: [0.001, 0.0025, 0.0017, 0, 0, 0]
+
+  pos_gains: [400, 40]
+  pos_threshold: 0.001
+  timeout: 1.0

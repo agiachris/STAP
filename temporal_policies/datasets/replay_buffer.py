@@ -1,33 +1,35 @@
 #!/usr/bin/env python3
 
+
 import datetime
 import enum
 import functools
 import pathlib
-from typing import Generator, Generic, Optional, Sequence, Union
+from typing import Generator, Optional, Sequence, Union
+
 try:
     from typing import TypedDict
-except:
+except ModuleNotFoundError:
     from typing_extensions import TypedDict
 
-import gym  # type: ignore
-import numpy as np  # type: ignore
-import torch  # type: ignore
-import tqdm  # type: ignore
+import gym
+import numpy as np
+import torch
+import tqdm
 
 from temporal_policies.utils import nest, spaces
-from temporal_policies.utils.typing import Batch, ObsType
+from temporal_policies.utils.typing import Batch
 
 
-class StorageBatch(TypedDict, Generic[ObsType]):
-    observation: ObsType
+class StorageBatch(TypedDict):
+    observation: np.ndarray
     action: np.ndarray
     reward: np.ndarray
     discount: np.ndarray
     done: np.ndarray
 
 
-class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
+class ReplayBuffer(torch.utils.data.IterableDataset):
     """Replay buffer class."""
 
     class SampleStrategy(enum.Enum):
@@ -38,8 +40,8 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
 
     def __init__(
         self,
-        observation_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
+        observation_space: gym.spaces.Box,
+        action_space: gym.spaces.Box,
         path: Optional[Union[str, pathlib.Path]] = None,
         capacity: int = 100000,
         batch_size: Optional[int] = None,
@@ -88,12 +90,12 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
         #         self.load(self.path, num_load_entries)
 
     @property
-    def observation_space(self) -> gym.spaces.Space:
+    def observation_space(self) -> gym.spaces.Box:
         """Batch observation space."""
         return self._observation_space
 
     @property
-    def action_space(self) -> gym.spaces.Space:
+    def action_space(self) -> gym.spaces.Box:
         """Batch action space."""
         return self._action_space
 
@@ -202,10 +204,10 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
 
     def add(
         self,
-        observation: Optional[ObsType] = None,
+        observation: Optional[np.ndarray] = None,
         action: Optional[np.ndarray] = None,
         reward: Optional[Union[np.ndarray, float]] = None,
-        next_observation: Optional[ObsType] = None,
+        next_observation: Optional[np.ndarray] = None,
         discount: Optional[Union[np.ndarray, float]] = None,
         done: Optional[Union[np.ndarray, bool]] = None,
         batch: Optional[StorageBatch] = None,
@@ -262,12 +264,16 @@ class ReplayBuffer(torch.utils.data.IterableDataset, Generic[ObsType]):
             batch["observation"] = observation
         elif batch is None:
             assert next_observation is not None
+            assert action is not None
+            assert reward is not None
+            assert discount is not None
+            assert done is not None
             batch = {
                 "observation": next_observation,
                 "action": action,
-                "reward": reward,
-                "discount": discount,
-                "done": done,
+                "reward": reward,  # type: ignore
+                "discount": discount,  # type: ignore
+                "done": done,  # type: ignore
             }
 
         # Insert batch and advance indices.
@@ -583,7 +589,7 @@ if __name__ == "__main__":
     # Simple tests.
     observation_space = gym.spaces.Box(low=np.full(2, 0), high=np.full(2, 1))
     action_space = gym.spaces.Box(low=0, high=1, shape=(1,))
-    replay_buffer = ReplayBuffer[np.ndarray](
+    replay_buffer = ReplayBuffer(
         observation_space, action_space, capacity=5, batch_size=4
     )
 

@@ -1,22 +1,21 @@
 import abc
-from typing import Any, Generic, Optional, Sequence, Tuple, Union
+from typing import Any, Optional, Sequence, Tuple, Union
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import torch
 
-from temporal_policies import agents
+from temporal_policies import agents, envs
 from temporal_policies.utils import spaces, tensors
-from temporal_policies.utils.typing import ObsType
 
 
-class Dynamics(abc.ABC, Generic[ObsType]):
+class Dynamics(abc.ABC):
     """Base dynamics class."""
 
     def __init__(
         self,
         policies: Sequence[agents.Agent],
-        state_space: Optional[gym.spaces.Space] = None,
-        action_space: Optional[gym.spaces.Space] = None,
+        state_space: Optional[gym.spaces.Box] = None,
+        action_space: Optional[gym.spaces.Box] = None,
         device: str = "auto",
     ):
         """Initializes the dynamics model network, dataset, and optimizer.
@@ -58,12 +57,12 @@ class Dynamics(abc.ABC, Generic[ObsType]):
         return self._policies
 
     @property
-    def state_space(self) -> gym.spaces.Space:
+    def state_space(self) -> gym.spaces.Box:
         """State space."""
         return self._state_space
 
     @property
-    def action_space(self) -> gym.spaces.Space:
+    def action_space(self) -> gym.spaces.Box:
         """Action space."""
         return self._action_space
 
@@ -79,20 +78,21 @@ class Dynamics(abc.ABC, Generic[ObsType]):
             policy.to(self.device)
         return self
 
-    @tensors.batch(dims=1)
     def rollout(
         self,
-        state: torch.Tensor,
-        action_skeleton: Sequence[Tuple[int, Any]],
+        observation: torch.Tensor,
+        action_skeleton: Sequence[envs.Primitive],
         policies: Optional[Sequence[agents.Agent]] = None,
+        batch_size: Optional[int] = None,
         time_index: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Rolls out trajectories according to the action skeleton.
 
         Args:
-            state: Start state (supports up to one batch dimension for now).
-            action_skeleton: List of (idx_policy, policy_args) 2-tuples.
+            observation: Initial observation.
+            action_skeleton: List of primitives.
             policies: Optional policies to use. Otherwise uses `self.policies`.
+            batch_size: Number of trajectories to roll out.
             time_index: True if policies are indexed by time instead of idx_policy.
 
         Returns:
@@ -103,32 +103,46 @@ class Dynamics(abc.ABC, Generic[ObsType]):
             ).
         """
         if policies is None:
-            policies = [self.policies[idx_policy] for idx_policy, _ in action_skeleton]
+            policies = self.policies
             time_index = False
 
+        state = self.encode(
+            observation, action_skeleton[0].idx_policy, action_skeleton[0].policy_args
+        )
+        _batch_size = 1 if batch_size is None else batch_size
+        state = state.unsqueeze(0).repeat(_batch_size, *([1] * len(state.shape)))
+
         # Initialize variables.
-        batch_size = state.shape[0]
         T = len(action_skeleton)
         states = spaces.null_tensor(
-            self.state_space, (batch_size, T + 1), device=self.device
+            self.state_space, (_batch_size, T + 1), device=self.device
         )
         states[:, 0] = state
         actions = spaces.null_tensor(
-            self.action_space, (batch_size, T), device=self.device
+            self.action_space, (_batch_size, T), device=self.device
         )
         p_transitions = torch.ones(
-            (batch_size, T), dtype=torch.float32, device=self.device
+            (_batch_size, T), dtype=torch.float32, device=self.device
         )
 
         # Rollout.
-        for t, (idx_policy, policy_args) in enumerate(action_skeleton):
-            policy_state = self.decode(state, idx_policy, policy_args)
-            policy = policies[t] if time_index else policies[idx_policy]
+        for t, primitive in enumerate(action_skeleton):
+            # Dynamics state -> policy state.
+            policy_state = self.decode(
+                state, primitive.idx_policy, primitive.policy_args
+            )
+            policy = policies[t] if time_index else policies[primitive.idx_policy]
             action = policy.actor.predict(policy_state)
             actions[:, t, : action.shape[-1]] = action
 
-            state = self.forward(state, idx_policy, action, policy_args)
+            # Dynamics state -> dynamics state.
+            state = self.forward_eval(
+                state, action, primitive.idx_policy, primitive.policy_args
+            )
             states[:, t + 1] = state
+
+        if batch_size is None:
+            return states[0], actions[0], p_transitions[0]
 
         return states, actions, p_transitions
 
@@ -136,16 +150,16 @@ class Dynamics(abc.ABC, Generic[ObsType]):
     def forward(
         self,
         state: torch.Tensor,
-        idx_policy: Union[int, torch.Tensor],
         action: torch.Tensor,
-        policy_args: Optional[Any] = None,
+        idx_policy: Union[int, torch.Tensor],
+        policy_args: Optional[Any],
     ) -> torch.Tensor:
         """Predicts the next state given the current state and action.
 
         Args:
             state: Current state.
-            idx_policy: Index of executed policy.
             action: Policy action.
+            idx_policy: Index of executed policy.
             policy_args: Auxiliary policy arguments.
 
         Returns:
@@ -153,23 +167,51 @@ class Dynamics(abc.ABC, Generic[ObsType]):
         """
         raise NotImplementedError
 
+    def forward_eval(
+        self,
+        state: torch.Tensor,
+        action: torch.Tensor,
+        idx_policy: int,
+        policy_args: Optional[Any],
+    ) -> torch.Tensor:
+        """Predicts the next state for planning.
+
+        Args:
+            state: Current state.
+            action: Policy action.
+            idx_policy: Index of executed policy.
+            policy_args: Auxiliary policy arguments.
+
+        Returns:
+            Prediction of next state.
+        """
+        return self.forward(state, action, idx_policy, policy_args)
+
     def encode(
-        self, observation: ObsType, idx_policy: Union[int, torch.Tensor]
+        self,
+        observation: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
+        policy_args: Optional[Any],
     ) -> torch.Tensor:
         """Encodes the observation into a dynamics state.
 
         Args:
             observation: Common observation across all policies.
             idx_policy: Index of executed policy.
+            policy_args: Auxiliary policy arguments.
 
         Returns:
             Encoded observation.
         """
 
         @tensors.vmap(dims=1)
-        def _encode(idx_policy: Union[int, torch.Tensor], observation: Any):
-            if isinstance(idx_policy, torch.Tensor):
-                idx_policy = idx_policy.item()
+        def _encode(
+            t_idx_policy: Union[int, torch.Tensor], observation: Any
+        ) -> torch.Tensor:
+            if isinstance(t_idx_policy, torch.Tensor):
+                idx_policy = int(t_idx_policy.item())
+            else:
+                idx_policy = t_idx_policy
             return self.policies[idx_policy].encoder.encode(observation)
 
         return _encode(idx_policy, observation)
@@ -177,10 +219,12 @@ class Dynamics(abc.ABC, Generic[ObsType]):
     def decode(
         self,
         state: torch.Tensor,
-        idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any] = None,
+        idx_policy: int,
+        policy_args: Optional[Any],
     ) -> torch.Tensor:
         """Decodes the dynamics state into policy states.
+
+        This is only used during planning, not training.
 
         Args:
             state: Encoded state state.

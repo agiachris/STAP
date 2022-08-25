@@ -40,10 +40,7 @@ class EncoderFactory(configs.Factory):
 
         super().__init__(config, "encoder", encoders)
 
-        if (
-            checkpoint is not None
-            and self.config["encoder"] != ckpt_config["encoder"]
-        ):
+        if checkpoint is not None and self.config["encoder"] != ckpt_config["encoder"]:
             raise ValueError(
                 f"Config encoder [{self.config['encoder']}] and checkpoint"
                 f"encoder [{ckpt_config['encoder']}] must be the same"

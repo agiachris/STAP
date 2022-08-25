@@ -1,9 +1,9 @@
 import pathlib
-from typing import Any, Dict, Optional, Iterable, List, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Iterable, List, Sequence, Union
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
-import yaml  # type: ignore
+import numpy as np
+import torch
+import yaml
 
 from temporal_policies import agents, dynamics, envs, planners
 from temporal_policies.utils import configs, tensors
@@ -15,11 +15,11 @@ class PlannerFactory(configs.Factory):
     def __init__(
         self,
         config: Union[str, pathlib.Path, Dict[str, Any]],
-        env: envs.SequentialEnv,
+        env: envs.Env,
         policy_checkpoints: Optional[
             Sequence[Optional[Union[str, pathlib.Path]]]
         ] = None,
-        scod_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
+        scod_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
         dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -35,7 +35,7 @@ class PlannerFactory(configs.Factory):
         """
 
         def replace_config(config, old: str, new: str):
-            config_yaml = yaml.dump(config)
+            config_yaml: str = yaml.dump(config)
             config_yaml = config_yaml.replace(old, new)
             config = yaml.safe_load(config_yaml)
             return config
@@ -47,8 +47,12 @@ class PlannerFactory(configs.Factory):
         if policy_checkpoints is None:
             policy_checkpoints = [None] * len(self.config["agent_configs"])
         else:
-            assert len(scod_checkpoints) == len(policy_checkpoints), "All policies must have SCOD checkpoints"
-            for idx_policy, (policy_checkpoint, scod_checkpoint) in enumerate(zip(policy_checkpoints, scod_checkpoints)):
+            assert len(scod_checkpoints) == len(
+                policy_checkpoints
+            ), "All policies must have SCOD checkpoints"
+            for idx_policy, (policy_checkpoint, scod_checkpoint) in enumerate(
+                zip(policy_checkpoints, scod_checkpoints)
+            ):
                 # Get policy config from checkpoint
                 if policy_checkpoint is None:
                     continue
@@ -64,13 +68,13 @@ class PlannerFactory(configs.Factory):
                 if scod_checkpoint is None:
                     continue
                 scod_config = str(
-                    pathlib.Path(scod_checkpoints[idx_policy]).parent / "scod_config.yaml"
+                    pathlib.Path(scod_checkpoint).parent / "scod_config.yaml"
                 )
                 self.config["agent_configs"][idx_policy] = replace_config(
                     self.config["agent_configs"][idx_policy],
                     "{SCOD_CONFIG}",
                     scod_config,
-                )                    
+                )
 
         # Get dynamics config from checkpoint.
         if dynamics_checkpoint is not None:
@@ -81,20 +85,36 @@ class PlannerFactory(configs.Factory):
                 self.config["dynamics_config"], "{DYNAMICS_CONFIG}", dynamics_config
             )
 
-        policies = [
-            agents.load(
-                config=agent_config,
-                env=policy_env,
-                checkpoint=policy_ckpt,
-                scod_checkpoint=scod_ckpt,
-            )
-            for agent_config, policy_env, policy_ckpt, scod_ckpt in zip(
-                self.config["agent_configs"],
-                env.envs,
-                policy_checkpoints,
-                scod_checkpoints,
-            )
-        ]        
+        if isinstance(env, envs.pybox2d.Sequential2D):
+            # TODO: Check if this special case is necessary.
+            policies = [
+                agents.load(
+                    config=agent_config,
+                    env=policy_env,
+                    checkpoint=ckpt,
+                    scod_checkpoint=scod_ckpt,
+                )
+                for agent_config, policy_env, ckpt, scod_ckpt in zip(
+                    self.config["agent_configs"],
+                    env.envs,
+                    policy_checkpoints,
+                    scod_checkpoints,
+                )
+            ]
+        else:
+            policies = [
+                agents.load(
+                    config=agent_config,
+                    env=env,
+                    checkpoint=ckpt,
+                    scod_checkpoint=scod_ckpt,
+                )
+                for agent_config, ckpt, scod_ckpt in zip(
+                    self.config["agent_configs"],
+                    policy_checkpoints,
+                    scod_checkpoints,
+                )
+            ]
 
         # Make sure all policy checkpoints are not None for dynamics.
         dynamics_policy_checkpoints: Optional[List[Union[str, pathlib.Path]]] = []
@@ -121,9 +141,9 @@ class PlannerFactory(configs.Factory):
 
 def load(
     config: Union[str, pathlib.Path, Dict[str, Any]],
-    env: envs.SequentialEnv,
+    env: envs.Env,
     policy_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
-    scod_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
+    scod_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
     dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     device: str = "auto",
     **kwargs,
@@ -180,13 +200,13 @@ def evaluate_trajectory(
     if q_value:
         for t, (value_fn, decode_fn) in enumerate(zip(value_fns, decode_fns)):
             policy_state = decode_fn(states[:, t])
-            dim_action = torch.sum(~torch.isnan(actions[0, t])).cpu().item()
+            dim_action = int(torch.sum(~torch.isnan(actions[0, t])).cpu().item())
             action = actions[:, t, :dim_action]
-            p_successes[:, t] = value_fn.predict(policy_state, action)
+            p_successes[:, t] = value_fn.predict(policy_state, action)  # type: ignore
     else:
         for t, value_fn in enumerate(value_fns):
             policy_state = decode_fn(states[:, t])
-            p_successes[:, t] = value_fn.predict(policy_state)
+            p_successes[:, t] = value_fn.predict(policy_state)  # type: ignore
     p_successes = torch.clip(p_successes, min=0, max=1)
 
     # Discard last transition from T-1 to T, since s_T isn't used.
@@ -200,8 +220,8 @@ def evaluate_trajectory(
 
 
 def evaluate_plan(
-    env: envs.SequentialEnv,
-    action_skeleton: Sequence[Tuple[int, Any]],
+    env: envs.Env,
+    action_skeleton: Sequence[envs.Primitive],
     state: np.ndarray,
     actions: np.ndarray,
     gif_path: Optional[Union[str, pathlib.Path]] = None,
@@ -224,12 +244,14 @@ def evaluate_plan(
         env.record_start()
 
     rewards = np.zeros(len(action_skeleton), dtype=np.float32)
-    for t, (idx_policy, policy_args) in enumerate(action_skeleton):
-        action = actions[t, : env.envs[idx_policy].action_space.shape[0]]
-        _, reward, _, _ = env.step((action, idx_policy, policy_args))
+    for t, primitive in enumerate(action_skeleton):
+        env.set_primitive(primitive)
+        action = actions[t, : env.action_space.shape[0]]
+        _, reward, _, _ = env.step(action)
         rewards[t] = reward
 
     if gif_path is not None:
-        env.record_save(gif_path, stop=True)
+        env.record_stop()
+        env.record_save(gif_path, reset=True)
 
     return rewards

@@ -19,23 +19,46 @@ classifiers = [
   "Operating System :: OS Independent",
 ]
 dependencies = [
-  # NumPy Family
+  # Computing
   "numpy",
   "scipy",
-  "scikit-image",
-  # IO
+  "torch==1.11",
+  # Image processing
   "imageio",
   "pillow",
+  "scikit-image",
+  # IO
   "pyyaml",
   "tensorboard",
-  # Other
   "tqdm",
   # Env
-  "gym>=0.12,<0.25",
   "box2d-py",
-  # PyTorch
-  "torch==1.11",
+  "gym>=0.12,<0.25",
+  "pybullet",
+  # Ours
+  "ctrlutils==1.4.1",
+  "pysymbolic==1.0.0",
+  # scod-regression,
+  "spatialdyn==1.4.4",
 ]
 
-[tools.setuptools]
+[tool.setuptools]
 packages = ["temporal_policies"]
+
+[[tool.mypy.overrides]]
+module = [
+  "Box2D",
+  "ctrlutils",
+  "matplotlib.*",
+  "pandas",
+  "PIL",
+  "pybullet",
+  "scipy.*",
+  "scod_regression",
+  "seaborn",
+  "skimage",
+  "spatialdyn",
+  "symbolic",
+  "tqdm"
+]
+ignore_missing_imports = true

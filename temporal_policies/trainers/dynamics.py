@@ -1,9 +1,9 @@
 import pathlib
 from typing import Any, Dict, List, Optional, Sequence, Type, Union
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
-import tqdm  # type: ignore
+import numpy as np
+import torch
+import tqdm
 
 from temporal_policies import datasets, dynamics, processors
 from temporal_policies.schedulers import DummyScheduler
@@ -11,7 +11,7 @@ from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.utils import load as load_trainer
 from temporal_policies.utils import configs, tensors
-from temporal_policies.utils.typing import WrappedBatch, DynamicsBatch
+from temporal_policies.utils.typing import WrappedBatch, DynamicsBatch, Scalar
 
 
 class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBatch]):
@@ -21,7 +21,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         self,
         path: Union[str, pathlib.Path],
         dynamics: dynamics.LatentDynamics,
-        dataset_class: Union[str, Type[torch.utils.data.IterableDataset]],
+        dataset_class: Union[str, Type[datasets.StratifiedReplayBuffer]],
         dataset_kwargs: Dict[str, Any],
         processor_class: Union[
             str, Type[processors.Processor]
@@ -166,7 +166,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         )
         return tensors.to(dynamics_batch, self.device)
 
-    def evaluate(self) -> List[Dict[str, np.ndarray]]:
+    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:
@@ -177,7 +177,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
 
         self.eval_mode()
 
-        eval_metrics_list = []
+        eval_metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]] = []
         pbar = tqdm.tqdm(
             self._eval_dataloader,
             desc=f"Eval {self.name}",

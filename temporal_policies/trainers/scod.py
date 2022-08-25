@@ -1,27 +1,24 @@
 import pathlib
-from typing import Any, Dict, Generic, Optional, Union, Type
+from typing import Any, Dict, Optional, Union, Type
 
-import torch  # type: ignore
-import tqdm  # type: ignore
+import numpy as np
+import torch
+import tqdm
 
-from temporal_policies import datasets, scod, envs, agents
-from temporal_policies.networks.encoders import OracleEncoder, NormalizeObservation
-from temporal_policies.trainers.agents import AgentTrainer
+from temporal_policies import agents, datasets, envs, scod, trainers
+from temporal_policies.networks.encoders import BASIC_ENCODERS
 from temporal_policies.trainers.utils import load as load_trainer
 from temporal_policies.utils import configs, tensors, logging, metrics
-from temporal_policies.utils.typing import ObsType
 
 
-class SCODTrainer(Generic[ObsType]):
+class SCODTrainer:
     """SCOD trainer."""
 
     def __init__(
         self,
         path: Union[str, pathlib.Path],
         scod: scod.SCOD,
-        dataset_class: Union[
-            str, Type[torch.utils.data.IterableDataset]
-        ] = datasets.ReplayBuffer,
+        dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
         policy_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
@@ -53,20 +50,18 @@ class SCODTrainer(Generic[ObsType]):
         else:
             trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
         agent_trainer = load_trainer(checkpoint=trainer_checkpoint)
+        assert isinstance(agent_trainer, trainers.AgentTrainer)
 
-        agent_name = trainer_checkpoint.name.strip(".pt").split("_")
-        scod_postfix = agent_name[0] if len(agent_name) == 2 else agent_name[2]
-
-        self._path = pathlib.Path(path) / f"scod_{scod_postfix}"
+        self._path = pathlib.Path(path) / "scod"
         self._scod = scod
         self._agent_trainer = agent_trainer
 
         self._dataset = configs.get_class(dataset_class, datasets)(
             observation_space=self.agent.observation_space,
             action_space=self.agent.action_space,
-            path=self.path / "train_data", 
-            capacity=num_train_steps, 
-            **dataset_kwargs
+            path=self.path / "train_data",
+            capacity=num_train_steps,
+            **dataset_kwargs,
         )
 
         self.num_train_steps = num_train_steps
@@ -95,22 +90,22 @@ class SCODTrainer(Generic[ObsType]):
     def model(self) -> scod.SCOD:
         """SCOD model being trained."""
         return self._scod
-    
+
     @property
-    def agent(self) -> agents.RLAgent[ObsType]:
+    def agent(self) -> agents.RLAgent:
         """Agent being evaluated."""
         return self._agent_trainer.agent
-    
+
     @property
     def env(self) -> envs.Env:
         """Agent env."""
         return self._agent_trainer.env
 
     @property
-    def dataset(self) -> torch.utils.data.IterableDataset:
+    def dataset(self) -> datasets.ReplayBuffer:
         """Train dataset."""
         return self._dataset
-    
+
     @property
     def log(self) -> logging.Logger:
         """Tensorboard logger."""
@@ -129,7 +124,7 @@ class SCODTrainer(Generic[ObsType]):
     def epoch(self) -> int:
         """Current training epoch."""
         return self._epoch
-    
+
     def increment_epoch(self) -> None:
         """Increment the training epoch."""
         self._epoch += 1
@@ -159,7 +154,7 @@ class SCODTrainer(Generic[ObsType]):
         self._step = state_dict["step"]
         self.model.load_state_dict(state_dict["model"])
         self.agent.load_state_dict(state_dict["agent"])
-        
+
     def save(self, path: Union[str, pathlib.Path], name: str) -> pathlib.Path:
         """Saves a checkpoint of the trainer and model.
 
@@ -200,7 +195,7 @@ class SCODTrainer(Generic[ObsType]):
         self.model.to(self.device)
         self.agent.to(self.device)
         return self
-    
+
     def train_mode(self) -> None:
         """Switches to training mode."""
         self.model.train_mode()
@@ -221,24 +216,26 @@ class SCODTrainer(Generic[ObsType]):
             Collect metrics.
         """
         if self.step == 0:
-            self.dataset.add(observation=self.env.reset())
+            observation = self.env.reset()
+            assert isinstance(observation, np.ndarray)
+            self.dataset.add(observation=observation)
             self._episode_length = 0
-            self._episode_reward = 0
+            self._episode_reward = 0.0
 
         if random:
             action = self.agent.action_space.sample()
         else:
             self.eval_mode()
             with torch.no_grad():
-                observation = tensors.from_numpy(
+                t_observation = tensors.from_numpy(
                     self.env.get_observation(), self.device
                 )
-                if not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation)):
-                    observation = tensors.rgb_to_cnn(observation)
-                action = self.agent.actor.predict(
-                    self.agent.encoder.encode(observation)
+                if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
+                    t_observation = tensors.rgb_to_cnn(t_observation)
+                t_action = self.agent.actor.predict(
+                    self.agent.encoder.encode(t_observation)
                 )
-                action = action.cpu().numpy()
+                action = t_action.cpu().numpy()
             self.train_mode()
 
         next_observation, reward, done, info = self.env.step(action)
@@ -262,11 +259,13 @@ class SCODTrainer(Generic[ObsType]):
         metrics = {
             "reward": self._episode_reward,
             "length": self._episode_length,
-            "episode": self.epoch
+            "episode": self.epoch,
         }
 
         # Reset the environment
-        self.dataset.add(observation=self.env.reset())
+        observation = self.env.reset()
+        assert isinstance(observation, np.ndarray)
+        self.dataset.add(observation=observation)
         self._episode_length = 0
         self._episode_reward = 0
 
@@ -278,9 +277,7 @@ class SCODTrainer(Generic[ObsType]):
         metrics_list = []
 
         pbar = tqdm.tqdm(
-            range(self.num_train_steps),
-            desc=f"Collect transitions",
-            dynamic_ncols=True
+            range(self.num_train_steps), desc="Collect transitions", dynamic_ncols=True
         )
         for _ in pbar:
             # Collect transition
@@ -295,11 +292,11 @@ class SCODTrainer(Generic[ObsType]):
                 self.log.log("collect", log_metrics)
                 self.log.flush(step=self.step)
                 metrics_list = []
-        
+
         # SCOD pre-processing
         self.model.eval_mode()
         self.model.process_dataset(
-            self.dataset, 
+            self.dataset,
             input_keys=["observation", "action"],
         )
 

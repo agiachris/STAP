@@ -1,9 +1,8 @@
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import torch
 
 from temporal_policies import envs
 from temporal_policies.networks.actors.base import Actor
-from temporal_policies.utils import tensors
+from temporal_policies.networks.encoders.oracle import OracleDecoder
 
 
 class OracleActor(Actor):
@@ -22,14 +21,9 @@ class OracleActor(Actor):
         self.encoder = policy.encoder
         self.actor = policy.actor
 
-    @tensors.torch_wrap
-    @tensors.vmap(dims=1)
-    def _get_observation(self, state: np.ndarray) -> np.ndarray:
-        """Gets the policy observation from the environment."""
-        self.env.set_state(state)
-        return self.env.get_observation()
+        self._oracle_decoder = OracleDecoder(self.env)
 
-    def forward(self, state: torch.Tensor) -> torch.Tensor:
+    def forward(self, state: torch.Tensor) -> torch.distributions.Distribution:
         """Outputs the predicted distribution from the child policy.
 
         Args:
@@ -38,8 +32,8 @@ class OracleActor(Actor):
         Returns:
             Action distribution.
         """
-        observation = self._get_observation(state)
-        policy_state = self.encoder(observation)
+        observation = self._oracle_decoder(state)
+        policy_state = self.encoder.encode(observation)
         return self.actor(policy_state)
 
     def predict(self, state: torch.Tensor) -> torch.Tensor:
@@ -51,6 +45,6 @@ class OracleActor(Actor):
         Returns:
             Action.
         """
-        observation = self._get_observation(state)
-        policy_state = self.encoder(observation)
+        observation = self._oracle_decoder(state)
+        policy_state = self.encoder.encode(observation)
         return self.actor.predict(policy_state)

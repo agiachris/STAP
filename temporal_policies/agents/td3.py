@@ -1,5 +1,5 @@
-import torch  # type: ignore
-import numpy as np  # type: ignore
+import torch
+import numpy as np
 import itertools
 
 from temporal_policies import envs

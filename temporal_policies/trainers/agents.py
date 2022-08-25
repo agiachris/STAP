@@ -1,28 +1,27 @@
 import pathlib
-from typing import Any, Dict, Generic, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
-import tqdm  # type: ignore
+import numpy as np
+import torch
+import tqdm
 
 from temporal_policies import agents, datasets, envs, processors
-from temporal_policies.networks.encoders import OracleEncoder, NormalizeObservation
+from temporal_policies.networks.encoders import BASIC_ENCODERS
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.utils import configs, metrics, tensors
-from temporal_policies.utils.typing import Batch, ObsType
+from temporal_policies.utils.typing import Batch, Scalar
 
 
-class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsType]):
+class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     """Agent trainer."""
 
     def __init__(
         self,
         path: Union[str, pathlib.Path],
-        agent: agents.RLAgent[ObsType],
-        dataset_class: Union[
-            str, Type[torch.utils.data.IterableDataset]
-        ] = datasets.ReplayBuffer,
+        agent: agents.RLAgent,
+        eval_env: Optional[envs.Env] = None,
+        dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
         eval_dataset_kwargs: Optional[Dict[str, Any]] = None,
         processor_class: Union[
@@ -54,10 +53,12 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
         Args:
             path: Training output path.
             agent: Agent to be trained.
+            eval_env: Optional env for evaluation. If None, uses the agent's
+                training environment for evaluation.
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
             eval_dataset_kwargs: Kwargs for eval dataset.
-            processor_class: Batch data processor calss.
+            processor_class: Batch data processor class.
             processor_kwargs: Kwargs for processor.
             optimizer_class: Dynamics model optimizer class.
             optimizer_kwargs: Kwargs for optimizer class.
@@ -109,8 +110,6 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             key: scheduler_class(optimizer, **scheduler_kwargs)
             for key, optimizer in optimizers.items()
         }
-        
-        self._initialize_collect = True
 
         super().__init__(
             path=path,
@@ -141,8 +140,11 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
                 eval_dataset_size=eval_dataset_size,
             )
 
+        self._eval_env = self.agent.env if eval_env is None else eval_env
+        self._reset_collect = True
+
     @property
-    def agent(self) -> agents.RLAgent[ObsType]:
+    def agent(self) -> agents.RLAgent:
         """Agent being trained."""
         return self.model
 
@@ -150,6 +152,11 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
     def env(self) -> envs.Env:
         """Agent env."""
         return self.agent.env
+
+    @property
+    def eval_env(self) -> envs.Env:
+        """Agent env."""
+        return self._eval_env
 
     def collect_step(self, random: bool = False) -> Dict[str, Any]:
         """Collects data for the replay buffer.
@@ -161,26 +168,28 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             Collect metrics.
         """
         with self.profiler.profile("collect"):
-            if self._initialize_collect:
-                self.dataset.add(observation=self.env.reset())
+            if self._reset_collect:
+                self._reset_collect = False
+                observation = self.env.reset()
+                assert isinstance(observation, np.ndarray)
+                self.dataset.add(observation=observation)
                 self._episode_length = 0
-                self._episode_reward = 0
-                self._initialize_collect = False
+                self._episode_reward = 0.0
 
             if random:
                 action = self.agent.action_space.sample()
             else:
                 self.eval_mode()
                 with torch.no_grad():
-                    observation = tensors.from_numpy(
+                    t_observation = tensors.from_numpy(
                         self.env.get_observation(), self.device
                     )
-                    if not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation)):
-                        observation = tensors.rgb_to_cnn(observation)
-                    action = self.agent.actor.predict(
-                        self.agent.encoder.encode(observation)
+                    if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
+                        t_observation = tensors.rgb_to_cnn(t_observation)
+                    t_action = self.agent.actor.predict(
+                        self.agent.encoder.encode(t_observation)
                     )
-                    action = action.cpu().numpy()
+                    action = t_action.cpu().numpy()
                 self.train_mode()
 
             next_observation, reward, done, info = self.env.step(action)
@@ -208,9 +217,11 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             }
 
             # Reset the environment
-            self.dataset.add(observation=self.env.reset())
+            observation = self.env.reset()
+            assert isinstance(observation, np.ndarray)
+            self.dataset.add(observation=observation)
             self._episode_length = 0
-            self._episode_reward = 0
+            self._episode_reward = 0.0
 
             return metrics
 
@@ -227,10 +238,10 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
             isinstance(batch["observation"], torch.Tensor)
             and batch["observation"].shape[-1] == 3
             and batch["observation"].dtype == torch.uint8
-            and not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation))
+            and not isinstance(self.agent.encoder.network, BASIC_ENCODERS)
         ):
-            batch["observation"] = tensors.rgb_to_cnn(batch["observation"])
-            batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])
+            batch["observation"] = tensors.rgb_to_cnn(batch["observation"])  # type: ignore
+            batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])  # type: ignore
         return super().process_batch(batch)
 
     def pretrain(self) -> None:
@@ -266,7 +277,7 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
 
         return {**collect_metrics, **train_metrics}
 
-    def evaluate(self) -> List[Dict[str, np.ndarray]]:
+    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:
@@ -275,53 +286,64 @@ class AgentTrainer(Trainer[agents.RLAgent[ObsType], Batch, Batch], Generic[ObsTy
         self.eval_mode()
 
         with self.profiler.profile("evaluate"):
-            metrics_list = []
+            metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]] = []
             pbar = tqdm.tqdm(
                 range(self.num_eval_steps),
                 desc=f"Eval {self.name}",
                 dynamic_ncols=True,
             )
             for _ in pbar:
-                observation = self.env.reset()
-                self.eval_dataset.add(observation=observation)
-
-                step_metrics_list = []
-                done = False
-                while not done:
-                    with torch.no_grad():
-                        observation = tensors.from_numpy(observation, self.device)
-                        if not isinstance(self.agent.encoder.network, (OracleEncoder, NormalizeObservation)):
-                            observation = tensors.rgb_to_cnn(observation)
-                        action = self.agent.actor.predict(
-                            self.agent.encoder.encode(observation)
-                        )
-                        action = action.cpu().numpy()
-
-                    observation, reward, done, info = self.env.step(action)
-                    self.eval_dataset.add(
-                        action=action,
-                        reward=reward,
-                        next_observation=observation,
-                        discount=1.0 - done,
-                        done=done,
-                    )
-
-                    step_metrics = {
-                        metric: value
-                        for metric, value in info.items()
-                        if metric in metrics.METRIC_AGGREGATION_FNS
-                    }
-                    step_metrics["reward"] = reward
-                    step_metrics["length"] = 1
-                    step_metrics_list.append(step_metrics)
-
-                episode_metrics = metrics.aggregate_metrics(step_metrics_list)
+                episode_metrics = self.evaluate_step()
                 metrics_list.append(episode_metrics)
                 pbar.set_postfix({self.eval_metric: episode_metrics[self.eval_metric]})
 
             self.eval_dataset.save()
 
         self.train_mode()
-        self._initialize_collect = True
+        self._reset_collect = True
 
         return metrics_list
+
+    def evaluate_step(self) -> Dict[str, Union[Scalar, np.ndarray]]:
+        """Performs a single evaluation step.
+
+        Returns:
+            Dict of eval metrics for one episode.
+        """
+        observation = self.eval_env.reset()
+        assert isinstance(observation, np.ndarray)
+        self.eval_dataset.add(observation=observation)
+
+        step_metrics_list = []
+        done = False
+        while not done:
+            with torch.no_grad():
+                t_observation = tensors.from_numpy(observation, self.device)
+                if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
+                    t_observation = tensors.rgb_to_cnn(t_observation)
+                t_action = self.agent.actor.predict(
+                    self.agent.encoder.encode(t_observation)
+                )
+                action = t_action.cpu().numpy()
+
+            observation, reward, done, info = self.eval_env.step(action)
+            self.eval_dataset.add(
+                action=action,
+                reward=reward,
+                next_observation=observation,
+                discount=1.0 - done,
+                done=done,
+            )
+
+            step_metrics = {
+                metric: value
+                for metric, value in info.items()
+                if metric in metrics.METRIC_AGGREGATION_FNS
+            }
+            step_metrics["reward"] = reward
+            step_metrics["length"] = 1
+            step_metrics_list.append(step_metrics)
+
+        episode_metrics = metrics.aggregate_metrics(step_metrics_list)
+
+        return episode_metrics

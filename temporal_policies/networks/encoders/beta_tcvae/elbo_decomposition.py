@@ -1,8 +1,8 @@
 import math
 import numbers
 
-import torch  # type: ignore
-import tqdm  # type: ignore
+import torch
+import tqdm
 
 
 def estimate_entropies(qz_samples, qz_params, q_dist):

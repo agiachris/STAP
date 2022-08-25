@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple, Optional, Sequence, Union
+from typing import Any, Dict, Tuple, Optional, Union
 import pathlib
 
 from temporal_policies import agents, scod
@@ -39,6 +39,9 @@ class SCODFactory(configs.Factory):
             if model_checkpoint is None or model_network is None:
                 model_checkpoint, model_network = load_model_checkpoint(checkpoint)
 
+        if config is None:
+            raise ValueError("Either config or checkpoint must be specified")
+
         super().__init__(config, "scod", scod)
 
         if issubclass(self.cls, scod.WrapperSCOD):
@@ -59,8 +62,9 @@ class SCODFactory(configs.Factory):
 
         if checkpoint is not None:
             self.kwargs["checkpoint"] = checkpoint
-            if (self.config["scod"] != ckpt_config["scod"]
-                and not issubclass(self.cls, scod.WrapperSCOD)):
+            if self.config["scod"] != ckpt_config["scod"] and not issubclass(
+                self.cls, scod.WrapperSCOD
+            ):
                 raise ValueError(
                     f"Config SCOD [{self.config['scod']}] and checkpoint"
                     f"SCOD [{ckpt_config['scod']}] must be the same"
@@ -76,7 +80,7 @@ class SCODFactory(configs.Factory):
             raise ValueError(
                 "One of config, model, or model_checkpoint must be specified"
             )
-        
+
         if model_network is None:
             raise ValueError(
                 "Model network name must be specified to extract nn.Module for SCOD"
@@ -106,8 +110,8 @@ class SCODFactory(configs.Factory):
 def load(
     config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
-    model: Optional[Sequence[agents.Agent]] = None,
-    model_checkpoint: Optional[Sequence[Union[str, pathlib.Path]]] = None,
+    model: Optional[agents.Agent] = None,
+    model_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     model_network: Optional[str] = None,
     device: str = "auto",
     **kwargs,
@@ -175,7 +179,7 @@ def load_model_checkpoint(path: Union[str, pathlib.Path]) -> Tuple[pathlib.Path,
         model_checkpoint_path = path / "model_checkpoint.txt"
 
     with open(model_checkpoint_path, "r") as f:
-        lines = [l.rstrip() for l in f.readlines()]
+        lines = [line.rstrip() for line in f.readlines()]
         model_checkpoint = pathlib.Path(lines[0])
         model_network = lines[1]
 

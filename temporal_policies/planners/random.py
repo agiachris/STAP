@@ -15,7 +15,9 @@ class RandomPlanner(shooting.ShootingPlanner):
             device: Torch device.
         """
         random_policies = [
-            agents.RandomAgent(policy.state_space, policy.action_space)
+            agents.RandomAgent(
+                action_space=policy.action_space, observation_space=policy.state_space
+            )
             for policy in policies
         ]
         random_dynamics = dynamics.RandomDynamics(policies)

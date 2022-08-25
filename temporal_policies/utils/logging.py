@@ -2,8 +2,9 @@ import csv
 import pathlib
 from typing import Any, Dict, IO, Optional, Union
 
-import numpy as np  # type: ignore
-from torch.utils import tensorboard  # type: ignore
+import numpy as np
+import torch
+from torch.utils import tensorboard
 
 from temporal_policies.utils import metrics
 
@@ -19,7 +20,7 @@ class Logger(object):
         self._staged: Dict[str, Any] = {}
         self._flushed: Dict[str, Any] = {}
         self._images: Dict[str, np.ndarray] = {}
-        self._embeddings: Dict[str, np.ndarray] = {}
+        self._embeddings: Dict[str, Dict[str, torch.Tensor]] = {}
 
     def log(
         self, key: str, value: Union[Any, Dict[str, Any]], std: bool = False

@@ -1,7 +1,7 @@
-from typing import List
+from typing import List, Optional, Type
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import torch
 
 from temporal_policies.networks.dynamics.base import PolicyDynamics
 from temporal_policies.networks.mlp import MLP, weight_init
@@ -16,14 +16,14 @@ class MLPDynamics(PolicyDynamics):
 
     def __init__(
         self,
-        state_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
+        state_space: gym.spaces.Box,
+        action_space: gym.spaces.Box,
         hidden_layers: List[int] = [256, 256],
-        act: torch.nn.Module = torch.nn.ReLU,
-        output_act: torch.nn.Module = None,
+        act: Type[torch.nn.Module] = torch.nn.ReLU,
+        output_act: Optional[Type[torch.nn.Module]] = None,
         ortho_init: bool = False,
     ):
-        super().__init__()
+        super().__init__(state_space, action_space)
         dim_latent = state_space.shape[0]
         self.mlp = MLP(
             dim_latent + action_space.shape[0],

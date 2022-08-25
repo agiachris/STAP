@@ -6,9 +6,9 @@ import pprint
 import subprocess
 from typing import Any, Dict, Optional, Union
 
-import gym  # type: ignore
-import torch  # type: ignore
-import yaml  # type: ignore
+import gym
+import torch
+import yaml
 
 import temporal_policies
 from temporal_policies import agents, envs, encoders, schedulers, scod
@@ -57,12 +57,12 @@ class AgentFactory(configs.Factory):
         if issubclass(self.cls, agents.WrapperAgent):
             # Get policy
             agent_factory = AgentFactory(
-                config=self.kwargs["agent_config"], 
-                env=env, 
+                config=self.kwargs["agent_config"],
+                env=env,
                 checkpoint=checkpoint,
                 encoder_checkpoint=encoder_checkpoint,
-                scod_checkpoint=scod_checkpoint, 
-                device=device
+                scod_checkpoint=scod_checkpoint,
+                device=device,
             )
             self.kwargs["policy"] = agent_factory()
             del self.kwargs["agent_config"]
@@ -72,7 +72,7 @@ class AgentFactory(configs.Factory):
                 if "scod_config" not in self.kwargs:
                     raise ValueError(
                         f'AgentFactory requires agent kwarg "scod_config"'
-                        f'to construct WrapperAgent {self.cls.__name__}'
+                        f"to construct WrapperAgent {self.cls.__name__}"
                     )
                 self.kwargs["scod_wrapper"] = scod.load(
                     config=self.kwargs["scod_config"],

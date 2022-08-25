@@ -2,7 +2,7 @@ import math
 import os
 import numbers
 
-import torch  # type: ignore
+import torch
 
 
 def save_checkpoint(state, save, epoch):

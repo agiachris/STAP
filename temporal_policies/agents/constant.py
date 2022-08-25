@@ -1,8 +1,8 @@
 from typing import Optional, Sequence, Union
 
-import gym  # type: ignore
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import gym
+import numpy as np
+import torch
 
 from temporal_policies.agents import base as agents
 from temporal_policies import encoders, envs, networks
@@ -17,8 +17,8 @@ class ConstantAgent(agents.Agent):
         env: Optional[envs.Env] = None,
         action: Optional[Union[torch.Tensor, np.ndarray, Sequence[float]]] = None,
         policy: Optional[agents.Agent] = None,
-        action_space: Optional[gym.spaces.Space] = None,
-        observation_space: Optional[gym.spaces.Space] = None,
+        action_space: Optional[gym.spaces.Box] = None,
+        observation_space: Optional[gym.spaces.Box] = None,
         device: str = "auto",
     ):
         """Constructs the constant agent.
@@ -57,8 +57,8 @@ class ConstantAgent(agents.Agent):
             state_space=observation_space,
             action_space=action_space,
             observation_space=observation_space,
-            actor=networks.Constant(action, input_dim=dim_states + dim_batch),
-            critic=networks.Constant(0.0, input_dim=dim_states),
+            actor=networks.actors.ConstantActor(action, dim_states, dim_batch),
+            critic=networks.critics.ConstantCritic(0.0, dim_states),
             encoder=encoders.IdentityEncoder(env, action_space, observation_space),
             device=device,
         )

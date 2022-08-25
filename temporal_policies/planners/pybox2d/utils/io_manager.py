@@ -1,7 +1,7 @@
 from typing import Tuple, Union
 
-import torch  # type: ignore
-import numpy as np  # type: ignore
+import torch
+import numpy as np
 
 from temporal_policies.utils import utils
 from .task_manager import TaskManager

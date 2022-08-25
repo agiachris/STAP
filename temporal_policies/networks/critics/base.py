@@ -1,6 +1,6 @@
 import abc
 
-import torch  # type: ignore
+import torch
 
 
 class Critic(torch.nn.Module, abc.ABC):

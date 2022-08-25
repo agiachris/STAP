@@ -9,12 +9,15 @@
 -e .
 -e ./third_party/scod-regression
 absl-py==1.2.0; python_version >= '3.6'
+async-timeout==4.0.2; python_version >= '3.6'
 box2d-py==2.3.8
 cachetools==5.2.0; python_version ~= '3.7'
 certifi==2022.6.15; python_version >= '3.6'
 charset-normalizer==2.1.0; python_version >= '3.6'
 cloudpickle==2.1.0; python_version >= '3.6'
+ctrlutils==1.4.1; python_version >= '3.6'
 cycler==0.11.0; python_version >= '3.6'
+deprecated==1.2.13; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
 fonttools==4.34.4; python_version >= '3.7'
 functorch==0.1.1
 google-auth-oauthlib==0.4.6; python_version >= '3.6'
@@ -38,19 +41,23 @@ pillow==9.2.0; python_version >= '3.7'
 protobuf==3.19.4; python_version >= '3.5'
 pyasn1-modules==0.2.8
 pyasn1==0.4.8
+pybullet==3.2.5
 pyparsing==3.0.9; python_full_version >= '3.6.8'
-python-dateutil==2.8.2; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
+pysymbolic==1.0.0; python_version >= '3.7'
+python-dateutil==2.8.2; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'
 pytz==2022.1
 pywavelets==1.3.0; python_version >= '3.7'
 pyyaml==6.0; python_version >= '3.6'
+redis==4.3.4; python_version >= '3.6'
 requests-oauthlib==1.3.1; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
 requests==2.28.1; python_version >= '3.7' and python_version < '4'
 rsa==4.9; python_version >= '3.6'
 scikit-image==0.19.3; python_version >= '3.7'
 scipy==1.9.0; python_version < '3.12' and python_version >= '3.8'
 seaborn==0.11.2
-setuptools==63.3.0; python_version >= '3.7'
-six==1.16.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3'
+setuptools==63.4.1; python_version >= '3.7'
+six==1.16.0; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'
+spatialdyn==1.4.4; python_version >= '3.6'
 tensorboard-data-server==0.6.1; python_version >= '3.6'
 tensorboard-plugin-wit==1.8.1
 tensorboard==2.9.1; python_version >= '3.6'
@@ -61,4 +68,5 @@ typing-extensions==4.3.0; python_version >= '3.7'
 urllib3==1.26.11; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4, 3.5' and python_version < '4'
 werkzeug==2.2.1; python_version >= '3.7'
 wheel==0.37.1; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'
+wrapt==1.14.1; python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'
 zipp==3.8.1; python_version >= '3.7'

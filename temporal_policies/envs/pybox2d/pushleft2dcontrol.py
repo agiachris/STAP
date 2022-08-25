@@ -1,9 +1,17 @@
-import numpy as np  # type: ignore
-from gym import spaces  # type: ignore
+from typing import Any, Optional
+
+import numpy as np
+from gym import spaces
 
 from .base import Box2DBase
 from .utils import shape_to_vertices
 from temporal_policies.controllers.siso_control import SISOControl
+from temporal_policies.envs import base as envs
+
+
+class PushLeft(envs.Primitive):
+    def __init__(self):
+        super().__init__(0, None)
 
 
 class PushLeft2DControl(Box2DBase):
@@ -16,6 +24,26 @@ class PushLeft2DControl(Box2DBase):
     def reset(self):
         observation = super().reset()
         return observation
+
+    def get_primitive(self) -> envs.Primitive:
+        return self._primitive
+
+    def set_primitive(
+        self,
+        primitive: Optional[envs.Primitive] = None,
+        action_call: Optional[str] = None,
+        idx_policy: Optional[int] = None,
+        policy_args: Optional[Any] = None,
+    ) -> envs.Env:
+        return self
+
+    def get_primitive_info(
+        self,
+        action_call: Optional[str] = None,
+        idx_policy: Optional[int] = None,
+        policy_args: Optional[Any] = None,
+    ) -> envs.Primitive:
+        return self._primitive
 
     def step(self, action):
         """Action components are activated via tanh()."""
@@ -59,11 +87,12 @@ class PushLeft2DControl(Box2DBase):
         # Action space
         x_min = wksp_pos_x - wksp_w * 0.5 + item_w * 0.5
         x_max = wksp_pos_x + wksp_w * 0.5 - item_w * 0.5
-        self.action_scale = spaces.Box(
+        self._primitive = PushLeft()
+        self._primitive.action_scale = spaces.Box(
             low=np.array([x_min], dtype=np.float32),
             high=np.array([x_max], dtype=np.float32),
         )
-        self.action_space = spaces.Box(
+        self._primitive.action_space = spaces.Box(
             low=np.array([-1], dtype=np.float32), high=np.array([1], dtype=np.float32)
         )
 
@@ -82,10 +111,9 @@ class PushLeft2DControl(Box2DBase):
         self._observation_bodies = all_bodies - redundant_bodies
         reps = len(self._observation_bodies) + 1
 
+        self.image_space = spaces.Box(0, 255, shape=(64, 64, 3), dtype=np.uint8)
         if self._image_observation:
-            self.observation_space = spaces.Box(
-                0, 255, shape=(64, 64, 3), dtype=np.uint8
-            )
+            self.observation_space = self.image_space
         else:
             low = np.tile(np.array([x_min, y_min, w_min, h_min]), reps)
             low = np.concatenate((low, [-np.pi * 0.5 - 1e-2]))
@@ -94,28 +122,6 @@ class PushLeft2DControl(Box2DBase):
             self.observation_space = spaces.Box(
                 low=low.astype(np.float32), high=high.astype(np.float32)
             )
-
-    def get_observation(self):
-        if self._image_observation:
-            return super().get_observation()
-
-        k = 0
-        observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
-        for object_name in self.env.keys():
-            for shape_name, shape_data in self._get_shapes(object_name).items():
-                if shape_name not in self._observation_bodies:
-                    continue
-                position = np.array(
-                    self._get_body(object_name, shape_name).position, dtype=np.float32
-                )
-                observation[k : k + 4] = np.concatenate((position, shape_data["box"]))
-                k += 4
-        # Agent data
-        position = np.array(self.agent.position, dtype=np.float32)
-        box = self._get_shape("item", "block")["box"]
-        angle = np.array([self.agent.angle])
-        observation[k : k + 5] = np.concatenate((position, box, angle))
-        return super().get_observation(observation)
 
     def _get_reward(self):
         """PushLeft2D reward function.
@@ -178,6 +184,5 @@ class PushLeft2DControl(Box2DBase):
             clear_forces=True,
             break_on_done=False,
             accrue_rewards=False,
-            buffer_frames=False,
         )
         return self.__on_ground() and self.__on_right()

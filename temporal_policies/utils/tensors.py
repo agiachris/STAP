@@ -1,7 +1,7 @@
 from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Type, Union
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import numpy as np
+import torch
 
 from temporal_policies.utils import nest, typing
 
@@ -44,7 +44,7 @@ def to_tensor(
 
 def dim(
     x: Union[torch.Tensor, np.ndarray, Sequence[float], Sequence[int], typing.Scalar]
-) -> torch.Tensor:
+) -> int:
     """Gets the number of dimensions of x.
 
     Args:

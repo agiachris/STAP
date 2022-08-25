@@ -1,6 +1,6 @@
 from typing import List
 
-import torch  # type: ignore
+import torch
 
 from temporal_policies.networks.critics.base import Critic
 from temporal_policies.networks.mlp import MLP, weight_init
@@ -31,7 +31,7 @@ class ContinuousMLPCritic(Critic):
         if ortho_init:
             self.apply(weight_init)
 
-    def forward(self, state: torch.Tensor, action: torch.Tensor) -> List[torch.Tensor]:
+    def forward(self, state: torch.Tensor, action: torch.Tensor) -> List[torch.Tensor]:  # type: ignore
         """Predicts the expected value of the given (state, action) pair.
 
         Args:

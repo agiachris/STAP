@@ -1,4 +1,5 @@
-import torch  # type: ignore
+import gym
+import torch
 
 from temporal_policies.networks.mlp import MLP, weight_init
 from temporal_policies.networks.utils import SquashedNormal
@@ -7,8 +8,8 @@ from temporal_policies.networks.utils import SquashedNormal
 class ContinuousMLPActor(torch.nn.Module):
     def __init__(
         self,
-        state_space,
-        action_space,
+        state_space: gym.spaces.Box,
+        action_space: gym.spaces.Box,
         hidden_layers=[256, 256],
         act=torch.nn.ReLU,
         output_act=torch.nn.Tanh,
@@ -32,8 +33,8 @@ class ContinuousMLPActor(torch.nn.Module):
 class DiagonalGaussianMLPActor(torch.nn.Module):
     def __init__(
         self,
-        state_space,
-        action_space,
+        state_space: gym.spaces.Box,
+        action_space: gym.spaces.Box,
         hidden_layers=[256, 256],
         act=torch.nn.ReLU,
         ortho_init=False,

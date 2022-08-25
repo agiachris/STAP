@@ -1,4 +1,4 @@
-import torch  # type: ignore
+import torch
 
 
 class STHeaviside(torch.autograd.Function):

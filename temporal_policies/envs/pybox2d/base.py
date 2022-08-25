@@ -1,23 +1,25 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
-from typing import Optional
+import pathlib
+from typing import Any, Optional, Union
 
-import Box2D  # type: ignore
-import gym  # type: ignore
-import numpy as np  # type: ignore
-from PIL import Image  # type: ignore
-from skimage import draw  # type: ignore
-import torch  # type: ignore
+import Box2D
+import gym
+import numpy as np
+from PIL import Image
+from skimage import draw
+import torch
 
 from .generator import Generator
 from .utils import rigid_body_2d, shape_to_vertices, to_homogenous
 from .visualization import draw_caption
 from temporal_policies import agents
-from temporal_policies.utils import tensors
+from temporal_policies.envs import base
+from temporal_policies.utils import recording, tensors
 
 
-class Box2DBase(ABC, gym.Env, Generator):
+class Box2DBase(base.Env, Generator, ABC):
     @abstractmethod
     def __init__(
         self,
@@ -35,7 +37,7 @@ class Box2DBase(ABC, gym.Env, Generator):
         steps: int = 0,
         physics_steps: int = 0,
         physics_steps_buffer: int = 0,
-        buffer_frames: bool = False,
+        recording_freq: int = 3,
         **kwargs,
     ):
         """Box2D environment base class.
@@ -55,7 +57,7 @@ class Box2DBase(ABC, gym.Env, Generator):
             steps: initial step of the gym environment
             physics_steps: number of time_steps occured
             physics_steps_buffer: number of extra time_steps after episode has terminated
-            buffer_frames: save frames rendered at each timestep to buffer
+            recording_freq: Recording frequency
         """
         Generator.__init__(self, **kwargs)
         self.name = name
@@ -72,9 +74,9 @@ class Box2DBase(ABC, gym.Env, Generator):
         self._steps = steps
         self._physics_steps = physics_steps
         self._physics_steps_buffer = physics_steps_buffer
-        self._buffer_frames = buffer_frames
 
-        self._frame_buffer = []
+        self._recorder = recording.Recorder(frequency=recording_freq)
+
         self._setup_spaces()
         self._render_setup()
         self._eval_mode = False
@@ -109,16 +111,12 @@ class Box2DBase(ABC, gym.Env, Generator):
         self._eval_mode = False
         self._break_on_done = True
         self._physics_steps_buffer = 0
-        self._buffer_frames = False
 
-    def eval_mode(
-        self, break_on_done=True, physics_steps_buffer=10, buffer_frames=True
-    ):
+    def eval_mode(self, break_on_done=True, physics_steps_buffer=10):
         """Set environment to evaluation mode."""
         self._eval_mode = True
         self._break_on_done = break_on_done
         self._physics_steps_buffer = physics_steps_buffer
-        self._buffer_frames = buffer_frames
 
     @classmethod
     def load(cls, env, **kwargs):
@@ -134,7 +132,6 @@ class Box2DBase(ABC, gym.Env, Generator):
             # Box2DBase kwargs
             "cumulative_reward": env._cumulative_reward,
             "physics_steps": env._physics_steps,
-            "buffer_frames": env._buffer_frames,
             # Generator kwargs
             "env": env.env,
             "world": env.world,
@@ -146,12 +143,14 @@ class Box2DBase(ABC, gym.Env, Generator):
         env_kwargs.update(deepcopy(kwargs))
         loaded_env = cls(**env_kwargs)
         loaded_env._clean_base_kwargs()
-        # loaded_env._frame_buffer = deepcopy(env._frame_buffer)
+
+        # Use same recorder instance for rendering continuity.
+        loaded_env._recorder = env._recorder
+
         if env._eval_mode:
             loaded_env.eval_mode(
                 break_on_done=env._break_on_done,
                 physics_steps_buffer=env._physics_steps_buffer,
-                buffer_frames=env._buffer_frames,
             )
         return loaded_env
 
@@ -169,7 +168,6 @@ class Box2DBase(ABC, gym.Env, Generator):
             "cumulative_reward": env._cumulative_reward,
             "steps": env._steps,
             "physics_steps": env._physics_steps,
-            "buffer_frames": env._buffer_frames,
             # Generator kwargs
             "env": env.env,
             "world": env.world,
@@ -181,12 +179,11 @@ class Box2DBase(ABC, gym.Env, Generator):
         env_kwargs.update(deepcopy(kwargs))
         loaded_env = cls(**env_kwargs)
         loaded_env._clean_base_kwargs()
-        loaded_env._frame_buffer = deepcopy(env._frame_buffer)
+        loaded_env._recorder = deepcopy(loaded_env.recorder)
         if env._eval_mode:
             loaded_env.eval_mode(
                 break_on_done=env._break_on_done,
                 physics_steps_buffer=env._physics_steps_buffer,
-                buffer_frames=env._buffer_frames,
             )
         return loaded_env
 
@@ -205,14 +202,13 @@ class Box2DBase(ABC, gym.Env, Generator):
             self._cumulative_reward = 0.0
             self._steps = 0
             self._physics_steps = 0
-            self._frame_buffer = []
         self._render_setup()
 
         observation = self.get_observation()
         return observation
 
     @abstractmethod
-    def step(self):
+    def step(self, action=None):
         """Take environment steps at self._time_steps frequency."""
         obs, reward, done, info = self.simulate()
         self._steps += 1
@@ -227,16 +223,12 @@ class Box2DBase(ABC, gym.Env, Generator):
         clear_forces=None,
         break_on_done=None,
         accrue_rewards=True,
-        buffer_frames=None,
     ):
         # Custom simulation arguments
         time_steps = time_steps if time_steps is not None else self._steps_per_action
         clear_forces = clear_forces if clear_forces is not None else self._clear_forces
         break_on_done = (
             break_on_done if break_on_done is not None else self._break_on_done
-        )
-        buffer_frames = (
-            buffer_frames if buffer_frames is not None else self._buffer_frames
         )
 
         obs = None
@@ -256,8 +248,7 @@ class Box2DBase(ABC, gym.Env, Generator):
                 reward += r
                 self._cumulative_reward += r
 
-            if buffer_frames:
-                self._frame_buffer.append(self.render())
+            self._recorder.add_frame(self.render)
             self._physics_steps += 1
             steps += 1
 
@@ -277,6 +268,8 @@ class Box2DBase(ABC, gym.Env, Generator):
 
         if not done:
             obs = self.get_observation()
+
+        self._recorder.add_frame(self.render, override_frequency=True)
 
         self.world.ClearForces()
         return obs, reward, done, info
@@ -336,20 +329,40 @@ class Box2DBase(ABC, gym.Env, Generator):
         """Setup observation space, action space, and supporting attributes."""
         raise NotImplementedError
 
-    @abstractmethod
-    def get_observation(self, obs: Optional[np.ndarray] = None):
+    def get_observation(self, image: Optional[bool] = None):
         """Observation model. Optionally incorporate noise to observations."""
-        if self._image_observation:
+        if image is None:
+            image = self._image_observation
+
+        if image:
             img = self.render(mode="rgb_array")
             return img
 
-        assert self.observation_space.contains(obs)
+        k = 0
+        observation = np.zeros((self.observation_space.shape[0]), dtype=np.float32)
+        assert self.env is not None
+        for object_name in self.env:
+            for shape_name, shape_data in self._get_shapes(object_name).items():
+                if shape_name not in self._observation_bodies:
+                    continue
+                position = np.array(
+                    self._get_body(object_name, shape_name).position, dtype=np.float32
+                )
+                observation[k : k + 4] = np.concatenate((position, shape_data["box"]))
+                k += 4
+        # Agent data
+        position = np.array(self.agent.position, dtype=np.float32)
+        box = self._get_shape("item", "block")["box"]
+        angle = np.array([self.agent.angle])
+        observation[k : k + 5] = np.concatenate((position, box, angle))
+
+        # Add noise.
         low = self.observation_space.low
         high = self.observation_space.high
         margin = (high - low) * self._observation_noise
         noise = np.random.uniform(-margin, margin)
-        obs = np.clip(obs + noise, low, high)
-        return obs.astype(np.float32)
+        observation = np.clip(observation + noise, low, high)
+        return observation.astype(np.float32)
 
     @abstractmethod
     def _get_reward(self):
@@ -694,3 +707,73 @@ class Box2DBase(ABC, gym.Env, Generator):
         caption = f"Env: {type(self).__name__} | Step: {self._steps} | "
         caption += f"Time: {self._physics_steps} | Reward: {self._cumulative_reward}"
         return caption
+
+    def record_start(
+        self,
+        prepend_id: Optional[Any] = None,
+        frequency: Optional[int] = None,
+        mode: str = "default",
+    ) -> bool:
+        """Starts recording the simulation.
+
+        Args:
+            prepend_id: Prepends the new recording with the existing recording
+                saved under this id.
+            frequency: Recording frequency.
+            mode: Recording mode. Options:
+                - 'default': record at fixed frequency.
+        Returns:
+            Whether recording was started.
+        """
+        if isinstance(prepend_id, np.ndarray):
+            prepend_id = prepend_id.item()
+        if prepend_id is not None:
+            prepend_id = str(prepend_id)
+
+        if mode == "default":
+            self._recorder.start(prepend_id, frequency)
+        else:
+            return False
+
+        return True
+
+    def record_stop(self, save_id: Optional[Any] = None, mode: str = "default") -> bool:
+        """Stops recording the simulation.
+
+        Args:
+            save_id: Saves the recording to this id.
+            mode: Recording mode. Options:
+                - 'default': record at fixed frequency.
+        Returns:
+            Whether recording was stopped.
+        """
+        if isinstance(save_id, np.ndarray):
+            save_id = save_id.item()
+        if save_id is not None:
+            save_id = str(save_id)
+
+        if mode == "default":
+            return self._recorder.stop(save_id)
+        else:
+            return False
+
+    def record_save(
+        self,
+        path: Union[str, pathlib.Path],
+        reset: bool = True,
+        mode: Optional[str] = None,
+    ) -> bool:
+        """Saves all the recordings.
+
+        Args:
+            path: Path for the recording.
+            reset: Reset the recording after saving.
+            mode: Recording mode to save. If None, saves all recording modes.
+        Returns:
+            Whether any recordings were saved.
+        """
+        is_saved = False
+        if mode is None or mode == "default":
+            is_saved |= self._recorder.save(path, reset)
+
+        return is_saved

@@ -1,4 +1,4 @@
-import numpy as np  # type: ignore
+import numpy as np
 from copy import deepcopy
 
 from .pybox2d_base import Box2DPlannerBase

@@ -1,16 +1,15 @@
 import pathlib
-from typing import Any, Dict, Generic, Optional, Sequence, Type, Union
+from typing import Any, Dict, Optional, Sequence, Type, Union
 
-import torch  # type: ignore
+import torch
 
 
 from temporal_policies import agents, networks
 from temporal_policies.dynamics.latent import LatentDynamics
 from temporal_policies.utils import spaces, tensors
-from temporal_policies.utils.typing import ObsType
 
 
-class DecoupledDynamics(LatentDynamics[ObsType], Generic[ObsType]):
+class DecoupledDynamics(LatentDynamics):
     """Dynamics model per action per action latent space.
 
     We train A*A dynamics models T_ab of the form:
@@ -61,13 +60,19 @@ class DecoupledDynamics(LatentDynamics[ObsType], Generic[ObsType]):
             device=device,
         )
 
-    def encode(self, observation: ObsType, idx_policy: Union[int, torch.Tensor]) -> torch.Tensor:
+    def encode(
+        self,
+        observation: torch.Tensor,
+        idx_policy: Union[int, torch.Tensor],
+        policy_args: Optional[Any],
+    ) -> torch.Tensor:
         """Encodes the observation as a concatenation of latent states for each
         policy.
 
         Args:
             observation: Common observation across all policies.
             idx_policy: Index of executed policy.
+            policy_args: Auxiliary policy arguments.
 
         Returns:
             Concatenated latent state vector of size [Z * A].
@@ -81,15 +86,15 @@ class DecoupledDynamics(LatentDynamics[ObsType], Generic[ObsType]):
     def decode(
         self,
         latent: torch.Tensor,
-        idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any] = None,
+        idx_policy: int,
+        policy_args: Optional[Any],
     ) -> torch.Tensor:
         """Extracts the policy state from the concatenated latent states.
 
         Args:
             latent: Encoded latent state.
             idx_policy: Index of executed policy.
-            policy_args: Auxiliary policy args.
+            policy_args: Auxiliary policy arguments.
 
         Returns:
             Decoded policy state.
@@ -97,12 +102,14 @@ class DecoupledDynamics(LatentDynamics[ObsType], Generic[ObsType]):
         policy_latents = torch.reshape(
             latent, (*latent.shape[:-1], len(self.policies), -1)
         )
-        if isinstance(idx_policy, int):
-            return policy_latents[:, idx_policy]
-
-        idx_policy = (
-            idx_policy.unsqueeze(-1)
-            .unsqueeze(-1)
-            .expand(*idx_policy.shape, 1, policy_latents.shape[-1])
-        )
-        return torch.gather(policy_latents, dim=1, index=idx_policy).squeeze(1)
+        assert isinstance(idx_policy, int)
+        return policy_latents[:, idx_policy]
+        # if isinstance(idx_policy, int):
+        #     return policy_latents[:, idx_policy]
+        #
+        # idx_policy = (
+        #     idx_policy.unsqueeze(-1)
+        #     .unsqueeze(-1)
+        #     .expand(*idx_policy.shape, 1, policy_latents.shape[-1])
+        # )
+        # return torch.gather(policy_latents, dim=1, index=idx_policy).squeeze(1)

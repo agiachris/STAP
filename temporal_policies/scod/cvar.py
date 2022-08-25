@@ -18,10 +18,16 @@ class CVaRSCOD(scod.WrapperSCOD):
             alpha: VaR risk-aversion parameter (confidence percentile)
         """
         super().__init__(**kwargs)
-        assert 0.0 < alpha < 1, "VaR confidence percentile (alpha) must be between (0, 1)"
+        assert (
+            0.0 < alpha < 1
+        ), "VaR confidence percentile (alpha) must be between (0, 1)"
         self._alpha = alpha
-        zscore_var = stats.norm.ppf(1-self.alpha)
-        zscore_cvar = -1/(1-self.alpha) * 1/np.sqrt((2 * np.pi)) * np.exp(-1/2 * zscore_var ** 2)
+        zscore_var = stats.norm.ppf(1 - self.alpha)
+        zscore_cvar = (
+            (-1 / (1 - self.alpha))
+            * np.exp(-1 / 2 * zscore_var**2)
+            / np.sqrt(2 * np.pi)
+        )
         self._zscore = torch.tensor(zscore_cvar).to(self.device)
 
     @property
@@ -35,12 +41,12 @@ class CVaRSCOD(scod.WrapperSCOD):
         return self._zscore
 
     def predict(
-        self, 
+        self,
         *input: torch.Tensor,
         detach: bool = True,
     ) -> torch.Tensor:
         """Compute alpha-averse expected confidence lower-bound over the posterior predictive outputs.
-        
+
         Args:
             input: Model inputs of shape (B x d_in)
             detach: Remove jacobians and model outputs from the computation graph (default: True)

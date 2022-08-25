@@ -6,7 +6,7 @@ from pprint import pprint
 from typing import Any, Dict, Optional, Union
 
 from temporal_policies import scod, trainers
-from temporal_policies.utils import configs, random, tensors
+from temporal_policies.utils import configs, random
 
 
 def train(
@@ -32,13 +32,16 @@ def train(
             random.seed(seed)
 
         scod_factory = scod.SCODFactory(
-            config=scod_config, model_checkpoint=model_checkpoint, model_network=model_network, device=tensors.device(device)
+            config=scod_config,
+            model_checkpoint=model_checkpoint,
+            model_network=model_network,
+            device=device,
         )
         trainer_factory = trainers.TrainerFactory(
             path=path,
             config=trainer_config,
             scod=scod_factory(),
-            policy_checkpoints=[model_checkpoint],
+            policy_checkpoints=None if model_checkpoint is None else [model_checkpoint],
             device=device,
         )
 
@@ -79,7 +82,12 @@ if __name__ == "__main__":
         type=str,
         help="Path to model (agents.Agent) checkpoint",
     )
-    parser.add_argument("--model-network", type=str, required=True, help="Attribute name of the agent's nn.Module (e.g., critic)")
+    parser.add_argument(
+        "--model-network",
+        type=str,
+        required=True,
+        help="Attribute name of the agent's nn.Module (e.g., critic)",
+    )
     parser.add_argument("--path", "-p", required=True)
     parser.add_argument("--resume", action="store_true", default=False)
     parser.add_argument("--overwrite", action="store_true", default=False)

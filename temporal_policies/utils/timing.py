@@ -2,7 +2,7 @@ import collections
 import time
 from typing import Dict, List, Sequence
 
-import numpy as np  # type: ignore
+import numpy as np
 
 
 class Timer:
@@ -128,7 +128,7 @@ class Profiler(Timer):
         Returns:
             Average time interval.
         """
-        mean = np.mean(self._tictocs[key])
+        mean = float(np.mean(self._tictocs[key]))
         if reset:
             self._tictocs[key] = []
         return mean

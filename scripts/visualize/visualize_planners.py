@@ -4,11 +4,11 @@ import argparse
 import pathlib
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
-import matplotlib  # type: ignore
-import matplotlib.pyplot as plt  # type: ignore
-import numpy as np  # type: ignore
-import pandas as pd  # type: ignore
-import seaborn as sns  # type: ignore
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 
 
 def load_results(
@@ -30,7 +30,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
     def get_method_label(method: str) -> str:
         if method == "random":
             return "Random"
-        if method == "greedy":
+        if method in ("greedy", "greedy_oracle_dynamics"):
             return "Greedy"
 
         tokens = method.split("_")
@@ -42,7 +42,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         return f"{policy.capitalize()} {planner}"
 
     def get_value_label(method: str) -> str:
-        if method in ("random", "greedy"):
+        if method in ("random", "greedy", "greedy_oracle_dynamics"):
             return "NA"
 
         tokens = method.split("_")
@@ -60,7 +60,7 @@ def create_dataframes(results: Dict[str, List[Dict[str, Any]]]) -> pd.DataFrame:
         return "Q-value"
 
     def get_dynamics_label(method: str) -> str:
-        if method in ("random", "greedy"):
+        if method in ("random", "greedy", "greedy_oracle_dynamics"):
             return "NA"
 
         tokens = method.split("_")

@@ -1,7 +1,8 @@
 import pathlib
 from typing import Any, Dict, Optional, Sequence, Union
 
-from temporal_policies import agents, dynamics, encoders, trainers, scod as scod_regression
+from temporal_policies import agents, dynamics, encoders, envs, trainers
+from temporal_policies import scod as scod_regression
 from temporal_policies.dynamics import load as load_dynamics
 from temporal_policies.dynamics import LatentDynamics, load_policy_checkpoints
 from temporal_policies.utils import configs
@@ -15,6 +16,7 @@ class TrainerFactory(configs.Factory):
         path: Optional[Union[str, pathlib.Path]] = None,
         config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
         agent: Optional[agents.RLAgent] = None,
+        eval_env: Optional[envs.Env] = None,
         dynamics: Optional[dynamics.LatentDynamics] = None,
         encoder: Optional[encoders.Encoder] = None,
         scod: Optional[scod_regression.SCOD] = None,
@@ -30,6 +32,7 @@ class TrainerFactory(configs.Factory):
             config: Optional dynamics config path or dict. Must be provided if
                 checkpoint is None.
             agent: Agent to be trained.
+            eval_env: Optional env for evaluating the agent.
             dynamics: Dynamics model to be trained.
             encoder: Encoder model to be trained.
             scod: SCOD model to be trained.
@@ -59,13 +62,16 @@ class TrainerFactory(configs.Factory):
                 agent = ckpt_agent
 
             self.kwargs["agent"] = agent
+            self.kwargs["eval_env"] = eval_env
         elif issubclass(self.cls, (trainers.DynamicsTrainer, trainers.UnifiedTrainer)):
             if dynamics is None:
                 if checkpoint is None:
                     raise ValueError("Either dynamics or checkpoint must be specified")
                 ckpt_dynamics = load_dynamics(checkpoint=checkpoint, device=device)
                 if not isinstance(ckpt_dynamics, LatentDynamics):
-                    raise ValueError("Checkpoint dynamics must be a LatentDynamics instance")
+                    raise ValueError(
+                        "Checkpoint dynamics must be a LatentDynamics instance"
+                    )
                 dynamics = ckpt_dynamics
 
             self.kwargs["dynamics"] = dynamics
@@ -88,7 +94,9 @@ class TrainerFactory(configs.Factory):
                     raise ValueError("Either encoder or checkpoint must be specified")
                 ckpt_encoder = encoders.load(checkpoint=checkpoint, device=device)
                 if not isinstance(ckpt_encoder, encoders.Autoencoder):
-                    raise ValueError("Checkpoint encoder must be an Autoencoder instance")
+                    raise ValueError(
+                        "Checkpoint encoder must be an Autoencoder instance"
+                    )
                 encoder = ckpt_encoder
 
             self.kwargs["encoder"] = encoder
@@ -111,11 +119,12 @@ class TrainerFactory(configs.Factory):
                 ckpt_scod = scod_regression.load(checkpoint=checkpoint, device=device)
                 if not isinstance(ckpt_scod, scod_regression.SCOD):
                     raise ValueError("Checkpoint scod must be a SCOD instance")
-                scod = ckpt_scod            
+                scod = ckpt_scod
             self.kwargs["scod"] = scod
+            assert policy_checkpoints is not None
             if len(policy_checkpoints) != 1:
                 raise ValueError("Must specify exactly one policy checkpoint")
-            self.kwargs["policy_checkpoint"] = policy_checkpoints[0]            
+            self.kwargs["policy_checkpoint"] = policy_checkpoints[0]
         else:
             raise NotImplementedError
 
@@ -137,6 +146,7 @@ def load(
     path: Optional[Union[str, pathlib.Path]] = None,
     config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     agent: Optional[agents.RLAgent] = None,
+    eval_env: Optional[envs.Env] = None,
     dynamics: Optional[dynamics.LatentDynamics] = None,
     encoder: Optional[encoders.Encoder] = None,
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
@@ -152,6 +162,7 @@ def load(
         config: Optional dynamics config path or dict. Must be provided if
             checkpoint is None.
         agent: Agent to be trained.
+        eval_env: Optional env for evaluating the agent.
         dynamics: Dynamics model to be trained.
         checkpoint: Optional trainer checkpoint. Must be provided if config is
             None.
@@ -167,6 +178,7 @@ def load(
         path=path,
         config=config,
         agent=agent,
+        eval_env=eval_env,
         dynamics=dynamics,
         encoder=encoder,
         checkpoint=checkpoint,

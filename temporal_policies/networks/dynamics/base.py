@@ -1,7 +1,8 @@
 import abc
 from typing import Any, Dict, Sequence, Type, Union
 
-import torch  # type: ignore
+import gym
+import torch
 
 from temporal_policies import networks
 from temporal_policies.utils import configs
@@ -65,6 +66,9 @@ class Dynamics(torch.nn.Module):
 
 class PolicyDynamics(torch.nn.Module, abc.ABC):
     """Primitive dynamics model s' = T_{idx_policy}(s, a)."""
+
+    def __init__(self, state_space: gym.spaces.Box, action_space: gym.spaces.Box):
+        super().__init__()
 
     @abc.abstractmethod
     def forward(

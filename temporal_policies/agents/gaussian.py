@@ -27,9 +27,7 @@ class GaussianAgent(wrapper.WrapperAgent):
             state_space=policy.state_space,
             action_space=policy.action_space,
             observation_space=policy.observation_space,
-            actor=networks.Gaussian(
-                policy.actor, std, policy.action_space.low, policy.action_space.high
-            ),
+            actor=networks.actors.GaussianActor(policy.actor, std, policy.action_space),
             critic=policy.critic,
             encoder=policy.encoder,
             device=device,

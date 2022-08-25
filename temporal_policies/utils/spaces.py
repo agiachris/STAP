@@ -1,8 +1,8 @@
 from typing import Optional, Sequence, Tuple, Union
 
-import gym  # type: ignore
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import gym
+import numpy as np
+import torch
 
 
 def null(space: gym.spaces.Space, batch_shape: Union[int, Sequence[int]] = tuple()):
@@ -16,8 +16,8 @@ def null(space: gym.spaces.Space, batch_shape: Union[int, Sequence[int]] = tuple
         A nan or zero array with shape (*batch_shape, *space.shape).
     """
 
-    def null_value(dtype: np.number) -> Union[float, int]:
-        if dtype.kind == "f":
+    def null_value(dtype: Optional[np.dtype]) -> Union[float, int]:
+        if dtype is not None and dtype.kind == "f":
             return float("nan")
         else:
             return 0
@@ -26,7 +26,7 @@ def null(space: gym.spaces.Space, batch_shape: Union[int, Sequence[int]] = tuple
         batch_shape = (batch_shape,)
 
     if isinstance(space, gym.spaces.Discrete):
-        return np.full(*batch_shape, space.start - 1, dtype=np.int64)
+        return np.full(batch_shape, space.start - 1, dtype=np.int64)
     elif isinstance(space, gym.spaces.Box):
         return np.full(
             (*batch_shape, *space.shape), null_value(space.dtype), dtype=space.dtype
@@ -129,10 +129,10 @@ def overlay_boxes(spaces: Sequence[gym.spaces.Box]) -> gym.spaces.Box:
     dims = max(len(space.shape) for space in spaces)
 
     # Compute largest shape along each axis.
-    shape = np.zeros((len(spaces), dims), dtype=int)
+    np_shape = np.zeros((len(spaces), dims), dtype=int)
     for idx, space in enumerate(spaces):
-        shape[idx, : len(space.shape)] = space.shape
-    shape = tuple(shape.max(axis=0).tolist())
+        np_shape[idx, : len(space.shape)] = space.shape
+    shape = tuple(np_shape.max(axis=0).tolist())
 
     # Compute lows and highs.
     min_val = np.concatenate([space.low.flatten() for space in spaces], axis=0).min()

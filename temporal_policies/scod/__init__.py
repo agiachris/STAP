@@ -1,4 +1,4 @@
-from scod_regression import * # type: ignore
+from scod_regression import SCOD
 from .utils import *
 from .wrapper import WrapperSCOD
 from .var import VaRSCOD

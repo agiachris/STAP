@@ -1,19 +1,17 @@
-import copy
-import itertools
 import pathlib
-from typing import Any, Dict, Generic, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
-import torch  # type: ignore
-import numpy as np  # type: ignore
+import torch
+import numpy as np
 
 from temporal_policies.agents import base as agents
 from temporal_policies.agents import rl
 from temporal_policies import encoders, envs, networks
 from temporal_policies.utils import configs
-from temporal_policies.utils.typing import ObsType
+from temporal_policies.utils.typing import Batch
 
 
-class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
+class SAC(rl.RLAgent):
     """Soft actor critic."""
 
     def __init__(
@@ -23,7 +21,7 @@ class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
         actor_kwargs: Dict[str, Any],
         critic_class: Union[str, Type[networks.critics.Critic]],
         critic_kwargs: Dict[str, Any],
-        encoder: Optional[encoders.Encoder[ObsType]] = None,
+        encoder: Optional[encoders.Encoder] = None,
         encoder_class: Union[
             str, Type[networks.encoders.Encoder]
         ] = networks.encoders.NormalizeObservation,
@@ -57,7 +55,7 @@ class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
         """
         if encoder is None:
             encoder = encoders.Encoder(env, encoder_class, encoder_kwargs, device)
-            target_encoder = encoders.Encoder[ObsType](
+            target_encoder = encoders.Encoder(
                 env, encoder_class, encoder_kwargs, device
             )
             target_encoder.network.load_state_dict(encoder.network.state_dict())
@@ -69,12 +67,12 @@ class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
         target_encoder.eval_mode()
 
         actor_class = configs.get_class(actor_class, networks)
-        actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)
+        actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)  # type: ignore
 
         critic_class = configs.get_class(critic_class, networks)
-        critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)
+        critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)  # type: ignore
 
-        target_critic = critic_class(
+        target_critic = critic_class(  # type: ignore
             target_encoder.state_space, env.action_space, **critic_kwargs
         )
         target_critic.load_state_dict(critic.state_dict())
@@ -119,7 +117,7 @@ class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
         return self._target_critic
 
     @property
-    def target_encoder(self) -> encoders.Encoder[ObsType]:
+    def target_encoder(self) -> encoders.Encoder:
         """Target encoder."""
         return self._target_encoder
 
@@ -133,11 +131,11 @@ class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
 
     def compute_critic_loss(
         self,
-        observation: Any,
+        observation: torch.Tensor,
         action: torch.Tensor,
         reward: torch.Tensor,
-        next_observation: Any,
-        discount: float,
+        next_observation: torch.Tensor,
+        discount: torch.Tensor,
     ) -> Tuple[torch.Tensor, Dict[str, float]]:
         """Computes the critic loss.
 
@@ -236,7 +234,7 @@ class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
     def train_step(
         self,
         step: int,
-        batch: Dict[str, Any],
+        batch: Batch,
         optimizers: Dict[str, torch.optim.Optimizer],
         schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
     ) -> Dict[str, Any]:
@@ -251,6 +249,9 @@ class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
         Returns:
             Dict of loggable training metrics.
         """
+        assert isinstance(batch["observation"], torch.Tensor)
+        assert isinstance(batch["next_observation"], torch.Tensor)
+
         updating_critic = step % self.critic_update_freq == 0
         updating_actor = step % self.actor_update_freq == 0
         updating_target = step % self.target_update_freq == 0
@@ -264,7 +265,7 @@ class SAC(rl.RLAgent[ObsType], Generic[ObsType]):
 
         metrics = {}
         if updating_critic:
-            q_loss, critic_metrics = self.compute_critic_loss(**batch)
+            q_loss, critic_metrics = self.compute_critic_loss(**batch)  # type: ignore
 
             optimizers["critic"].zero_grad(set_to_none=True)
             q_loss.backward()

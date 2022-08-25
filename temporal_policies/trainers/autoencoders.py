@@ -1,9 +1,9 @@
 import pathlib
 from typing import Any, Dict, List, Optional, Sequence, Type, Union
 
-import numpy as np  # type: ignore
-import torch  # type: ignore
-import tqdm  # type: ignore
+import numpy as np
+import torch
+import tqdm
 
 from temporal_policies import datasets, encoders, processors
 from temporal_policies.schedulers import DummyScheduler
@@ -11,7 +11,7 @@ from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.utils import load as load_trainer
 from temporal_policies.utils import configs, tensors
-from temporal_policies.utils.typing import WrappedBatch, AutoencoderBatch
+from temporal_policies.utils.typing import AutoencoderBatch, Scalar, WrappedBatch
 
 
 class AutoencoderTrainer(Trainer[encoders.Autoencoder, AutoencoderBatch, WrappedBatch]):
@@ -21,7 +21,7 @@ class AutoencoderTrainer(Trainer[encoders.Autoencoder, AutoencoderBatch, Wrapped
         self,
         path: Union[str, pathlib.Path],
         encoder: encoders.Autoencoder,
-        dataset_class: Union[str, Type[torch.utils.data.IterableDataset]],
+        dataset_class: Union[str, Type[datasets.StratifiedReplayBuffer]],
         dataset_kwargs: Dict[str, Any],
         processor_class: Union[
             str, Type[processors.Processor]
@@ -161,6 +161,8 @@ class AutoencoderTrainer(Trainer[encoders.Autoencoder, AutoencoderBatch, Wrapped
         Returns:
             Dict with (observation, idx_policy, action, next_observation).
         """
+        assert isinstance(batch["observation"], torch.Tensor)
+        assert isinstance(batch["next_observation"], torch.Tensor)
 
         observations = (
             tensors.rgb_to_cnn(batch["observation"], contiguous=True),
@@ -170,7 +172,7 @@ class AutoencoderTrainer(Trainer[encoders.Autoencoder, AutoencoderBatch, Wrapped
         encoder_batch = AutoencoderBatch(observation=torch.concat(observations, dim=0))
         return tensors.to(encoder_batch, self.device)
 
-    def evaluate(self) -> List[Dict[str, np.ndarray]]:
+    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:
@@ -181,7 +183,7 @@ class AutoencoderTrainer(Trainer[encoders.Autoencoder, AutoencoderBatch, Wrapped
 
         self.eval_mode()
 
-        eval_metrics_list = []
+        eval_metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]] = []
         pbar = tqdm.tqdm(
             self._eval_dataloader,
             desc=f"Eval {self.name}",
@@ -196,7 +198,7 @@ class AutoencoderTrainer(Trainer[encoders.Autoencoder, AutoencoderBatch, Wrapped
                 loss, eval_metrics = self.encoder.compute_loss(**batch)
 
             pbar.set_postfix({self.eval_metric: eval_metrics[self.eval_metric]})
-            eval_metrics_list.append(eval_metrics)
+            eval_metrics_list.append(eval_metrics)  # type: ignore
 
         self.train_mode()
 

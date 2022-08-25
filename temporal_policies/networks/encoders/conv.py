@@ -1,8 +1,8 @@
-from typing import Sequence
+from typing import List, Sequence, Type
 
-import gym  # type: ignore
-import numpy as np  # type: ignore
-import torch  # type: ignore
+import gym
+import numpy as np
+import torch
 
 from temporal_policies import envs
 from temporal_policies.networks.encoders.base import Encoder, Decoder
@@ -14,7 +14,7 @@ class ConvEncoder(Encoder):
         env: envs.Env,
         latent_dim: int,
         hidden_channels: Sequence[int],
-        nonlinearity: torch.nn.Module = torch.nn.ReLU,
+        nonlinearity: Type[torch.nn.Module] = torch.nn.ReLU,
         distribution_parameters: int = 2,
     ):
         state_space = gym.spaces.Box(
@@ -23,7 +23,7 @@ class ConvEncoder(Encoder):
             shape=(latent_dim,),
             dtype=np.float32,
         )
-        super().__init__(state_space)
+        super().__init__(env, state_space)
 
         dim_image = np.array(env.observation_space.shape[:2])
         in_channels = env.observation_space.shape[-1]
@@ -126,14 +126,14 @@ class ConvDecoder(Decoder):
         env: envs.Env,
         latent_dim: int,
         hidden_channels: Sequence[int],
-        nonlinearity: torch.nn.Module = torch.nn.ReLU,
+        nonlinearity: Type[torch.nn.Module] = torch.nn.ReLU,
         distribution_parameters: int = 2,
     ):
-        super().__init__()
+        super().__init__(env)
 
-        dim_image = np.array(env.observation_space.shape[:2]) // (
-            2 ** len(hidden_channels)
-        )
+        # dim_image = np.array(env.observation_space.shape[:2]) // (
+        #     2 ** len(hidden_channels)
+        # )
 
         in_channels = hidden_channels[0]
         # self.fc = torch.nn.Sequential(
@@ -146,7 +146,7 @@ class ConvDecoder(Decoder):
             nonlinearity(),
         )
 
-        layers = []
+        layers: List[torch.nn.Module] = []
         layers.append(
             torch.nn.Sequential(
                 torch.nn.ConvTranspose2d(in_channels, hidden_channels[1], 4, 1, 0),
@@ -179,8 +179,7 @@ class ConvDecoder(Decoder):
         #     torch.nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
         #     # torch.nn.Tanh(),
         # )
-        layer = torch.nn.ConvTranspose2d(in_channels, out_channels, 4, 2, 1)
-        layers.append(layer)
+        layers.append(torch.nn.ConvTranspose2d(in_channels, out_channels, 4, 2, 1))
         self.decoder = torch.nn.Sequential(*layers)
 
     def forward(self, latent: torch.Tensor) -> torch.Tensor:

@@ -3,7 +3,7 @@ import subprocess
 import types
 from typing import Any, Callable, Dict, Generic, List, Optional, Type, TypeVar, Union
 
-import yaml  # type: ignore
+import yaml
 
 
 T = TypeVar("T")

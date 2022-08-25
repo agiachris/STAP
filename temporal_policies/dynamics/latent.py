@@ -1,16 +1,17 @@
 import pathlib
-from typing import Any, Dict, Generic, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Dict, Optional, OrderedDict, Sequence, Tuple, Type, Union
 
-import gym  # type: ignore
-import torch  # type: ignore
+import gym
+import numpy as np
+import torch
 
 from temporal_policies import agents, networks
 from temporal_policies.dynamics.base import Dynamics
 from temporal_policies.utils import configs
-from temporal_policies.utils.typing import DynamicsBatch, Model, ObsType
+from temporal_policies.utils.typing import DynamicsBatch, Model, Scalar
 
 
-class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch], Generic[ObsType]):
+class LatentDynamics(Dynamics, Model[DynamicsBatch]):
     """Base dynamics class."""
 
     def __init__(
@@ -18,8 +19,8 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch], Generic[ObsType]):
         policies: Sequence[agents.RLAgent],
         network_class: Union[str, Type[networks.dynamics.Dynamics]],
         network_kwargs: Dict[str, Any],
-        state_space: Optional[gym.spaces.Space] = None,
-        action_space: Optional[gym.spaces.Space] = None,
+        state_space: Optional[gym.spaces.Box] = None,
+        action_space: Optional[gym.spaces.Box] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -53,7 +54,7 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch], Generic[ObsType]):
         return self._network
 
     def load_state_dict(
-        self, state_dict: Dict[str, Dict[str, torch.Tensor]], strict: bool = True
+        self, state_dict: Dict[str, OrderedDict[str, torch.Tensor]], strict: bool = True
     ):
         """Loads the dynamics state dict.
 
@@ -106,17 +107,17 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch], Generic[ObsType]):
     def forward(
         self,
         state: torch.Tensor,
+        action: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        action: Sequence[torch.Tensor],
-        policy_args: Optional[Any] = None,
+        policy_args: Optional[Any],
     ) -> torch.Tensor:
         """Predicts the next latent state given the current latent state and
         action.
 
         Args:
             state: Current latent state.
-            idx_policy: Index of executed policy.
             action: Policy action.
+            idx_policy: Index of executed policy.
             policy_args: Auxiliary policy arguments.
 
         Returns:
@@ -127,41 +128,78 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch], Generic[ObsType]):
 
     def compute_loss(
         self,
-        observation: ObsType,
-        idx_policy: Union[int, torch.Tensor],
+        observation: torch.Tensor,
         action: torch.Tensor,
         next_observation: torch.Tensor,
-    ) -> Tuple[torch.Tensor, Dict[str, float]]:
+        idx_policy: Union[int, torch.Tensor],
+    ) -> Tuple[torch.Tensor, Dict[str, Union[Scalar, np.ndarray]]]:
         """Computes the L2 loss between the predicted next latent and the latent
         encoded from the given next observation.
 
         Args:
             observation: Common observation across all policies.
-            idx_policy: Index of executed policy.
             action: Policy parameters.
             next_observation: Next observation.
+            idx_policy: Index of executed policy.
 
         Returns:
             L2 loss.
         """
         # Predict next latent state.
         # [B, 3, H, W], [B] => [B, Z].
-        latent = self.encode(observation, idx_policy)
+        latent = self.encode(observation, idx_policy, policy_args=None)
 
         # [B, Z], [B], [B, A] => [B, Z].
-        next_latent_pred = self.forward(latent, idx_policy, action)
+        next_latent_pred = self.forward(latent, action, idx_policy, policy_args=None)
 
         # Encode next latent state.
         # [B, 3, H, W], [B] => [B, Z].
-        next_latent = self.encode(next_observation, idx_policy)
+        next_latent = self.encode(next_observation, idx_policy, policy_args=None)
 
         # Compute L2 loss.
         # [B, Z], [B, Z] => [1].
         l2_loss = torch.nn.functional.mse_loss(next_latent_pred, next_latent)
 
-        metrics = {
+        metrics: Dict[str, Union[Scalar, np.ndarray]] = {
             "l2_loss": l2_loss.item(),
         }
+
+        # Compute per-policy L2 losses.
+        if not self.network.training:
+            # [B, Z], [B, Z] => [B].
+            l2_losses = torch.nn.functional.mse_loss(
+                next_latent_pred, next_latent, reduction="none"
+            ).sum(dim=-1)
+
+            if isinstance(idx_policy, int):
+                # [B] => [B, P].
+                policy_l2_losses = torch.zeros(
+                    *l2_losses.shape,
+                    len(self.policies),
+                    dtype=l2_losses.dtype,
+                    device=self.device,
+                )
+                policy_l2_losses[..., idx_policy] = l2_losses
+            else:
+                # [B], [P] => [B, P].
+                idx_policies = idx_policy.unsqueeze(-1) == torch.arange(
+                    len(self.policies), device=self.device
+                )
+
+                # [B] => [B, P].
+                l2_losses = l2_losses.unsqueeze(-1).tile((len(self.policies),))
+
+                # [B] => [B, P].
+                policy_l2_losses = l2_losses * idx_policies
+
+            # [B, P], [B, P] => [P].
+            batch_dims = list(range(len(l2_losses.shape) - 1))
+            policy_l2_losses = policy_l2_losses.sum(dim=batch_dims) / idx_policies.sum(
+                dim=batch_dims
+            )
+
+            for idx_policy, policy_l2_loss in enumerate(policy_l2_losses.cpu().numpy()):
+                metrics[f"l2_loss_policy_{idx_policy}"] = policy_l2_loss
 
         return l2_loss, metrics
 
@@ -171,7 +209,7 @@ class LatentDynamics(Dynamics[ObsType], Model[DynamicsBatch], Generic[ObsType]):
         batch: DynamicsBatch,
         optimizers: Dict[str, torch.optim.Optimizer],
         schedulers: Dict[str, torch.optim.lr_scheduler._LRScheduler],
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Union[Scalar, np.ndarray]]:
         """Performs a single training step.
 
         Args:
