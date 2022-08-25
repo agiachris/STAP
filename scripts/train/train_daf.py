@@ -83,22 +83,8 @@ def train(
             device=device,
         )
 
-        if isinstance(env, envs.pybox2d.Sequential2D):
-            action_skeleton = [
-                env.get_primitive_info("PlaceRight"),
-                env.get_primitive_info("PushLeft"),
-            ]
-        elif isinstance(env, envs.pybullet.TableEnv):
-            action_skeleton = [
-                env.get_primitive_info(action_call)
-                for action_call in env.action_skeleton
-            ]
-        else:
-            raise NotImplementedError
-
         trainer_kwargs = {
             "env": env,
-            "action_skeleton": action_skeleton,
             "planner": planner_factory(),
         }
         if num_pretrain_steps is not None:

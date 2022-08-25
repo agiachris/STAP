@@ -25,7 +25,6 @@ class DafTrainer(UnifiedTrainer):
     def __init__(
         self,
         env: envs.Env,
-        action_skeleton: Sequence[envs.Primitive],
         path: Union[str, pathlib.Path],
         dynamics: dynamics_module.LatentDynamics,
         planner: planners.Planner,
@@ -86,22 +85,18 @@ class DafTrainer(UnifiedTrainer):
         )
 
         self._env = env
-        self._action_skeleton = action_skeleton
         self._planner = planner
 
-        if sample_primitive_actions:
-            for policy, primitive in zip(self.planner.policies, self.action_skeleton):
-                if isinstance(policy, agents.RandomAgent):
-                    assert isinstance(policy.actor, networks.actors.RandomActor)
-                    policy.actor.set_primitive(primitive)
+        # TODO: Doesn't work with changing action skeletons.
+        # if sample_primitive_actions:
+        #     for policy, primitive in zip(self.planner.policies, self.action_skeleton):
+        #         if isinstance(policy, agents.RandomAgent):
+        #             assert isinstance(policy.actor, networks.actors.RandomActor)
+        #             policy.actor.set_primitive(primitive)
 
     @property
     def env(self) -> envs.Env:
         return self._env
-
-    @property
-    def action_skeleton(self) -> Sequence[envs.Primitive]:
-        return self._action_skeleton
 
     @property
     def planner(self) -> planners.Planner:
@@ -180,20 +175,20 @@ class DafTrainer(UnifiedTrainer):
 
         if random:
             actions = np.array(
-                [primitive.sample() for primitive in self.action_skeleton]
+                [primitive.sample() for primitive in self.env.action_skeleton]
             )
         else:
             with self.dynamics_trainer.profiler.profile("plan"):
                 # Plan.
-                self.env.set_primitive(self.action_skeleton[0])
+                self.env.set_primitive(self.env.action_skeleton[0])
                 observation = self.env.get_observation()
                 actions = self.planner.plan(
-                    observation=observation, action_skeleton=self.action_skeleton
+                    observation=observation, action_skeleton=self.env.action_skeleton
                 ).actions
 
         failure = False
         collect_metrics: Dict[str, Mapping[str, float]] = {}
-        for primitive, action in zip(self.action_skeleton, actions):
+        for primitive, action in zip(self.env.action_skeleton, actions):
             agent_trainer = self.agent_trainers[primitive.idx_policy]
             with agent_trainer.profiler.profile(mode):
                 if failure:

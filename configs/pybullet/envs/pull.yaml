@@ -6,15 +6,15 @@ env_kwargs:
   primitives:
     - pull
 
-  action_skeleton:
-    - pull(a, hook)
-
-  initial_state:
-    - on(a, table)
-    - beyondworkspace(a)
-    - inhand(hook)
-    # - on(b, table)
-    # - istippable(b)
+  tasks:
+    - action_skeleton:
+        - pull(a, hook)
+      initial_state:
+        - on(a, table)
+        - beyondworkspace(a)
+        - inhand(hook)
+        # - on(b, table)
+        # - istippable(b)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 

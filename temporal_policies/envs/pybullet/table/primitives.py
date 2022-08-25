@@ -69,7 +69,9 @@ class Primitive(envs.Primitive, abc.ABC):
         if random.random() < 0.9:
             action = self.normalize_action(self.sample_action().vector)
             action = np.random.normal(loc=action, scale=0.05)
-            action = action.astype(np.float32).clip(self.action_space.low, self.action_space.high)
+            action = action.astype(np.float32).clip(
+                self.action_space.low, self.action_space.high
+            )
             return action
         else:
             return super().sample()
@@ -206,7 +208,7 @@ class Place(Primitive):
             if not predicates.is_within_distance(
                 obj.body_id, target.body_id, MAX_DROP_DISTANCE, robot.physics_id
             ):
-                raise ControlException
+                raise ControlException("Object dropped from too high.")
 
             robot.grasp(0)
             robot.goto_pose(pre_pos, command_quat)
@@ -308,7 +310,7 @@ class Pull(Primitive):
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             robot.goto_pose(command_pose_reach.pos, command_pose_reach.quat)
             if not predicates.is_upright(target.pose().quat):
-                raise ControlException
+                raise ControlException("Target is not upright", target.pose().quat)
             robot.goto_pose(
                 command_pose_pull.pos,
                 command_pose_pull.quat,

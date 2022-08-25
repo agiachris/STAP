@@ -92,7 +92,7 @@ class Logger(object):
             if self._csv_writer is None:
                 self._csv_file = open(self.path / "log.csv", "w")
                 self._csv_writer = csv.DictWriter(
-                    self._csv_file, fieldnames=list(self._staged.keys())
+                    self._csv_file, fieldnames=list(self._flushed.keys())
                 )
                 self._csv_writer.writeheader()
             assert self._csv_file is not None
@@ -104,9 +104,9 @@ class Logger(object):
                 self._csv_file.close()
                 self._csv_file = open(self.path / "log.csv", "w")
                 self._csv_writer = csv.DictWriter(
-                    self._csv_file, fieldnames=list(self._staged.keys())
+                    self._csv_file, fieldnames=list(self._flushed.keys())
                 )
                 self._csv_writer.writeheader()
-            self._csv_writer.writeheader()
+                self._csv_writer.writerow(self._flushed)
 
             self._csv_file.flush()

@@ -1,12 +1,11 @@
 import pathlib
-from typing import Any, Dict, Optional, Sequence, Type, Union
+from typing import Any, Dict, List, Optional, Sequence, Type, Union
 
-import numpy as np
+import gym
 import torch
 
 from temporal_policies import agents, envs, networks
 from temporal_policies.dynamics.latent import LatentDynamics
-from temporal_policies.utils import spaces
 
 
 class TableEnvDynamics(LatentDynamics):
@@ -38,20 +37,36 @@ class TableEnvDynamics(LatentDynamics):
             checkpoint: Dynamics checkpoint.
             device: Torch device.
         """
+        self._env = env
+        self.planning = self.env is not None
+
+        if self.env is None:
+            observation_space = policies[0].observation_space
+        else:
+            observation_space = self.env.observation_space
+
+        self._flat_state_space = gym.spaces.Box(
+            low=observation_space.low.flatten(),
+            high=observation_space.high.flatten(),
+        )
+
+        if self.planning:
+            state_space = observation_space
+        else:
+            state_space = gym.spaces.Box(
+                low=-0.5,
+                high=0.5,
+                shape=self.flat_state_space.shape,
+                dtype=self.flat_state_space.dtype,  # type: ignore
+            )
+
         parent_network_class = networks.dynamics.Dynamics
         parent_network_kwargs = {
             "policies": policies,
             "network_class": network_class,
             "network_kwargs": network_kwargs,
+            "state_spaces": [self.flat_state_space] * len(policies),
         }
-        self._env = env
-        if self.env is None:
-            # Placeholder - state space not needed for training.
-            state_space = policies[0].state_space
-        else:
-            # State space required for planning.
-            state_space = self.env.observation_space
-
         super().__init__(
             policies=policies,
             network_class=parent_network_class,
@@ -66,18 +81,24 @@ class TableEnvDynamics(LatentDynamics):
     def env(self) -> Optional[envs.pybullet.TableEnv]:
         return self._env
 
+    @property
+    def flat_state_space(self) -> gym.spaces.Box:
+        return self._flat_state_space
+
     def encode(
         self,
         observation: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
         policy_args: Optional[Any],
+        envs: Optional[Sequence[envs.pybullet.TableEnv]] = None,
     ) -> torch.Tensor:
         """Encodes the observation into a dynamics state.
 
         During training, the dynamics state is equivalent to the policy state
-        (normalized vector containing state for 3 objects). During planning, the
-        dynamics state is equivalent to the environment observation
-        (unnormalized matrix containing state for all objects).
+        (normalized vector containing state for 3 objects) appended with
+        additional object states. During planning, the dynamics state is
+        equivalent to the environment observation (unnormalized matrix
+        containing state for all objects).
 
         Args:
             observation: Common observation across all policies.
@@ -87,19 +108,87 @@ class TableEnvDynamics(LatentDynamics):
         Returns:
             Encoded latent state vector.
         """
-        if isinstance(idx_policy, int):
-            policy = self.policies[idx_policy]
-            if tuple(observation.shape[1:]) != policy.state_space.shape:
-                # Full TableEnv observation.
-                return observation
+        if self.planning:
+            # Return full observation.
+            return observation
 
-            # [B, O] => [B, Z].
-            return policy.encoder.encode(observation)
+        maybe_envs = [None] * len(self.policies) if envs is None else envs
 
-        raise NotImplementedError
+        # Reorder observations so action-relevant objects are first.
+        dynamics_state = torch.full(
+            (observation.shape[0], *self.state_space.shape),
+            float("nan"),
+            dtype=observation.dtype,
+            device=observation.device,
+        )
+        for i in range(len(self.policies)):
+            ii = idx_policy == i
+            idx_args = self._env_to_dynamics_indices(
+                observation[ii],
+                idx_policy=i,
+                policy_args=policy_args,
+                env=maybe_envs[i],
+            )
+            dynamics_state[ii] = self._normalize_state(observation[ii][:, idx_args, :])
 
-        # Assume all encoders are the same.
-        return self.policies[0].encoder.encode(observation)
+        return dynamics_state
+
+    def _normalize_state(self, state: torch.Tensor) -> torch.Tensor:
+        # Flatten state.
+        state = state.reshape(-1, *self.flat_state_space.shape)
+
+        # Scale to [-0.5, 0.5].
+        state_mid = torch.from_numpy(
+            (self.flat_state_space.low + self.flat_state_space.high) / 2
+        ).to(state.device)
+
+        state_range = torch.from_numpy(
+            self.flat_state_space.high - self.flat_state_space.low
+        ).to(state.device)
+
+        return (state - state_mid) / state_range
+
+    def _unnormalize_state(self, state: torch.Tensor) -> torch.Tensor:
+        # Unflatten state if planning.
+        state = state.reshape(-1, *self.state_space.shape)
+
+        # Scale from [-0.5, 0.5].
+        state_mid = torch.from_numpy(
+            (self.state_space.low + self.state_space.high) / 2
+        ).to(state.device)
+
+        state_range = torch.from_numpy(
+            self.state_space.high - self.state_space.low
+        ).to(state.device)
+
+        return state * state_range + state_mid
+
+    def _env_to_dynamics_indices(
+        self,
+        env_state: torch.Tensor,
+        idx_policy: int,
+        policy_args: Optional[Any],
+        env: Optional[envs.pybullet.TableEnv],
+    ) -> List[int]:
+        if self.planning:
+            assert self.env is not None
+            idx_args = self.env.get_arg_indices(idx_policy, policy_args)
+        else:
+            if env is None:
+                policy = self.policies[idx_policy]
+
+                assert isinstance(policy, agents.RLAgent)
+                assert isinstance(policy.env, envs.pybullet.TableEnv)
+                assert len(policy.env.primitives) == 1
+
+                env = policy.env
+
+            primitive = env.get_primitive()
+            idx_args = env.get_arg_indices(primitive.idx_policy, primitive.policy_args)
+
+        idx_args += list(i for i in range(env_state.shape[-2]) if i not in idx_args)
+
+        return idx_args
 
     def decode(
         self,
@@ -120,14 +209,10 @@ class TableEnvDynamics(LatentDynamics):
         Returns:
             Decoded observation.
         """
+        # Decode is only called during planning.
         assert self.env is not None
-        env_state = state
-
-        idx_args = self.env.get_arg_indices(idx_policy, policy_args)
-        observation = env_state[..., idx_args, :].view(*state.shape[:-2], -1)
-        policy_state = self.encode(observation, idx_policy, policy_args)
-
-        return policy_state
+        self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
+        return self.policies[idx_policy].encoder.encode(state, env=self.env)
 
     def forward_eval(
         self,
@@ -156,32 +241,20 @@ class TableEnvDynamics(LatentDynamics):
         assert self.env is not None
         env_state = state
 
-        # Env state -> dynamics state (= policy state).
-        dynamics_state = self.decode(env_state, idx_policy, policy_args)
+        # Env state -> dynamics state.
+        idx_args = self._env_to_dynamics_indices(
+            env_state, idx_policy, policy_args, env=self.env
+        )
+        dynamics_state = self._normalize_state(env_state[..., idx_args, :])
 
         # Dynamics state -> dynamics state.
         next_dynamics_state = self.forward(
             dynamics_state, action, idx_policy, policy_args
         )
-
-        # Dynamics state -> new unnormalized observation.
-        next_dynamics_state = torch.from_numpy(
-            spaces.transform(
-                np.clip(
-                    next_dynamics_state.cpu().numpy(),
-                    self.policies[idx_policy].state_space.low,
-                    self.policies[idx_policy].state_space.high,
-                ),
-                self.policies[idx_policy].state_space,
-                self.env.observation_space,
-            )
-        ).to(next_dynamics_state.device)
+        next_dynamics_state = next_dynamics_state.clamp(-0.5, 0.5)
 
         # Update env state with new unnormalized observation.
         next_env_state = env_state.clone()
-        idx_args = self.env.get_arg_indices(idx_policy, policy_args)
-        next_env_state[..., idx_args, :] = next_dynamics_state.view(
-            *next_dynamics_state.shape[:-1], len(idx_args), -1
-        )
+        next_env_state[..., idx_args, :] = self._unnormalize_state(next_dynamics_state)
 
         return next_env_state

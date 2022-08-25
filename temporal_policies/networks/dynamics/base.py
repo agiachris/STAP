@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Dict, Sequence, Type, Union
+from typing import Any, Dict, Optional, Sequence, Type, Union
 
 import gym
 import torch
@@ -16,6 +16,7 @@ class Dynamics(torch.nn.Module):
         policies: Sequence,
         network_class: Union[str, Type["PolicyDynamics"]],
         network_kwargs: Dict[str, Any],
+        state_spaces: Optional[Sequence[gym.spaces.Box]] = None,
     ):
         """Constructs a dynamics network per policy.
 
@@ -26,15 +27,18 @@ class Dynamics(torch.nn.Module):
         """
         super().__init__()
 
+        if state_spaces is None:
+            state_spaces = [policy.state_space for policy in policies]
+
         network_class = configs.get_class(network_class, networks)
         self.models = torch.nn.ModuleList(
             [
                 network_class(
-                    state_space=policy.state_space,
+                    state_space=state_space,
                     action_space=policy.action_space,
                     **network_kwargs
                 )
-                for policy in policies
+                for policy, state_space in zip(policies, state_spaces)
             ]
         )
 

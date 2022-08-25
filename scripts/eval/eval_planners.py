@@ -63,16 +63,6 @@ def evaluate_planners(
     path = pathlib.Path(path) / pathlib.Path(config).stem
     path.mkdir(parents=True, exist_ok=True)
 
-    if isinstance(env, envs.pybox2d.Sequential2D):
-        action_skeleton = [
-            env.get_primitive_info("PlaceRight"),
-            env.get_primitive_info("PushLeft"),
-        ]
-    elif isinstance(env, envs.pybullet.TableEnv):
-        action_skeleton = [
-            env.get_primitive_info(action_call) for action_call in env.action_skeleton
-        ]
-
     num_success = 0
     pbar = tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True)
     for i in pbar:
@@ -92,13 +82,13 @@ def evaluate_planners(
             env.record_start("timelapse", mode="timelapse")
 
         timer.tic("planner")
-        plan = planner.plan(observation, action_skeleton)
+        plan = planner.plan(observation, env.action_skeleton)
         t_planner = timer.toc("planner")
 
         env.record_save(path / f"planning_{i}.gif")
 
         rewards = planners.evaluate_plan(
-            env, action_skeleton, state, plan.actions, gif_path=path / f"exec_{i}.gif"
+            env, env.action_skeleton, state, plan.actions, gif_path=path / f"exec_{i}.gif"
         )
         if rewards.prod() > 0:
             num_success += 1
@@ -109,7 +99,7 @@ def evaluate_planners(
         if verbose:
             print("success:", rewards.prod(), rewards)
             print("predicted success:", plan.p_success, plan.values)
-            for primitive, action in zip(action_skeleton, plan.actions):
+            for primitive, action in zip(env.action_skeleton, plan.actions):
                 if isinstance(primitive, table_primitives.Primitive):
                     primitive_action = str(primitive.Action(action))
                     primitive_action = primitive_action.replace("\n", "\n  ")
@@ -123,11 +113,11 @@ def evaluate_planners(
         if isinstance(env, envs.pybox2d.Sequential2D):
             env.set_state(state)
             (grid_q_values, grid_actions) = pybox2d.evaluate_critic_functions(
-                planner, action_skeleton, env, grid_resolution
+                planner, env.action_skeleton, env, grid_resolution
             )
             pybox2d.plot_critic_functions(
                 env=env,
-                action_skeleton=action_skeleton,
+                action_skeleton=env.action_skeleton,
                 actions=plan.visited_actions,
                 p_success=plan.p_visited_success,
                 rewards=rewards,
@@ -142,7 +132,7 @@ def evaluate_planners(
                 recorder.start()
                 env.set_state(state)
                 for primitive, predicted_state, action in zip(
-                    action_skeleton, plan.states[1:], plan.actions
+                    env.action_skeleton, plan.states[1:], plan.actions
                 ):
                     env.set_primitive(primitive)
                     env._recording_text = (
@@ -177,18 +167,19 @@ def evaluate_planners(
                 "state": state,
                 "actions": plan.actions,
                 "states": plan.states,
-                "scaled_actions": scale_actions(plan.actions, env, action_skeleton),
+                "scaled_actions": scale_actions(plan.actions, env, env.action_skeleton),
                 "p_success": plan.p_success,
                 "values": plan.values,
                 "rewards": rewards,
-                "visited_actions": plan.visited_actions,
-                "scaled_visited_actions": scale_actions(
-                    plan.visited_actions, env, action_skeleton
-                ),
-                "visited_states": plan.visited_states,
+                # "visited_actions": plan.visited_actions,
+                # "scaled_visited_actions": scale_actions(
+                #     plan.visited_actions, env, action_skeleton
+                # ),
+                # "visited_states": plan.visited_states,
                 "p_visited_success": plan.p_visited_success,
-                "visited_values": plan.visited_values,
+                # "visited_values": plan.visited_values,
                 "t_planner": t_planner,
+                "action_skeleton": list(map(str, env.action_skeleton)),
             }
             if isinstance(env, envs.pybox2d.Sequential2D):
                 save_dict["grid_q_values"] = grid_q_values

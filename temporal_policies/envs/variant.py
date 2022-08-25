@@ -49,6 +49,10 @@ class VariantEnv(Env):
         return self.env.action_scale
 
     @property
+    def action_skeleton(self) -> Sequence[Primitive]:
+        return self.env.action_skeleton
+
+    @property
     def primitives(self) -> List[str]:
         return self.env.primitives
 

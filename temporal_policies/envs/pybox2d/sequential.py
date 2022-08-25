@@ -47,6 +47,10 @@ class Sequential2D(base.Env):
     def current_env(self) -> Box2DBase:
         return self._current_env
 
+    @property
+    def action_skeleton(self) -> Sequence[base.Primitive]:
+        return [env.get_primitive() for env in self.envs]
+
     def get_primitive(self) -> base.Primitive:
         return self.current_env.get_primitive()
 

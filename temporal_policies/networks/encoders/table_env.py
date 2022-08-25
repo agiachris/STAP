@@ -56,8 +56,8 @@ class TableEnvEncoder(Encoder):
             idx_policy=primitive.idx_policy, policy_args=primitive.policy_args
         )
 
-        observation = observation[:, idx_args, ...]
-        print(idx_args, observation)
+        observation = observation[:, idx_args, :]
         observation = (observation - self.observation_mid) / self.observation_range
         observation = torch.reshape(observation, (-1, self.state_space.shape[0]))
+
         return observation

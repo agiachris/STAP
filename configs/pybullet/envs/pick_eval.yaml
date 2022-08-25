@@ -6,12 +6,12 @@ env_kwargs:
   primitives:
     - pick
 
-  action_skeleton:
-    - pick(a, table)
-
-  initial_state:
-    - on(a, table)
-    - inworkspace(a)
+  tasks:
+    - action_skeleton:
+        - pick(a, table)
+      initial_state:
+        - on(a, table)
+        - inworkspace(a)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 

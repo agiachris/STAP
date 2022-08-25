@@ -37,16 +37,28 @@ output_path="models"
 
 # Experiments.
 
-exp_name="20220727/decoupled_state"
-TRAINER_CONFIG="configs/pybox2d/trainers/scod.yaml"
-SCOD_CONFIG="configs/pybox2d/scod/scod.yaml"
+# exp_name="20220727/decoupled_state"
+# TRAINER_CONFIG="configs/pybox2d/trainers/scod.yaml"
+# SCOD_CONFIG="configs/pybox2d/scod/scod.yaml"
+# MODEL_NETWORK="critic"
+# policy_envs=("pick" "place" "pull")
+# checkpoints=(
+#     "final_model"
+#     "best_model"
+#     "ckpt_model_50000"
+#     "ckpt_model_100000"
+# )
+
+exp_name="20220821/workspace_multi"
+TRAINER_CONFIG="configs/pybullet/trainers/scod.yaml"
+SCOD_CONFIG="configs/pybullet/scod/scod.yaml"
 MODEL_NETWORK="critic"
 policy_envs=("pick" "place" "pull")
 checkpoints=(
     "final_model"
-    "best_model"
-    "ckpt_model_50000"
-    "ckpt_model_100000"
+    # "best_model"
+    # "ckpt_model_50000"
+    # "ckpt_model_100000"
 )
 
 for ckpt in "${checkpoints[@]}"; do
