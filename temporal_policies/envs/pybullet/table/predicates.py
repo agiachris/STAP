@@ -6,7 +6,7 @@ import numpy as np
 import pybullet as p
 import symbolic
 
-from temporal_policies.envs.pybullet.table.objects import Hook, Object
+from temporal_policies.envs.pybullet.table.objects import Hook, Null, Object
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
 
@@ -90,6 +90,9 @@ class InWorkspace(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         obj = self._get_arg_objects(objects)[0]
+        if obj.isinstance(Null):
+            return True
+
         xyz = obj.pose().pos
         distance = float(np.linalg.norm(xyz[:2]))
         return self.MIN_X < xyz[0] and distance <= BeyondWorkspace.WORKSPACE_RADIUS
@@ -154,6 +157,8 @@ class On(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         child_obj, parent_obj = self._get_arg_objects(objects)
+        if child_obj.isinstance(Null):
+            return True
 
         if not is_above(child_obj.aabb(), parent_obj.aabb()):
             return False
@@ -257,13 +262,13 @@ class Inhand(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         return True
-        obj = self._get_arg_objects(objects)[0]
-
-        xyz_min, xyz_max = obj.aabb()
-
-        xyz_ee = robot.arm.ee_pose().pos
-
-        if (xyz_min > xyz_ee).any() or (xyz_ee > xyz_max).any():
-            return False
-
-        return True
+        # obj = self._get_arg_objects(objects)[0]
+        #
+        # xyz_min, xyz_max = obj.aabb()
+        #
+        # xyz_ee = robot.arm.ee_pose().pos
+        #
+        # if (xyz_min > xyz_ee).any() or (xyz_ee > xyz_max).any():
+        #     return False
+        #
+        # return True

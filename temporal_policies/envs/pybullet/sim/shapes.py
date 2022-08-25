@@ -92,8 +92,9 @@ class Shape:
         self, is_base: bool = False
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         collision_kwargs = {}
+        visual_kwargs = {}
         if self.color is not None:
-            visual_kwargs = {"rgbaColor": self.color}
+            visual_kwargs["rgbaColor"] = self.color
 
         if is_base and self.pose is not None:
             collision_kwargs["collisionFramePosition"] = self.pose.pos

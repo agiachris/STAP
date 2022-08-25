@@ -1,6 +1,6 @@
 import dataclasses
 import random
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 from ctrlutils import eigen
 import numpy as np
@@ -20,13 +20,11 @@ class Object(body.Body):
         self,
         physics_id: int,
         body_id: int,
-        idx_object: int,
         name: str,
         is_static: bool = False,
     ):
         super().__init__(physics_id, body_id)
 
-        self.idx_object = idx_object
         self.name = name
         self.is_static = is_static
 
@@ -103,15 +101,15 @@ class Object(body.Body):
     def create(
         cls,
         physics_id: int,
-        idx_object: int,
-        object_type: str,
-        object_kwargs: Dict[str, Any],
+        object_type: Optional[str],
+        object_kwargs: Dict[str, Any] = {},
+        object_groups: Dict[str, "ObjectGroup"] = {},
         **kwargs
     ) -> "Object":
-        object_class = globals()[object_type]
-        return object_class(
-            physics_id=physics_id, idx_object=idx_object, **object_kwargs, **kwargs
-        )
+        object_class = Null if object_type is None else globals()[object_type]
+        if issubclass(object_class, Variant):
+            kwargs["object_groups"] = object_groups
+        return object_class(physics_id=physics_id, **object_kwargs, **kwargs)
 
     def isinstance(self, class_or_tuple: type) -> bool:
         return isinstance(self, class_or_tuple)
@@ -134,7 +132,6 @@ class Urdf(Object):
     def __init__(
         self,
         physics_id: int,
-        idx_object: int,
         name: str,
         path: str,
         is_static: bool = False,
@@ -148,7 +145,6 @@ class Urdf(Object):
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
-            idx_object=idx_object,
             name=name,
             is_static=is_static,
         )
@@ -166,7 +162,6 @@ class Box(Object):
     def __init__(
         self,
         physics_id: int,
-        idx_object: int,
         name: str,
         size: Union[List[float], np.ndarray],
         color: Union[List[float], np.ndarray],
@@ -176,11 +171,7 @@ class Box(Object):
         body_id = shapes.create_body(box, physics_id=physics_id)
 
         super().__init__(
-            physics_id=physics_id,
-            body_id=body_id,
-            idx_object=idx_object,
-            name=name,
-            is_static=mass == 0.0,
+            physics_id=physics_id, body_id=body_id, name=name, is_static=mass == 0.0
         )
 
         self._state.box_size = box.size
@@ -211,7 +202,6 @@ class Hook(Object):
     def __init__(
         self,
         physics_id: int,
-        idx_object: int,
         name: str,
         head_length: float,
         handle_length: float,
@@ -264,11 +254,7 @@ class Hook(Object):
         )
 
         super().__init__(
-            physics_id=physics_id,
-            body_id=body_id,
-            idx_object=idx_object,
-            name=name,
-            is_static=mass == 0.0,
+            physics_id=physics_id, body_id=body_id, name=name, is_static=mass == 0.0
         )
 
         self._state.head_length = head_length
@@ -310,49 +296,99 @@ class Hook(Object):
 
 
 class Null(Object):
-    def __init__(
-        self,
-        physics_id: int,
-        idx_object: int,
-        name: str,
-    ):
+    def __init__(self, physics_id: int, name: str):
         sphere = shapes.Sphere(radius=0.001)
         body_id = shapes.create_body(sphere, physics_id=physics_id)
 
         super().__init__(
-            physics_id=physics_id,
-            body_id=body_id,
-            idx_object=idx_object,
-            name=name,
-            is_static=sphere.mass == 0,
+            physics_id=physics_id, body_id=body_id, name=name, is_static=True
         )
+
+    def enable_collisions(self) -> None:
+        pass
+
+    def unfreeze(self) -> None:
+        pass
+
+
+class ObjectGroup:
+    def __init__(self, physics_id: int, name: str, objects: List[Dict[str, Any]]):
+        self._name = name
+        self._objects = [
+            Object.create(physics_id=physics_id, name=name, **obj_config)
+            for obj_config in objects
+        ]
+        self.reset()
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def objects(self) -> List[Object]:
+        return self._objects
+
+    def reset(self) -> None:
+        self.available_indices = list(range(len(self.objects)))
+
+        # Hide objects below table.
+        for obj in self.objects:
+            obj.disable_collisions()
+            obj.set_pose(math.Pose(pos=np.array([0.0, 0.0, -0.5])))
+            obj.freeze()
+
+    def pop_index(self, idx: Optional[int] = None) -> int:
+        """Pops an index from the list of available indices.
+
+        Args:
+            idx: If specified, this index will be popped from the list.
+
+        Returns:
+            Popped index.
+        """
+        if idx is None:
+            idx_available = random.randrange(len(self.available_indices))
+        else:
+            idx_available = self.available_indices.index(idx)
+
+        return self.available_indices.pop(idx_available)
+
+    def __len__(self) -> int:
+        return len(self.objects)
+
+    def __iter__(self) -> Iterator[Object]:
+        return iter(self.objects)
+
+    def __getitem__(self, idx: Union[int, slice]):
+        return self.objects[idx]
 
 
 class Variant(Object):
     def __init__(
         self,
         physics_id: int,
-        idx_object: int,
         name: str,
-        variants: List[Dict[str, Any]],
+        variants: Optional[List[Dict[str, Any]]] = None,
+        group: Optional[str] = None,
+        object_groups: Dict[str, ObjectGroup] = {},
     ):
         self.physics_id = physics_id
-        self.idx_object = idx_object
         self.name = name
 
-        self._variants = [
-            Object.create(
-                physics_id=self.physics_id,
-                idx_object=idx_object,
-                name=self.name,
-                **obj_kwargs,
-            )
-            for obj_kwargs in variants
-        ]
-        self._masses = [
-            p.getDynamicsInfo(obj.body_id, -1, physicsClientId=self.physics_id)[0]
-            for obj in self.variants
-        ]
+        if variants is None and group is None:
+            raise ValueError("One of variants or group must be specified")
+        elif variants is not None and group is not None:
+            raise ValueError("Only one of variants or group can be specified")
+
+        if variants is not None:
+            self._variants: Union[List[Object], ObjectGroup] = [
+                Object.create(physics_id=self.physics_id, name=self.name, **obj_config)
+                for obj_config in variants
+            ]
+        else:
+            assert group is not None
+            self._variants = object_groups[group]
+
         self._body: Optional[Object] = None
         self._idx_variant: Optional[int] = None
 
@@ -363,27 +399,37 @@ class Variant(Object):
         return self._body
 
     @property
-    def variants(self) -> List[Object]:
+    def variants(self) -> Union[List[Object], ObjectGroup]:
         return self._variants
 
     def set_variant(self, idx_variant: Optional[int], lock: bool = False) -> None:
-        if idx_variant is None:
-            idx_variant = random.randrange(len(self.variants))
+        """Sets the variant for debugging purposes.
 
-        for i, body in enumerate(self.variants):
-            if i == idx_variant:
-                continue
-            body.disable_collisions()
-            body.set_pose(math.Pose(pos=np.array([0.0, 0.0, -0.5])))
-            body.freeze()
+        Args:
+            idx_variant: Index of the variant to set.
+            lock: Whether to lock the variant so it remains the same upon resetting.
+        """
+        if isinstance(self.variants, ObjectGroup):
+            idx_variant = self.variants.pop_index(idx_variant)
+        else:
+            if idx_variant is None:
+                idx_variant = random.randrange(len(self.variants))
+
+            # Hide unused variants below table.
+            for i, obj in enumerate(self.variants):
+                if i == idx_variant:
+                    continue
+                obj.disable_collisions()
+                obj.set_pose(math.Pose(pos=np.array([0.0, 0.0, -0.5])))
+                obj.freeze()
+
         self._body = self.variants[idx_variant]
-
         self._idx_variant = idx_variant if lock else None
 
     def reset(self) -> None:
         self.set_variant(self._idx_variant)
-        self.body.enable_collisions()
-        self.body.unfreeze()
+        self.enable_collisions()
+        self.unfreeze()
         self.body.reset()
 
     def isinstance(self, class_or_tuple: type) -> bool:
