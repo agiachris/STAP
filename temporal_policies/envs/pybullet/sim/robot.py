@@ -249,6 +249,8 @@ class Robot(body.Body):
         Returns:
             True if the object is successfully grasped, false otherwise.
         """
+        CONTACT_NORMAL_ALIGNMENT = 0.98  # Allows roughly 10 deg error.
+
         if realistic:
             self.grasp(1, pos_gains, timeout)
 
@@ -270,6 +272,37 @@ class Robot(body.Body):
             # Make sure fingers aren't fully closed.
             if status == articulated_body.ControlStatus.POS_CONVERGED:
                 return False
+
+            # Make sure contact normals are in the correct direction.
+            for finger_link_id, finger_contact_normal in zip(
+                self.gripper.finger_links, self.gripper.finger_contact_normals
+            ):
+                contacts = p.getContactPoints(
+                    bodyA=obj.body_id,
+                    bodyB=self.gripper.body_id,
+                    linkIndexB=finger_link_id,
+                    physicsClientId=self.physics_id,
+                )
+                if not contacts:
+                    return False
+
+                T_world_to_finger = (
+                    self.gripper.link(finger_link_id).pose().to_eigen().inverse()
+                )
+                for contact in contacts:
+                    # Contact normal on finger, pointing towards obj.
+                    f_contact = T_world_to_finger.linear @ np.array(contact[7])
+
+                    # Make sure contact normal is in the expected direction.
+                    if f_contact.dot(finger_contact_normal) < CONTACT_NORMAL_ALIGNMENT:
+                        return False
+
+                    # Contact position on finger.
+                    pos_contact = (T_world_to_finger * np.append(contact[6], 1.0))[:3]
+
+                    # Make sure contact position is on the inner side of the finger.
+                    if pos_contact.dot(finger_contact_normal) < 0.0:
+                        return False
 
         # Lock the object in place with a grasp constraint.
         if not self.gripper.create_grasp_constraint(obj.body_id, realistic):

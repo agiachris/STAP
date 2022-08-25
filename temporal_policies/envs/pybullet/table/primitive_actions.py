@@ -23,13 +23,18 @@ class PrimitiveAction:
     def range(cls) -> np.ndarray:
         return np.array([r[1:3] for r in cls.RANGES], dtype=np.float32).T
 
+    @classmethod
+    def random(cls):
+        r = cls.range()
+        return cls(np.random.uniform(r[0], r[1]).astype(np.float32))
+
 
 class PickAction(PrimitiveAction):
     RANGES = [
-        ("x", -0.1, 0.2),
+        ("x", -0.2, 0.2),
         ("y", -0.1, 0.1),
         ("z", -0.05, 0.05),
-        ("theta", -np.pi, np.pi),
+        ("theta", -0.25 * np.pi, 0.75 * np.pi),
     ]
 
     def __init__(
@@ -66,10 +71,10 @@ class PickAction(PrimitiveAction):
 
 class PlaceAction(PrimitiveAction):
     RANGES = [
-        ("x", -0.3, 0.9),
-        ("y", -0.5, 0.5),
-        ("z", -0.05, 0.1),
-        ("theta", -np.pi, np.pi),
+        ("x", -0.2, 0.8),
+        ("y", -0.4, 0.4),
+        ("z", 0.0, 0.1),
+        ("theta", -0.25 * np.pi, 0.75 * np.pi),
     ]
 
     def __init__(
@@ -106,10 +111,10 @@ class PlaceAction(PrimitiveAction):
 
 class PullAction(PrimitiveAction):
     RANGES = [
-        ("r_reach", -0.4, 0.0),
-        ("r_pull", 0.0, 0.4),
-        ("y", -0.1, 0.1),
-        ("theta", -np.pi, np.pi),
+        ("r_reach", -0.2, 0.0),
+        ("r_pull", -0.4, -0.1),
+        ("y", -0.01, 0.01),
+        ("theta", -0.5 * np.pi, 0.5 * np.pi),
     ]
 
     def __init__(

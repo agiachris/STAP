@@ -16,7 +16,7 @@ arm_kwargs:
 
   pos_gains: [121, 22]
   ori_gains: [121, 16]
-  nullspace_joint_gains: [5, 1]
+  nullspace_joint_gains: [10, 5]
 
   pos_threshold: [0.01, 0.01]
   ori_threshold: [0.01, 0.01]
@@ -43,6 +43,10 @@ gripper_kwargs:
 
   command_multipliers:
     [0.04, -0.04, 0.813, 0.813, -0.813, 0.813, 0.813, -0.813]
+
+  finger_contact_normals:
+    - [0.0, 1.0, 0.0]  # left_inner_finger_pad_collision
+    - [0.0, -1.0, 0.0]  # right_inner_finger_pad_collision
 
   inertia_kwargs:
     mass: 0.83

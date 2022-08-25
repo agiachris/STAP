@@ -19,7 +19,10 @@ def load_results(
     results: Dict[str, List[Dict[str, Any]]] = {}
     for method_name in methods:
         results[method_name] = []
-        for npz_file in (path / method_name).glob("results_*.npz"):
+        for npz_file in sorted(
+            (path / method_name).glob("results_*.npz"),
+            key=lambda x: int(x.stem.split("_")[-1]),
+        ):
             with open(npz_file, "rb") as f:
                 results[method_name].append(dict(np.load(f, allow_pickle=True)))
 
@@ -349,6 +352,17 @@ def main(args: argparse.Namespace) -> None:
     df_plans, df_samples = create_dataframes(results)
     print(df_plans, "\n")
     print(df_samples, "\n")
+
+    # methods = df_plans["Method"].unique()
+    # num_trials = (df_plans["Method"] == df_plans["Method"][0]).sum()
+    # rewards = np.zeros((num_trials, len(methods) + 1), dtype=int)
+    # rewards[:, 0] = np.arange(rewards.shape[0])
+    # for i, method in enumerate(methods):
+    #     rewards[:, i + 1] = df_plans["Ground truth success"][
+    #         df_plans["Method"] == method
+    #     ]
+    # print(methods)
+    # print(rewards)
 
     plot_planning_results(df_plans, df_samples, args.path)
     plot_action_statistics(df_plans, df_samples, args.path)

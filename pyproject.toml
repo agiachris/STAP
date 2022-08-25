@@ -58,7 +58,7 @@ module = [
   "seaborn",
   "skimage",
   "spatialdyn",
-  "symbolic",
+  "symbolic>=1.0.1",
   "tqdm"
 ]
 ignore_missing_imports = true

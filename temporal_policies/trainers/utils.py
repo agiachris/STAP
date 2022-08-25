@@ -22,6 +22,7 @@ class TrainerFactory(configs.Factory):
         scod: Optional[scod_regression.SCOD] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
+        policies: Optional[Sequence[agents.RLAgent]] = None,
         agent_trainers: Optional[Sequence["trainers.AgentTrainer"]] = None,
         device: str = "auto",
     ):
@@ -38,8 +39,10 @@ class TrainerFactory(configs.Factory):
             scod: SCOD model to be trained.
             checkpoint: Optional trainer checkpoint. Must be provided if config
                 is None.
-            policy_checkpoints: Optional list of policy checkpoints for dynamics.
+            policies: Optional list of policies for dynamics to avoid redundant
+                agent loads.
             agent_trainers: Optional list of agent trainers for dynamics.
+            policy_checkpoints: Optional list of policy checkpoints for dynamics.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -82,12 +85,13 @@ class TrainerFactory(configs.Factory):
                 elif policy_checkpoints is None:
                     if checkpoint is None:
                         raise ValueError(
-                            "One of agent_trainers, policy_checkpoints, or "
-                            "checkpoint must be specified"
+                            "One of agent_trainers, policies, "
+                            "policy_checkpoints, or checkpoint must be specified"
                         )
                     policy_checkpoints = load_policy_checkpoints(checkpoint)
 
                 self.kwargs["policy_checkpoints"] = policy_checkpoints
+                self.kwargs["policies"] = policies
         elif issubclass(self.cls, trainers.AutoencoderTrainer):
             if encoder is None:
                 if checkpoint is None:
@@ -152,6 +156,7 @@ def load(
     checkpoint: Optional[Union[str, pathlib.Path]] = None,
     policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
     agent_trainers: Optional[Sequence["trainers.AgentTrainer"]] = None,
+    policies: Optional[Sequence[agents.RLAgent]] = None,
     device: str = "auto",
     **kwargs,
 ) -> trainers.Trainer:
@@ -166,6 +171,8 @@ def load(
         dynamics: Dynamics model to be trained.
         checkpoint: Optional trainer checkpoint. Must be provided if config is
             None.
+        policies: Optional list of policies for dynamics to avoid redundant
+            agent loads.
         policy_checkpoints: Optional list of policy checkpoints for dynamics.
         agent_trainers: Optional list of agent trainers for dynamics.
         device: Torch device.

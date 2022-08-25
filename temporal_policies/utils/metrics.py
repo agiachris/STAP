@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Mapping
 
 import numpy as np
 import torch
@@ -83,7 +83,7 @@ def aggregate_metric(metric: str, values: np.ndarray) -> float:
     return METRIC_AGGREGATION_FNS[metric](values)
 
 
-def aggregate_metrics(metrics_list: List[Dict[str, Any]]) -> Dict[str, float]:
+def aggregate_metrics(metrics_list: List[Mapping[str, Any]]) -> Dict[str, float]:
     """Aggregates a list of metric value dicts.
 
     Args:
@@ -99,7 +99,7 @@ def aggregate_metrics(metrics_list: List[Dict[str, Any]]) -> Dict[str, float]:
     return aggregated_metrics
 
 
-def collect_metrics(metrics_list: List[Dict[str, Any]]) -> Dict[str, np.ndarray]:
+def collect_metrics(metrics_list: List[Mapping[str, Any]]) -> Dict[str, np.ndarray]:
     """Transforms a list of metric value dicts to a dict of metric value arrays.
 
     Args:

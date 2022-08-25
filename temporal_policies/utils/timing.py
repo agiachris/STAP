@@ -133,6 +133,21 @@ class Profiler(Timer):
             self._tictocs[key] = []
         return mean
 
+    def compute_sum(self, key: str, reset: bool = False) -> float:
+        """Computes the total time interval for the given key.
+
+        Args:
+            key: Time interval key.
+            reset: Reset the collected time intervals.
+
+        Returns:
+            Total time interval.
+        """
+        sum = float(np.sum(self._tictocs[key]))
+        if reset:
+            self._tictocs[key] = []
+        return sum
+
     def collect_profiles(self) -> Dict[str, float]:
         """Collects and resets the average time intervals for all keys.
 

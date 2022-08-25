@@ -50,3 +50,9 @@ class OracleAgent(wrapper.WrapperAgent):
         self.actor.env = env  # type: ignore
         self.critic.env = env  # type: ignore
         self.encoder.network.env = env  # type: ignore
+
+    def reset_cache(self) -> None:
+        assert isinstance(self.actor, networks.actors.OracleActor)
+        self.actor.reset_cache()
+        assert isinstance(self.critic, networks.critics.OracleCritic)
+        self.critic.reset_cache()

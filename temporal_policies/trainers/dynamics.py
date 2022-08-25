@@ -1,11 +1,11 @@
 import pathlib
-from typing import Any, Dict, List, Optional, Sequence, Type, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Type, Union
 
 import numpy as np
 import torch
 import tqdm
 
-from temporal_policies import datasets, dynamics, processors
+from temporal_policies import agents, datasets, dynamics, processors
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.base import Trainer
@@ -24,6 +24,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         dataset_class: Union[str, Type[datasets.StratifiedReplayBuffer]],
         dataset_kwargs: Dict[str, Any],
         skip_truncated: bool = True,
+        skip_failed: bool = True,
         processor_class: Union[
             str, Type[processors.Processor]
         ] = processors.IdentityProcessor,
@@ -37,6 +38,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
         agent_trainers: Optional[Sequence[AgentTrainer]] = None,
+        policies: Optional[Sequence[agents.RLAgent]] = None,
         device: str = "auto",
         num_train_steps: int = 100000,
         num_eval_steps: int = 100,
@@ -55,6 +57,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
             skip_truncated: Whether to skip truncated episodes.
+            skip_failed: Whether to skip failed episodes.
             processor_class: Batch data processor calss.
             processor_kwargs: Kwargs for processor.
             optimizer_class: Dynamics model optimizer class.
@@ -66,6 +69,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                 agent_trainers must be specified.
             agent_trainers: List of agent trainers. Either this or
                 policy_checkpoints must be specified.
+            policies: List of policies. Specified to avoid redundant agent loads.
             device: Torch device.
             num_train_steps: Number of steps to train.
             num_eval_steps: Number of steps per evaluation.
@@ -85,8 +89,10 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                 raise ValueError(
                     "One of agent_trainers or policy_checkpoints must be specified"
                 )
+            if policies is None:
+                policies = [None] * len(policy_checkpoints)
             agent_trainers = []
-            for policy_checkpoint in policy_checkpoints:
+            for policy, policy_checkpoint in zip(policies, policy_checkpoints):
                 policy_checkpoint = pathlib.Path(policy_checkpoint)
                 if policy_checkpoint.is_file():
                     trainer_checkpoint = (
@@ -95,12 +101,15 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                     )
                 else:
                     trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
-                agent_trainer_factory = TrainerFactory(checkpoint=trainer_checkpoint)
+                agent_trainer_factory = TrainerFactory(
+                    agent=policy, checkpoint=trainer_checkpoint
+                )
 
                 agent_trainer = agent_trainer_factory(
                     dataset_kwargs=dict(
                         agent_trainer_factory.kwargs["dataset_kwargs"],
                         skip_truncated=skip_truncated,
+                        skip_failed=skip_failed,
                     ),
                     eval_dataset_kwargs=None
                     if "eval_dataset_kwargs" not in agent_trainer_factory.kwargs
@@ -108,6 +117,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                     else dict(
                         agent_trainer_factory.kwargs["eval_dataset_kwargs"],
                         skip_truncated=skip_truncated,
+                        skip_failed=skip_failed,
                     ),
                 )
                 assert isinstance(agent_trainer, AgentTrainer)
@@ -181,7 +191,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         )
         return tensors.to(dynamics_batch, self.device)
 
-    def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
+    def evaluate(self) -> List[Mapping[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
 
         Returns:
@@ -192,7 +202,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
 
         self.eval_mode()
 
-        eval_metrics_list: List[Dict[str, Union[Scalar, np.ndarray]]] = []
+        eval_metrics_list: List[Mapping[str, Union[Scalar, np.ndarray]]] = []
         pbar = tqdm.tqdm(
             self._eval_dataloader,
             desc=f"Eval {self.name}",

@@ -106,10 +106,9 @@ class CEMPlanner(planners.Planner):
         T = len(action_skeleton)
 
         # Roll out a trajectory.
-        policies = [
-            self.policies[primitive.idx_policy] for primitive in action_skeleton
-        ]
-        _, actions, _ = self.dynamics.rollout(observation, action_skeleton, policies)
+        _, actions, _ = self.dynamics.rollout(
+            observation, action_skeleton, self.policies
+        )
         mean = actions.cpu().numpy()
 
         # Scale the standard deviations by the action spaces.
@@ -171,6 +170,7 @@ class CEMPlanner(planners.Planner):
                 samples = mean + std * np.random.randn(num_samples, *mean.shape).astype(
                     np.float32
                 )
+                samples[0] = mean
                 for t, primitive in enumerate(action_skeleton):
                     action_space = self.policies[primitive.idx_policy].action_space
                     action_shape = action_space.shape[0]

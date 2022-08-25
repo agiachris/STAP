@@ -22,6 +22,9 @@ class OracleCritic(Critic):
         if not hasattr(self.env, "_oracle_sim_result"):
             self.env._oracle_sim_result: Dict[Tuple[str, Tuple, Tuple], float] = {}  # type: ignore
 
+    def reset_cache(self) -> None:
+        self.env._oracle_sim_result.clear()  # type: ignore
+
     @tensors.torch_wrap
     @tensors.vmap(dims=1)
     def forward(self, state: np.ndarray, action: np.ndarray) -> np.ndarray:

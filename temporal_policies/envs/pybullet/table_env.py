@@ -253,6 +253,13 @@ class TableEnv(PybulletEnv):
             )
 
     def set_observation(self, observation: np.ndarray) -> None:
+        ee_state = object_state.ObjectState(observation[-1])
+        ee_pose = ee_state.pose()
+        try:
+            self.robot.goto_pose(pos=ee_pose.pos, quat=ee_pose.quat)
+        except robot.ControlException:
+            print(f"TableEnv.set_observation(): Failed to reach pose {ee_pose}.")
+
         # print("TableEnv.set_observation(): ", object_state.ObjectState(observation))
         if self._observation_mode == ObservationMode.FULL:
             assert len(self.objects) == observation.shape[0] - 1
@@ -261,13 +268,6 @@ class TableEnv(PybulletEnv):
                 object.set_state(obj_state)
         else:
             raise NotImplementedError
-
-        ee_state = object_state.ObjectState(observation[-1])
-        ee_pose = ee_state.pose()
-        try:
-            self.robot.goto_pose(pos=ee_pose.pos, quat=ee_pose.quat)
-        except robot.ControlException:
-            print(f"TableEnv.set_observation(): Failed to reach pose {ee_pose}.")
 
     def object_states(self) -> Dict[str, object_state.ObjectState]:
         state = {obj.name: obj.state() for name, obj in self.objects.items()}
@@ -309,7 +309,10 @@ class TableEnv(PybulletEnv):
             ):
                 continue
 
-            self.wait_until_stable(1)
+            self.wait_until_stable(min_iters=1)
+
+            if self._is_any_object_below_table():
+                continue
 
             if all(
                 prop.value(self.robot, self.objects, self.initial_state)
@@ -332,7 +335,7 @@ class TableEnv(PybulletEnv):
 
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
-        result = primitive.execute(action, self.robot)
+        result = primitive.execute(action, self.robot, self.wait_until_stable)
         obs = self.get_observation()
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
@@ -341,18 +344,26 @@ class TableEnv(PybulletEnv):
         terminated = not result.truncated
         return obs, reward, terminated, result.truncated, {}
 
+    def _is_any_object_below_table(self) -> bool:
+        return any(
+            not obj.is_static and predicates.is_below_table(obj.pose().pos)
+            for obj in self.objects.values()
+        )
+
     def wait_until_stable(
         self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)
     ) -> int:
         def is_any_object_moving() -> bool:
-            for obj in self.objects.values():
-                if (np.abs(obj.twist()) > 0.001).any():
-                    return True
-            return False
+            return any(
+                not obj.is_static and predicates.is_moving(obj.twist())
+                for obj in self.objects.values()
+            )
 
         num_iters = 0
-        while num_iters < max_iters and (
-            num_iters < min_iters or is_any_object_moving()
+        while (
+            num_iters < max_iters
+            and (num_iters < min_iters or is_any_object_moving())
+            and not self._is_any_object_below_table()
         ):
             self.robot.arm.update_torques()
             self.robot.gripper.update_torques()

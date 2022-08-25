@@ -36,6 +36,7 @@ class Gripper(articulated_body.ArticulatedBody):
         finger_links: List[str],
         base_link: str,
         command_multipliers: List[float],
+        finger_contact_normals: List[List[float]],
         inertia_kwargs: Dict[str, Any],
         pos_gains: Tuple[float, float],
         pos_threshold: float,
@@ -52,6 +53,9 @@ class Gripper(articulated_body.ArticulatedBody):
             base_link: Gripper base link name.
             command_multipliers: Conversion from [0.0, 1.0] grasp command to
                 corresponding joint position.
+            finger_contact_normals: Direction of the expected contact normal for
+                each of the finger links in the finger link frame, pointing
+                towards the grasped object.
             inertia_kwargs: Gripper inertia kwargs ({"mass": Float, "com":
                 List[Float, 3], "inertia": List[Float, 6]}).
             pos_gains: (kp, kv) position gains.
@@ -73,6 +77,8 @@ class Gripper(articulated_body.ArticulatedBody):
         link_ids = {self.link(joint_id).name: joint_id for joint_id in range(self.dof)}
         self._finger_links = [link_ids[link_name] for link_name in finger_links]
         self._base_link = link_ids[base_link]
+
+        self._finger_contact_normals = [np.array(n) for n in finger_contact_normals]
 
         def get_link_mass(joint_id: int):
             return p.getDynamicsInfo(
@@ -118,6 +124,11 @@ class Gripper(articulated_body.ArticulatedBody):
     def base_link(self) -> int:
         """Base link id."""
         return self._base_link
+
+    @property
+    def finger_contact_normals(self) -> List[np.ndarray]:
+        """Expected contact normals for each finger link when grasping objects."""
+        return self._finger_contact_normals
 
     def reset(self) -> bool:
         """Removes any grasp constraint and resets the gripper to the open position."""

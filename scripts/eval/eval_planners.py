@@ -5,8 +5,9 @@ from typing import Any, Dict, Optional, Sequence, Union
 import numpy as np
 import tqdm
 
-from temporal_policies import dynamics, envs, planners
-from temporal_policies.utils import random, recording, spaces, timing
+from temporal_policies import agents, dynamics, envs, planners
+from temporal_policies.envs.pybullet.table import primitives as table_primitives
+from temporal_policies.utils import random, recording, timing
 
 import eval_pybox2d_planners as pybox2d
 
@@ -19,10 +20,8 @@ def scale_actions(
     scaled_actions = actions.copy()
     for t, primitive in enumerate(action_skeleton):
         action_dims = primitive.action_space.shape[0]
-        scaled_actions[..., t, :action_dims] = spaces.transform(
-            actions[..., t, :action_dims],
-            from_space=primitive.action_space,
-            to_space=primitive.action_scale,
+        scaled_actions[..., t, :action_dims] = primitive.scale_action(
+            actions[..., t, :action_dims]
         )
 
     return scaled_actions
@@ -76,10 +75,17 @@ def evaluate_planners(
         if isinstance(planner.dynamics, dynamics.TableEnvDynamics):
             env.set_observation_mode(envs.pybullet.table_env.ObservationMode.FULL)
 
-    for i in tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True):
+    num_success = 0
+    pbar = tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True)
+    for i in pbar:
         if seed is not None:
             random.seed(i)
 
+        if isinstance(planner.dynamics, dynamics.OracleDynamics):
+            planner.dynamics.reset_cache()
+        for policy in planner.policies:
+            if isinstance(policy, agents.OracleAgent):
+                policy.reset_cache()
         observation = env.reset()
         assert isinstance(observation, np.ndarray)
         state = env.get_state()
@@ -96,11 +102,24 @@ def evaluate_planners(
         rewards = planners.evaluate_plan(
             env, action_skeleton, state, plan.actions, gif_path=path / f"exec_{i}.gif"
         )
+        if rewards.prod() > 0:
+            num_success += 1
+        pbar.set_postfix(
+            dict(success=rewards.prod(), **{f"r{t}": r for t, r in enumerate(rewards)})
+        )
 
         if verbose:
             print("success:", rewards.prod(), rewards)
             print("predicted success:", plan.p_success, plan.values)
-            print(plan.actions)
+            for primitive, action in zip(action_skeleton, plan.actions):
+                if isinstance(primitive, table_primitives.Primitive):
+                    primitive_action = str(primitive.Action(action))
+                    primitive_action = primitive_action.replace("\n", "\n  ")
+                    print(
+                        "-", primitive, primitive_action[primitive_action.find("{") :]
+                    )
+                else:
+                    print("-", primitive, action)
             print("time:", t_planner)
 
         if isinstance(env, envs.pybox2d.Sequential2D):
@@ -130,7 +149,9 @@ def evaluate_planners(
                     env.set_primitive(primitive)
                     env._recording_text = (
                         "Action: ["
-                        + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+                        + ", ".join(
+                            [f"{a:.2f}" for a in primitive.scale_action(action)]
+                        )
                         + "]"
                     )
 
@@ -138,7 +159,7 @@ def evaluate_planners(
                     env.set_observation(predicted_state)
                     recorder.add_frame(frame=env.render())
                 recorder.stop()
-                recorder.save(path / "predicted_trajectory.gif")
+                recorder.save(path / f"predicted_trajectory_{i}.gif")
 
         with open(path / f"results_{i}.npz", "wb") as f:
             save_dict = {
@@ -160,6 +181,7 @@ def evaluate_planners(
                 "states": plan.states,
                 "scaled_actions": scale_actions(plan.actions, env, action_skeleton),
                 "p_success": plan.p_success,
+                "values": plan.values,
                 "rewards": rewards,
                 "visited_actions": plan.visited_actions,
                 "scaled_visited_actions": scale_actions(
@@ -167,12 +189,15 @@ def evaluate_planners(
                 ),
                 "visited_states": plan.visited_states,
                 "p_visited_success": plan.p_visited_success,
+                "visited_values": plan.visited_values,
                 "t_planner": t_planner,
             }
             if isinstance(env, envs.pybox2d.Sequential2D):
                 save_dict["grid_q_values"] = grid_q_values
                 save_dict["grid_actions"] = grid_actions
             np.savez_compressed(f, **save_dict)  # type: ignore
+
+    print("Successes:", num_success, "/", num_eval)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -188,9 +213,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--policy-checkpoints", "-p", nargs="+", help="Policy checkpoints"
     )
-    parser.add_argument(
-        "--scod-checkpoints", "-s", nargs="+", help="SCOD checkpoints"
-    )
+    parser.add_argument("--scod-checkpoints", "-s", nargs="+", help="SCOD checkpoints")
     parser.add_argument("--dynamics-checkpoint", "-d", help="Dynamics checkpoint")
     parser.add_argument("--device", default="auto", help="Torch device")
     parser.add_argument(

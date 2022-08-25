@@ -4,6 +4,7 @@ trainer_kwargs:
   dataset_kwargs:
     batch_size: 512
   skip_truncated: true
+  skip_failed: true
 
   optimizer_class: Adam
   optimizer_kwargs:
