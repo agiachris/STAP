@@ -29,11 +29,12 @@ class RandomActor(Actor):
         """
         return self.network(state)
 
-    def predict(self, state: torch.Tensor) -> torch.Tensor:
+    def predict(self, state: torch.Tensor, sample: bool = True) -> torch.Tensor:
         """Outputs a random action.
 
         Args:
             state: Environment state.
+            sample: Should always be true for RandomActor.
 
         Returns:
             Action.

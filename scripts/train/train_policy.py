@@ -24,6 +24,9 @@ def train(
     device: str = "auto",
     seed: Optional[int] = None,
     gui: Optional[int] = None,
+    num_pretrain_steps: Optional[int] = None,
+    num_train_steps: Optional[int] = None,
+    num_eval_episodes: Optional[int] = None,
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
@@ -62,6 +65,13 @@ def train(
             eval_env=eval_env,
             device=device,
         )
+        trainer_kwargs = {}
+        if num_pretrain_steps is not None:
+            trainer_kwargs["num_pretrain_steps"] = num_pretrain_steps
+        if num_train_steps is not None:
+            trainer_kwargs["num_train_steps"] = num_train_steps
+        if num_eval_episodes is not None:
+            trainer_kwargs["num_eval_episodes"] = num_eval_episodes
 
         print("[scripts.train.train_policy] Trainer config:")
         pprint(trainer_factory.config)
@@ -74,7 +84,7 @@ def train(
             pprint(eval_env_factory.config)
         print("")
 
-        trainer = trainer_factory()
+        trainer = trainer_factory(**trainer_kwargs)
 
         trainer.path.mkdir(parents=True, exist_ok=overwrite)
         configs.save_git_hash(trainer.path)
@@ -133,5 +143,12 @@ if __name__ == "__main__":
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
+    parser.add_argument(
+        "--num-pretrain-steps", type=int, help="Number of steps to pretrain"
+    )
+    parser.add_argument("--num-train-steps", type=int, help="Number of steps to train")
+    parser.add_argument(
+        "--num-eval-episodes", type=int, help="Number of episodes per evaluation"
+    )
 
     main(parser.parse_args())

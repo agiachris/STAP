@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, List, Type
+from typing import Dict, List, NamedTuple, Type
 
 from ctrlutils import eigen
 import gym
@@ -29,17 +29,38 @@ def compute_top_down_orientation(
     return command_quat
 
 
+def is_above(child_aabb: np.ndarray, parent_aabb: np.ndarray) -> bool:
+    return child_aabb[0, 2] > parent_aabb[1, 2] - 0.01
+
+
 def is_upright(quat: np.ndarray) -> bool:
     aa = eigen.AngleAxisd(eigen.Quaterniond(quat))
     return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= 0.99
+
+
+class ExecutionResult(NamedTuple):
+    """Return tuple from Primitive.execute()."""
+
+    success: bool
+    """Whether the action succeeded."""
+
+    truncated: bool
+    """Whether the action was truncated because of a control error."""
 
 
 class Primitive(envs.Primitive, abc.ABC):
     Action: Type[primitive_actions.PrimitiveAction]
 
     @abc.abstractmethod
-    def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
-        pass
+    def execute(self, action: np.ndarray, robot: robot.Robot) -> ExecutionResult:
+        """Executes the primitive.
+
+        Args:
+            action: Normalized action (inside action_space, not action_scale).
+            robot: Robot to control.
+        Returns:
+            (success, truncated) 2-tuple.
+        """
 
     @abc.abstractmethod
     def sample_action(self) -> primitive_actions.PrimitiveAction:
@@ -70,9 +91,11 @@ class Pick(Primitive):
     action_scale = gym.spaces.Box(*primitive_actions.PickAction.range())
     Action = primitive_actions.PickAction
 
-    PICK_HEIGHT = 0.15
+    @classmethod
+    def compute_pick_height(cls, obj: objects.Object):
+        return obj.size[2] + 0.15
 
-    def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
+    def execute(self, action: np.ndarray, robot: robot.Robot) -> ExecutionResult:
         # Parse action.
         a = primitive_actions.PickAction(self.scale_action(action))
         dbprint(a)
@@ -88,18 +111,18 @@ class Pick(Primitive):
         # Compute orientation.
         command_quat = compute_top_down_orientation(a.theta.item(), obj_quat)
 
-        pre_pos = np.append(command_pos[:2], obj.aabb()[1, 2] + self.PICK_HEIGHT)
+        pre_pos = np.append(command_pos[:2], self.compute_pick_height(obj))
         try:
             robot.goto_pose(pre_pos, command_quat)
             robot.goto_pose(command_pos, command_quat)
             if not robot.grasp_object(obj):
                 dbprint(f"Robot.grasp_object({obj}) failed")
-                return False
+                raise ControlException
             robot.goto_pose(pre_pos, command_quat)
         except ControlException:
-            return False
+            return ExecutionResult(success=False, truncated=True)
 
-        return True
+        return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         if self.policy_args[0].isinstance(objects.Hook):
@@ -114,13 +137,13 @@ class Place(Primitive):
     action_scale = gym.spaces.Box(*primitive_actions.PlaceAction.range())
     Action = primitive_actions.PlaceAction
 
-    def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
+    def execute(self, action: np.ndarray, robot: robot.Robot) -> ExecutionResult:
         # Parse action.
         a = primitive_actions.PlaceAction(self.scale_action(action))
         dbprint(a)
 
         # Get target pose.
-        target = self.policy_args[1]
+        target: objects.Object = self.policy_args[1]  # type: ignore
         target_pose = target.pose()
         target_quat = eigen.Quaterniond(target_pose.quat)
 
@@ -138,9 +161,14 @@ class Place(Primitive):
             robot.goto_pose(pre_pos, command_quat)
         except ControlException:
             # If robot fails before grasp(0), object may still be grasped.
-            return False
+            return ExecutionResult(success=False, truncated=True)
 
-        return True
+        obj: objects.Object = self.policy_args[0]  # type: ignore
+        obj_pose = obj.pose()
+        if not is_upright(obj_pose.quat) or not is_above(obj.aabb(), target.aabb()):
+            return ExecutionResult(success=False, truncated=False)
+
+        return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         return primitive_actions.PlaceAction(
@@ -157,7 +185,7 @@ class Pull(Primitive):
     action_scale = gym.spaces.Box(*primitive_actions.PullAction.range())
     Action = primitive_actions.PullAction
 
-    def execute(self, action: np.ndarray, robot: robot.Robot) -> bool:
+    def execute(self, action: np.ndarray, robot: robot.Robot) -> ExecutionResult:
         PULL_HEIGHT = 0.03
         MIN_PULL_DISTANCE = 0.01
 
@@ -169,7 +197,7 @@ class Pull(Primitive):
         target, hook = self.policy_args
         target_pose = target.pose()
         if target_pose.pos[0] < 0:
-            return False
+            return ExecutionResult(success=False, truncated=True)
 
         target_distance = np.linalg.norm(target_pose.pos[:2])
         reach_xy = target_pose.pos[:2] / target_distance
@@ -204,24 +232,25 @@ class Pull(Primitive):
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             robot.goto_pose(command_pose_reach.pos, command_pose_reach.quat)
             if not is_upright(target.pose().quat):
-                return False
+                raise ControlException
             robot.goto_pose(
                 command_pose_pull.pos,
                 command_pose_pull.quat,
                 pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
             )
             robot.goto_pose(post_pos, command_pose_pull.quat)
-            if not is_upright(target.pose().quat):
-                return False
         except ControlException:
-            return False
+            return ExecutionResult(success=False, truncated=True)
 
         new_target_pose = target.pose()
+        if not is_upright(new_target_pose.quat):
+            return ExecutionResult(success=False, truncated=False)
+
         new_target_distance = np.linalg.norm(new_target_pose.pos[:2])
         if new_target_distance >= target_distance - MIN_PULL_DISTANCE:
-            return False
+            return ExecutionResult(success=False, truncated=False)
 
-        return True
+        return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         # Handle.

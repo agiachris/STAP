@@ -31,8 +31,8 @@ def null(space: gym.spaces.Space, batch_shape: Union[int, Sequence[int]] = tuple
         return np.full(
             (*batch_shape, *space.shape), null_value(space.dtype), dtype=space.dtype
         )
-    elif isinstance(space, gym.spaces.Tuple):
-        return tuple(null(s, *batch_shape) for s in space)
+    elif isinstance(space, gym.spaces.Tuple):  # type: ignore
+        return tuple(null(s, *batch_shape) for s in space.spaces)  # type: ignore
     elif isinstance(space, gym.spaces.Dict):
         return {key: null(s, *batch_shape) for key, s in space.items()}
     else:

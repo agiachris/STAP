@@ -33,7 +33,7 @@ dependencies = [
   "tqdm",
   # Env
   "box2d-py",
-  "gym>=0.12,<0.25",
+  "gym>=0.25",
   "pybullet",
   # Ours
   "ctrlutils==1.4.1",

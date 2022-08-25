@@ -38,7 +38,7 @@ class TD3(rl.RLAgent):
 
         # Now setup the logging parameters
         self._current_obs = env.reset()
-        self._episode_reward = 0
+        self._episode_reward = 0.0
         self._episode_length = 0
         self._num_ep = 0
 
@@ -121,7 +121,8 @@ class TD3(rl.RLAgent):
             action += self.policy_noise * np.random.randn(action.shape[0])
             self.train_mode()
 
-        next_obs, reward, done, info = env.step(action)
+        next_obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
         self._episode_length += 1
         self._episode_reward += reward
 
@@ -141,7 +142,8 @@ class TD3(rl.RLAgent):
             reward=reward,
             next_observation=next_obs,
             discount=discount,
-            done=done,
+            terminated=terminated,
+            truncated=truncated,
         )
 
         if done:
@@ -154,7 +156,7 @@ class TD3(rl.RLAgent):
             self._current_obs = env.reset()
             self.dataset.add(observation=self._current_obs)  # Add the first timestep
             self._episode_length = 0
-            self._episode_reward = 0
+            self._episode_reward = 0.0
         else:
             self._current_obs = next_obs
 

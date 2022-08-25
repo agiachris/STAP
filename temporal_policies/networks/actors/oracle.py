@@ -14,7 +14,7 @@ class OracleActor(Actor):
 
         Args:
             env: Env for simulation.
-            policy: Child actor policy.
+            policy: Child actor policy (temporal_policies.agents.base.Agent).
         """
         super().__init__()
         self.env = env
@@ -36,15 +36,16 @@ class OracleActor(Actor):
         policy_state = self.encoder.encode(observation)
         return self.actor(policy_state)
 
-    def predict(self, state: torch.Tensor) -> torch.Tensor:
+    def predict(self, state: torch.Tensor, sample: bool = False) -> torch.Tensor:
         """Outputs the prediction from the child policy.
 
         Args:
             state: Environment state.
+            sample: Whether to sample from the distribution or return the mode.
 
         Returns:
             Action.
         """
         observation = self._oracle_decoder(state)
         policy_state = self.encoder.encode(observation)
-        return self.actor.predict(policy_state)
+        return self.actor.predict(policy_state, sample=sample)

@@ -187,20 +187,24 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
                         t_observation = tensors.rgb_to_cnn(t_observation)
                     t_action = self.agent.actor.predict(
-                        self.agent.encoder.encode(t_observation)
+                        self.agent.encoder.encode(t_observation), sample=True
                     )
                     action = t_action.cpu().numpy()
                 self.train_mode()
 
-            next_observation, reward, done, info = self.env.step(action)
-            discount = 1.0 - done
+            next_observation, reward, terminated, truncated, info = self.env.step(
+                action
+            )
+            done = terminated or truncated
+            discount = 1.0 - float(done)
 
             self.dataset.add(
                 action=action,
                 reward=reward,
                 next_observation=next_observation,
                 discount=discount,
-                done=done,
+                terminated=terminated,
+                truncated=truncated,
             )
 
             self._episode_length += 1
@@ -255,7 +259,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         metrics_list = []
         for _ in pbar:
             collect_metrics = self.collect_step(random=True)
-            pbar.set_postfix({self.eval_metric: collect_metrics[self.eval_metric]})
+            if collect_metrics:
+                pbar.set_postfix({self.eval_metric: collect_metrics[self.eval_metric]})
 
             metrics_list.append(collect_metrics)
             metrics_list = self.log_step(metrics_list, stage="pretrain")
@@ -276,6 +281,11 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         train_metrics = super().train_step(step, batch)
 
         return {**collect_metrics, **train_metrics}
+
+    def train(self) -> None:
+        """Trains the model."""
+        super().train()
+        self.dataset.save()
 
     def evaluate(self) -> List[Dict[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
@@ -322,17 +332,21 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 if not isinstance(self.agent.encoder.network, BASIC_ENCODERS):
                     t_observation = tensors.rgb_to_cnn(t_observation)
                 t_action = self.agent.actor.predict(
-                    self.agent.encoder.encode(t_observation)
+                    self.agent.encoder.encode(t_observation), sample=False
                 )
                 action = t_action.cpu().numpy()
 
-            observation, reward, done, info = self.eval_env.step(action)
+            observation, reward, terminated, truncated, info = self.eval_env.step(
+                action
+            )
+            done = terminated or truncated
             self.eval_dataset.add(
                 action=action,
                 reward=reward,
                 next_observation=observation,
                 discount=1.0 - done,
-                done=done,
+                terminated=terminated,
+                truncated=truncated,
             )
 
             step_metrics = {
@@ -344,6 +358,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             step_metrics["length"] = 1
             step_metrics_list.append(step_metrics)
 
-        episode_metrics = metrics.aggregate_metrics(step_metrics_list)
+        episode_metrics: Dict[str, Union[Scalar, np.ndarray]] = metrics.aggregate_metrics(step_metrics_list)  # type: ignore
 
         return episode_metrics

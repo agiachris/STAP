@@ -40,13 +40,19 @@ def evaluate_planners(
     grid_resolution: int,
     verbose: bool,
     seed: Optional[int] = None,
+    gui: Optional[int] = None,
 ) -> None:
     if seed is not None:
         random.seed(seed)
 
     timer = timing.Timer()
 
-    env = envs.load(env_config)
+    env_kwargs = {}
+    if gui is not None:
+        env_kwargs["gui"] = bool(gui)
+    env_factory = envs.EnvFactory(config=env_config)
+    env = env_factory(**env_kwargs)
+
     planner = planners.load(
         config=config,
         env=env,
@@ -92,8 +98,8 @@ def evaluate_planners(
         )
 
         if verbose:
-            print("success:", rewards.prod())
-            print("predicted success:", plan.p_success)
+            print("success:", rewards.prod(), rewards)
+            print("predicted success:", plan.p_success, plan.values)
             print(plan.actions)
             print("time:", t_planner)
 
@@ -192,6 +198,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--path", default="plots", help="Path for output plots")
     parser.add_argument("--seed", type=int, help="Random seed")
+    parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument(
         "--grid-resolution",
         type=int,

@@ -18,6 +18,7 @@ def train(
     overwrite: bool = False,
     device: str = "auto",
     seed: Optional[int] = None,
+    num_train_steps: Optional[int] = None,
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
@@ -40,6 +41,9 @@ def train(
             policy_checkpoints=policy_checkpoints,
             device=device,
         )
+        trainer_kwargs = {}
+        if num_train_steps is not None:
+            trainer_kwargs["num_train_steps"] = num_train_steps
 
         print("[scripts.train.train_dynamics] Trainer config:")
         pprint(trainer_factory.config)
@@ -49,7 +53,7 @@ def train(
         pprint(policy_checkpoints)
         print("")
 
-        trainer = trainer_factory()
+        trainer = trainer_factory(**trainer_kwargs)
 
         trainer.path.mkdir(parents=True, exist_ok=overwrite)
         configs.save_git_hash(trainer.path)
@@ -84,5 +88,6 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite", action="store_true", default=False)
     parser.add_argument("--device", type=str, default="auto")
     parser.add_argument("--seed", type=int, help="Random seed")
+    parser.add_argument("--num-train-steps", type=int, help="Number of steps to train")
 
     main(parser.parse_args())

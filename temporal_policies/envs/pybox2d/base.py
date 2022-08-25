@@ -1,8 +1,7 @@
-from abc import ABC, abstractmethod
 from collections import defaultdict
 from copy import deepcopy
 import pathlib
-from typing import Any, Optional, Union
+from typing import Any, Optional, Set, Union
 
 import Box2D
 import gym
@@ -19,8 +18,9 @@ from temporal_policies.envs import base
 from temporal_policies.utils import recording, tensors
 
 
-class Box2DBase(base.Env, Generator, ABC):
-    @abstractmethod
+class Box2DBase(base.Env, Generator):
+    metadata = {"render_modes": ["human", "rgb_array", "default"]}
+
     def __init__(
         self,
         name: str,
@@ -80,8 +80,10 @@ class Box2DBase(base.Env, Generator, ABC):
         self._setup_spaces()
         self._render_setup()
         self._eval_mode = False
+        self.render_mode = "human"
 
         # Construct state space.
+        assert self.env is not None
         self._num_bodies = sum(
             len(self._get_shapes(object_name)) for object_name in self.env
         )
@@ -97,6 +99,9 @@ class Box2DBase(base.Env, Generator, ABC):
             low=np.tile(low, self.num_bodies),
             high=np.tile(high, self.num_bodies),
         )
+
+        self.agent: Optional[Box2D.b2Body] = None
+        self._observation_bodies: Set[Box2D.b2Body] = set()
 
     def _clean_base_kwargs(self):
         """Clean up base kwargs for future envioronment loading and cloning."""
@@ -187,7 +192,6 @@ class Box2DBase(base.Env, Generator, ABC):
             )
         return loaded_env
 
-    @abstractmethod
     def reset(self):
         """Reset environment state."""
         if self.world is not None:
@@ -207,15 +211,15 @@ class Box2DBase(base.Env, Generator, ABC):
         observation = self.get_observation()
         return observation
 
-    @abstractmethod
     def step(self, action=None):
         """Take environment steps at self._time_steps frequency."""
-        obs, reward, done, info = self.simulate()
+        obs, reward, terminated, truncated, info = self.simulate()
         self._steps += 1
         if self._steps >= self._max_episode_steps:
-            done = True
+            terminated = True
+            truncated = False
             info["success"] = info.get("success", False)
-        return obs, reward, done, info
+        return obs, reward, terminated, truncated, info
 
     def simulate(
         self,
@@ -272,7 +276,9 @@ class Box2DBase(base.Env, Generator, ABC):
         self._recorder.add_frame(self.render, override_frequency=True)
 
         self.world.ClearForces()
-        return obs, reward, done, info
+        truncated = not is_valid
+        terminated = done and not truncated
+        return obs, reward, terminated, truncated, info
 
     @property
     def num_bodies(self) -> int:
@@ -324,7 +330,6 @@ class Box2DBase(base.Env, Generator, ABC):
 
         return True
 
-    @abstractmethod
     def _setup_spaces(self):
         """Setup observation space, action space, and supporting attributes."""
         raise NotImplementedError
@@ -335,7 +340,10 @@ class Box2DBase(base.Env, Generator, ABC):
             image = self._image_observation
 
         if image:
-            img = self.render(mode="rgb_array")
+            old_render_mode = self.render_mode
+            self.render_mode = "rgb_array"
+            img = self.render()
+            self.render_mode = old_render_mode
             return img
 
         k = 0
@@ -351,6 +359,7 @@ class Box2DBase(base.Env, Generator, ABC):
                 observation[k : k + 4] = np.concatenate((position, shape_data["box"]))
                 k += 4
         # Agent data
+        assert self.agent is not None
         position = np.array(self.agent.position, dtype=np.float32)
         box = self._get_shape("item", "block")["box"]
         angle = np.array([self.agent.angle])
@@ -364,22 +373,18 @@ class Box2DBase(base.Env, Generator, ABC):
         observation = np.clip(observation + noise, low, high)
         return observation.astype(np.float32)
 
-    @abstractmethod
     def _get_reward(self):
         """Scalar reward function."""
         raise NotImplementedError
 
-    @abstractmethod
     def _is_done(self):
         """Returns True if terminal state has been reached."""
         raise NotImplementedError
 
-    @abstractmethod
     def _is_valid_start(self):
         """Check if start state is valid."""
         raise NotImplementedError
 
-    @abstractmethod
     def _is_valid(self):
         """Check if current state is valid."""
         raise NotImplementedError
@@ -422,10 +427,10 @@ class Box2DBase(base.Env, Generator, ABC):
         if step:
             env = type(self).clone(self, **self._base_kwargs)
             output["env"] = env
-            obs, rew, done, info = env.step(output["action"])
+            obs, rew, terminated, truncated, info = env.step(output["action"])
             output["observation"] = obs
             output["reward"] = rew
-            output["done"] = done
+            output["done"] = terminated or truncated
             output["info"] = info
 
         return q, output
@@ -476,10 +481,10 @@ class Box2DBase(base.Env, Generator, ABC):
             # Simulate forward cloned environments
             env = type(self).clone(self, **self._base_kwargs)
             outputs["env"].append(env)
-            obs, rew, done, info = env.step(action)
+            obs, rew, terminated, truncated, info = env.step(action)
             outputs["observation"].append(obs)
             outputs["reward"].append(rew)
-            outputs["done"].append(done)
+            outputs["done"].append(terminated or truncated)
             outputs["info"].append(info)
 
         return qs, outputs
@@ -527,10 +532,10 @@ class Box2DBase(base.Env, Generator, ABC):
             # Simulate forward cloned environments
             env = type(self).clone(self, **self._base_kwargs)
             outputs["env"].append(env)
-            obs, rew, done, info = env.step(action)
+            obs, rew, terminated, truncated, info = env.step(action)
             outputs["observation"].append(obs)
             outputs["reward"].append(rew)
-            outputs["done"].append(done)
+            outputs["done"].append(terminated or truncated)
             outputs["info"].append(info)
 
         return qs, outputs
@@ -642,8 +647,9 @@ class Box2DBase(base.Env, Generator, ABC):
             self._image = image
             self._static_image = static_image
 
-    def render(self, mode="human"):
+    def render(self):
         """Render sprites on all 2D bodies and set background to white."""
+        mode = self.render_mode
         # Render all world shapes
         dynamic_image = self._image.copy()
         for object_name in self.env.keys():

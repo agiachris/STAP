@@ -89,7 +89,8 @@ class StratifiedReplayBuffer(ReplayBuffer):
         reward: Optional[Union[np.ndarray, float]] = None,
         next_observation: Optional[np.ndarray] = None,
         discount: Optional[Union[np.ndarray, float]] = None,
-        done: Optional[Union[np.ndarray, bool]] = None,
+        terminated: Optional[Union[np.ndarray, bool]] = None,
+        truncated: Optional[Union[np.ndarray, bool]] = None,
         batch: Optional[StorageBatch] = None,
         max_entries: Optional[int] = None,
     ) -> int:
@@ -135,7 +136,11 @@ class StratifiedReplayBuffer(ReplayBuffer):
         stratified_batches = []
         for idx_replay_buffer, batch in enumerate(batches):
             if batch is None:
-                return None
+                print(
+                    "[temporal_policies.datasets.StratifiedReplayBuffer.sample]: "
+                    f"WARNING: Batch {idx_replay_buffer} is empty."
+                )
+                continue
             assert isinstance(batch["action"], np.ndarray)
             stratified_batch = WrappedBatch(
                 observation=batch["observation"],
@@ -148,6 +153,8 @@ class StratifiedReplayBuffer(ReplayBuffer):
                 ),
             )
             stratified_batches.append(stratified_batch)
+        if len(stratified_batches) == 0:
+            return None
         stratified_batch = tensors.map_structure(
             lambda *xs: np.concatenate(xs, axis=0), *stratified_batches
         )

@@ -1,11 +1,11 @@
 import pathlib
-from typing import Any, Dict, Optional, Iterable, List, Sequence, Union
+from typing import Any, Dict, Optional, Iterable, List, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 import yaml
 
-from temporal_policies import agents, dynamics, envs, planners
+from temporal_policies import agents, dynamics, envs, networks, planners
 from temporal_policies.utils import configs, tensors
 
 
@@ -175,13 +175,13 @@ def load(
 
 @tensors.batch(dims=1)
 def evaluate_trajectory(
-    value_fns: Iterable[torch.nn.Module],
-    decode_fns: Iterable[torch.nn.Module],
+    value_fns: Iterable[networks.critics.Critic],
+    decode_fns: Iterable[networks.critics.Critic],
     states: torch.Tensor,
     actions: torch.Tensor,
     p_transitions: torch.Tensor,
     q_value: bool = True,
-) -> torch.Tensor:
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """Evaluates probability of success for the given trajectory.
 
     Args:
@@ -193,7 +193,7 @@ def evaluate_trajectory(
         q_value: Whether to use state-action values (True) or state values (False).
 
     Returns:
-        [batch_dims] Trajectory success probabilities.
+        (Trajectory success probabilities [batch_size], values [batch_size, T]) 2-tuple.
     """
     # Compute step success probabilities.
     p_successes = torch.zeros_like(p_transitions)
@@ -202,11 +202,12 @@ def evaluate_trajectory(
             policy_state = decode_fn(states[:, t])
             dim_action = int(torch.sum(~torch.isnan(actions[0, t])).cpu().item())
             action = actions[:, t, :dim_action]
-            p_successes[:, t] = value_fn.predict(policy_state, action)  # type: ignore
+            p_successes[:, t] = value_fn.predict(policy_state, action)
     else:
-        for t, value_fn in enumerate(value_fns):
-            policy_state = decode_fn(states[:, t])
-            p_successes[:, t] = value_fn.predict(policy_state)  # type: ignore
+        raise NotImplementedError
+        # for t, value_fn in enumerate(value_fns):
+        #     policy_state = decode_fn(states[:, t])
+        #     p_successes[:, t] = value_fn.predict(policy_state)
     p_successes = torch.clip(p_successes, min=0, max=1)
 
     # Discard last transition from T-1 to T, since s_T isn't used.
@@ -216,7 +217,7 @@ def evaluate_trajectory(
     log_p_success = torch.log(p_successes).sum(dim=-1)
     log_p_success += torch.log(p_transitions).sum(dim=-1)
 
-    return torch.exp(log_p_success)
+    return torch.exp(log_p_success), p_successes
 
 
 def evaluate_plan(
@@ -247,7 +248,7 @@ def evaluate_plan(
     for t, primitive in enumerate(action_skeleton):
         env.set_primitive(primitive)
         action = actions[t, : env.action_space.shape[0]]
-        _, reward, _, _ = env.step(action)
+        _, reward, _, _, _ = env.step(action)
         rewards[t] = reward
 
     if gif_path is not None:

@@ -60,14 +60,15 @@ class PushLeft2DControl(Box2DBase):
         self.world.Step(self._time_steps, self._vel_iters, self._pos_iters)
 
         # Simulate
-        done = False
+        terminated = False
+        truncated = False
         reward = 0
-        while not done:
+        while not terminated and not truncated:
             u = self._pid_control.u(self.agent.position[0])
             self.agent.ApplyForce((u, 0), self.agent.position, wake=True)
-            observation, rew, done, info = super().step()
+            observation, rew, terminated, truncated, info = super().step()
             reward += rew
-        return observation, reward, done, info
+        return observation, reward, terminated, truncated, info
 
     def _setup_spaces(self):
         """PushLeft2DControl primitive action and observation spaces.

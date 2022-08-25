@@ -475,7 +475,8 @@ def plot_critic_overlay(
         physicsClientId=env.physics_id,
     )
 
-    img_rgb = env.render(view, resolution=(1620, 1080))
+    env.render_mode = f"{view}_high_res"
+    img_rgb = env.render()
     img = PIL.Image.fromarray(img_rgb)
     img.save(path / f"{name}.png")
 

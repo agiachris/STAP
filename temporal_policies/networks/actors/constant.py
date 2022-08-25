@@ -37,11 +37,12 @@ class ConstantActor(Actor):
         """
         return self.network(state)
 
-    def predict(self, state: torch.Tensor) -> torch.Tensor:
+    def predict(self, state: torch.Tensor, sample: bool = False) -> torch.Tensor:
         """Outputs a constant action.
 
         Args:
             state: Environment state.
+            sample: Should always be false for ConstantActor.
 
         Returns:
             Action.

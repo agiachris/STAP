@@ -3,6 +3,7 @@ trainer_kwargs:
   dataset_class: StratifiedReplayBuffer
   dataset_kwargs:
     batch_size: 512
+  skip_truncated: true
 
   optimizer_class: Adam
   optimizer_kwargs:

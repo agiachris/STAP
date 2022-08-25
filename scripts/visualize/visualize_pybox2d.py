@@ -68,8 +68,8 @@ if __name__ == "__main__":
 
             for _ in range(curr_env._max_episode_steps):
                 action = planner.plan(j, curr_env)
-                obs, rew, done, info = curr_env.step(action)
-                if done: break
+                obs, rew, terminated, truncated, info = curr_env.step(action)
+                if terminated or truncated: break
 
             if not info["success"]: break
             
