@@ -42,8 +42,8 @@ dependencies = [
   "spatialdyn==1.4.4",
 ]
 
-[tool.setuptools]
-packages = ["temporal_policies"]
+[tool.setuptools.packages.find]
+include = ["temporal_policies*"]
 
 [[tool.mypy.overrides]]
 module = [
