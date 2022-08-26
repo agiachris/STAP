@@ -324,7 +324,7 @@ class TableEnv(PybulletEnv):
             # Check state again after objects have settled.
             self.wait_until_stable(min_iters=1)
 
-            if self._is_any_object_below_table():
+            if self._is_any_object_below_table() or self._is_any_object_touching_base():
                 continue
 
             if all(
@@ -364,6 +364,15 @@ class TableEnv(PybulletEnv):
             for obj in self.objects.values()
         )
 
+    def _is_any_object_touching_base(self) -> bool:
+        return any(
+            not obj.is_static
+            and predicates.is_touching(
+                self.robot.body_id, obj.body_id, link_id_a=0, physics_id=self.physics_id
+            )
+            for obj in self.objects.values()
+        )
+
     def wait_until_stable(
         self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)
     ) -> int:
@@ -375,9 +384,11 @@ class TableEnv(PybulletEnv):
 
         num_iters = 0
         while (
-            num_iters < max_iters
+            num_iters == 0  # Need to step at least once to update collisions.
+            or num_iters < max_iters
             and (num_iters < min_iters or is_any_object_moving())
             and not self._is_any_object_below_table()
+            and not self._is_any_object_touching_base()
         ):
             self.robot.arm.update_torques()
             self.robot.gripper.update_torques()

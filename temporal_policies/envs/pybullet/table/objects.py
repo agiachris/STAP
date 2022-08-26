@@ -129,6 +129,8 @@ class Object(body.Body):
 
 
 class Urdf(Object):
+    AABB_MARGIN = 0.001  # Pybullet seems to expand aabbs by at least this amount.
+
     def __init__(
         self,
         physics_id: int,
@@ -149,12 +151,11 @@ class Urdf(Object):
             is_static=is_static,
         )
 
-        # xyz_min, xyz_max = self.aabb()
-        # self._size = xyz_max - xyz_min
+        xyz_min, xyz_max = self.aabb()
+        self._size = xyz_max - xyz_min - 2 * Urdf.AABB_MARGIN
 
     @property
     def size(self) -> np.ndarray:
-        raise NotImplementedError
         return self._size
 
 
@@ -293,6 +294,83 @@ class Hook(Object):
 
     # def aabb(self) -> np.ndarray:
     #     raise NotImplementedError
+
+
+class Rack(Object):
+    TOP_THICKNESS = 0.01
+    LEG_THICKNESS = 0.01
+
+    def __init__(
+        self,
+        physics_id: int,
+        name: str,
+        size: Union[List[float], np.ndarray],
+        color: Union[List[float], np.ndarray],
+        mass: float = 1,
+    ):
+        mass /= 7  # Divide mass among all 7 parts.
+        top = shapes.Box(
+            size=np.array([*size[:2], Rack.TOP_THICKNESS]),
+            mass=mass,
+            color=np.array(color),
+            pose=math.Pose(
+                pos=np.array([0.0, 0.0, -Rack.TOP_THICKNESS / 2]),
+                quat=eigen.Quaterniond.identity().coeffs,
+            ),
+        )
+        xy_legs = np.array([(x, y) for x in (-1, 1) for y in (-1, 1)]) * (
+            (np.array(size[:2])[None, :] - Rack.LEG_THICKNESS) / 2
+        )
+        legs = [
+            shapes.Box(
+                size=np.array(
+                    [
+                        Rack.LEG_THICKNESS,
+                        Rack.LEG_THICKNESS,
+                        size[2] - Rack.TOP_THICKNESS - Rack.LEG_THICKNESS,
+                    ]
+                ),
+                mass=mass,
+                color=np.array([0.0, 0.0, 0.0, 1.0]),
+                pose=math.Pose(
+                    pos=np.array(
+                        [
+                            *xy_leg,
+                            -(size[2] + Rack.TOP_THICKNESS - Rack.LEG_THICKNESS) / 2,
+                        ]
+                    ),
+                    quat=eigen.Quaterniond.identity().coeffs,
+                ),
+            )
+            for xy_leg in xy_legs
+        ]
+        stabilizers = [
+            shapes.Box(
+                size=np.array([size[0], Rack.LEG_THICKNESS, Rack.LEG_THICKNESS]),
+                mass=mass,
+                color=np.array([0.0, 0.0, 0.0, 1.0]),
+                pose=math.Pose(
+                    pos=np.array([0.0, y_leg, -size[2] + Rack.LEG_THICKNESS / 2]),
+                    quat=eigen.Quaterniond.identity().coeffs,
+                ),
+            )
+            for y_leg in xy_legs[:2, 1]
+        ]
+        body_id = shapes.create_body(
+            [top, *legs, *stabilizers],
+            link_parents=[0] * (len(legs) + len(stabilizers)),
+            physics_id=physics_id,
+        )
+
+        super().__init__(
+            physics_id=physics_id, body_id=body_id, name=name, is_static=mass == 0.0
+        )
+
+        self._state.box_size = np.array(size)
+
+    @property
+    def size(self) -> np.ndarray:
+        return self._state.box_size
 
 
 class Null(Object):

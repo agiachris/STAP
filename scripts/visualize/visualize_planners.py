@@ -393,13 +393,16 @@ def main(args: argparse.Namespace) -> None:
     if args.plot_action_statistics:
         print(df_samples, "\n")
 
-    # methods = df_plans["Method"].unique()
-    # num_trials = (df_plans["Method"] == df_plans["Method"][0]).sum()
+    # df_plans["mvd"] = df_plans.apply(
+    #     lambda x: f"{x['Method']} / {x['Value / Dynamics']}", axis=1
+    # )
+    # methods = df_plans["mvd"].unique()
+    # num_trials = (df_plans["mvd"] == df_plans["mvd"][0]).sum()
     # rewards = np.zeros((num_trials, len(methods) + 1), dtype=int)
     # rewards[:, 0] = np.arange(rewards.shape[0])
     # for i, method in enumerate(methods):
     #     rewards[:, i + 1] = df_plans["Ground truth success"][
-    #         df_plans["Method"] == method
+    #         df_plans["mvd"] == method
     #     ]
     # print(methods)
     # print(rewards)

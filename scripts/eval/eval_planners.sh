@@ -147,10 +147,10 @@ fi
 POLICY_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_INPUT_PATH="${input_path}/${exp_name}"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
-PLANNER_OUTPUT_PATH="${output_path}/${exp_name}"
-# for CKPT in "${checkpoints[@]}"; do
-#     run_planners
-# done
+for CKPT in "${checkpoints[@]}"; do
+    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}"
+    run_planners
+done
 
 # Visualize results.
 if [[ `hostname` == "sc.stanford.edu" ]] || [ $DEBUG -ne 0 ]; then

@@ -172,6 +172,8 @@ class Place(Primitive):
     action_scale = gym.spaces.Box(*primitive_actions.PlaceAction.range())
     Action = primitive_actions.PlaceAction
 
+    MAX_LIFT_HEIGHT = 0.4
+
     def execute(
         self,
         action: np.ndarray,
@@ -198,7 +200,8 @@ class Place(Primitive):
         command_quat = compute_top_down_orientation(a.theta.item(), target_quat)
 
         pre_pos = np.append(
-            command_pos[:2], command_pos[2] + compute_lift_height(obj.size)
+            command_pos[:2],
+            min(Place.MAX_LIFT_HEIGHT, command_pos[2] + compute_lift_height(obj.size)),
         )
         try:
             robot.goto_pose(pre_pos, command_quat)
@@ -233,13 +236,20 @@ class Place(Primitive):
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         action = self.Action.random()
+        action_range = action.range()
 
+        # Generate a random xy in the aabb of the parent.
+        parent = self.policy_args[1]
+        xy_min = np.maximum(action_range[0, :2], -0.5 * parent.size[:2])
+        xy_max = np.minimum(action_range[1, :2], 0.5 * parent.size[:2])
+        action.pos[:2] = np.random.uniform(xy_min, xy_max)
+
+        # Compute an appropriate place height given the grasped object's height.
         obj = self.policy_args[0]
         z_gripper = compute_lift_height(obj.size)
         z_obj = obj.pose().pos[2]
         action.pos[2] = z_gripper - z_obj + 0.5 * obj.size[2]
 
-        action_range = action.range()
         action.pos[2] = np.clip(action.pos[2], action_range[0, 2], action_range[1, 2])
 
         return action
