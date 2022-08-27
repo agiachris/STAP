@@ -1,14 +1,17 @@
 import dataclasses
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from ctrlutils import eigen
 import numpy as np
 import pybullet as p
 import symbolic
 
-from temporal_policies.envs.pybullet.table.objects import Hook, Null, Object
+from temporal_policies.envs.pybullet.table.objects import Hook, Null, Object, Rack
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
+
+dbprint = lambda *args: None  # noqa
+# dbprint = print
 
 
 def is_above(child_aabb: np.ndarray, parent_aabb: np.ndarray) -> bool:
@@ -36,6 +39,24 @@ def is_below_table(pos: np.ndarray) -> bool:
     return pos[2] < 0.0
 
 
+def is_touching(
+    body_id_a: int,
+    body_id_b: int,
+    physics_id: int,
+    link_id_a: Optional[int] = None,
+    link_id_b: Optional[int] = None,
+) -> bool:
+    kwargs = {}
+    if link_id_a is not None:
+        kwargs["linkIndexA"] = link_id_a
+    if link_id_b is not None:
+        kwargs["linkIndexB"] = link_id_b
+    contacts = p.getContactPoints(
+        bodyA=body_id_a, bodyB=body_id_b, physicsClientId=physics_id, **kwargs
+    )
+    return len(contacts) > 0
+
+
 @dataclasses.dataclass
 class Predicate:
     args: List[str]
@@ -52,11 +73,13 @@ class Predicate:
     def sample(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence["Predicate"]
     ) -> bool:
+        dbprint(f"{self}.sample():", True)
         return True
 
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence["Predicate"]
     ) -> bool:
+        dbprint(f"{self}.value():", True)
         return True
 
     def _get_arg_objects(self, objects: Dict[str, Object]) -> List[Object]:
@@ -80,7 +103,9 @@ class BeyondWorkspace(Predicate):
     ) -> bool:
         obj = self._get_arg_objects(objects)[0]
         distance = float(np.linalg.norm(obj.pose().pos[:2]))
-        return distance > self.WORKSPACE_RADIUS
+        is_beyondworkspace = distance > self.WORKSPACE_RADIUS
+        dbprint(f"{self}.value():", is_beyondworkspace, "distance:", distance)
+        return is_beyondworkspace
 
 
 class InWorkspace(Predicate):
@@ -95,7 +120,11 @@ class InWorkspace(Predicate):
 
         xyz = obj.pose().pos
         distance = float(np.linalg.norm(xyz[:2]))
-        return self.MIN_X < xyz[0] and distance <= BeyondWorkspace.WORKSPACE_RADIUS
+        is_inworkspace = (
+            self.MIN_X < xyz[0] and distance <= BeyondWorkspace.WORKSPACE_RADIUS
+        )
+        dbprint(f"{self}.value():", is_inworkspace, "x:", xyz[0], "distance:", distance)
+        return is_inworkspace
 
 
 class IsTippable(Predicate):
@@ -110,29 +139,34 @@ class On(Predicate):
     ) -> bool:
         child_obj, parent_obj = self._get_arg_objects(objects)
         if child_obj.is_static:
+            dbprint(f"{self}.sample():", True, "- static")
             return True
 
         # Get parent aabb.
         xyz_min, xyz_max = parent_obj.aabb()
         if parent_obj.name == "table":
+            margin = 0.5 * child_obj.size[:2].max()
             if f"beyondworkspace({child_obj})" in state:
                 # Increase the likelihood of sampling outside the workspace.
                 r = BeyondWorkspace.WORKSPACE_RADIUS
                 xyz_min[0] = r * np.cos(np.arcsin(0.5 * (xyz_max[1] - xyz_min[1]) / r))
-                xyz_max[0] -= 0.05
-                xyz_min[1] += 0.05
-                xyz_max[1] -= 0.05
+                xyz_max[0] -= margin
+                xyz_min[1] += margin
+                xyz_max[1] -= margin
             elif f"inworkspace({child_obj})" in state:
                 # Increase the likelihood of sampling inside the workspace.
                 xyz_min[0] = InWorkspace.MIN_X
                 xyz_max[0] = BeyondWorkspace.WORKSPACE_RADIUS
-                xyz_min[1] += 0.05
-                xyz_max[1] -= 0.05
+                xyz_min[1] += margin
+                xyz_max[1] -= margin
 
         # Generate pose on parent.
         xyz = np.zeros(3)
         xyz[:2] = np.random.uniform(xyz_min[:2], xyz_max[:2])
         xyz[2] = xyz_max[2] + 0.5 * child_obj.size[2] + 0.01
+        if child_obj.isinstance(Rack):
+            # z=0 is on the top surface of the rack.
+            xyz[2] += 0.5 * child_obj.size[2]
         theta = np.random.uniform(-np.pi / 2, np.pi / 2)
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
         quat = eigen.Quaterniond(aa)
@@ -151,6 +185,7 @@ class On(Predicate):
 
         child_obj.set_pose(pose)
 
+        dbprint(f"{self}.sample():", True)
         return True
 
     def value(
@@ -161,13 +196,16 @@ class On(Predicate):
             return True
 
         if not is_above(child_obj.aabb(), parent_obj.aabb()):
+            dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
         if f"istippable({child_obj})" not in state or child_obj.isinstance(Hook):
             child_pose = child_obj.pose()
             if not is_upright(child_pose.quat):
+                dbprint(f"{self}.value():", False, "- child not upright")
                 return False
 
+        dbprint(f"{self}.value():", True)
         return True
 
 
@@ -225,6 +263,7 @@ class Inhand(Predicate):
 
         obj = self._get_arg_objects(objects)[0]
         if obj.is_static:
+            dbprint(f"{self}.sample():", True, "- static")
             return True
 
         obj.disable_collisions()
@@ -250,12 +289,14 @@ class Inhand(Predicate):
         robot.grasp_object(obj, realistic=False)
         try:
             robot.goto_pose(pos=xyz_pick, quat=eigen.Quaterniond(aa))
-        except ControlException:
+        except ControlException as e:
+            dbprint(f"{self}.sample():", False, e)
             robot.reset()
             return False
 
         obj.enable_collisions()
 
+        dbprint(f"{self}.sample():", True)
         return True
 
     def value(
