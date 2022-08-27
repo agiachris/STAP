@@ -1,12 +1,18 @@
 import copy
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
 
 from ctrlutils import eigen
 import numpy as np
 import pybullet as p
 import spatialdyn as dyn
 
+from temporal_policies.envs import pybullet
 from temporal_policies.envs.pybullet.sim import articulated_body, arm, body, gripper
+from temporal_policies.envs.pybullet.real import (  # noqa
+    arm as real_arm,
+    gripper as real_gripper,
+)
+from temporal_policies.utils import configs
 
 
 class ControlException(Exception):
@@ -23,7 +29,9 @@ class Robot(body.Body):
         physics_id: int,
         step_simulation_fn: Callable[[], None],
         urdf: str,
+        arm_class: Union[str, Type[arm.Arm]],
         arm_kwargs: Dict[str, Any],
+        gripper_class: Union[str, Type[gripper.Gripper]],
         gripper_kwargs: Dict[str, Any],
     ):
         """Loads the robot from a urdf file.
@@ -32,7 +40,9 @@ class Robot(body.Body):
             physics_id: Pybullet physics client id.
             step_simulation_fn: Function to step simulation.
             urdf: Path to urdf.
+            arm_class: In the temporal_policies.envs.pybullet namespace.
             arm_kwargs: Arm kwargs from yaml config.
+            gripper_class: In the temporal_policies.envs.pybullet namespace.
             gripper_kwargs: Gripper kwargs from yaml config.
         """
         body_id = p.loadURDF(
@@ -44,14 +54,16 @@ class Robot(body.Body):
         )
         super().__init__(physics_id, body_id)
 
-        self._arm = arm.Arm(self.physics_id, self.body_id, **arm_kwargs)
+        if isinstance(arm_class, str):
+            arm_class = configs.get_class(arm_class, pybullet)
+        if isinstance(gripper_class, str):
+            gripper_class = configs.get_class(gripper_class, pybullet)
+
+        self._arm = arm_class(self.physics_id, self.body_id, **arm_kwargs)
         T_world_to_ee = dyn.cartesian_pose(self.arm.ab).inverse()
-        self._gripper = gripper.Gripper(
+        self._gripper = gripper_class(
             self.physics_id, self.body_id, T_world_to_ee, **gripper_kwargs
         )
-
-        self.reset()
-        self.home_pose = self.arm.ee_pose()
 
         self.step_simulation = step_simulation_fn
         self._table: Optional[body.Body] = None
@@ -81,7 +93,10 @@ class Robot(body.Body):
         """
         self.gripper.reset()
         self.clear_load()
-        return self.arm.reset()
+        status = self.arm.reset()
+        if isinstance(self.arm, real_arm.Arm):
+            status = self.goto_configuration(self.arm.q_home)
+        return status
 
     def clear_load(self) -> None:
         """Resets the end-effector load to the gripper inertia."""
@@ -112,8 +127,8 @@ class Robot(body.Body):
     def goto_home(self) -> bool:
         """Uses opspace control to go to the home position."""
         return self.goto_pose(
-            self.home_pose.pos,
-            self.home_pose.quat,
+            self.arm.home_pose.pos,
+            self.arm.home_pose.quat,
             pos_gains=(64, 16),
             ori_gains=(64, 16),
         )
@@ -152,7 +167,7 @@ class Robot(body.Body):
             status = self.arm.update_torques()
             self.gripper.update_torques()
 
-            if self.table is not None:
+            if self.table is not None and not isinstance(self.arm, real_arm.Arm):
                 grasp_body_id = self.gripper._gripper_state.grasp_body_id
                 if grasp_body_id is not None:
                     contacts = p.getContactPoints(
@@ -177,6 +192,31 @@ class Robot(body.Body):
 
         if status == articulated_body.ControlStatus.ABORTED:
             raise ControlException(f"Robot.goto_pose({pos}, {quat}): Singularity")
+
+        return status in (
+            articulated_body.ControlStatus.POS_CONVERGED,
+            articulated_body.ControlStatus.VEL_CONVERGED,
+        )
+
+    def goto_configuration(self, q: np.ndarray) -> bool:
+        """Sets the robot to the desired joint configuration.
+
+        Args:
+            q: Joint configuration.
+        Returns:
+            True if the controller converges to the desired position or zero
+            velocity, false if the command times out.
+        """
+        # Set the configuration goal.
+        self.arm.set_configuration_goal(q)
+
+        # Simulate until the pose goal is reached.
+        status = self.arm.update_torques()
+        self.gripper.update_torques()
+        while status == articulated_body.ControlStatus.IN_PROGRESS:
+            self.step_simulation()
+            status = self.arm.update_torques()
+            self.gripper.update_torques()
 
         return status in (
             articulated_body.ControlStatus.POS_CONVERGED,
@@ -249,8 +289,6 @@ class Robot(body.Body):
         Returns:
             True if the object is successfully grasped, false otherwise.
         """
-        CONTACT_NORMAL_ALIGNMENT = 0.98  # Allows roughly 10 deg error.
-
         if realistic:
             self.grasp(1, pos_gains, timeout)
 
@@ -272,37 +310,6 @@ class Robot(body.Body):
             # Make sure fingers aren't fully closed.
             if status == articulated_body.ControlStatus.POS_CONVERGED:
                 return False
-
-            # Make sure contact normals are in the correct direction.
-            for finger_link_id, finger_contact_normal in zip(
-                self.gripper.finger_links, self.gripper.finger_contact_normals
-            ):
-                contacts = p.getContactPoints(
-                    bodyA=obj.body_id,
-                    bodyB=self.gripper.body_id,
-                    linkIndexB=finger_link_id,
-                    physicsClientId=self.physics_id,
-                )
-                if not contacts:
-                    return False
-
-                T_world_to_finger = (
-                    self.gripper.link(finger_link_id).pose().to_eigen().inverse()
-                )
-                for contact in contacts:
-                    # Contact normal on finger, pointing towards obj.
-                    f_contact = T_world_to_finger.linear @ np.array(contact[7])
-
-                    # Make sure contact normal is in the expected direction.
-                    if f_contact.dot(finger_contact_normal) < CONTACT_NORMAL_ALIGNMENT:
-                        return False
-
-                    # Contact position on finger.
-                    pos_contact = (T_world_to_finger * np.append(contact[6], 1.0))[:3]
-
-                    # Make sure contact position is on the inner side of the finger.
-                    if pos_contact.dot(finger_contact_normal) < 0.0:
-                        return False
 
         # Lock the object in place with a grasp constraint.
         if not self.gripper.create_grasp_constraint(obj.body_id, realistic):

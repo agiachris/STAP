@@ -160,7 +160,7 @@ class Pick(Primitive):
                 theta = np.pi / 2
         elif obj.isinstance(objects.Box):
             pos = np.array([0.0, 0.0, 0.0])
-            theta = 0.0 if random.random() <= 0.5 else np.pi / 2
+            theta = 0.0  # if random.random() <= 0.5 else np.pi / 2
         else:
             pos = np.array([0.0, 0.0, 0.0])
             theta = 0.0
