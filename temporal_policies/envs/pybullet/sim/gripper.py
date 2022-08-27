@@ -70,9 +70,11 @@ class Gripper(articulated_body.ArticulatedBody):
             timeout=timeout,
         )
 
-        cmd_multipliers = np.array(command_multipliers, dtype=np.float64)
-        self._torque_multipliers = cmd_multipliers[: len(self.torque_joints)]
-        self._position_multipliers = cmd_multipliers[len(self.torque_joints) :]
+        self._command_multipliers = np.array(command_multipliers, dtype=np.float64)
+        self._torque_multipliers = self._command_multipliers[: len(self.torque_joints)]
+        self._position_multipliers = self._command_multipliers[
+            len(self.torque_joints) :
+        ]
 
         link_ids = {self.link(joint_id).name: joint_id for joint_id in range(self.dof)}
         self._finger_links = [link_ids[link_name] for link_name in finger_links]
@@ -106,9 +108,8 @@ class Gripper(articulated_body.ArticulatedBody):
         self.pos_threshold = pos_threshold
 
         self._gripper_state = GripperState()
-
-        self._q_home, _ = self.get_joint_state(self.joints)
-        self.apply_positions(self._q_home, self.joints)
+        self._q_home = self.get_joint_state(self.joints)[0]
+        self.reset()
 
     @property
     def inertia(self) -> dyn.SpatialInertiad:
@@ -142,29 +143,42 @@ class Gripper(articulated_body.ArticulatedBody):
         """Detects whether the given body is grasped.
 
         A body is considered grasped if it is in contact with both finger links
-        and the contact normals are no closer than 45deg parallel with the axis
-        of gravity.
+        and the contact normals are pointing inwards.
 
         Args:
             body_id: Body id for which to check the grasp.
         Returns:
             True if the body is grasped.
         """
-        for finger_link_id in self.finger_links:
+        CONTACT_NORMAL_ALIGNMENT = 0.98  # Allows roughly 10 deg error.
+
+        for finger_link_id, finger_contact_normal in zip(
+            self.finger_links, self.finger_contact_normals
+        ):
             contacts = p.getContactPoints(
-                bodyA=self.body_id,
-                bodyB=body_id,
-                linkIndexA=finger_link_id,
+                bodyA=body_id,
+                bodyB=self.body_id,
+                linkIndexB=finger_link_id,
                 physicsClientId=self.physics_id,
             )
             if not contacts:
                 return False
 
-            # Contact positions/normals on the object in world frame.
-            contact_normals = np.array([c[7] for c in contacts])
+            T_world_to_finger = self.link(finger_link_id).pose().to_eigen().inverse()
+            for contact in contacts:
+                # Contact normal on finger, pointing towards obj.
+                f_contact = T_world_to_finger.linear @ np.array(contact[7])
 
-            if (np.abs(contact_normals[:, 2]) > 1 / np.sqrt(3)).any():
-                return False
+                # Make sure contact normal is in the expected direction.
+                if f_contact.dot(finger_contact_normal) < CONTACT_NORMAL_ALIGNMENT:
+                    return False
+
+                # Contact position on finger.
+                pos_contact = (T_world_to_finger * np.append(contact[6], 1.0))[:3]
+
+                # Make sure contact position is on the inner side of the finger.
+                if pos_contact.dot(finger_contact_normal) < 0.0:
+                    return False
 
         return True
 

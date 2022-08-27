@@ -77,7 +77,7 @@ class ArticulatedBody(body.Body, abc.ABC):
     @property
     def joints(self) -> List[int]:
         """List of torque and position-controlled joint ids."""
-        return self._torque_joints + self._position_joints
+        return self.torque_joints + self.position_joints
 
     def link(self, link_id: int) -> body.Link:
         """Link with the given id."""
@@ -177,7 +177,6 @@ class ArticulatedBody(body.Body, abc.ABC):
             q: Desired positions.
             joints: Optional list of joints. If None, `self.position_joints` are used.
         """
-
         if joints is None:
             joints = self.position_joints
         else:

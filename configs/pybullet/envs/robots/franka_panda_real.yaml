@@ -1,6 +1,6 @@
 urdf: configs/pybullet/envs/assets/franka_panda/franka_panda_robotiq.urdf
 
-arm_class: sim.arm.Arm
+arm_class: real.arm.Arm
 arm_kwargs:
   arm_urdf: configs/pybullet/envs/assets/franka_panda/franka_panda.urdf
   torque_joints:
@@ -23,7 +23,19 @@ arm_kwargs:
   ori_threshold: [0.01, 0.01]
   timeout: 10.0
 
-gripper_class: sim.gripper.Gripper
+  redis_host: "127.0.0.1"
+  redis_port: 6000
+  redis_password: taps
+
+  redis_keys:
+    control_mode: "franka_panda::control::mode"
+    control_pub_command: "franka_panda::control::pub::command"
+    control_pub_status: "franka_panda::control::pub::status"
+    driver_status: "franka_panda::driver::status"
+    sensor_q: "franka_panda::sensor::q"
+    sensor_dq: "franka_panda::sensor::dq"
+
+gripper_class: real.gripper.Gripper
 gripper_kwargs:
   torque_joints:
     - left_inner_finger_pad_prismatic
@@ -58,3 +70,12 @@ gripper_kwargs:
   pos_gains: [400, 40]
   pos_threshold: 0.001
   timeout: 1.0
+
+  redis_host: "127.0.0.1"
+  redis_port: 6000
+  redis_password: taps
+
+  redis_keys:
+    control_pub_command: "robotiq_gripper::control::pub::command"
+    control_pub_status: "robotiq_gripper::control::pub::status"
+    sensor_pos: "robotiq_gripper::sensor::pos"

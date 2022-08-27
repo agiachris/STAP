@@ -77,27 +77,17 @@ class Arm(articulated_body.ArticulatedBody):
         self.ori_threshold = np.array(ori_threshold, dtype=np.float64)
 
         self._ab = dyn.ArticulatedBody(dyn.urdf.load_model(arm_urdf))
-        self.ab.q, self.ab.dq = self.get_joint_state(self.torque_joints)
+        self.ab.q = self.q_home
         T_home_to_world = dyn.cartesian_pose(self.ab, offset=self.ee_offset)
         self.quat_home = eigen.Quaterniond(T_home_to_world.linear)
+        self.home_pose = self.ee_pose(update=False)
 
         self._q_limits = np.array(
             [self.link(link_id).joint_limits for link_id in self.torque_joints]
         ).T
 
         self._arm_state = ArmState()
-
-        # TODO: Debugging.
-        # self._redis = ctrlutils.RedisClient(port=6000)
-        # redisgl.register_object(
-        #     "lambda_pos",
-        #     self._redis,
-        #     redisgl.Graphics("lambda_pos", redisgl.Sphere(0.01)),
-        #     key_pos="franka_panda::sensor::pos",
-        #     key_ori="",
-        #     key_scale="",
-        #     key_matrix="franka_panda::opspace::Lambda_pos",
-        # )
+        self.reset()
 
     @property
     def ab(self) -> dyn.ArticulatedBody:
@@ -105,9 +95,10 @@ class Arm(articulated_body.ArticulatedBody):
         return self._ab
 
     def reset(self) -> bool:
-        """Disables torque control and esets the arm to the home configuration (bypassing simulation)."""
+        """Disables torque control and resets the arm to the home configuration (bypassing simulation)."""
         self._arm_state = ArmState()
-        return self.goto_configuration(self.q_home, skip_simulation=True)
+        self.set_configuration_goal(self.q_home, skip_simulation=True)
+        return True
 
     def set_pose_goal(
         self,
@@ -145,8 +136,27 @@ class Arm(articulated_body.ArticulatedBody):
         self._arm_state.iter_timeout = int(timeout / math.PYBULLET_TIMESTEP)
         self._arm_state.torque_control = True
 
-    def ee_pose(self) -> math.Pose:
-        self.ab.q, self.ab.dq = self.get_joint_state(self.torque_joints)
+    def set_configuration_goal(self, q: np.ndarray, skip_simulation: bool = False) -> None:
+        """Sets the robot to the desired joint configuration.
+
+        Args:
+            q: Joint configuration.
+            skip_simulation: Whether to forcibly set the joint positions or use
+                torque control to achieve them.
+        """
+        if skip_simulation:
+            self._arm_state.torque_control = False
+            self.reset_joints(q, self.torque_joints)
+            self.apply_positions(q, self.torque_joints)
+            self.ab.q, self.ab.dq = self.get_joint_state(self.torque_joints)
+            return
+
+        # TODO: Implement torque control.
+        raise NotImplementedError
+
+    def ee_pose(self, update: bool = True) -> math.Pose:
+        if update:
+            self.ab.q, self.ab.dq = self.get_joint_state(self.torque_joints)
         T_ee_to_world = dyn.cartesian_pose(self.ab, offset=self.ee_offset)
         quat_ee_to_world = eigen.Quaterniond(T_ee_to_world.linear)
         quat_ee = quat_ee_to_world * self.quat_home.inverse()
@@ -205,6 +215,7 @@ class Arm(articulated_body.ArticulatedBody):
         dx_w = dyn.jacobian(self.ab, offset=self.ee_offset).dot(self.ab.dq)
         dx = dx_w[:3]
         w = dx_w[3:]
+
         self._arm_state.dx_avg = (
             0.5 * np.sqrt(dx.dot(dx)) + 0.5 * self._arm_state.dx_avg
         )
@@ -218,27 +229,6 @@ class Arm(articulated_body.ArticulatedBody):
             return articulated_body.ControlStatus.TIMEOUT
 
         return articulated_body.ControlStatus.IN_PROGRESS
-
-    def goto_configuration(self, q: np.ndarray, skip_simulation: bool = False) -> bool:
-        """Sets the robot to the desired joint configuration.
-
-        Args:
-            q: Joint configuration.
-            skip_simulation: Whether to forcibly set the joint positions or use
-                torque control to achieve them.
-        Returns:
-            True if the controller converges to the desired position or zero
-            velocity, false if the command times out.
-        """
-        if skip_simulation:
-            self._arm_state.torque_control = False
-            self.reset_joints(q, self.torque_joints)
-            self.apply_positions(q, self.torque_joints)
-            self.ab.q, self.ab.dq = self.get_joint_state(self.torque_joints)
-            return True
-        else:
-            # TODO: Implement torque control.
-            raise NotImplementedError
 
     def get_state(self) -> Dict[str, Any]:
         state = {
