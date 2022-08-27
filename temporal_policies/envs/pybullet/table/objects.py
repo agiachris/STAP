@@ -306,7 +306,7 @@ class Rack(Object):
         name: str,
         size: Union[List[float], np.ndarray],
         color: Union[List[float], np.ndarray],
-        mass: float = 1,
+        mass: float = 1.0,
     ):
         mass /= 7  # Divide mass among all 7 parts.
         top = shapes.Box(
@@ -522,6 +522,12 @@ class Variant(Object):
     @property
     def dof(self) -> int:
         return self.body.dof
+
+    def freeze(self) -> None:
+        self.body.freeze()
+
+    def unfreeze(self) -> None:
+        self.body.unfreeze()
 
     # Object methods.
 
