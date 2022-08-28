@@ -14,17 +14,20 @@ from temporal_policies.envs.pybullet.table import object_state
 @dataclasses.dataclass
 class Object(body.Body):
     name: str
+    idx_object: int  # Index in env observation.
     is_static: bool = False
 
     def __init__(
         self,
         physics_id: int,
         body_id: int,
+        idx_object: int,
         name: str,
         is_static: bool = False,
     ):
         super().__init__(physics_id, body_id)
 
+        self.idx_object = idx_object
         self.name = name
         self.is_static = is_static
 
@@ -101,6 +104,7 @@ class Object(body.Body):
     def create(
         cls,
         physics_id: int,
+        idx_object: int,
         object_type: Optional[str],
         object_kwargs: Dict[str, Any] = {},
         object_groups: Dict[str, "ObjectGroup"] = {},
@@ -109,7 +113,9 @@ class Object(body.Body):
         object_class = Null if object_type is None else globals()[object_type]
         if issubclass(object_class, Variant):
             kwargs["object_groups"] = object_groups
-        return object_class(physics_id=physics_id, **object_kwargs, **kwargs)
+        return object_class(
+            physics_id=physics_id, idx_object=idx_object, **object_kwargs, **kwargs
+        )
 
     def isinstance(self, class_or_tuple: type) -> bool:
         return isinstance(self, class_or_tuple)
@@ -138,6 +144,7 @@ class Urdf(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         path: str,
         is_static: bool = False,
@@ -151,6 +158,7 @@ class Urdf(Object):
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
+            idx_object=idx_object,
             name=name,
             is_static=is_static,
         )
@@ -167,6 +175,7 @@ class Box(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         size: Union[List[float], np.ndarray],
         color: Union[List[float], np.ndarray],
@@ -177,7 +186,11 @@ class Box(Object):
         self._shape = box
 
         super().__init__(
-            physics_id=physics_id, body_id=body_id, name=name, is_static=mass == 0.0
+            physics_id=physics_id,
+            body_id=body_id,
+            idx_object=idx_object,
+            name=name,
+            is_static=mass == 0.0,
         )
 
         self._state.box_size = box.size
@@ -212,6 +225,7 @@ class Hook(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         head_length: float,
         handle_length: float,
@@ -265,7 +279,11 @@ class Hook(Object):
         )
 
         super().__init__(
-            physics_id=physics_id, body_id=body_id, name=name, is_static=mass == 0.0
+            physics_id=physics_id,
+            body_id=body_id,
+            idx_object=idx_object,
+            name=name,
+            is_static=mass == 0.0,
         )
 
         self._state.head_length = head_length
@@ -317,6 +335,7 @@ class Rack(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         size: Union[List[float], np.ndarray],
         color: Union[List[float], np.ndarray],
@@ -378,7 +397,11 @@ class Rack(Object):
         )
 
         super().__init__(
-            physics_id=physics_id, body_id=body_id, name=name, is_static=mass == 0.0
+            physics_id=physics_id,
+            body_id=body_id,
+            idx_object=idx_object,
+            name=name,
+            is_static=mass == 0.0,
         )
 
         self._state.box_size = np.array(size)
@@ -393,12 +416,16 @@ class Rack(Object):
 
 
 class Null(Object):
-    def __init__(self, physics_id: int, name: str):
+    def __init__(self, physics_id: int, idx_object: int, name: str):
         sphere = shapes.Sphere(radius=0.001)
         body_id = shapes.create_body(sphere, physics_id=physics_id)
 
         super().__init__(
-            physics_id=physics_id, body_id=body_id, name=name, is_static=True
+            physics_id=physics_id,
+            body_id=body_id,
+            idx_object=idx_object,
+            name=name,
+            is_static=True,
         )
 
     def enable_collisions(self) -> None:
@@ -492,10 +519,14 @@ class WrapperObject(Object):
 
 
 class ObjectGroup:
-    def __init__(self, physics_id: int, name: str, objects: List[Dict[str, Any]]):
+    def __init__(
+        self, physics_id: int, idx_object: int, name: str, objects: List[Dict[str, Any]]
+    ):
         self._name = name
         self._objects = [
-            Object.create(physics_id=physics_id, name=name, **obj_config)
+            Object.create(
+                physics_id=physics_id, idx_object=idx_object, name=name, **obj_config
+            )
             for obj_config in objects
         ]
         self.reset()
@@ -547,11 +578,13 @@ class Variant(WrapperObject):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         variants: Optional[List[Dict[str, Any]]] = None,
         group: Optional[str] = None,
         object_groups: Dict[str, ObjectGroup] = {},
     ):
+        self.idx_object = idx_object
         self.name = name
 
         if variants is None and group is None:
@@ -561,7 +594,12 @@ class Variant(WrapperObject):
 
         if variants is not None:
             self._variants: Union[List[Object], ObjectGroup] = [
-                Object.create(physics_id=self.physics_id, name=self.name, **obj_config)
+                Object.create(
+                    physics_id=self.physics_id,
+                    idx_object=idx_object,
+                    name=self.name,
+                    **obj_config
+                )
                 for obj_config in variants
             ]
         else:

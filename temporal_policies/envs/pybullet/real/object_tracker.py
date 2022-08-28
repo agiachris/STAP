@@ -5,7 +5,7 @@ import ctrlutils
 
 from temporal_policies.envs.pybullet.real import redisgl
 from temporal_policies.envs.pybullet.sim import math, shapes
-from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.envs.pybullet.table.objects import Object, Variant
 
 
 def create_geometry(shape: shapes.Shape) -> redisgl.Geometry:
@@ -20,6 +20,9 @@ def create_geometry(shape: shapes.Shape) -> redisgl.Geometry:
 
 
 def create_graphics(object: Object) -> Sequence[redisgl.Graphics]:
+    if isinstance(object, Variant):
+        return []
+
     return [
         redisgl.Graphics(
             name=object.name,
