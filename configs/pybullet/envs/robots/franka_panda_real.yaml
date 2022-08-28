@@ -28,6 +28,7 @@ arm_kwargs:
   redis_password: taps
 
   redis_keys:
+    namespace: "franka_panda"
     control_mode: "franka_panda::control::mode"
     control_pub_command: "franka_panda::control::pub::command"
     control_pub_status: "franka_panda::control::pub::status"

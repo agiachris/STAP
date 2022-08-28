@@ -23,6 +23,26 @@ arm_kwargs:
   ori_threshold: [0.01, 0.01]
   timeout: 10.0
 
+  redisgl_config:
+    gripper_offset: [0.0, 0.0, 0.107]
+
+    redis_host: "127.0.0.1"
+    redis_port: 6000
+    redis_password: taps
+
+    redis_keys:
+      namespace: "franka_panda"
+      control_pos: "franka_panda::control::pos"
+      control_ori: "franka_panda::control::ori"
+      control_pos_des: "franka_panda::control::pos_des"
+      control_ori_des: "franka_panda::control::ori_des"
+      opspace_inertia_pos: "franka_panda::opspace::inertia_pos"
+      opspace_inertia_ori: "franka_panda::opspace::inertia_ori"
+      sensor_q: "franka_panda::sensor::q"
+      sensor_dq: "franka_panda::sensor::dq"
+      sensor_pos: "franka_panda::sensor::pos"
+      sensor_ori: "franka_panda::sensor::ori"
+
 gripper_class: sim.gripper.Gripper
 gripper_kwargs:
   torque_joints:

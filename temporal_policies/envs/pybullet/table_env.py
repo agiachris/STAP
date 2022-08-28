@@ -9,7 +9,9 @@ from PIL import Image, ImageDraw, ImageFont
 import yaml
 
 from temporal_policies.envs import base as envs
+from temporal_policies.envs.pybullet import real
 from temporal_policies.envs.pybullet.base import PybulletEnv
+from temporal_policies.envs.pybullet.real import object_tracker
 from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates
 from temporal_policies.envs.pybullet.table.primitives import Primitive
@@ -46,10 +48,16 @@ class Task:
         return Task(action_skeleton=primitives, initial_state=propositions)
 
 
-MAX_NUM_OBJECTS = 5
+def load_config(config: Union[str, Any]) -> Any:
+    if isinstance(config, str):
+        with open(config, "r") as f:
+            config = yaml.safe_load(f)
+    return config
 
 
 class TableEnv(PybulletEnv):
+    MAX_NUM_OBJECTS = 5
+
     state_space = gym.spaces.Box(
         low=0, high=np.iinfo(np.int32).max, shape=(1,), dtype=np.int32
     )
@@ -73,20 +81,15 @@ class TableEnv(PybulletEnv):
         robot_config: Union[str, Dict[str, Any]],
         objects: Union[str, List[Dict[str, Any]]],
         object_groups: Optional[List[Dict[str, Any]]] = None,
+        object_tracker_config: Optional[Union[str, Dict[str, Any]]] = None,
         gui: bool = True,
         recording_freq: int = 10,
     ):
         super().__init__(name=name, gui=gui)
 
         # Load configs.
-        if isinstance(objects, str):
-            with open(objects, "r") as f:
-                objects = yaml.safe_load(f)
-        assert not isinstance(objects, str)
-        if isinstance(robot_config, str):
-            with open(robot_config, "r") as f:
-                robot_config = yaml.safe_load(f)
-        assert not isinstance(robot_config, str)
+        object_kwargs: List[Dict[str, Any]] = load_config(objects)
+        robot_kwargs: Dict[str, Any] = load_config(robot_config)
 
         # Set primitive names.
         self._primitives = primitives
@@ -95,7 +98,7 @@ class TableEnv(PybulletEnv):
         self._robot = robot.Robot(
             physics_id=self.physics_id,
             step_simulation_fn=self.step_simulation,
-            **robot_config,
+            **robot_kwargs,
         )
 
         # Create object groups.
@@ -103,7 +106,11 @@ class TableEnv(PybulletEnv):
             object_group_list = []
         else:
             object_group_list = [
-                ObjectGroup(physics_id=self.physics_id, **group_config)
+                ObjectGroup(
+                    physics_id=self.physics_id,
+                    idx_object=TableEnv.MAX_NUM_OBJECTS + 1,  # Will be set by Variant.
+                    **group_config,
+                )
                 for group_config in object_groups
             ]
         self._object_groups = {group.name: group for group in object_group_list}
@@ -112,13 +119,25 @@ class TableEnv(PybulletEnv):
         object_list = [
             Object.create(
                 physics_id=self.physics_id,
+                idx_object=idx_object,
                 object_groups=self.object_groups,
                 **obj_config,
             )
-            for obj_config in objects
+            for idx_object, obj_config in enumerate(object_kwargs)
         ]
         self._objects = {obj.name: obj for obj in object_list}
         self.robot.table = self.objects["table"]
+
+        # Load optional object tracker.
+        if object_tracker_config is not None:
+            object_tracker_kwargs: Dict[str, Any] = load_config(object_tracker_config)
+            self._object_tracker: Optional[
+                object_tracker.ObjectTracker
+            ] = object_tracker.ObjectTracker(
+                objects=self.objects, **object_tracker_kwargs
+            )
+        else:
+            self._object_tracker = None
 
         # Create tasks.
         self._tasks = [Task.create(self, **task) for task in tasks]
@@ -192,6 +211,10 @@ class TableEnv(PybulletEnv):
     @property
     def object_groups(self) -> Dict[str, ObjectGroup]:
         return self._object_groups
+
+    @property
+    def object_tracker(self) -> Optional[object_tracker.ObjectTracker]:
+        return self._object_tracker
 
     def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
         assert isinstance(policy_args, list)
@@ -297,13 +320,20 @@ class TableEnv(PybulletEnv):
                 stateId=self._initial_state_id, physicsClientId=self.physics_id
             )
 
+            if self.object_tracker is not None and isinstance(
+                self.robot.arm, real.arm.Arm
+            ):
+                # Track objects from the real world.
+                self.object_tracker.update_poses()
+                break
+
             # Reset variants.
             for object_group in self.object_groups.values():
                 object_group.reset()
             for obj in self.objects.values():
                 obj.reset()
 
-            # Make sure none of the action sksleton args is Null.
+            # Make sure none of the action skeleton args is Null.
             if any(
                 any(obj.isinstance(Null) for obj in primitive.policy_args)
                 for primitive in self.task.action_skeleton
@@ -401,6 +431,12 @@ class TableEnv(PybulletEnv):
     def step_simulation(self) -> None:
         p.stepSimulation(physicsClientId=self.physics_id)
         self._recorder.add_frame(self.render)
+
+        if self.object_tracker is not None and not isinstance(
+            self.robot.arm, real.arm.Arm
+        ):
+            # Send objects to RedisGl.
+            self.object_tracker.send_poses(self.objects.values())
 
     def render(self) -> np.ndarray:  # type: ignore
         if "top" in self.render_mode:

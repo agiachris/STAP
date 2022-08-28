@@ -1,6 +1,6 @@
 import dataclasses
 import random
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
 from ctrlutils import eigen
 import numpy as np
@@ -14,17 +14,20 @@ from temporal_policies.envs.pybullet.table import object_state
 @dataclasses.dataclass
 class Object(body.Body):
     name: str
+    idx_object: int  # Index in env observation.
     is_static: bool = False
 
     def __init__(
         self,
         physics_id: int,
         body_id: int,
+        idx_object: int,
         name: str,
         is_static: bool = False,
     ):
         super().__init__(physics_id, body_id)
 
+        self.idx_object = idx_object
         self.name = name
         self.is_static = is_static
 
@@ -101,6 +104,7 @@ class Object(body.Body):
     def create(
         cls,
         physics_id: int,
+        idx_object: int,
         object_type: Optional[str],
         object_kwargs: Dict[str, Any] = {},
         object_groups: Dict[str, "ObjectGroup"] = {},
@@ -109,7 +113,9 @@ class Object(body.Body):
         object_class = Null if object_type is None else globals()[object_type]
         if issubclass(object_class, Variant):
             kwargs["object_groups"] = object_groups
-        return object_class(physics_id=physics_id, **object_kwargs, **kwargs)
+        return object_class(
+            physics_id=physics_id, idx_object=idx_object, **object_kwargs, **kwargs
+        )
 
     def isinstance(self, class_or_tuple: type) -> bool:
         return isinstance(self, class_or_tuple)
@@ -117,6 +123,10 @@ class Object(body.Body):
     @property
     def size(self) -> np.ndarray:
         raise NotImplementedError
+
+    @property
+    def shapes(self) -> Sequence[shapes.Shape]:
+        return []
 
     def __str__(self) -> str:
         return self.name
@@ -134,6 +144,7 @@ class Urdf(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         path: str,
         is_static: bool = False,
@@ -147,6 +158,7 @@ class Urdf(Object):
         super().__init__(
             physics_id=physics_id,
             body_id=body_id,
+            idx_object=idx_object,
             name=name,
             is_static=is_static,
         )
@@ -163,6 +175,7 @@ class Box(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         size: Union[List[float], np.ndarray],
         color: Union[List[float], np.ndarray],
@@ -170,9 +183,14 @@ class Box(Object):
     ):
         box = shapes.Box(size=np.array(size), mass=mass, color=np.array(color))
         body_id = shapes.create_body(box, physics_id=physics_id)
+        self._shape = box
 
         super().__init__(
-            physics_id=physics_id, body_id=body_id, name=name, is_static=mass == 0.0
+            physics_id=physics_id,
+            body_id=body_id,
+            idx_object=idx_object,
+            name=name,
+            is_static=mass == 0.0,
         )
 
         self._state.box_size = box.size
@@ -180,6 +198,10 @@ class Box(Object):
     @property
     def size(self) -> np.ndarray:
         return self._state.box_size
+
+    @property
+    def shapes(self) -> Sequence[shapes.Shape]:
+        return [self._shape]
 
 
 class Hook(Object):
@@ -203,6 +225,7 @@ class Hook(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         head_length: float,
         handle_length: float,
@@ -250,12 +273,17 @@ class Hook(Object):
             color=color,
             pose=math.Pose(pos=pos_joint),
         )
+        self._shapes = [joint, handle, head]
         body_id = shapes.create_body(
-            [joint, handle, head], link_parents=[0, 0], physics_id=physics_id
+            self.shapes, link_parents=[0, 0], physics_id=physics_id
         )
 
         super().__init__(
-            physics_id=physics_id, body_id=body_id, name=name, is_static=mass == 0.0
+            physics_id=physics_id,
+            body_id=body_id,
+            idx_object=idx_object,
+            name=name,
+            is_static=mass == 0.0,
         )
 
         self._state.head_length = head_length
@@ -292,6 +320,10 @@ class Hook(Object):
     def bbox(self) -> np.ndarray:
         return self._bbox
 
+    @property
+    def shapes(self) -> Sequence[shapes.Shape]:
+        return self._shapes
+
     # def aabb(self) -> np.ndarray:
     #     raise NotImplementedError
 
@@ -303,6 +335,7 @@ class Rack(Object):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         size: Union[List[float], np.ndarray],
         color: Union[List[float], np.ndarray],
@@ -356,14 +389,19 @@ class Rack(Object):
             )
             for y_leg in xy_legs[:2, 1]
         ]
+        self._shapes = [top, *legs, *stabilizers]
         body_id = shapes.create_body(
-            [top, *legs, *stabilizers],
+            self.shapes,
             link_parents=[0] * (len(legs) + len(stabilizers)),
             physics_id=physics_id,
         )
 
         super().__init__(
-            physics_id=physics_id, body_id=body_id, name=name, is_static=mass == 0.0
+            physics_id=physics_id,
+            body_id=body_id,
+            idx_object=idx_object,
+            name=name,
+            is_static=mass == 0.0,
         )
 
         self._state.box_size = np.array(size)
@@ -372,14 +410,22 @@ class Rack(Object):
     def size(self) -> np.ndarray:
         return self._state.box_size
 
+    @property
+    def shapes(self) -> Sequence[shapes.Shape]:
+        return self._shapes
+
 
 class Null(Object):
-    def __init__(self, physics_id: int, name: str):
+    def __init__(self, physics_id: int, idx_object: int, name: str):
         sphere = shapes.Sphere(radius=0.001)
         body_id = shapes.create_body(sphere, physics_id=physics_id)
 
         super().__init__(
-            physics_id=physics_id, body_id=body_id, name=name, is_static=True
+            physics_id=physics_id,
+            body_id=body_id,
+            idx_object=idx_object,
+            name=name,
+            is_static=True,
         )
 
     def enable_collisions(self) -> None:
@@ -389,11 +435,98 @@ class Null(Object):
         pass
 
 
+class WrapperObject(Object):
+    def __init__(self, body: Object):
+        self.body = body
+        self.name = body.name
+
+    def isinstance(self, class_or_tuple: type) -> bool:
+        return self.body.isinstance(class_or_tuple)
+
+    # Body methods.
+
+    @property
+    def physics_id(self) -> int:  # type: ignore
+        return self.body.physics_id
+
+    @property
+    def body_id(self) -> int:  # type: ignore
+        return self.body.body_id
+
+    @property
+    def dof(self) -> int:
+        return self.body.dof
+
+    def freeze(self) -> None:
+        self.body.freeze()
+
+    def unfreeze(self) -> None:
+        self.body.unfreeze()
+
+    # Object methods.
+
+    def pose(self) -> math.Pose:
+        return self.body.pose()
+
+    def set_pose(self, pose: math.Pose) -> None:
+        self.body.set_pose(pose)
+
+    @property
+    def inertia(self) -> dyn.SpatialInertiad:
+        return self.body.inertia
+
+    def state(self) -> object_state.ObjectState:
+        return self.body.state()
+
+    @property
+    def is_static(self) -> bool:  # type: ignore
+        return self.body.is_static
+
+    @property
+    def size(self) -> np.ndarray:
+        return self.body.size
+
+    @property
+    def shapes(self) -> Sequence[shapes.Shape]:
+        return self.body.shapes
+
+    # Hook methods.
+
+    @property
+    def head_length(self) -> float:
+        assert isinstance(self.body, Hook)
+        return self.body.head_length
+
+    @property
+    def handle_length(self) -> float:
+        assert isinstance(self.body, Hook)
+        return self.body.handle_length
+
+    @property
+    def handle_y(self) -> float:
+        assert isinstance(self.body, Hook)
+        return self.body.handle_y
+
+    @property
+    def radius(self) -> float:
+        assert isinstance(self.body, Hook)
+        return self.body.radius
+
+    @property
+    def bbox(self) -> np.ndarray:
+        assert isinstance(self.body, Hook)
+        return self.body.bbox
+
+
 class ObjectGroup:
-    def __init__(self, physics_id: int, name: str, objects: List[Dict[str, Any]]):
+    def __init__(
+        self, physics_id: int, idx_object: int, name: str, objects: List[Dict[str, Any]]
+    ):
         self._name = name
         self._objects = [
-            Object.create(physics_id=physics_id, name=name, **obj_config)
+            Object.create(
+                physics_id=physics_id, idx_object=idx_object, name=name, **obj_config
+            )
             for obj_config in objects
         ]
         self.reset()
@@ -441,16 +574,17 @@ class ObjectGroup:
         return self.objects[idx]
 
 
-class Variant(Object):
+class Variant(WrapperObject):
     def __init__(
         self,
         physics_id: int,
+        idx_object: int,
         name: str,
         variants: Optional[List[Dict[str, Any]]] = None,
         group: Optional[str] = None,
         object_groups: Dict[str, ObjectGroup] = {},
     ):
-        self.physics_id = physics_id
+        self.idx_object = idx_object
         self.name = name
 
         if variants is None and group is None:
@@ -460,7 +594,12 @@ class Variant(Object):
 
         if variants is not None:
             self._variants: Union[List[Object], ObjectGroup] = [
-                Object.create(physics_id=self.physics_id, name=self.name, **obj_config)
+                Object.create(
+                    physics_id=self.physics_id,
+                    idx_object=idx_object,
+                    name=self.name,
+                    **obj_config
+                )
                 for obj_config in variants
             ]
         else:
@@ -471,7 +610,7 @@ class Variant(Object):
         self._idx_variant: Optional[int] = None
 
     @property
-    def body(self) -> Object:
+    def body(self) -> Object:  # type: ignore
         if self._body is None:
             raise RuntimeError("Variant.reset() must be called first")
         return self._body
@@ -509,72 +648,3 @@ class Variant(Object):
         self.enable_collisions()
         self.unfreeze()
         self.body.reset()
-
-    def isinstance(self, class_or_tuple: type) -> bool:
-        return self.body.isinstance(class_or_tuple)
-
-    # Body methods.
-
-    @property
-    def body_id(self) -> int:  # type: ignore
-        return self.body.body_id
-
-    @property
-    def dof(self) -> int:
-        return self.body.dof
-
-    def freeze(self) -> None:
-        self.body.freeze()
-
-    def unfreeze(self) -> None:
-        self.body.unfreeze()
-
-    # Object methods.
-
-    def pose(self) -> math.Pose:
-        return self.body.pose()
-
-    def set_pose(self, pose: math.Pose) -> None:
-        self.body.set_pose(pose)
-
-    @property
-    def inertia(self) -> dyn.SpatialInertiad:
-        return self.body.inertia
-
-    def state(self) -> object_state.ObjectState:
-        return self.body.state()
-
-    @property
-    def is_static(self) -> bool:  # type: ignore
-        return self.body.is_static
-
-    @property
-    def size(self) -> np.ndarray:
-        return self.body.size
-
-    # Hook methods.
-
-    @property
-    def head_length(self) -> float:
-        assert isinstance(self.body, Hook)
-        return self.body.head_length
-
-    @property
-    def handle_length(self) -> float:
-        assert isinstance(self.body, Hook)
-        return self.body.handle_length
-
-    @property
-    def handle_y(self) -> float:
-        assert isinstance(self.body, Hook)
-        return self.body.handle_y
-
-    @property
-    def radius(self) -> float:
-        assert isinstance(self.body, Hook)
-        return self.body.radius
-
-    @property
-    def bbox(self) -> np.ndarray:
-        assert isinstance(self.body, Hook)
-        return self.body.bbox
