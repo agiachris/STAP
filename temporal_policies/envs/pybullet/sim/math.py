@@ -30,24 +30,3 @@ class Pose:
     def to_eigen(self) -> eigen.Isometry3d:
         """Converts a pose to an Eigen Isometry3d."""
         return eigen.Translation3d(self.pos) * eigen.Quaterniond(self.quat)
-
-    def from_dict(self, pose: Dict[str, Any]) -> "Pose":
-        """Creates a pose from dict format."""
-        return Pose(
-            np.array(pose["pose"]),
-            np.array(
-                [pose["ori"]["x"], pose["ori"]["y"], pose["ori"]["z"], pose["ori"]["w"]]
-            ),
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Converts a pose to dict format."""
-        return {
-            "pos": self.pos.tolist(),
-            "ori": {
-                "x": self.quat[0],
-                "y": self.quat[1],
-                "z": self.quat[2],
-                "w": self.quat[3],
-            },
-        }

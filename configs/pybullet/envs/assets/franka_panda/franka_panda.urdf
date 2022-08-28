@@ -146,50 +146,50 @@
 			</geometry>
 			<material name="gray" />
 		</visual>
-		<visual>
-			<origin xyz="0 0 0.107" rpy="0 0 -0.78539816339" />
-			<geometry>
-				<mesh filename="visual/hand.dae" />
-			</geometry>
-			<material name="white" />
-		</visual>
-		<visual>
-			<origin xyz="0 0 0.1654" rpy="0 0 2.35619449019" />
-			<geometry>
-				<mesh filename="visual/finger.dae" />
-			</geometry>
-			<material name="gray" />
-		</visual>
-		<visual>
-			<origin xyz="0 0 0.1654" rpy="0 0 -0.78539816339" />
-			<geometry>
-				<mesh filename="visual/finger.dae" />
-			</geometry>
-			<material name="gray" />
-		</visual>
+		<!-- <visual> -->
+		<!-- 	<origin xyz="0 0 0.107" rpy="0 0 -0.78539816339" /> -->
+		<!-- 	<geometry> -->
+		<!-- 		<mesh filename="visual/hand.dae" /> -->
+		<!-- 	</geometry> -->
+		<!-- 	<material name="white" /> -->
+		<!-- </visual> -->
+		<!-- <visual> -->
+		<!-- 	<origin xyz="0 0 0.1654" rpy="0 0 2.35619449019" /> -->
+		<!-- 	<geometry> -->
+		<!-- 		<mesh filename="visual/finger.dae" /> -->
+		<!-- 	</geometry> -->
+		<!-- 	<material name="gray" /> -->
+		<!-- </visual> -->
+		<!-- <visual> -->
+		<!-- 	<origin xyz="0 0 0.1654" rpy="0 0 -0.78539816339" /> -->
+		<!-- 	<geometry> -->
+		<!-- 		<mesh filename="visual/finger.dae" /> -->
+		<!-- 	</geometry> -->
+		<!-- 	<material name="gray" /> -->
+		<!-- </visual> -->
 		<collision>
 			<geometry>
 				<mesh filename="collision/link7.stl" />
 			</geometry>
 		</collision>
-		<collision>
-			<origin xyz="0 0 0.107" rpy="0 0 -0.78539816339" />
-			<geometry>
-				<mesh filename="collision/hand.stl" />
-			</geometry>
-		</collision>
-		<collision>
-			<origin xyz="0 0 0.1654" rpy="0 0 2.35619449019" />
-			<geometry>
-				<mesh filename="collision/finger.stl" />
-			</geometry>
-		</collision>
-		<collision>
-			<origin xyz="0 0 0.1654" rpy="0 0 -0.78539816339" />
-			<geometry>
-				<mesh filename="collision/finger.stl" />
-			</geometry>
-		</collision>
+		<!-- <collision> -->
+		<!-- 	<origin xyz="0 0 0.107" rpy="0 0 -0.78539816339" /> -->
+		<!-- 	<geometry> -->
+		<!-- 		<mesh filename="collision/hand.stl" /> -->
+		<!-- 	</geometry> -->
+		<!-- </collision> -->
+		<!-- <collision> -->
+		<!-- 	<origin xyz="0 0 0.1654" rpy="0 0 2.35619449019" /> -->
+		<!-- 	<geometry> -->
+		<!-- 		<mesh filename="collision/finger.stl" /> -->
+		<!-- 	</geometry> -->
+		<!-- </collision> -->
+		<!-- <collision> -->
+		<!-- 	<origin xyz="0 0 0.1654" rpy="0 0 -0.78539816339" /> -->
+		<!-- 	<geometry> -->
+		<!-- 		<mesh filename="collision/finger.stl" /> -->
+		<!-- 	</geometry> -->
+		<!-- </collision> -->
 	</link>
 
 	<joint name="joint1" type="revolute">

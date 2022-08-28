@@ -53,6 +53,7 @@ module = [
   "pandas",
   "PIL",
   "pybullet",
+  "redis",
   "scipy.*",
   "scod_regression",
   "seaborn",

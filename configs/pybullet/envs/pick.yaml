@@ -32,6 +32,7 @@ env_kwargs:
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
   # robot_config: configs/pybullet/envs/robots/franka_panda_real.yaml
+  # object_tracker_config: configs/pybullet/envs/perception/object_tracker.yaml
 
   object_groups:
     - name: movable

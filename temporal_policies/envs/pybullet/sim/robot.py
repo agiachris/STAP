@@ -7,11 +7,14 @@ import pybullet as p
 import spatialdyn as dyn
 
 from temporal_policies.envs import pybullet
-from temporal_policies.envs.pybullet.sim import articulated_body, arm, body, gripper
-from temporal_policies.envs.pybullet.real import (  # noqa
-    arm as real_arm,
-    gripper as real_gripper,
+from temporal_policies.envs.pybullet.sim import (
+    articulated_body,
+    arm,
+    body,
+    gripper,
+    math,
 )
+from temporal_policies.envs.pybullet import real
 from temporal_policies.utils import configs
 
 
@@ -86,6 +89,10 @@ class Robot(body.Body):
     def table(self, table: body.Body) -> None:
         self._table = table
 
+    @property
+    def home_pose(self) -> math.Pose:
+        return self.arm.home_pose
+
     def reset(self) -> bool:
         """Resets the robot by setting the arm to its home configuration and the gripper to the open position.
 
@@ -94,7 +101,7 @@ class Robot(body.Body):
         self.gripper.reset()
         self.clear_load()
         status = self.arm.reset()
-        if isinstance(self.arm, real_arm.Arm):
+        if isinstance(self.arm, real.arm.Arm):
             status = self.goto_configuration(self.arm.q_home)
         return status
 
@@ -127,8 +134,8 @@ class Robot(body.Body):
     def goto_home(self) -> bool:
         """Uses opspace control to go to the home position."""
         return self.goto_pose(
-            self.arm.home_pose.pos,
-            self.arm.home_pose.quat,
+            self.home_pose.pos,
+            self.home_pose.quat,
             pos_gains=(64, 16),
             ori_gains=(64, 16),
         )
@@ -167,7 +174,7 @@ class Robot(body.Body):
             status = self.arm.update_torques()
             self.gripper.update_torques()
 
-            if self.table is not None and not isinstance(self.arm, real_arm.Arm):
+            if self.table is not None and not isinstance(self.arm, real.arm.Arm):
                 grasp_body_id = self.gripper._gripper_state.grasp_body_id
                 if grasp_body_id is not None:
                     contacts = p.getContactPoints(
