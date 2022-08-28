@@ -446,10 +446,6 @@ class WrapperObject(Object):
     # Body methods.
 
     @property
-    def physics_id(self) -> int:  # type: ignore
-        return self.body.physics_id
-
-    @property
     def body_id(self) -> int:  # type: ignore
         return self.body.body_id
 
@@ -584,6 +580,7 @@ class Variant(WrapperObject):
         group: Optional[str] = None,
         object_groups: Dict[str, ObjectGroup] = {},
     ):
+        self.physics_id = physics_id
         self.idx_object = idx_object
         self.name = name
 
