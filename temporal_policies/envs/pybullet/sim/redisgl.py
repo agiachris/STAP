@@ -51,9 +51,11 @@ class RedisGl:
         self._redis = ctrlutils.RedisClient(redis_host, redis_port, redis_password)
 
         # Only publish to redisgl if robot controller isn't already running.
-        # redis_robot_controller = redis.get(f"{redisgl.KEY_ARGS}::{redis_keys.namespace}")
-        # if redis_robot_controller is not None:
-        #     return
+        redis_robot_controller = self._redis.get(
+            f"{redisgl.KEY_ARGS}::{self._redis_keys.namespace}"
+        )
+        if redis_robot_controller is not None:
+            return
 
         self._redis_pipe = self._redis.pipeline()
 
@@ -64,9 +66,7 @@ class RedisGl:
         # Register app.
         self._model_keys = redisgl.ModelKeys(self._redis_keys.namespace)
         self._arm_urdf_path = str(pathlib.Path(arm_urdf).parent.absolute())
-        redisgl.register_resource_path(
-            self._redis_pipe, self._arm_urdf_path
-        )
+        redisgl.register_resource_path(self._redis_pipe, self._arm_urdf_path)
         redisgl.register_model_keys(self._redis_pipe, self._model_keys)
         try:
             self._redis_pipe.execute()
@@ -123,7 +123,7 @@ class RedisGl:
             return
 
         redisgl.unregister_resource_path(self._redis_pipe, self._arm_urdf_path)
-        # redisgl.unregister_model_keys(self._redis_pipe, self._model_keys)
+        redisgl.unregister_model_keys(self._redis_pipe, self._model_keys)
         self._redis_pipe.execute()
 
     def update(
