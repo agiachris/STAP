@@ -51,9 +51,12 @@ class RedisGl:
         self._redis = ctrlutils.RedisClient(redis_host, redis_port, redis_password)
 
         # Only publish to redisgl if robot controller isn't already running.
-        redis_robot_controller = self._redis.get(
-            f"{redisgl.KEY_ARGS}::{self._redis_keys.namespace}"
-        )
+        try:
+            redis_robot_controller = self._redis.get(
+                f"{redisgl.KEY_ARGS}::{self._redis_keys.namespace}"
+            )
+        except ConnectionError:
+            return
         if redis_robot_controller is not None:
             return
 
@@ -68,10 +71,7 @@ class RedisGl:
         self._arm_urdf_path = str(pathlib.Path(arm_urdf).parent.absolute())
         redisgl.register_resource_path(self._redis_pipe, self._arm_urdf_path)
         redisgl.register_model_keys(self._redis_pipe, self._model_keys)
-        try:
-            self._redis_pipe.execute()
-        except ConnectionError:
-            return
+        self._redis_pipe.execute()
 
         self._is_active = True
 
