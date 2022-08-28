@@ -10,7 +10,15 @@ from temporal_policies.utils import tensors
 
 
 class TableEnvEncoder(Encoder):
-    """Normalizes observation to the range (-0.5, 0.5)."""
+    """Encoder for TableEnv observations.
+
+    Converts the 2D low-dimensional state returned by TableEnv into a 1D vector
+    for the primitive policies. The objects are re-ordered such that the first
+    corresponds to the gripper, the second/third correspond to the primitive
+    argument objects, and the remaining are a random permutation of objects.
+
+    The observation values are also normalized to the range (-0.5, 0.5).
+    """
 
     def __init__(self, env: envs.pybullet.TableEnv):
         observation_space = env.observation_space
@@ -18,9 +26,7 @@ class TableEnvEncoder(Encoder):
         state_space = gym.spaces.Box(
             low=-0.5,
             high=0.5,
-            shape=(
-                (len(env.get_primitive().policy_args) + 1) * observation_space.shape[1],
-            ),
+            shape=(int(np.prod(observation_space.shape)),),
             dtype=np.float32,
         )
         super().__init__(env, state_space)
@@ -36,7 +42,7 @@ class TableEnvEncoder(Encoder):
         # self._idx_args: Optional[List[int]] = None
 
     def _apply(self, fn):
-        """Ensures members get transferred with NormalizeObservation.to(device)."""
+        """Ensures members get transferred with TableEnvEncoder.to(device)."""
         super()._apply(fn)
         self.observation_mid = fn(self.observation_mid)
         self.observation_range = fn(self.observation_range)
@@ -47,14 +53,35 @@ class TableEnvEncoder(Encoder):
         self,
         observation: torch.Tensor,
         env: Optional[envs.pybullet.TableEnv] = None,
+        randomize: bool = True,
     ) -> torch.Tensor:
-        """Normalizes observation to the range (-0.5, 0.5)."""
+        """Encodes the TableEnv observation into a flat vector.
+
+        Converts the 2D low-dimensional state returned by TableEnv into a 1D
+        vector for the primitive policies. The objects are re-ordered such that
+        the first corresponds to the gripper, the second/third correspond to the
+        primitive argument objects, and the remaining are a random permutation
+        of objects.
+
+        The observation values are also normalized to the range (-0.5, 0.5).
+
+        Args:
+            observation: TableEnv observation.
+            env: Optional TableEnv, for example if an eval env should be used
+                instead of the default train env.
+            randomize: Whether to randomize the order of auxiliary objects.
+        """
         if env is None:
             env = self._env
         primitive = env.get_primitive()
         idx_args = env.get_arg_indices(
             idx_policy=primitive.idx_policy, policy_args=primitive.policy_args
         )
+
+        if randomize:
+            np_idx_args = np.array(idx_args)
+            np.random.shuffle(np_idx_args[1 + len(primitive.policy_args):])
+            idx_args = np_idx_args.tolist()
 
         observation = observation[:, idx_args, :]
         observation = (observation - self.observation_mid) / self.observation_range
