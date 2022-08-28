@@ -90,8 +90,8 @@ class RedisGl:
             self._redis,
             self._model_keys,
             redisgl.ObjectModel(
-                name="pos_des",
-                graphics=redisgl.Graphics("pos_des", redisgl.Sphere(0.01)),
+                name="pose_des",
+                graphics=redisgl.Graphics("pose_des", redisgl.Sphere(0.01)),
                 key_pos=self._redis_keys.control_pos_des,
                 key_ori=self._redis_keys.control_ori_des,
             ),

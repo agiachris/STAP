@@ -81,6 +81,9 @@ class ObjectTracker:
     def __del__(self) -> None:
         redisgl.unregister_resource_path(self._redis_pipe, self._assets_path)
         redisgl.unregister_model_keys(self._redis_pipe, self._model_keys)
+        for object in self._tracked_objects:
+            redisgl.unregister_object(self._redis_pipe, self._model_keys, object.name)
+        self._redis_pipe.execute()
 
     def get_tracked_objects(self, objects: Iterable[Object]) -> List[Object]:
         for object in objects:

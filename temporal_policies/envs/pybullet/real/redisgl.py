@@ -232,6 +232,19 @@ def register_object(
     redis.set(model_keys.key_objects_prefix + object.name, json.dumps(object.to_dict()))
 
 
+def unregister_object(
+    redis: ctrlutils.RedisClient, model_keys: ModelKeys, name: str
+) -> None:
+    """Unregisters an object with Redis.
+
+    Args:
+        redis: Redis client.
+        name: Object name.espace.
+        object_model: Object model.
+    """
+    redis.delete(model_keys.key_objects_prefix + name)
+
+
 @dataclasses.dataclass
 class RobotModel:
     articulated_body: dyn.ArticulatedBody
