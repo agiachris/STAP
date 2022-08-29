@@ -26,7 +26,7 @@ class Body:
         pos, quat = p.getBasePositionAndOrientation(
             self.body_id, physicsClientId=self.physics_id
         )
-        return math.Pose(pos, quat)
+        return math.Pose(np.array(pos), np.array(quat))
 
     def set_pose(self, pose: math.Pose) -> None:
         """Sets the base pose."""
@@ -115,7 +115,7 @@ class Link:
         pos, quat = p.getLinkState(
             self.body_id, self.link_id, physicsClientId=self.physics_id
         )[:2]
-        return math.Pose(pos, quat)
+        return math.Pose(np.array(pos), np.array(quat))
 
     @property
     def inertia(self) -> str:

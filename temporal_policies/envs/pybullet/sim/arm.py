@@ -6,7 +6,7 @@ from ctrlutils import eigen
 import numpy as np
 import spatialdyn as dyn
 
-from temporal_policies.envs.pybullet.sim import articulated_body, math
+from temporal_policies.envs.pybullet.sim import articulated_body, math, redisgl
 
 
 @dataclasses.dataclass
@@ -40,6 +40,7 @@ class Arm(articulated_body.ArticulatedBody):
         pos_threshold: Tuple[float, float],
         ori_threshold: Tuple[float, float],
         timeout: float,
+        redisgl_config: Optional[Dict[str, Any]] = None,
     ):
         """Constructs the arm from yaml config.
 
@@ -57,6 +58,7 @@ class Arm(articulated_body.ArticulatedBody):
             pos_threshold: (position, velocity) error threshold for position convergence.
             ori_threshold: (orientation, angular velocity) threshold for orientation convergence.
             timeout: Default command timeout.
+            redisgl_config: Config for setting up RedisGl visualization.
         """
         super().__init__(
             physics_id=physics_id,
@@ -85,6 +87,14 @@ class Arm(articulated_body.ArticulatedBody):
         self._q_limits = np.array(
             [self.link(link_id).joint_limits for link_id in self.torque_joints]
         ).T
+
+        self._redisgl = (
+            None
+            if redisgl_config is None
+            else redisgl.RedisGl(
+                **redisgl_config, ee_offset=self.ee_offset, arm_urdf=arm_urdf
+            )
+        )
 
         self._arm_state = ArmState()
         self.reset()
@@ -136,7 +146,24 @@ class Arm(articulated_body.ArticulatedBody):
         self._arm_state.iter_timeout = int(timeout / math.PYBULLET_TIMESTEP)
         self._arm_state.torque_control = True
 
-    def set_configuration_goal(self, q: np.ndarray, skip_simulation: bool = False) -> None:
+    def get_joint_state(self, joints: List[int]) -> Tuple[np.ndarray, np.ndarray]:
+        """Gets the position and velocities of the given joints.
+
+        Args:
+            joints: List of joint ids.
+        Returns:
+            Joint positions and velocities (q, dq).
+        """
+        q, dq = super().get_joint_state(joints)
+        if self._redisgl is not None:
+            self._redisgl.update(
+                q, dq, self._arm_state.pos_des, self._arm_state.quat_des
+            )
+        return q, dq
+
+    def set_configuration_goal(
+        self, q: np.ndarray, skip_simulation: bool = False
+    ) -> None:
         """Sets the robot to the desired joint configuration.
 
         Args:
@@ -178,14 +205,6 @@ class Arm(articulated_body.ArticulatedBody):
         ).any():
             return articulated_body.ControlStatus.ABORTED
         # TODO: Debugging.
-        # J = dyn.jacobian(self.ab, -1, offset=self.ee_offset)
-        # Lambda = dyn.opspace.inertia(self.ab, J, svd_epsilon=0.01)
-        # self._redis.set_matrix(
-        #     "franka_panda::sensor::pos",
-        #     dyn.cartesian_pose(self.ab, -1, offset=np.array([0., 0., 0.107])).translation,
-        # )
-        # self._redis.set_matrix("franka_panda::opspace::Lambda_pos", Lambda[:3, :3])
-        # self._redis.set_matrix("franka_panda::opspace::Lambda_ori", Lambda[3:, 3:])
 
         # Compute torques.
         tau, status = dyn.opspace_control(
