@@ -17,7 +17,7 @@ from temporal_policies.envs.pybullet.table import object_state, predicates
 from temporal_policies.envs.pybullet.table.primitives import Primitive
 from temporal_policies.envs.pybullet.table.objects import Null, Object, ObjectGroup
 from temporal_policies.envs.variant import VariantEnv
-from temporal_policies.utils import recording
+from temporal_policies.utils import random as random_utils, recording
 
 import pybullet as p  # Import after envs.pybullet.base to avoid print statement.
 
@@ -184,6 +184,11 @@ class TableEnv(PybulletEnv):
         self._timelapse = recording.Recorder()
         self._recorder = recording.Recorder(recording_freq)
         self._recording_text = ""
+
+    def __del__(self) -> None:
+        if self._reset_process is not None:
+            self._reset_process.kill()
+        super().__del__()
 
     @property
     def tasks(self) -> List[Task]:

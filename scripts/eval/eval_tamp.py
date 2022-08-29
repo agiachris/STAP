@@ -61,9 +61,6 @@ def eval_tamp(
     seed: Optional[int] = None,
     gui: Optional[int] = None,
 ) -> None:
-    if seed is not None:
-        random.seed(seed)
-
     # Load environment.
     env_kwargs = {}
     if gui is not None:
@@ -91,8 +88,8 @@ def eval_tamp(
         timer = timing.Profiler()
 
         # Initialize environment.
-        observation = env.reset()
-        assert isinstance(observation, np.ndarray)
+        observation, info = env.reset(seed=seed if i == 0 else None)
+        seed = info["seed"]
         state = env.get_state()
 
         task_plans = []
@@ -253,6 +250,7 @@ def eval_tamp(
                 "visited_values": motion_plans[idx_best].visited_values,
                 "t_task_planner": t_task_planner,
                 "t_motion_planner": t_motion_planner,
+                "seed": seed,
                 "discarded": [
                     {
                         "action_skeleton": task_plans[i],

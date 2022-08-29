@@ -41,9 +41,6 @@ def evaluate_planners(
     seed: Optional[int] = None,
     gui: Optional[int] = None,
 ) -> None:
-    if seed is not None:
-        random.seed(seed)
-
     timer = timing.Timer()
 
     env_kwargs = {}
@@ -66,16 +63,13 @@ def evaluate_planners(
     num_success = 0
     pbar = tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True)
     for i in pbar:
-        if seed is not None:
-            random.seed(i)
-
         if isinstance(planner.dynamics, dynamics.OracleDynamics):
             planner.dynamics.reset_cache()
         for policy in planner.policies:
             if isinstance(policy, agents.OracleAgent):
                 policy.reset_cache()
-        observation = env.reset()
-        assert isinstance(observation, np.ndarray)
+        observation, info = env.reset(seed=seed if i == 0 else None)
+        seed = info["seed"]
         state = env.get_state()
 
         if verbose:
@@ -180,6 +174,7 @@ def evaluate_planners(
                 # "visited_values": plan.visited_values,
                 "t_planner": t_planner,
                 "action_skeleton": list(map(str, env.action_skeleton)),
+                "seed": seed,
             }
             if isinstance(env, envs.pybox2d.Sequential2D):
                 save_dict["grid_q_values"] = grid_q_values

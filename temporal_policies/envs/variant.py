@@ -89,14 +89,10 @@ class VariantEnv(Env):
         return self.env.get_observation(image)
 
     def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        return_info: bool = False,
-        options: Optional[dict] = None,
-    ) -> Union[np.ndarray, Tuple[np.ndarray, dict]]:
+        self, *, seed: Optional[int] = None, options: Optional[dict] = None
+    ) -> Tuple[np.ndarray, dict]:
         self._idx_variant = np.random.randint(len(self.variants))
-        return self.env.reset(seed=seed, return_info=return_info, options=options)
+        return self.env.reset(seed=seed, options=options)
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
         return self.env.step(action)

@@ -57,7 +57,7 @@ class DRQV2(rl.RLAgent):
         self.noise_clip = noise_clip
 
         # Now setup the logging parameters
-        self._current_obs = self.env.reset()
+        self._current_obs, _ = self.env.reset()
         self._episode_reward = 0
         self._episode_length = 0
         self._num_ep = 0
@@ -169,7 +169,7 @@ class DRQV2(rl.RLAgent):
             all_metrics["length"] = self._episode_length
             all_metrics["num_ep"] = self._num_ep
             # Reset the environment
-            self._current_obs = self.env.reset()
+            self._current_obs, _ = self.env.reset()
             self.dataset.add(self._current_obs)  # Add the first timestep
             self._episode_length = 0
             self._episode_reward = 0

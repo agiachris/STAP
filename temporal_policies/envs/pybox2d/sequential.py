@@ -5,6 +5,7 @@ import numpy as np
 
 from temporal_policies.envs import base, utils
 from temporal_policies.envs.pybox2d.base import Box2DBase
+from temporal_policies.utils import random
 
 
 class Sequential2D(base.Env):
@@ -106,15 +107,13 @@ class Sequential2D(base.Env):
         return self.current_env.step(action)
 
     def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        return_info: bool = False,
-        options: Optional[dict] = None,
-        max_attempts: int = 10,
-    ) -> np.ndarray:
+        self, *, seed: Optional[int] = None, options: Optional[dict] = None
+    ) -> Tuple[np.ndarray, dict]:
         """Resets the environment."""
-        observation = self.current_env.reset()
+        if seed is not None:
+            random.seed(seed)
+
+        observation, info = self.current_env.reset()
         for i, env in enumerate(self.envs):
             if env == self.current_env:
                 continue
@@ -127,7 +126,9 @@ class Sequential2D(base.Env):
             env._physics_steps = 0
             env._render_setup()
 
-        return observation
+        info["seed"] = seed
+
+        return observation, info
 
     def record_start(
         self,
