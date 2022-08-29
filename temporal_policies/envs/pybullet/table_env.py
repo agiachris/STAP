@@ -335,6 +335,10 @@ class TableEnv(PybulletEnv):
                 ee_state.set_pose(self.robot.arm.ee_pose())
                 state["TableEnv.robot.arm.ee_pose"] = ee_state
 
+            # Skip Null objects since they don't exist in the scene.
+            if obj.isinstance(Null):
+                continue
+
             state[obj.name] = obj.state()
 
         return state
