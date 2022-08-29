@@ -56,7 +56,8 @@ def load_config(config: Union[str, Any]) -> Any:
 
 
 class TableEnv(PybulletEnv):
-    MAX_NUM_OBJECTS = 5
+    MAX_NUM_OBJECTS = 5  # Number of rows in the observation matrix.
+    EE_OBSERVATION_IDX = 0  # Index of the end-effector in the observation matrix.
 
     state_space = gym.spaces.Box(
         low=0, high=np.iinfo(np.int32).max, shape=(1,), dtype=np.int32
@@ -218,7 +219,21 @@ class TableEnv(PybulletEnv):
 
     def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
         assert isinstance(policy_args, list)
-        return [arg.idx_object for arg in policy_args] + [len(self.objects)]
+
+        arg_indices = [TableEnv.EE_OBSERVATION_IDX]
+
+        object_indices = [
+            i
+            for i in range(TableEnv.MAX_NUM_OBJECTS)
+            if i != TableEnv.EE_OBSERVATION_IDX
+        ]
+        arg_indices += [object_indices[obj.idx_object] for obj in policy_args]
+
+        other_indices: List[Optional[int]] = list(range(TableEnv.MAX_NUM_OBJECTS))
+        for i in arg_indices:
+            other_indices[i] = None
+
+        return arg_indices + [i for i in other_indices if i is not None]
 
     def get_primitive(self) -> envs.Primitive:
         return self._primitive
@@ -271,6 +286,16 @@ class TableEnv(PybulletEnv):
         return True
 
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
+        """Gets the current low-dimensional state for all the objects.
+
+        The observation is a [MAX_NUM_OBJECTS, d] matrix, where d is the length
+        of the low-dimensional object state. The first row corresponds to the
+        pose of the end-effector, and the following rows correspond to the
+        states of all the objects in order. Any remaining rows are zero.
+        """
+        if image:
+            raise NotImplementedError
+
         obj_states = self.object_states()
         observation = np.zeros(
             self.observation_space.shape, dtype=self.observation_space.dtype
@@ -280,23 +305,41 @@ class TableEnv(PybulletEnv):
         return observation
 
     def set_observation(self, observation: np.ndarray) -> None:
-        ee_state = object_state.ObjectState(observation[len(self.objects)])
+        """Sets the object states from the given low-dimensional state observation.
+
+        See `TableEnv.get_observation()` for a description of the observation.
+        """
+        ee_state = object_state.ObjectState(observation[TableEnv.EE_OBSERVATION_IDX])
         ee_pose = ee_state.pose()
         try:
             self.robot.goto_pose(pos=ee_pose.pos, quat=ee_pose.quat)
         except robot.ControlException:
             print(f"TableEnv.set_observation(): Failed to reach pose {ee_pose}.")
 
-        for i, object in enumerate(self.objects.values()):
-            obj_state = object_state.ObjectState(observation[i])
+        for idx_observation, object in zip(
+            filter(lambda i: i != TableEnv.EE_OBSERVATION_IDX, range(len(observation))),
+            self.objects.values(),
+        ):
+            obj_state = object_state.ObjectState(observation[idx_observation])
             object.set_state(obj_state)
 
     def object_states(self) -> Dict[str, object_state.ObjectState]:
-        state = {obj.name: obj.state() for name, obj in self.objects.items()}
+        """Returns the object states as an ordered dict indexed by object name.
 
-        ee_state = object_state.ObjectState()
-        ee_state.set_pose(self.robot.arm.ee_pose())
-        state["TableEnv.robot.arm.ee_pose"] = ee_state
+        The first item in the dict corresponds to the end-effector pose.
+        """
+        state = {}
+        for i, obj in enumerate(self.objects.values()):
+            if i == TableEnv.EE_OBSERVATION_IDX:
+                ee_state = object_state.ObjectState()
+                ee_state.set_pose(self.robot.arm.ee_pose())
+                state["TableEnv.robot.arm.ee_pose"] = ee_state
+
+            # Skip Null objects since they don't exist in the scene.
+            if obj.isinstance(Null):
+                continue
+
+            state[obj.name] = obj.state()
 
         return state
 
