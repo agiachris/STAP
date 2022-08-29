@@ -46,7 +46,7 @@ class Task:
         return Task(action_skeleton=primitives, initial_state=propositions)
 
 
-MAX_NUM_OBJECTS = 10
+MAX_NUM_OBJECTS = 7
 
 
 class TableEnv(PybulletEnv):

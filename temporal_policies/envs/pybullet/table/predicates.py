@@ -6,7 +6,7 @@ import numpy as np
 import pybullet as p
 import symbolic
 
-from temporal_policies.envs.pybullet.table.objects import Hook, Null, Object, Rack
+from temporal_policies.envs.pybullet.table.objects import Object, Null, Hook, Box, Rack
 from temporal_policies.envs.pybullet.table.primitives import compute_lift_height
 from temporal_policies.envs.pybullet.sim import math, body
 from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
@@ -22,7 +22,7 @@ TWIST_EPS = 0.001
 TABLE_HEIGHT = 0.0
 WORKSPACE_RADIUS = 0.75
 WORKSPACE_MIN_X = 0.4
-TIPPING_EPS = 0.1
+TIPPING_PROB = 0.1
 
 
 def is_above(obj_a: Object, obj_b: Object) -> bool:
@@ -166,6 +166,7 @@ class BeyondWorkspace(Predicate):
         obj = self._get_arg_objects(objects)[0]
         distance = float(np.linalg.norm(obj.pose().pos[:2]))
         is_beyondworkspace = distance > WORKSPACE_RADIUS
+
         dbprint(f"{self}.value():", is_beyondworkspace, "distance:", distance)
         return is_beyondworkspace
 
@@ -194,9 +195,10 @@ class IsTippable(Predicate):
     pass
 
 
-class Below(Predicate):
-    """Unary predicate enforcing that an object be placed below another."""
+class Under(Predicate):
+    """Unary predicate enforcing that an object be placed underneath another."""
     pass
+
 
 class On(Predicate):
 
@@ -205,62 +207,96 @@ class On(Predicate):
     ) -> bool:
         """Samples a geometric grounding of the On(a, b) predicate."""
         child_obj, parent_obj = self._get_arg_objects(objects)
+
         if child_obj.is_static:
             dbprint(f"{self}.sample():", True, "- static")
             return True
-
-        # Get parent aabb.
-        xyz_min, xyz_max = parent_obj.aabb()
-        margin = 0.5 * child_obj.size[:2].max()
-        if parent_obj.name == "table":
-            rack_objs = [rack_obj for rack_obj in objects.values() if rack_obj.isinstance(Rack)]
-            if any(f"below({child_obj}, {rack_obj})" in state for rack_obj in rack_objs):
-                breakpoint()
-                # Restrict sampling space to underneath the rack
-                assert len(rack_objs) == 1
-                xyz_min, xyz_max = rack_objs[0].aabb()
-                xyz_min[0] += margin
-                xyz_max[0] -= margin
-                xyz_min[1] += margin
-                xyz_max[1] -= margin
-                xyz_max[2] = TABLE_HEIGHT
-            elif f"beyondworkspace({child_obj})" in state:
-                # Increase the likelihood of sampling outside the workspace.
-                r = WORKSPACE_RADIUS
-                xyz_min[0] = r * np.cos(np.arcsin(0.5 * (xyz_max[1] - xyz_min[1]) / r))
-                xyz_max[0] -= margin
-                xyz_min[1] += margin
-                xyz_max[1] -= margin
-            elif f"inworkspace({child_obj})" in state:
-                # Increase the likelihood of sampling inside the workspace.
-                xyz_min[0] = WORKSPACE_MIN_X
-                xyz_max[0] = WORKSPACE_RADIUS
-                xyz_min[1] += margin
-                xyz_max[1] -= margin
         
-        # Generate pose on parent.
-        xyz = np.zeros(3)
-        xyz[:2] = np.random.uniform(xyz_min[:2], xyz_max[:2])
-        xyz[2] = xyz_max[2] + 0.5 * child_obj.size[2] + AABB_EPS
+        xy_min = np.empty(2)
+        xy_max = np.empty(2)
+        z_max = parent_obj.aabb()[1, 2] + AABB_EPS
+        T_parent_obj_to_world = parent_obj.pose()
+        margin = 0.5 * child_obj.size[:2].max()
+
+        if parent_obj.name == "table":
+            is_under = False
+            for obj in objects.values():
+                if obj.isinstance(Rack) and f"under({child_obj}, {obj})" in state:
+                    # Restrict placement location to under the rack
+                    is_under = True
+                    T_parent_obj_to_world = obj.pose()
+                    xy_min[:2] = np.array([margin, margin]) - obj.size / 2
+                    xy_max[:2] = obj.size[:2] - margin - obj.size / 2
+                    break
+            if not is_under:
+                T_parent_obj_to_world = math.Pose()
+                xyz_min, xyz_max = parent_obj.aabb()
+                if f"beyondworkspace({child_obj})" in state:
+                    # Increase the likelihood of sampling outside the workspace
+                    r = WORKSPACE_RADIUS
+                    xy_min[0] = r * np.cos(np.arcsin(0.5 * (xyz_max[1] - xyz_min[1]) / r))
+                    xy_max[0] = xyz_max[0] - margin
+                    xy_min[1] = xyz_min[1] + margin
+                    xy_max[1] = xyz_max[1] - margin
+                elif f"inworkspace({child_obj})" in state:
+                    # Increase the likelihood of sampling inside the workspace
+                    xy_min[0] = WORKSPACE_MIN_X
+                    xy_max[0] = WORKSPACE_RADIUS
+                    xy_min[1] = xyz_min[1] + margin
+                    xy_max[1] = xyz_max[1] - margin
+                else:
+                    xy_min[:2] = xyz_min[:2]
+                    xy_max[:2] = xyz_max[:2]
+
+        elif parent_obj.isinstance(Rack):
+            xy_min[:2] = np.array([margin, margin]) - parent_obj.size[:2] / 2
+            xy_max[:2] = parent_obj.size[:2] - margin - parent_obj.size[:2] / 2
+
+        elif parent_obj.isinstance(Box):
+            xy_min[:2] = np.array([margin, margin])
+            xy_max[:2] = parent_obj.size[:2] - margin
+            if np.any(xy_max - xy_min < 0): 
+                # Increase the likelihood of a stable placement location
+                child_parent_ratio = child_obj.size[0] / parent_obj.size[0]
+                x_min_ratio = np.min(0.25 * child_parent_ratio[0], 0.45)
+                x_max_ratio = np.max(0.55, np.min(0.75 * child_parent_ratio[0], 0.95))
+                y_min_ratio = np.min(0.25 * child_parent_ratio[1], 0.45)
+                y_max_ratio = np.max(0.55, np.min(0.75 * child_parent_ratio[1], 0.95))
+                xy_min[:2] = parent_obj.size[:2] * np.array([x_min_ratio, y_min_ratio])
+                xy_max[:2] = parent_obj.size[:2] * np.array([x_max_ratio, y_max_ratio])  
+            xy_min -= parent_obj.size[:2] / 2
+            xy_max -= parent_obj.size[:2] / 2
+        else:
+            raise ValueError("[Predicate.On] parent object must be a table, rack, or box")
+        
+        # Generate pose in parent coordinate frame
+        xyz_parent_obj = np.zeros(3)
+        xyz_parent_obj[:2] = np.random.uniform(xy_min, xy_max)
+       
+        # Convert pose to world coordinate frame (assumes parent in upright)
+        xyz_world = T_parent_obj_to_world.to_eigen() * xyz_parent_obj
+        
+        # Correct z-axis position
+        xyz_world[2] = z_max + 0.5 * child_obj.size[2]
         if child_obj.isinstance(Rack):
-            # z=0 is on the top surface of the rack.
-            xyz[2] += 0.5 * child_obj.size[2]
+            xyz_world[2] += 0.5 * child_obj.size[2]
+
+        # Generate theta in the world coordinate frame
         theta = np.random.uniform(-np.pi, np.pi)
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
         quat = eigen.Quaterniond(aa)
 
-        # Tip the object over.
-        if f"istippable({child_obj})" in state and not child_obj.isinstance(Hook):
-            if np.random.random() < TIPPING_EPS:
+        if f"istippable({child_obj})" in state and not child_obj.isinstance((Hook, Rack)):
+            # Tip the object over
+            if np.random.random() < TIPPING_PROB:
                 axis = np.random.uniform(-1, 1, size=2)
                 axis /= np.linalg.norm(axis)
                 quat = quat * eigen.Quaterniond(
                     eigen.AngleAxisd(np.pi / 2, np.array([*axis, 0.0]))
                 )
-                xyz[2] = xyz_max[2] + 0.8 * child_obj.size[:2].max()
+                xyz_world[2] = z_max + 0.8 * child_obj.size[:2].max()
 
-        pose = math.Pose(pos=xyz, quat=quat.coeffs)
-
+        pose = math.Pose(pos=xyz_world, quat=quat.coeffs)
         child_obj.set_pose(pose)
 
         dbprint(f"{self}.sample():", True)
@@ -278,7 +314,7 @@ class On(Predicate):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
-        if f"istippable({child_obj})" not in state or child_obj.isinstance(Hook):
+        if f"istippable({child_obj})" not in state or child_obj.isinstance((Hook, Rack)):
             if not is_upright(child_obj):
                 dbprint(f"{self}.value():", False, "- child not upright")
                 return False
