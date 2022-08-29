@@ -1,0 +1,8 @@
+redis_host: "127.0.0.1"
+redis_port: 6000
+redis_password: taps
+
+key_namespace: segmentation
+object_key_prefix: "segmentation::objects::"
+
+assets_path: configs/pybullet/envs/assets

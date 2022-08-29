@@ -9,7 +9,9 @@ from PIL import Image, ImageDraw, ImageFont
 import yaml
 
 from temporal_policies.envs import base as envs
+from temporal_policies.envs.pybullet import real
 from temporal_policies.envs.pybullet.base import PybulletEnv
+from temporal_policies.envs.pybullet.real import object_tracker
 from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates
 from temporal_policies.envs.pybullet.table.primitives import Primitive
@@ -46,10 +48,17 @@ class Task:
         return Task(action_skeleton=primitives, initial_state=propositions)
 
 
-MAX_NUM_OBJECTS = 7
+def load_config(config: Union[str, Any]) -> Any:
+    if isinstance(config, str):
+        with open(config, "r") as f:
+            config = yaml.safe_load(f)
+    return config
 
 
 class TableEnv(PybulletEnv):
+    MAX_NUM_OBJECTS = 7  # Number of rows in the observation matrix.
+    EE_OBSERVATION_IDX = 0  # Index of the end-effector in the observation matrix.
+
     state_space = gym.spaces.Box(
         low=0, high=np.iinfo(np.int32).max, shape=(1,), dtype=np.int32
     )
@@ -73,20 +82,15 @@ class TableEnv(PybulletEnv):
         robot_config: Union[str, Dict[str, Any]],
         objects: Union[str, List[Dict[str, Any]]],
         object_groups: Optional[List[Dict[str, Any]]] = None,
+        object_tracker_config: Optional[Union[str, Dict[str, Any]]] = None,
         gui: bool = True,
         recording_freq: int = 10,
     ):
         super().__init__(name=name, gui=gui)
 
         # Load configs.
-        if isinstance(objects, str):
-            with open(objects, "r") as f:
-                objects = yaml.safe_load(f)
-        assert not isinstance(objects, str)
-        if isinstance(robot_config, str):
-            with open(robot_config, "r") as f:
-                robot_config = yaml.safe_load(f)
-        assert not isinstance(robot_config, str)
+        object_kwargs: List[Dict[str, Any]] = load_config(objects)
+        robot_kwargs: Dict[str, Any] = load_config(robot_config)
 
         # Set primitive names.
         self._primitives = primitives
@@ -95,7 +99,7 @@ class TableEnv(PybulletEnv):
         self._robot = robot.Robot(
             physics_id=self.physics_id,
             step_simulation_fn=self.step_simulation,
-            **robot_config,
+            **robot_kwargs,
         )
 
         # Create object groups.
@@ -103,7 +107,11 @@ class TableEnv(PybulletEnv):
             object_group_list = []
         else:
             object_group_list = [
-                ObjectGroup(physics_id=self.physics_id, **group_config)
+                ObjectGroup(
+                    physics_id=self.physics_id,
+                    idx_object=TableEnv.MAX_NUM_OBJECTS + 1,  # Will be set by Variant.
+                    **group_config,
+                )
                 for group_config in object_groups
             ]
         self._object_groups = {group.name: group for group in object_group_list}
@@ -112,13 +120,25 @@ class TableEnv(PybulletEnv):
         object_list = [
             Object.create(
                 physics_id=self.physics_id,
+                idx_object=idx_object,
                 object_groups=self.object_groups,
                 **obj_config,
             )
-            for obj_config in objects
+            for idx_object, obj_config in enumerate(object_kwargs)
         ]
         self._objects = {obj.name: obj for obj in object_list}
         self.robot.table = self.objects["table"]
+
+        # Load optional object tracker.
+        if object_tracker_config is not None:
+            object_tracker_kwargs: Dict[str, Any] = load_config(object_tracker_config)
+            self._object_tracker: Optional[
+                object_tracker.ObjectTracker
+            ] = object_tracker.ObjectTracker(
+                objects=self.objects, **object_tracker_kwargs
+            )
+        else:
+            self._object_tracker = None
 
         # Create tasks.
         self._tasks = [Task.create(self, **task) for task in tasks]
@@ -193,9 +213,27 @@ class TableEnv(PybulletEnv):
     def object_groups(self) -> Dict[str, ObjectGroup]:
         return self._object_groups
 
+    @property
+    def object_tracker(self) -> Optional[object_tracker.ObjectTracker]:
+        return self._object_tracker
+
     def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
         assert isinstance(policy_args, list)
-        return [arg.idx_object for arg in policy_args] + [len(self.objects)]
+
+        arg_indices = [TableEnv.EE_OBSERVATION_IDX]
+
+        object_indices = [
+            i
+            for i in range(TableEnv.MAX_NUM_OBJECTS)
+            if i != TableEnv.EE_OBSERVATION_IDX
+        ]
+        arg_indices += [object_indices[obj.idx_object] for obj in policy_args]
+
+        other_indices: List[Optional[int]] = list(range(TableEnv.MAX_NUM_OBJECTS))
+        for i in arg_indices:
+            other_indices[i] = None
+
+        return arg_indices + [i for i in other_indices if i is not None]
 
     def get_primitive(self) -> envs.Primitive:
         return self._primitive
@@ -248,6 +286,16 @@ class TableEnv(PybulletEnv):
         return True
 
     def get_observation(self, image: Optional[bool] = None) -> np.ndarray:
+        """Gets the current low-dimensional state for all the objects.
+
+        The observation is a [MAX_NUM_OBJECTS, d] matrix, where d is the length
+        of the low-dimensional object state. The first row corresponds to the
+        pose of the end-effector, and the following rows correspond to the
+        states of all the objects in order. Any remaining rows are zero.
+        """
+        if image:
+            raise NotImplementedError
+
         obj_states = self.object_states()
         observation = np.zeros(
             self.observation_space.shape, dtype=self.observation_space.dtype
@@ -257,23 +305,41 @@ class TableEnv(PybulletEnv):
         return observation
 
     def set_observation(self, observation: np.ndarray) -> None:
-        ee_state = object_state.ObjectState(observation[len(self.objects)])
+        """Sets the object states from the given low-dimensional state observation.
+
+        See `TableEnv.get_observation()` for a description of the observation.
+        """
+        ee_state = object_state.ObjectState(observation[TableEnv.EE_OBSERVATION_IDX])
         ee_pose = ee_state.pose()
         try:
             self.robot.goto_pose(pos=ee_pose.pos, quat=ee_pose.quat)
         except robot.ControlException:
             print(f"TableEnv.set_observation(): Failed to reach pose {ee_pose}.")
 
-        for i, object in enumerate(self.objects.values()):
-            obj_state = object_state.ObjectState(observation[i])
+        for idx_observation, object in zip(
+            filter(lambda i: i != TableEnv.EE_OBSERVATION_IDX, range(len(observation))),
+            self.objects.values(),
+        ):
+            obj_state = object_state.ObjectState(observation[idx_observation])
             object.set_state(obj_state)
 
     def object_states(self) -> Dict[str, object_state.ObjectState]:
-        state = {obj.name: obj.state() for name, obj in self.objects.items()}
+        """Returns the object states as an ordered dict indexed by object name.
 
-        ee_state = object_state.ObjectState()
-        ee_state.set_pose(self.robot.arm.ee_pose())
-        state["TableEnv.robot.arm.ee_pose"] = ee_state
+        The first item in the dict corresponds to the end-effector pose.
+        """
+        state = {}
+        for i, obj in enumerate(self.objects.values()):
+            if i == TableEnv.EE_OBSERVATION_IDX:
+                ee_state = object_state.ObjectState()
+                ee_state.set_pose(self.robot.arm.ee_pose())
+                state["TableEnv.robot.arm.ee_pose"] = ee_state
+
+            # Skip Null objects since they don't exist in the scene.
+            if obj.isinstance(Null):
+                continue
+
+            state[obj.name] = obj.state()
 
         return state
 
@@ -297,13 +363,20 @@ class TableEnv(PybulletEnv):
                 stateId=self._initial_state_id, physicsClientId=self.physics_id
             )
 
+            if self.object_tracker is not None and isinstance(
+                self.robot.arm, real.arm.Arm
+            ):
+                # Track objects from the real world.
+                self.object_tracker.update_poses()
+                break
+
             # Reset variants.
             for object_group in self.object_groups.values():
                 object_group.reset()
             for obj in self.objects.values():
                 obj.reset()
 
-            # Make sure none of the action sksleton args is Null.
+            # Make sure none of the action skeleton args is Null.
             if any(
                 any(obj.isinstance(Null) for obj in primitive.policy_args)
                 for primitive in self.task.action_skeleton
@@ -401,6 +474,12 @@ class TableEnv(PybulletEnv):
     def step_simulation(self) -> None:
         p.stepSimulation(physicsClientId=self.physics_id)
         self._recorder.add_frame(self.render)
+
+        if self.object_tracker is not None and not isinstance(
+            self.robot.arm, real.arm.Arm
+        ):
+            # Send objects to RedisGl.
+            self.object_tracker.send_poses(self.objects.values())
 
     def render(self) -> np.ndarray:  # type: ignore
         if "top" in self.render_mode:

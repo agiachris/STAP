@@ -87,17 +87,6 @@ class Arm(sim_arm.Arm):
             self._redis.get(self._redis_keys.driver_status) is not None
         )
 
-        # self._model_keys = redisgl.ModelKeys("temporal_policies")
-        # redisgl.register_model_keys(self._redis, self._model_keys)
-        # redisgl.register_object(
-        #     self._redis,
-        #     self._model_keys,
-        #     name="lambda_pos",
-        #     graphics=redisgl.Graphics("lambda_pos", redisgl.Sphere(0.01)),
-        #     key_pos="franka_panda::sensor::pos",
-        #     key_matrix="franka_panda::opspace::Lambda_pos",
-        # )
-
     def get_joint_state(self, joints: List[int]) -> Tuple[np.ndarray, np.ndarray]:
         """Gets the position and velocities of the given joints.
 

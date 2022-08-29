@@ -13,7 +13,7 @@ class SCODCritic(networks.critics.Critic):
 
     def forward(  # type: ignore
         self, state: torch.Tensor, action: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]]:
         return self.scod_wrapper.forward(state, action)
 
     def predict(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
