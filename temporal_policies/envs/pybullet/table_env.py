@@ -1,4 +1,7 @@
 import dataclasses
+import itertools
+import multiprocessing
+import multiprocessing.synchronize
 import pathlib
 import random
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
@@ -83,10 +86,37 @@ class TableEnv(PybulletEnv):
         objects: Union[str, List[Dict[str, Any]]],
         object_groups: Optional[List[Dict[str, Any]]] = None,
         object_tracker_config: Optional[Union[str, Dict[str, Any]]] = None,
-        gui: bool = True,
         recording_freq: int = 10,
+        seed: Optional[int] = None,
+        gui: bool = True,
+        reset_queue_size: int = 10,
     ):
         super().__init__(name=name, gui=gui)
+
+        # Launch external reset process.
+        if reset_queue_size <= 0:
+            self._seed_queue: Optional[multiprocessing.Queue[int]] = None
+            self._seed_buffer = None
+            self._reset_process = None
+        else:
+            self._seed_queue = multiprocessing.Queue()
+            self._seed_buffer = multiprocessing.Semaphore(reset_queue_size)
+            self._reset_process = multiprocessing.Process(
+                target=TableEnv._queue_reset_seeds,
+                kwargs={
+                    "seed_queue": self._seed_queue,
+                    "seed_buffer": self._seed_buffer,
+                    "name": name,
+                    "primitives": primitives,
+                    "tasks": tasks,
+                    "robot_config": robot_config,
+                    "objects": objects,
+                    "object_groups": object_groups,
+                    "object_tracker_config": object_tracker_config,
+                    "seed": seed,
+                },
+            )
+            self._reset_process.start()
 
         # Load configs.
         object_kwargs: List[Dict[str, Any]] = load_config(objects)
@@ -348,21 +378,71 @@ class TableEnv(PybulletEnv):
 
         return state
 
-    def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        return_info: bool = False,
-        options: Optional[dict] = None,
-        max_attempts: int = 10,
-    ) -> np.ndarray:
+    @staticmethod
+    def _queue_reset_seeds(
+        seed_queue: multiprocessing.Queue,
+        seed_buffer: multiprocessing.synchronize.Semaphore,
+        name: str,
+        primitives: List[str],
+        tasks: List[Dict[str, List[str]]],
+        robot_config: Union[str, Dict[str, Any]],
+        objects: Union[str, List[Dict[str, Any]]],
+        object_groups: Optional[List[Dict[str, Any]]],
+        object_tracker_config: Optional[Union[str, Dict[str, Any]]],
+        seed: Optional[int],
+    ) -> None:
+        """Queues successful reset seeds in an external process."""
+        env = TableEnv(
+            name=name,
+            primitives=primitives,
+            tasks=tasks,
+            robot_config=robot_config,
+            objects=objects,
+            object_groups=object_groups,
+            object_tracker_config=object_tracker_config,
+            gui=False,
+            reset_queue_size=0,
+        )
+        while True:
+            seed_buffer.acquire()
+            _, info = env.reset(seed=seed)
+            seed = info["seed"]
+            assert isinstance(seed, int)
+            seed_queue.put(seed)
+            seed += 1
+
+    def reset(  # type: ignore
+        self, *, seed: Optional[int] = None, options: Optional[dict] = None
+    ) -> Tuple[np.ndarray, dict]:
+        # Parse reset options.
+        try:
+            max_prop_sample_attempts: int = options["max_prop_sample_attempts"]  # type: ignore
+        except (TypeError, AttributeError):
+            max_prop_sample_attempts = 10
+
+        # Clear state cache.
         for state_id in self._states:
             p.removeState(state_id, physicsClientId=self.physics_id)
         self._states.clear()
-        self._task = random.choice(self.tasks)
-        self.set_primitive(self.task.action_skeleton[0])
 
-        while True:
+        # Initialize the reset seed.
+        if seed is None:
+            if self._seed_queue is not None:
+                # Get a successful reset seed from the queue.
+                seed = self._seed_queue.get()
+                assert self._seed_buffer is not None
+                self._seed_buffer.release()
+            else:
+                # Get a random reset seed.
+                seed = random.randint(0, 2**30)
+
+        # Increment seeds until one results in a valid env initialization.
+        for seed in itertools.count(start=seed):
+            random_utils.seed(seed)
+
+            self._task = random.choice(self.tasks)
+            self.set_primitive(self.task.action_skeleton[0])
+
             self.robot.reset()
             p.restoreState(
                 stateId=self._initial_state_id, physicsClientId=self.physics_id
@@ -392,7 +472,7 @@ class TableEnv(PybulletEnv):
             if not all(
                 any(
                     prop.sample(self.robot, self.objects, self.task.initial_state)
-                    for _ in range(max_attempts)
+                    for _ in range(max_prop_sample_attempts)
                 )
                 for prop in self.task.initial_state
             ):
@@ -412,7 +492,7 @@ class TableEnv(PybulletEnv):
                 # Break if all propositions in the initial state are true.
                 break
 
-        return self.get_observation()
+        return self.get_observation(), {"seed": seed}
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
         primitive = self.get_primitive()
