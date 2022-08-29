@@ -4,7 +4,7 @@ import multiprocessing
 import multiprocessing.synchronize
 import pathlib
 import random
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
 import gym
 import numpy as np
@@ -411,6 +411,23 @@ class TableEnv(PybulletEnv):
             seed_queue.put(seed)
             seed += 1
 
+    def _seed_generator(self, seed: Optional[int]) -> Generator[int, None, None]:
+        if self._seed_queue is None:
+            if seed is None:
+                seed = random.randint(0, 2**30)
+
+            # Increment seeds until one results in a valid env initialization.
+            for seed in itertools.count(start=seed):
+                yield seed
+        else:
+            # Get a successful reset seed from the queue.
+            while True:
+                seed = self._seed_queue.get()
+                assert self._seed_buffer is not None
+                self._seed_buffer.release()
+                print("SEED", seed)
+                yield seed
+
     def reset(  # type: ignore
         self, *, seed: Optional[int] = None, options: Optional[dict] = None
     ) -> Tuple[np.ndarray, dict]:
@@ -425,19 +442,7 @@ class TableEnv(PybulletEnv):
             p.removeState(state_id, physicsClientId=self.physics_id)
         self._states.clear()
 
-        # Initialize the reset seed.
-        if seed is None:
-            if self._seed_queue is not None:
-                # Get a successful reset seed from the queue.
-                seed = self._seed_queue.get()
-                assert self._seed_buffer is not None
-                self._seed_buffer.release()
-            else:
-                # Get a random reset seed.
-                seed = random.randint(0, 2**30)
-
-        # Increment seeds until one results in a valid env initialization.
-        for seed in itertools.count(start=seed):
+        for seed in self._seed_generator(seed):
             random_utils.seed(seed)
 
             self._task = random.choice(self.tasks)
