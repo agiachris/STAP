@@ -24,6 +24,7 @@ class TrainerFactory(configs.Factory):
         policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
         policies: Optional[Sequence[agents.RLAgent]] = None,
         agent_trainers: Optional[Sequence["trainers.AgentTrainer"]] = None,
+        env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
     ):
         """Creates the trainer factory from a config or checkpoint.
@@ -43,6 +44,7 @@ class TrainerFactory(configs.Factory):
                 agent loads.
             agent_trainers: Optional list of agent trainers for dynamics.
             policy_checkpoints: Optional list of policy checkpoints for dynamics.
+            env_kwargs: Optional kwargs passed to EnvFactory.
             device: Torch device.
         """
         if checkpoint is not None:
@@ -66,6 +68,7 @@ class TrainerFactory(configs.Factory):
 
             self.kwargs["agent"] = agent
             self.kwargs["eval_env"] = eval_env
+            self.kwargs["env_kwargs"] = env_kwargs
         elif issubclass(self.cls, (trainers.DynamicsTrainer, trainers.UnifiedTrainer)):
             if dynamics is None:
                 if checkpoint is None:
@@ -92,6 +95,7 @@ class TrainerFactory(configs.Factory):
 
                 self.kwargs["policy_checkpoints"] = policy_checkpoints
                 self.kwargs["policies"] = policies
+                self.kwargs["env_kwargs"] = env_kwargs
         elif issubclass(self.cls, trainers.AutoencoderTrainer):
             if encoder is None:
                 if checkpoint is None:

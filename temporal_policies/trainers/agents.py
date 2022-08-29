@@ -35,6 +35,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         ] = DummyScheduler,
         scheduler_kwargs: Dict[str, Any] = {},
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
         num_pretrain_steps: int = 1000,
         num_train_steps: int = 100000,
@@ -66,6 +67,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             scheduler_class: Optional optimizer scheduler class.
             scheduler_kwargs: Kwargs for scheduler class.
             checkpoint: Optional path to trainer checkpoint.
+            env_kwargs: Optional kwargs passed to EnvFactory.
             device: Torch device.
             num_pretrain_steps: Number of steps to pretrain.
             num_train_steps: Number of steps to train.
@@ -145,7 +147,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             )
             eval_env_config = pathlib.Path(checkpoint).parent / "eval/env_config.yaml"
             if eval_env_config.exists():
-                eval_env = envs.load(eval_env_config)
+                eval_env = envs.load(eval_env_config, **env_kwargs)
 
         self._eval_env = self.agent.env if eval_env is None else eval_env
         self._reset_collect = True

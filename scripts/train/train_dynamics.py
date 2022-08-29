@@ -49,6 +49,7 @@ def train(
             dynamics=dynamics,
             policy_checkpoints=policy_checkpoints,
             policies=dynamics.policies,
+            env_kwargs=env_kwargs,
             device=device,
         )
         trainer_kwargs = {}
