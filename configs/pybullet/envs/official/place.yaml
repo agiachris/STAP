@@ -5,34 +5,42 @@ env_kwargs:
 
   primitives:
     - place
-  
+
   tasks:
     - action_skeleton:
         - place(a, table)
       initial_state:
         - inhand(a)
         - on(rack, table)
-        - on(b, table)
-        - on(c, table)
-        - on(d, table)
-        - on(e, rack)
-        - on(f, rack)
-        - on(g, rack)
-        - istippable(b)
-        - istippable(e)
-    - action_skeleton:
-      - place(d, rack)
-      initial_state:
-        - inhand(d)
-        - on(rack, table)
+        - inworkspace(rack)
         - on(a, table)
         - on(b, table)
         - on(c, table)
-        - on(e, rack)
+        - on(d, table)
+        - on(e, table)
+        - on(f, table)
+        - on(g, rack)
+        - on(h, rack)
+        - on(i, rack)
+        - on(j, rack)
+        - on(k, rack)
+    - action_skeleton:
+      - place(f, rack)
+      initial_state:
+        - inhand(f)
+        - on(rack, table)
+        - inworkspace(rack)
+        - on(a, table)
+        - on(b, table)
+        - on(c, table)
+        - on(d, table)
+        - on(e, table)
         - on(f, rack)
         - on(g, rack)
-        - istippable(a)
-        - istippable(e)
+        - on(h, rack)
+        - on(i, rack)
+        - on(j, rack)
+        - on(k, rack)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -41,22 +49,32 @@ env_kwargs:
       objects:
       - object_type: Box
         object_kwargs:
-          size: [0.05, 0.025, 0.1]
-          color: [1.0, 0.0, 0.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.05, 0.05, 0.1]
-          color: [1.0, 0.0, 0.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.025, 0.025, 0.1]
+          size: [0.08, 0.05, 0.07]
           color: [0.0, 0.0, 1.0, 1.0]
+      - object_type: Box
+        object_kwargs:
+          size: [0.07, 0.06, 0.1]
+          color: [1.0, 1.0, 0.0, 1.0]
+      - object_type: Box
+        object_kwargs:
+          size: [0.05, 0.05, 0.07]
+          color: [1.0, 0.0, 0.0, 1.0]
+      - object_type: Box
+        object_kwargs:
+          size: [0.06, 0.03, 0.06]
+          color: [0.0, 1.0, 1.0, 1.0]
+      - object_type: Box
+        object_kwargs:
+          size: [0.04, 0.03, 0.09]
+          color: [1.0, 0.0, 1.0, 1.0]
       - object_type: Hook
         object_kwargs:
           head_length: 0.2
           handle_length: 0.38
           handle_y: -1.0
-          color: [0.4, 0.2, 0.0, 1.0]
+          color: [0.6, 0.6, 0.6, 1.0]
+      - object_type: Null
+      - object_type: Null
       - object_type: Null
       - object_type: Null
       - object_type: Null
@@ -99,4 +117,20 @@ env_kwargs:
     - object_type: Variant
       object_kwargs:
         name: g
+        group: movable
+    - object_type: Variant
+      object_kwargs:
+        name: h
+        group: movable
+    - object_type: Variant
+      object_kwargs:
+        name: i
+        group: movable
+    - object_type: Variant
+      object_kwargs:
+        name: j
+        group: movable
+    - object_type: Variant
+      object_kwargs:
+        name: k
         group: movable
