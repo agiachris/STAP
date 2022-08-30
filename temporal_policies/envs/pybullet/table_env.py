@@ -87,36 +87,65 @@ class TableEnv(PybulletEnv):
         object_groups: Optional[List[Dict[str, Any]]] = None,
         object_tracker_config: Optional[Union[str, Dict[str, Any]]] = None,
         recording_freq: int = 10,
-        seed: Optional[int] = None,
         gui: bool = True,
-        reset_queue_size: int = 0,
+        num_processes: int = 1,
+        reset_queue_size: int = 100,
+        child_process_seed: Optional[int] = 0,
     ):
+        """Constructs the TableEnv.
+
+        Args:
+            name: Env name.
+            primitives: Ordered list of primitive names.
+            tasks: List of dicts containing `initial_state` and `action_skeleton` keys.
+            robot_config: Config to construct `pybullet.sim.robot.Robot`.
+            objects: List of objects in the scene.
+            object_groups: List of object groups to use with `Variant` objects.
+            object_tracker_config: Config to construct `pybullet.real.object_tracker.ObjectTracker`.
+            recording_freq: Recording frequency.
+            gui: Whether to open Pybullet gui.
+            num_processes: Number of processes to use. One will be dedicated to
+                the main environment, while the rest will find valid
+                `env.reset()` initializations.
+            reset_queue_size: Number of `env.reset()` initializations to keep in
+                the queue. Only used if `num_processes` > 1.
+            child_process_seed: Random seed to use for the first child process.
+                Helpful for deterministic evaluation. Will not be used for the
+                main process!
+        """
         super().__init__(name=name, gui=gui)
 
         # Launch external reset process.
-        if reset_queue_size <= 0:
+        if reset_queue_size <= 0 or num_processes <= 1:
             self._seed_queue: Optional[multiprocessing.Queue[int]] = None
             self._seed_buffer = None
-            self._reset_process = None
+            self._reset_processes = None
         else:
             self._seed_queue = multiprocessing.Queue()
             self._seed_buffer = multiprocessing.Semaphore(reset_queue_size)
-            self._reset_process = multiprocessing.Process(
-                target=TableEnv._queue_reset_seeds,
-                kwargs={
-                    "seed_queue": self._seed_queue,
-                    "seed_buffer": self._seed_buffer,
-                    "name": name,
-                    "primitives": primitives,
-                    "tasks": tasks,
-                    "robot_config": robot_config,
-                    "objects": objects,
-                    "object_groups": object_groups,
-                    "object_tracker_config": object_tracker_config,
-                    "seed": seed,
-                },
-            )
-            self._reset_process.start()
+            self._reset_processes = [
+                multiprocessing.Process(
+                    target=TableEnv._queue_reset_seeds,
+                    daemon=True,
+                    kwargs={
+                        "process_id": (idx_process, num_processes - 1),
+                        "seed_queue": self._seed_queue,
+                        "seed_buffer": self._seed_buffer,
+                        "name": name,
+                        "primitives": primitives,
+                        "tasks": tasks,
+                        "robot_config": robot_config,
+                        "objects": objects,
+                        "object_groups": object_groups,
+                        "object_tracker_config": object_tracker_config,
+                        "seed": child_process_seed if idx_process == 0 else None,
+                    },
+                )
+                for idx_process in range(num_processes - 1)
+            ]
+            for process in self._reset_processes:
+                process.start()
+        self._process_id: Optional[Tuple[int, int]] = None
 
         # Load configs.
         object_kwargs: List[Dict[str, Any]] = load_config(objects)
@@ -216,9 +245,14 @@ class TableEnv(PybulletEnv):
         self._recording_text = ""
 
     def close(self) -> None:
-        if self._reset_process is not None:
-            self._reset_process.kill()
-            self._reset_process.join()
+        try:
+            if self._reset_processes is not None:
+                for process in self._reset_processes:
+                    process.kill()
+                for process in self._reset_processes:
+                    process.join()
+        except AttributeError:
+            pass
         super().close()
 
     def __del__(self) -> None:
@@ -384,6 +418,7 @@ class TableEnv(PybulletEnv):
 
     @staticmethod
     def _queue_reset_seeds(
+        process_id: Tuple[int, int],
         seed_queue: multiprocessing.Queue,
         seed_buffer: multiprocessing.synchronize.Semaphore,
         name: str,
@@ -405,28 +440,43 @@ class TableEnv(PybulletEnv):
             object_groups=object_groups,
             object_tracker_config=object_tracker_config,
             gui=False,
+            num_processes=1,
             reset_queue_size=0,
+            child_process_seed=None,
         )
+        env._process_id = process_id
         while True:
             seed_buffer.acquire()
             _, info = env.reset(seed=seed)
             seed = info["seed"]
             assert isinstance(seed, int)
+            # print("PUT seed:", seed, "process:", process_id)
             seed_queue.put(seed)
             seed += 1
 
     def _seed_generator(self, seed: Optional[int]) -> Generator[int, None, None]:
+        """Gets the next seed from the multiprocess queue or an incremented seed."""
+        MAX_SIMPLE_INT = 2**30  # Largest simple int in Python.
         if self._seed_queue is None:
+            # Child process or single process.
             if seed is None:
-                seed = random.randint(0, 2**30)
+                # Make sure seeds don't collide across processes.
+                if self._process_id is None:
+                    idx_process, num_processes = 0, 0
+                else:
+                    idx_process, num_processes = self._process_id
+                seed = random.randint(
+                    0, MAX_SIMPLE_INT // (num_processes + 1) * (idx_process + 1)
+                )
 
             # Increment seeds until one results in a valid env initialization.
             for seed in itertools.count(start=seed):
                 yield seed
         else:
-            # Get a successful reset seed from the queue.
+            # Get a successful reset seed from the multiprocess queue.
             while True:
                 seed = self._seed_queue.get()
+                # print("GET seed:", seed, "queue size:", self._seed_queue.qsize())
                 assert self._seed_buffer is not None
                 self._seed_buffer.release()
                 yield seed

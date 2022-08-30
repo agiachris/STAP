@@ -27,6 +27,8 @@ def train(
     num_pretrain_steps: Optional[int] = None,
     num_train_steps: Optional[int] = None,
     num_eval_episodes: Optional[int] = None,
+    num_env_processes: Optional[int] = None,
+    num_eval_env_processes: Optional[int] = None,
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
@@ -46,11 +48,17 @@ def train(
         eval_env_factory = (
             None if eval_env_config is None else envs.EnvFactory(config=eval_env_config)
         )
-        env_kwargs = {}
+        env_kwargs: Dict[str, Any] = {}
+        eval_env_kwargs: Dict[str, Any] = {}
         if gui is not None:
             env_kwargs["gui"] = bool(gui)
+            eval_env_kwargs["gui"] = bool(gui)
+        if num_env_processes is not None:
+            env_kwargs["num_processes"] = num_env_processes
+        if num_eval_env_processes is None:
+            eval_env_kwargs["num_processes"] = num_eval_env_processes
         env = env_factory(**env_kwargs)
-        eval_env = None if eval_env_factory is None else eval_env_factory(**env_kwargs)
+        eval_env = None if eval_env_factory is None else eval_env_factory(**eval_env_kwargs)
 
         agent_factory = agents.AgentFactory(
             config=agent_config,
@@ -155,6 +163,10 @@ if __name__ == "__main__":
     parser.add_argument("--num-train-steps", type=int, help="Number of steps to train")
     parser.add_argument(
         "--num-eval-episodes", type=int, help="Number of episodes per evaluation"
+    )
+    parser.add_argument("--num-env-processes", type=int, help="Number of env processes")
+    parser.add_argument(
+        "--num-eval-env-processes", type=int, help="Number of eval env processes"
     )
 
     main(parser.parse_args())

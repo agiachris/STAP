@@ -29,8 +29,9 @@ function train_policy {
         args="${args} --path ${POLICY_OUTPUT_PATH}_debug"
         # args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}_debug"
         args="${args} --overwrite"
-        args="${args} --num-pretrain-steps 100"
+        args="${args} --num-pretrain-steps 10"
         args="${args} --num-train-steps 100"
+        args="${args} --num-eval-episodes 10"
     else
         args="${args} --path ${POLICY_OUTPUT_PATH}"
         args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
@@ -66,18 +67,19 @@ TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
+ENV_KWARGS="--num-env-processes 4 --num-eval-env-processes 2"
 if [[ `hostname` == "sc.stanford.edu" ]]; then
-    ENV_KWARGS="--gui 0"
+    ENV_KWARGS="${ENV_KWARGS} --gui 0"
 fi
 
-ENV_CONFIG="configs/pybullet/envs/pick.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/pick_eval.yaml"
+ENV_CONFIG="configs/pybullet/envs/official/pick.yaml"
+# EVAL_ENV_CONFIG="configs/pybullet/envs/examples/pick_eval.yaml"
 train_policy
 
-ENV_CONFIG="configs/pybullet/envs/place.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/place_eval.yaml"
+ENV_CONFIG="configs/pybullet/envs/official/place.yaml"
+# EVAL_ENV_CONFIG="configs/pybullet/envs/examples/place_eval.yaml"
 train_policy
 
-ENV_CONFIG="configs/pybullet/envs/pull.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/pull_eval.yaml"
+ENV_CONFIG="configs/pybullet/envs/official/pull.yaml"
+# EVAL_ENV_CONFIG="configs/pybullet/envs/examples/pull_eval.yaml"
 train_policy
