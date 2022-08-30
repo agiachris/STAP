@@ -226,9 +226,7 @@ class Place(Primitive):
             # Falling off the table is an exception.
             return ExecutionResult(success=False, truncated=True)
 
-        if not predicates.is_upright(obj) or not predicates.is_above(
-            obj, target
-        ):
+        if not predicates.is_upright(obj) or not predicates.is_above(obj, target):
             return ExecutionResult(success=False, truncated=False)
 
         return ExecutionResult(success=True, truncated=False)

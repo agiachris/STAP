@@ -117,7 +117,7 @@ class Object(body.Body):
             physics_id=physics_id, idx_object=idx_object, **object_kwargs, **kwargs
         )
 
-    def isinstance(self, class_or_tuple: type) -> bool:
+    def isinstance(self, class_or_tuple: Union[type, Tuple[type, ...]]) -> bool:
         return isinstance(self, class_or_tuple)
 
     @property
