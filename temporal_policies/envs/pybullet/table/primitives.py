@@ -364,8 +364,8 @@ class Pull(Primitive):
                 command_pose_pull.quat,
                 pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
             )
-            if self.primitive_collision(objects):
-                raise ControlException(f"Robot.goto_pose({command_pose_pull.pos}, {command_pose_pull.quat}) collided")
+            # if self.primitive_collision(objects):
+            #     raise ControlException(f"Robot.goto_pose({command_pose_pull.pos}, {command_pose_pull.quat}) collided")
             robot.goto_pose(post_pos, command_pose_pull.quat)
             if self.primitive_collision(objects):
                 raise ControlException(f"Robot.goto_pose({post_pos}, {command_pose_pull.quat}) collided")
