@@ -118,6 +118,10 @@ def train(
                 eval_recording_path / trainer.env.name / f"eval_{i}.gif", reset=True
             )
 
+    env.close()
+    if eval_env is not None:
+        eval_env.close()
+
 
 def main(args: argparse.Namespace) -> None:
     train(**vars(args))

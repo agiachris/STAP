@@ -89,7 +89,7 @@ class TableEnv(PybulletEnv):
         recording_freq: int = 10,
         seed: Optional[int] = None,
         gui: bool = True,
-        reset_queue_size: int = 10,
+        reset_queue_size: int = 0,
     ):
         super().__init__(name=name, gui=gui)
 
@@ -215,10 +215,14 @@ class TableEnv(PybulletEnv):
         self._recorder = recording.Recorder(recording_freq)
         self._recording_text = ""
 
-    def __del__(self) -> None:
+    def close(self) -> None:
         if self._reset_process is not None:
             self._reset_process.kill()
-        super().__del__()
+            self._reset_process.join()
+        super().close()
+
+    def __del__(self) -> None:
+        self.close()
 
     @property
     def tasks(self) -> List[Task]:
