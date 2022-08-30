@@ -57,16 +57,12 @@ class ComposeProcessor(Processor):
     This Processor Composes multiple processors
     """
 
-    def __init__(
-        self, observation_space, processors=[("IdentityProcessor"), {}]
-    ):
+    def __init__(self, observation_space, processors=[("IdentityProcessor"), {}]):
         super().__init__(observation_space)
         self.processors = []
         for processor_class, processor_kwargs in processors:
             processor_class = vars(temporal_policies.processors)[processor_class]
-            processor = processor_class(
-                self.observation_space, **processor_kwargs
-            )
+            processor = processor_class(self.observation_space, **processor_kwargs)
             self.processors.append(processor)
 
     def __call__(self, batch):

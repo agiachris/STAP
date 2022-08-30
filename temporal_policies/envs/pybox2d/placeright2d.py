@@ -100,9 +100,7 @@ class PlaceRight2D(Box2DBase):
         self._observation_bodies = all_bodies - redundant_bodies
         reps = len(self._observation_bodies) + 1
 
-        self.image_space = spaces.Box(
-            0, 255, shape=(64, 64, 3), dtype=np.uint8
-        )
+        self.image_space = spaces.Box(0, 255, shape=(64, 64, 3), dtype=np.uint8)
         if self._image_observation:
             self.observation_space = self.image_space
         else:
@@ -110,9 +108,13 @@ class PlaceRight2D(Box2DBase):
             #     low=np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps),
             #     high=np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
             # )
-            low = np.tile(np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps)
+            low = np.tile(
+                np.array([x_min, y_min, w_min, h_min], dtype=np.float32), reps
+            )
             low = np.concatenate((low, [-np.pi * 0.5 - 1e-2]), dtype=np.float32)
-            high = np.tile(np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps)
+            high = np.tile(
+                np.array([x_max, y_max, w_max, h_max], dtype=np.float32), reps
+            )
             high = np.concatenate((high, [np.pi * 0.5 + 1e-2]), dtype=np.float32)
             self.observation_space = spaces.Box(low=low, high=high)
 

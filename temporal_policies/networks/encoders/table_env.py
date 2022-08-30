@@ -80,7 +80,7 @@ class TableEnvEncoder(Encoder):
 
         if randomize:
             np_idx_args = np.array(idx_args)
-            np.random.shuffle(np_idx_args[1 + len(primitive.policy_args):])
+            np.random.shuffle(np_idx_args[1 + len(primitive.policy_args) :])
             idx_args = np_idx_args.tolist()
 
         observation = observation[:, idx_args, :]

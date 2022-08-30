@@ -118,7 +118,9 @@ def elbo_decomposition(vae, dataset_loader):
     logpx = 0
     for xs in dataset_loader:
         batch_size = xs.size(0)
-        xs = torch.autograd.Variable(xs.view(batch_size, -1, 64, 64).cuda(), volatile=True)
+        xs = torch.autograd.Variable(
+            xs.view(batch_size, -1, 64, 64).cuda(), volatile=True
+        )
         z_params = vae.encoder.forward(xs).view(batch_size, K, nparams)
         qz_params[n : n + batch_size] = z_params.data
         n += batch_size

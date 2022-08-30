@@ -148,7 +148,9 @@ class VAE(torch.nn.Module):
         # create the encoder and decoder networks
         if encoder is not None:
             if decoder is None:
-                raise ValueError("Encoder and decoder must both be None or both be not None.")
+                raise ValueError(
+                    "Encoder and decoder must both be None or both be not None."
+                )
             self.encoder = encoder
             self.decoder = decoder
         elif conv:
