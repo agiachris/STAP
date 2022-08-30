@@ -7,9 +7,8 @@ import pybullet as p
 import symbolic
 
 from temporal_policies.envs.pybullet.table.objects import Object, Null, Hook, Box, Rack
-from temporal_policies.envs.pybullet.table.primitives import compute_lift_height
 from temporal_policies.envs.pybullet.sim import math, body
-from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
+from temporal_policies.envs.pybullet.sim.robot import Robot
 
 
 dbprint = lambda *args: None  # noqa
@@ -331,7 +330,7 @@ class On(Predicate):
         if not is_above(child_obj, parent_obj):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
-        
+
         # Ensure that object remains in specified region
         child_pos_x = child_obj.pose().pos[0]
         if f"beyondworkspace({child_obj})" in state:
@@ -359,6 +358,8 @@ class HandleGrasp(Predicate):
 
 
 class Inhand(Predicate):
+    MAX_GRASP_ATTEMPTS = 1
+
     def sample(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -368,35 +369,25 @@ class Inhand(Predicate):
             dbprint(f"{self}.sample():", True, "- static")
             return True
 
-        obj.disable_collisions()
-
         # Generate grasp pose.
-        grasp_pose = generate_grasp_pose(obj, f"handlegrasp({obj})" in state)
-        obj_pose = math.Pose.from_eigen(grasp_pose.to_eigen().inverse())
-        obj_pose.pos += robot.home_pose.pos
+        for i in range(Inhand.MAX_GRASP_ATTEMPTS):
+            grasp_pose = generate_grasp_pose(obj, f"handlegrasp({obj})" in state)
+            obj_pose = math.Pose.from_eigen(grasp_pose.to_eigen().inverse())
+            obj_pose.pos += robot.home_pose.pos
 
-        # Generate post-pick pose.
-        table_xyz_min, table_xyz_max = objects["table"].aabb()
-        table_xyz_min[0] = WORKSPACE_MIN_X
-        xyz_pick = np.array([0.0, 0.0, compute_lift_height(obj.size)])
-        for _ in range(100):
-            xyz_pick[:2] = np.random.uniform(table_xyz_min[:2], table_xyz_max[:2])
-            if np.linalg.norm(xyz_pick[:2]) <= WORKSPACE_RADIUS:
+            # Use fake grasp.
+            obj.disable_collisions()
+            obj.set_pose(obj_pose)
+            robot.grasp_object(obj, realistic=False)
+            obj.enable_collisions()
+
+            # Make sure object isn't touching gripper.
+            obj.unfreeze()
+            p.stepSimulation(physicsClientId=robot.physics_id)
+            if not is_touching(obj, robot):
                 break
-        theta = np.random.uniform(-np.pi / 2, np.pi / 2)
-        aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-
-        # Use fake grasp.
-        obj.set_pose(obj_pose)
-        robot.grasp_object(obj, realistic=False)
-        try:
-            robot.goto_pose(pos=xyz_pick, quat=eigen.Quaterniond(aa))
-        except ControlException as e:
-            dbprint(f"{self}.sample():", False, e)
-            robot.reset()
-            return False
-
-        obj.enable_collisions()
+            elif i + 1 == Inhand.MAX_GRASP_ATTEMPTS:
+                return False
 
         dbprint(f"{self}.sample():", True)
         return True

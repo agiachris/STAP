@@ -17,7 +17,10 @@ from temporal_policies.envs.pybullet.base import PybulletEnv
 from temporal_policies.envs.pybullet.real import object_tracker
 from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates
-from temporal_policies.envs.pybullet.table.primitives import Primitive
+from temporal_policies.envs.pybullet.table.primitives import (
+    Primitive,
+    initialize_robot_pose,
+)
 from temporal_policies.envs.pybullet.table.objects import Null, Object, ObjectGroup
 from temporal_policies.envs.variant import VariantEnv
 from temporal_policies.utils import random as random_utils, recording
@@ -186,7 +189,6 @@ class TableEnv(PybulletEnv):
             for idx_object, obj_config in enumerate(object_kwargs)
         ]
         self._objects = {obj.name: obj for obj in object_list}
-        self.robot.table = self.objects["table"]
 
         # Load optional object tracker.
         if object_tracker_config is not None:
@@ -513,11 +515,12 @@ class TableEnv(PybulletEnv):
                 self.object_tracker.update_poses()
                 break
 
-            # Reset variants.
+            # Reset variants and freeze objects so they don't get simulated.
             for object_group in self.object_groups.values():
                 object_group.reset()
             for obj in self.objects.values():
                 obj.reset()
+                obj.freeze()
 
             # Make sure none of the action skeleton args is Null.
             if any(
@@ -537,7 +540,13 @@ class TableEnv(PybulletEnv):
                 # Continue if a proposition failed after max_attempts.
                 continue
 
+            # Sample random robot pose.
+            if not initialize_robot_pose(self.robot):
+                continue
+
             # Check state again after objects have settled.
+            for obj in self.objects.values():
+                obj.unfreeze()
             num_iters = self.wait_until_stable(
                 min_iters=1, max_iters=math.PYBULLET_STEPS_PER_SEC
             )

@@ -7,20 +7,20 @@ from temporal_policies.envs.pybullet.sim import math
 
 
 class ObjectState:
-    RANGES = [
-        ("x", -0.3, 0.9),
-        ("y", -0.5, 0.5),
-        ("z", -0.1, 0.5),
-        ("wx", -np.pi, np.pi),
-        ("wy", -np.pi, np.pi),
-        ("wz", -np.pi, np.pi),
-        ("box_size_x", 0.0, 0.1),
-        ("box_size_y", 0.0, 0.1),
-        ("box_size_z", 0.0, 0.2),
-        ("head_length", 0.0, 0.3),
-        ("handle_length", 0.0, 0.5),
-        ("handle_y", -1.0, 1.0),
-    ]
+    RANGES = {
+        "x": (-0.3, 0.9),
+        "y": (-0.5, 0.5),
+        "z": (-0.1, 0.5),
+        "wx": (-np.pi, np.pi),
+        "wy": (-np.pi, np.pi),
+        "wz": (-np.pi, np.pi),
+        "box_size_x": (0.0, 0.1),
+        "box_size_y": (0.0, 0.1),
+        "box_size_z": (0.0, 0.2),
+        "head_length": (0.0, 0.3),
+        "handle_length": (0.0, 0.5),
+        "handle_y": (-1.0, 1.0),
+    }
 
     def __init__(self, vector: Optional[np.ndarray] = None):
         if vector is None:
@@ -91,7 +91,7 @@ class ObjectState:
 
     @classmethod
     def range(cls) -> np.ndarray:
-        return np.array([r[1:3] for r in cls.RANGES], dtype=np.float32).T
+        return np.array(list(cls.RANGES.values()), dtype=np.float32).T
 
     def pose(self) -> math.Pose:
         angle = np.linalg.norm(self.aa)

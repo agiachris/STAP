@@ -1,10 +1,10 @@
-from typing import List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 
 
 class PrimitiveAction:
-    RANGES: List[Tuple[str, float, float]]
+    RANGES: Dict[str, Tuple[float, float]]
 
     def __init__(self, vector: Optional[np.ndarray] = None):
         if vector is None:
@@ -21,7 +21,7 @@ class PrimitiveAction:
 
     @classmethod
     def range(cls) -> np.ndarray:
-        return np.array([r[1:3] for r in cls.RANGES], dtype=np.float32).T
+        return np.array(list(cls.RANGES.values()), dtype=np.float32).T
 
     @classmethod
     def random(cls):
@@ -30,12 +30,12 @@ class PrimitiveAction:
 
 
 class PickAction(PrimitiveAction):
-    RANGES = [
-        ("x", -0.2, 0.2),
-        ("y", -0.1, 0.1),
-        ("z", -0.05, 0.05),
-        ("theta", -0.25 * np.pi, 0.75 * np.pi),
-    ]
+    RANGES = {
+        "x": (-0.2, 0.2),
+        "y": (-0.1, 0.1),
+        "z": (-0.05, 0.05),
+        "theta": (-0.25 * np.pi, 0.75 * np.pi),
+    }
 
     def __init__(
         self,
@@ -70,12 +70,12 @@ class PickAction(PrimitiveAction):
 
 
 class PlaceAction(PrimitiveAction):
-    RANGES = [
-        ("x", -0.2, 0.8),
-        ("y", -0.4, 0.4),
-        ("z", 0.0, 0.1),
-        ("theta", -0.25 * np.pi, 0.75 * np.pi),
-    ]
+    RANGES = {
+        "x": (-0.2, 0.8),
+        "y": (-0.4, 0.4),
+        "z": (0.0, 0.1),
+        "theta": (-0.25 * np.pi, 0.75 * np.pi),
+    }
 
     def __init__(
         self,
@@ -110,12 +110,12 @@ class PlaceAction(PrimitiveAction):
 
 
 class PullAction(PrimitiveAction):
-    RANGES = [
-        ("r_reach", -0.2, 0.0),
-        ("r_pull", -0.4, -0.1),
-        ("y", -0.01, 0.01),
-        ("theta", -0.5 * np.pi, 0.5 * np.pi),
-    ]
+    RANGES = {
+        "r_reach": (-0.2, 0.0),
+        "r_pull": (-0.4, -0.1),
+        "y": (-0.01, 0.01),
+        "theta": (-0.5 * np.pi, 0.5 * np.pi),
+    }
 
     def __init__(
         self,

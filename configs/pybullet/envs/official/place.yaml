@@ -10,7 +10,6 @@ env_kwargs:
     - action_skeleton:
         - place(a, table)
       initial_state:
-        - inhand(a)
         - on(rack, table)
         - on(a, table)
         - on(b, table)
@@ -23,10 +22,10 @@ env_kwargs:
         - on(i, rack)
         - on(j, rack)
         - on(k, rack)
+        - inhand(a)
     - action_skeleton:
       - place(f, rack)
       initial_state:
-        - inhand(f)
         - on(rack, table)
         - on(a, table)
         - on(b, table)
@@ -39,7 +38,8 @@ env_kwargs:
         - on(i, rack)
         - on(j, rack)
         - on(k, rack)
-        
+        - inhand(f)
+
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   object_groups:
