@@ -1,17 +1,33 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: pull
+  name: pick
   gui: true
 
   primitives:
-    - pull
+    - pick
 
   tasks:
     - action_skeleton:
-        - pull(a, hook)
+        - pick(a, table)
       initial_state:
-        - inhand(hook)
-        - beyondworkspace(a)
+        - inworkspace(a)
+        - on(rack, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, table)
+        - on(d, table)
+        - on(e, table)
+        - on(f, table)
+        - on(g, rack)
+        - on(h, rack)
+        - on(i, rack)
+        - on(j, rack)
+        - on(k, rack)
+    - action_skeleton:
+      - pick(f, rack)
+      initial_state:
+        - inworkspace(rack)
+        - inworkspace(f)
         - on(rack, table)
         - on(a, table)
         - on(b, table)
@@ -22,82 +38,9 @@ env_kwargs:
         - on(g, rack)
         - on(h, rack)
         - on(i, rack)
-    - action_skeleton:
-        - pull(a, hook)
-      initial_state:
-        - inhand(hook)
-        - beyondworkspace(a)
-        - on(rack, table)
-        - on(a, table)
-        - on(b, table)
-        - on(c, table)
-        - on(d, table)
-        - on(e, rack)
-        - on(f, rack)
-        - on(g, rack)
-        - on(h, rack)
-        - on(i, rack)
-    # - action_skeleton:
-    #     - pull(rack, hook)
-    #   initial_state:
-    #     - inhand(hook)
-    #     - beyondworkspace(rack)
-    #     - on(rack, table)
-    #     - on(a, table)
-    #     - on(b, table)
-    #     - on(c, table)
-    #     - on(d, table)
-    #     - on(e, table)
-    #     - on(f, rack)
-    #     - on(g, rack)
-    #     - on(h, rack)
-    #     - on(i, rack)
-    # - action_skeleton:
-    #     - pull(rack, hook)
-    #   initial_state:
-    #     - inhand(hook)
-    #     - beyondworkspace(rack)
-    #     - on(rack, table)
-    #     - on(a, table)
-    #     - on(b, table)
-    #     - on(c, table)
-    #     - on(d, table)
-    #     - on(e, rack)
-    #     - on(f, rack)
-    #     - on(g, rack)
-    #     - on(h, rack)
-    #     - on(i, rack)
-    # - action_skeleton:
-    #     - pull(f, hook)
-    #   initial_state:
-    #     - inhand(hook)
-    #     - beyondworkspace(rack)
-    #     - on(rack, table)
-    #     - on(a, table)
-    #     - on(b, table)
-    #     - on(c, table)
-    #     - on(d, table)
-    #     - on(e, table)
-    #     - on(f, rack)
-    #     - on(g, rack)
-    #     - on(h, rack)
-    #     - on(i, rack)
-    # - action_skeleton:
-    #     - pull(e, hook)
-    #   initial_state:
-    #     - inhand(hook)
-    #     - beyondworkspace(rack)
-    #     - on(rack, table)
-    #     - on(a, table)
-    #     - on(b, table)
-    #     - on(c, table)
-    #     - on(d, table)
-    #     - on(e, rack)
-    #     - on(f, rack)
-    #     - on(g, rack)
-    #     - on(h, rack)
-    #     - on(i, rack)
-      
+        - on(j, rack)
+        - on(k, rack)
+        
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   object_groups:
@@ -123,6 +66,14 @@ env_kwargs:
         object_kwargs:
           size: [0.04, 0.03, 0.09]
           color: [1.0, 0.0, 1.0, 1.0]
+      - object_type: Hook
+        object_kwargs:
+          head_length: 0.2
+          handle_length: 0.38
+          handle_y: -1.0
+          color: [0.6, 0.6, 0.6, 1.0]
+      - object_type: Null
+      - object_type: Null
       - object_type: Null
       - object_type: Null
       - object_type: Null
@@ -143,13 +94,6 @@ env_kwargs:
         name: rack
         size: [0.22, 0.32, 0.16]
         color: [0.4, 0.2, 0.0, 1.0]
-    - object_type: Hook
-      object_kwargs:
-        name: hook
-        head_length: 0.2
-        handle_length: 0.38
-        handle_y: -1.0
-        color: [0.6, 0.6, 0.6, 1.0]
     - object_type: Variant
       object_kwargs:
         name: a
@@ -185,4 +129,12 @@ env_kwargs:
     - object_type: Variant
       object_kwargs:
         name: i
+        group: movable
+    - object_type: Variant
+      object_kwargs:
+        name: j
+        group: movable
+    - object_type: Variant
+      object_kwargs:
+        name: k
         group: movable

@@ -12,7 +12,6 @@ env_kwargs:
       initial_state:
         - inhand(a)
         - on(rack, table)
-        - inworkspace(rack)
         - on(a, table)
         - on(b, table)
         - on(c, table)
@@ -29,7 +28,6 @@ env_kwargs:
       initial_state:
         - inhand(f)
         - on(rack, table)
-        - inworkspace(rack)
         - on(a, table)
         - on(b, table)
         - on(c, table)

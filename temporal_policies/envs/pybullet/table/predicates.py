@@ -281,6 +281,14 @@ class On(Predicate):
         # Convert pose to world coordinate frame (assumes parent in upright)
         xyz_world = T_parent_obj_to_world.to_eigen() * xyz_parent_obj
 
+        # Ensure object is placed in specified region
+        if f"beyondworkspace({child_obj})" in state:
+            if xyz_world[0] < WORKSPACE_RADIUS:
+                return False
+        elif f"inworkspace({child_obj})" in state:
+            if xyz_world[0] < WORKSPACE_MIN_X or xyz_world[0] > WORKSPACE_RADIUS:
+                return False
+
         # Correct z-axis position
         xyz_world[2] = z_max + 0.5 * child_obj.size[2]
         if child_obj.isinstance(Rack):
@@ -320,6 +328,15 @@ class On(Predicate):
         if not is_above(child_obj, parent_obj):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
+        
+        # Ensure that object remains in specified region
+        child_pos_x = child_obj.pose().pos[0]
+        if f"beyondworkspace({child_obj})" in state:
+            if child_pos_x < WORKSPACE_RADIUS:
+                return False
+        elif f"inworkspace({child_obj})" in state:
+            if child_pos_x < WORKSPACE_MIN_X or child_pos_x > WORKSPACE_RADIUS:
+                return False
 
         if f"istippable({child_obj})" not in state or child_obj.isinstance(
             (Hook, Rack)
