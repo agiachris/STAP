@@ -1,18 +1,11 @@
 import collections
 import pathlib
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 import numpy as np
 import tqdm
 
-from temporal_policies import (
-    agents,
-    datasets,
-    dynamics as dynamics_module,
-    envs,
-    networks,
-    planners,
-)
+from temporal_policies import datasets, dynamics as dynamics_module, envs, planners
 from temporal_policies.trainers.agents import AgentTrainer
 from temporal_policies.trainers.unified import UnifiedTrainer
 from temporal_policies.utils import metrics

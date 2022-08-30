@@ -19,10 +19,6 @@ class PushLeft2D(Box2DBase):
         super().__init__(**kwargs)
         self._base_kwargs = kwargs
 
-    def reset(self):
-        observation = super().reset()
-        return observation
-
     def step(self, action):
         """Action components are activated via tanh()."""
         # Act

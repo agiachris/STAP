@@ -168,41 +168,42 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         }
 
         # Compute per-policy L2 losses.
-        if not self.network.training:
-            # [B, Z], [B, Z] => [B].
-            l2_losses = torch.nn.functional.mse_loss(
-                next_latent_pred, next_latent, reduction="none"
-            ).sum(dim=-1)
+        # [B, Z], [B, Z] => [B].
+        l2_losses = torch.nn.functional.mse_loss(
+            next_latent_pred, next_latent, reduction="none"
+        ).sum(dim=-1)
 
-            if isinstance(idx_policy, int):
-                # [B] => [B, P].
-                policy_l2_losses = torch.zeros(
-                    *l2_losses.shape,
-                    len(self.policies),
-                    dtype=l2_losses.dtype,
-                    device=self.device,
-                )
-                policy_l2_losses[..., idx_policy] = l2_losses
-            else:
-                # [B], [P] => [B, P].
-                idx_policies = idx_policy.unsqueeze(-1) == torch.arange(
-                    len(self.policies), device=self.device
-                )
-
-                # [B] => [B, P].
-                l2_losses = l2_losses.unsqueeze(-1).tile((len(self.policies),))
-
-                # [B] => [B, P].
-                policy_l2_losses = l2_losses * idx_policies
-
-            # [B, P], [B, P] => [P].
-            batch_dims = list(range(len(l2_losses.shape) - 1))
-            policy_l2_losses = policy_l2_losses.sum(dim=batch_dims) / idx_policies.sum(
-                dim=batch_dims
+        if isinstance(idx_policy, int):
+            # [B] => [B, P].
+            policy_l2_losses = torch.zeros(
+                *l2_losses.shape,
+                len(self.policies),
+                dtype=l2_losses.dtype,
+                device=self.device,
+            )
+            policy_l2_losses[..., idx_policy] = l2_losses
+        else:
+            # [B], [P] => [B, P].
+            idx_policies = idx_policy.unsqueeze(-1) == torch.arange(
+                len(self.policies), device=self.device
             )
 
-            for idx_policy, policy_l2_loss in enumerate(policy_l2_losses.cpu().numpy()):
-                metrics[f"l2_loss_policy_{idx_policy}"] = policy_l2_loss
+            # [B] => [B, P].
+            l2_losses = l2_losses.unsqueeze(-1).tile((len(self.policies),))
+
+            # [B] => [B, P].
+            policy_l2_losses = l2_losses * idx_policies
+
+        # [B, P], [B, P] => [P].
+        batch_dims = list(range(len(l2_losses.shape) - 1))
+        policy_l2_losses = policy_l2_losses.sum(dim=batch_dims) / idx_policies.sum(
+            dim=batch_dims
+        )
+
+        for idx_policy, policy_l2_loss in enumerate(
+            policy_l2_losses.detach().cpu().numpy()
+        ):
+            metrics[f"l2_loss_policy_{idx_policy}"] = policy_l2_loss
 
         return l2_loss, metrics
 

@@ -67,7 +67,7 @@ class PybulletEnv(Env):
         with RedirectStream():
             try:
                 p.disconnect(physicsClientId=self.physics_id)
-            except AttributeError:
+            except (AttributeError, p.error):
                 pass
 
     def __del__(self) -> None:

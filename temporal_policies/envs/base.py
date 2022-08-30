@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, List, Optional, Sequence, Tuple, Union
 
 import gym
 import numpy as np
@@ -118,6 +118,11 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
         raise NotImplementedError
 
+    def reset(
+        self, *, seed: Optional[int] = None, options: Optional[dict] = None
+    ) -> Tuple[np.ndarray, dict]:
+        pass
+
     def render(self) -> np.ndarray:  # type: ignore
         raise NotImplementedError
 
@@ -229,16 +234,11 @@ class PrimitiveEnv(Env):
             return self._env.get_observation(image)
 
     def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        return_info: bool = False,
-        options: Optional[dict] = None,
-    ) -> Union[np.ndarray, Tuple[np.ndarray, Dict]]:
+        self, *, seed: Optional[int] = None, options: Optional[dict] = None
+    ) -> Tuple[np.ndarray, dict]:
         with PrimitiveEnv.Scope(self):
             return self._env.reset(
                 seed=seed,
-                return_info=return_info,
                 options=options,
             )
 

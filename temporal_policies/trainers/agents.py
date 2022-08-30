@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import tqdm
 
-from temporal_policies import agents, datasets, envs, networks, processors
+from temporal_policies import agents, datasets, envs, processors
 from temporal_policies.networks.encoders import IMAGE_ENCODERS
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.base import Trainer
@@ -35,6 +35,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         ] = DummyScheduler,
         scheduler_kwargs: Dict[str, Any] = {},
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
         num_pretrain_steps: int = 1000,
         num_train_steps: int = 100000,
@@ -66,6 +67,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             scheduler_class: Optional optimizer scheduler class.
             scheduler_kwargs: Kwargs for scheduler class.
             checkpoint: Optional path to trainer checkpoint.
+            env_kwargs: Optional kwargs passed to EnvFactory.
             device: Torch device.
             num_pretrain_steps: Number of steps to pretrain.
             num_train_steps: Number of steps to train.
@@ -145,10 +147,13 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             )
             eval_env_config = pathlib.Path(checkpoint).parent / "eval/env_config.yaml"
             if eval_env_config.exists():
-                eval_env = envs.load(eval_env_config)
+                eval_env = envs.load(eval_env_config, **env_kwargs)
 
         self._eval_env = self.agent.env if eval_env is None else eval_env
         self._reset_collect = True
+
+        self._episode_length = 0
+        self._episode_reward = 0.0
 
     @property
     def agent(self) -> agents.RLAgent:
@@ -177,8 +182,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         with self.profiler.profile("collect"):
             if self._reset_collect:
                 self._reset_collect = False
-                observation = self.env.reset()
-                assert isinstance(observation, np.ndarray)
+                observation, _ = self.env.reset()
                 self.dataset.add(observation=observation)
                 self._episode_length = 0
                 self._episode_reward = 0.0
@@ -229,8 +233,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             }
 
             # Reset the environment
-            observation = self.env.reset()
-            assert isinstance(observation, np.ndarray)
+            observation, _ = self.env.reset()
             self.dataset.add(observation=observation)
             self._episode_length = 0
             self._episode_reward = 0.0
@@ -328,8 +331,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         Returns:
             Dict of eval metrics for one episode.
         """
-        observation = self.eval_env.reset()
-        assert isinstance(observation, np.ndarray)
+        observation, _ = self.eval_env.reset()
         self.eval_dataset.add(observation=observation)
 
         step_metrics_list = []

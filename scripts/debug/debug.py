@@ -12,7 +12,7 @@ def main() -> None:
     timer = timing.Timer()
     while True:
         timer.tic("reset")
-        obs = env.reset()
+        obs, _ = env.reset()
         print("obs:", obs)
         input("continue?")
         dt_reset = timer.toc("reset")

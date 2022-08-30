@@ -37,7 +37,7 @@ class TD3(rl.RLAgent):
         self.init_steps = init_steps
 
         # Now setup the logging parameters
-        self._current_obs = env.reset()
+        self._current_obs, _ = env.reset()
         self._episode_reward = 0.0
         self._episode_length = 0
         self._num_ep = 0
@@ -153,7 +153,7 @@ class TD3(rl.RLAgent):
             all_metrics["length"] = self._episode_length
             all_metrics["num_ep"] = self._num_ep
             # Reset the environment
-            self._current_obs = env.reset()
+            self._current_obs, _ = env.reset()
             self.dataset.add(observation=self._current_obs)  # Add the first timestep
             self._episode_length = 0
             self._episode_reward = 0.0

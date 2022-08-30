@@ -209,7 +209,7 @@ class Box2DBase(base.Env, Generator):
         self._render_setup()
 
         observation = self.get_observation()
-        return observation
+        return observation, {}
 
     def step(self, action=None):
         """Take environment steps at self._time_steps frequency."""

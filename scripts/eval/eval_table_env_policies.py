@@ -299,7 +299,7 @@ def evaluate_pick(
             grid_resolution=grid_resolution,
         )
 
-        observation = env.reset()
+        observation, _ = env.reset()
         for theta in np.linspace(0, np.pi / 2, 3):
             evaluate_pick_action(
                 env=env,
@@ -343,7 +343,7 @@ def evaluate_place(
         evaluate_place_action(
             env=env,
             policy=policy,
-            observation=env.reset(),
+            observation=env.reset()[0],
             action=primitive.sample_action().vector,
             path=path,
             grid_resolution=grid_resolution,

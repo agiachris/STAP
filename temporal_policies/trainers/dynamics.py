@@ -39,6 +39,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         policy_checkpoints: Optional[Sequence[Union[str, pathlib.Path]]] = None,
         agent_trainers: Optional[Sequence[AgentTrainer]] = None,
         policies: Optional[Sequence[agents.RLAgent]] = None,
+        env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
         num_train_steps: int = 100000,
         num_eval_steps: int = 100,
@@ -70,6 +71,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             agent_trainers: List of agent trainers. Either this or
                 policy_checkpoints must be specified.
             policies: List of policies. Specified to avoid redundant agent loads.
+            env_kwargs: Optional kwargs passed to EnvFactory for loading eval envs.
             device: Torch device.
             num_train_steps: Number of steps to train.
             num_eval_steps: Number of steps per evaluation.
@@ -104,7 +106,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                 else:
                     trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
                 agent_trainer_factory = TrainerFactory(
-                    agent=policy, checkpoint=trainer_checkpoint
+                    agent=policy, checkpoint=trainer_checkpoint, env_kwargs=env_kwargs
                 )
 
                 agent_trainer = agent_trainer_factory(

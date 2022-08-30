@@ -21,10 +21,6 @@ class PushLeft2DControl(Box2DBase):
         self._base_kwargs = kwargs
         self._pid_control = SISOControl(**control_kwargs)
 
-    def reset(self):
-        observation = super().reset()
-        return observation
-
     def get_primitive(self) -> envs.Primitive:
         return self._primitive
 

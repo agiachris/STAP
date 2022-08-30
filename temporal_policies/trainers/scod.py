@@ -125,6 +125,9 @@ class SCODTrainer:
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
 
+        self._episode_length = 0
+        self._episode_reward = 0.0
+
     @property
     def name(self) -> str:
         """Trainer name, equivalent to the last subdirectory in the path."""
@@ -269,8 +272,7 @@ class SCODTrainer:
             Collect metrics.
         """
         if self.step == 0:
-            observation = self.env.reset()
-            assert isinstance(observation, np.ndarray)
+            observation, _ = self.env.reset()
             self.dataset.add(observation=observation)
             self._episode_length = 0
             self._episode_reward = 0.0
@@ -318,8 +320,7 @@ class SCODTrainer:
         }
 
         # Reset the environment
-        observation = self.env.reset()
-        assert isinstance(observation, np.ndarray)
+        observation, _ = self.env.reset()
         self.dataset.add(observation=observation)
         self._episode_length = 0
         self._episode_reward = 0
