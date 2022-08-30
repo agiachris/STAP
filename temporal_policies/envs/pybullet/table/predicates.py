@@ -151,7 +151,7 @@ class Predicate:
         dbprint(f"{self}.value():", True)
         return True
 
-    def _get_arg_objects(self, objects: Dict[str, Object]) -> List[Object]:
+    def get_arg_objects(self, objects: Dict[str, Object]) -> List[Object]:
         return [objects[arg] for arg in self.args]
 
     def __str__(self) -> str:
@@ -169,7 +169,7 @@ class BeyondWorkspace(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         """Evaluates to True if the object is beyond the robot workspace radius."""
-        obj = self._get_arg_objects(objects)[0]
+        obj = self.get_arg_objects(objects)[0]
         distance = float(np.linalg.norm(obj.pose().pos[:2]))
         is_beyondworkspace = distance > WORKSPACE_RADIUS
 
@@ -182,7 +182,7 @@ class InWorkspace(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         """Evaluates to True if the object is within the robot workspace."""
-        obj = self._get_arg_objects(objects)[0]
+        obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
 
@@ -210,7 +210,7 @@ class On(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         """Samples a geometric grounding of the On(a, b) predicate."""
-        child_obj, parent_obj = self._get_arg_objects(objects)
+        child_obj, parent_obj = self.get_arg_objects(objects)
 
         if child_obj.is_static:
             dbprint(f"{self}.sample():", True, "- static")
@@ -316,7 +316,7 @@ class On(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         """Evaluates to True if the grounding of On(a, b) is geometrically valid."""
-        child_obj, parent_obj = self._get_arg_objects(objects)
+        child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
             return True
 
@@ -346,7 +346,7 @@ class Inhand(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         """Samples a geometric grounding of the InHand(a) predicate."""
-        obj = self._get_arg_objects(objects)[0]
+        obj = self.get_arg_objects(objects)[0]
         if obj.is_static:
             dbprint(f"{self}.sample():", True, "- static")
             return True

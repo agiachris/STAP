@@ -545,7 +545,11 @@ class TableEnv(PybulletEnv):
                 # Skip if settling takes longer than 1s.
                 continue
 
-            if self._is_any_object_below_table() or self._is_any_object_touching_base():
+            if (
+                self._is_any_object_below_table()
+                or self._is_any_object_touching_base()
+                or self._is_any_object_falling_off_parent()
+            ):
                 continue
 
             if all(
@@ -583,21 +587,33 @@ class TableEnv(PybulletEnv):
 
     def _is_any_object_below_table(self) -> bool:
         return any(
-            not obj.is_static and predicates.is_below_table(obj)
+            not obj.is_static
+            and not obj.isinstance(Null)
+            and predicates.is_below_table(obj)
             for obj in self.objects.values()
         )
 
-    def _is_any_object_falling_off_rack(self) -> bool:
+    def _is_any_object_falling_off_parent(self) -> bool:
+        def is_falling_off(child: Object, parent: Object) -> bool:
+            return (
+                # Assume on(child, table) has already been checked.
+                parent.name != "table"
+                and not child.isinstance(Null)
+                and not parent.isinstance(Null)
+                and not predicates.is_above(child, parent)
+            )
+
         return any(
-            not obj.is_static
-            and f"on({obj}, rack)" in self.task.initial_state
-            and not predicates.is_above(obj, self.objects["rack"])
-            for obj in self.objects.values()
+            is_falling_off(*prop.get_arg_objects(self.objects))
+            for prop in self.task.initial_state
+            if isinstance(prop, predicates.On)
         )
 
     def _is_any_object_touching_base(self) -> bool:
         return any(
-            not obj.is_static and predicates.is_touching(self.robot, obj, link_id_a=-1)
+            not obj.is_static
+            and not obj.isinstance(Null)
+            and predicates.is_touching(self.robot, obj, link_id_a=-1)
             for obj in self.objects.values()
         )
 
@@ -617,7 +633,7 @@ class TableEnv(PybulletEnv):
             and (num_iters < min_iters or is_any_object_moving())
             and not self._is_any_object_below_table()
             and not self._is_any_object_touching_base()
-            and not self._is_any_object_falling_off_rack()
+            and not self._is_any_object_falling_off_parent()
         ):
             self.robot.arm.update_torques()
             self.robot.gripper.update_torques()
