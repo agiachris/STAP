@@ -52,7 +52,7 @@ class ShootingPlanner(Box2DPlannerBase):
             samples=self._samples,
             variance=None
             if self._standard_deviation is None
-            else self._standard_deviation ** 2,
+            else self._standard_deviation**2,
             **actor_kwargs,
             **self._policy_kwargs
         )

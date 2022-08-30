@@ -157,9 +157,9 @@ class TableEnvDynamics(LatentDynamics):
             (self.state_space.low + self.state_space.high) / 2
         ).to(state.device)
 
-        state_range = torch.from_numpy(
-            self.state_space.high - self.state_space.low
-        ).to(state.device)
+        state_range = torch.from_numpy(self.state_space.high - self.state_space.low).to(
+            state.device
+        )
 
         return state * state_range + state_mid
 

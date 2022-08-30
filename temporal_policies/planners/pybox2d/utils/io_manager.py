@@ -218,7 +218,9 @@ class IOManager(TaskManager):
         )
         if self._use_learned_dynamics(idx_action):
             # TODO: Find way to map repeated action indices to unique policy indices.
-            idx_policy = torch.full((states.shape[0],), idx_action, dtype=torch.int64).to(self._device)
+            idx_policy = torch.full(
+                (states.shape[0],), idx_action, dtype=torch.int64
+            ).to(self._device)
             states = self.dynamics_model.decode(states, idx_policy)
 
         q1, q2 = self._get_model(idx_action).network.critic(states, actions)
@@ -238,7 +240,9 @@ class IOManager(TaskManager):
         states, is_np, is_batched = self._pre_process_inputs(states)
         if self._use_learned_dynamics(idx_action):
             # TODO: Find way to map repeated action indices to unique policy indices.
-            idx_policy = torch.full((states.shape[0],), idx_action, dtype=torch.int64).to(self._device)
+            idx_policy = torch.full(
+                (states.shape[0],), idx_action, dtype=torch.int64
+            ).to(self._device)
             states = self.dynamics_model.decode(states, idx_policy)
 
         actions = self._get_model(idx_action).predict(states, is_batched=True, **kwargs)

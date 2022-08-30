@@ -565,7 +565,9 @@ class TableEnv(PybulletEnv):
 
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
-        result = primitive.execute(action, self.robot, self.objects, self.wait_until_stable)
+        result = primitive.execute(
+            action, self.robot, self.objects, self.wait_until_stable
+        )
         obs = self.get_observation()
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
