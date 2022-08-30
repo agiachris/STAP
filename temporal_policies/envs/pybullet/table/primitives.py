@@ -12,6 +12,7 @@ from temporal_policies.envs.pybullet.sim import robot, math
 from temporal_policies.envs.pybullet.sim.robot import ControlException
 from temporal_policies.envs.pybullet.table import objects, predicates, primitive_actions
 
+
 dbprint = lambda *args: None  # noqa
 # dbprint = print
 
@@ -48,11 +49,15 @@ class ExecutionResult(NamedTuple):
 class Primitive(envs.Primitive, abc.ABC):
     Action: Type[primitive_actions.PrimitiveAction]
 
+    MAX_DELTA_XYZ = 0.05
+    MAX_DELTA_THETA = 5.0 * np.pi / 180
+
     @abc.abstractmethod
     def execute(
         self,
         action: np.ndarray,
         robot: robot.Robot,
+        objects: Dict[str, objects.Object],
         wait_until_stable_fn: Callable[[], int],
     ) -> ExecutionResult:
         """Executes the primitive.
@@ -60,6 +65,7 @@ class Primitive(envs.Primitive, abc.ABC):
         Args:
             action: Normalized action (inside action_space, not action_scale).
             robot: Robot to control.
+            objects: List of objects in the environment.
             wait_until_stable_fn: Function to run sim until environment is stable.
         Returns:
             (success, truncated) 2-tuple.
@@ -79,6 +85,22 @@ class Primitive(envs.Primitive, abc.ABC):
     @abc.abstractmethod
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         pass
+
+    def primitive_collision(self, object_dict: Dict[str, objects.Object]) -> bool:
+        """Checks if non-primitive argument has been significantly perturbed."""
+        
+        non_arg_objects = [obj for obj in object_dict.values() if obj not in self.policy_args]
+        for obj in non_arg_objects:
+            if obj.isinstance(objects.Null):
+                continue
+            sim_pose = obj.pose()
+            obj_pose = obj.body._state.pose() if isinstance(obj, objects.Variant) else obj._state.pose()
+            sim_aa = eigen.AngleAxisd(eigen.Quaterniond(sim_pose.quat))
+            obj_aa = eigen.AngleAxisd(eigen.Quaterniond(obj_pose.quat))
+            if (np.linalg.norm(sim_pose.pos - obj_pose.pos) > self.MAX_DELTA_XYZ 
+                or np.arccos(sim_aa.axis.dot(obj_aa.axis)) > self.MAX_DELTA_THETA):
+                return True
+        return False
 
     @staticmethod
     def from_action_call(
@@ -109,6 +131,7 @@ class Pick(Primitive):
         self,
         action: np.ndarray,
         robot: robot.Robot,
+        objects: Dict[str, objects.Object],
         wait_until_stable_fn: Callable[[], int],
     ) -> ExecutionResult:
         # Parse action.
@@ -129,10 +152,16 @@ class Pick(Primitive):
         pre_pos = np.append(command_pos[:2], compute_lift_height(obj.size))
         try:
             robot.goto_pose(pre_pos, command_quat)
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({pre_pos}, {command_quat}) collided")
             robot.goto_pose(command_pos, command_quat)
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({command_pos}, {command_quat}) collided")
             if not robot.grasp_object(obj):
                 raise ControlException(f"Robot.grasp_object({obj}) failed")
             robot.goto_pose(pre_pos, command_quat)
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({pre_pos}, {command_quat}) collided")
         except ControlException as e:
             dbprint("Pick.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
@@ -178,6 +207,7 @@ class Place(Primitive):
         self,
         action: np.ndarray,
         robot: robot.Robot,
+        objects: Dict[str, objects.Object],
         wait_until_stable_fn: Callable[[], int],
     ) -> ExecutionResult:
         MAX_DROP_DISTANCE = 0.05
@@ -205,16 +235,22 @@ class Place(Primitive):
         )
         try:
             robot.goto_pose(pre_pos, command_quat)
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({pre_pos}, {command_quat}) collided")
             robot.goto_pose(command_pos, command_quat)
-
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({command_pos}, {command_quat}) collided")
             # Make sure object won't drop from too high.
             if not predicates.is_within_distance(
                 obj, target, MAX_DROP_DISTANCE, robot.physics_id
             ):
                 raise ControlException("Object dropped from too high.")
-
             robot.grasp(0)
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.grasp(0) collided")
             robot.goto_pose(pre_pos, command_quat)
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({pre_pos}, {command_quat}) collided")
         except ControlException as e:
             # If robot fails before grasp(0), object may still be grasped.
             dbprint("Place.execute():\n", e)
@@ -269,6 +305,7 @@ class Pull(Primitive):
         self,
         action: np.ndarray,
         robot: robot.Robot,
+        objects: Dict[str, objects.Object],
         wait_until_stable_fn: Callable[[], int],
     ) -> ExecutionResult:
         PULL_HEIGHT = 0.03
@@ -315,7 +352,11 @@ class Pull(Primitive):
         post_pos = np.append(command_pose_pull.pos[:2], compute_lift_height(hook.size))
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({pre_pos}, {command_pose_reach.quat}) collided")
             robot.goto_pose(command_pose_reach.pos, command_pose_reach.quat)
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({command_pose_reach.pos}, {command_pose_reach.quat}) collided")
             if not predicates.is_upright(target):
                 raise ControlException("Target is not upright", target.pose().quat)
             robot.goto_pose(
@@ -323,7 +364,11 @@ class Pull(Primitive):
                 command_pose_pull.quat,
                 pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
             )
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({command_pose_pull.pos}, {command_pose_pull.quat}) collided")
             robot.goto_pose(post_pos, command_pose_pull.quat)
+            if self.primitive_collision(objects):
+                raise ControlException(f"Robot.goto_pose({post_pos}, {command_pose_pull.quat}) collided")
         except ControlException as e:
             dbprint("Pull.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
