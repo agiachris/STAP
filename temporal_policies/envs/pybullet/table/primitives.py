@@ -1,6 +1,6 @@
 import abc
 import random
-from typing import Callable, Dict, List, NamedTuple, Type
+from typing import Optional, Callable, Dict, List, NamedTuple, Type
 
 from ctrlutils import eigen
 import gym
@@ -48,9 +48,9 @@ class ExecutionResult(NamedTuple):
 
 class Primitive(envs.Primitive, abc.ABC):
     Action: Type[primitive_actions.PrimitiveAction]
-
-    MAX_DELTA_XYZ = 0.05
-    MAX_DELTA_THETA = 5.0 * np.pi / 180
+    ENABLE_COLLISIONS: Optional[bool] = None
+    MAX_DELTA_XYZ: float = 0.05
+    MAX_DELTA_THETA: float = 5.0 * np.pi / 180
 
     @abc.abstractmethod
     def execute(
@@ -88,6 +88,8 @@ class Primitive(envs.Primitive, abc.ABC):
 
     def primitive_collision(self, object_dict: Dict[str, objects.Object]) -> bool:
         """Checks if non-primitive argument has been significantly perturbed."""
+        if self.ENABLE_COLLISIONS:
+            return False
         non_arg_objects = [
             obj for obj in object_dict.values() if obj not in self.policy_args
         ]
@@ -133,6 +135,7 @@ class Pick(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PickAction.range())
     Action = primitive_actions.PickAction
+    ENABLE_COLLISIONS: Optional[bool] = False
 
     def execute(
         self,
@@ -213,7 +216,7 @@ class Place(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PlaceAction.range())
     Action = primitive_actions.PlaceAction
-
+    ENABLE_COLLISIONS: Optional[bool] = False
     MAX_LIFT_HEIGHT = 0.4
 
     def execute(
@@ -319,6 +322,7 @@ class Pull(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PullAction.range())
     Action = primitive_actions.PullAction
+    ENABLE_COLLISIONS: Optional[bool] = True
 
     def execute(
         self,
@@ -387,8 +391,10 @@ class Pull(Primitive):
                 command_pose_pull.quat,
                 pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
             )
-            # if self.primitive_collision(objects):
-            #     raise ControlException(f"Robot.goto_pose({command_pose_pull.pos}, {command_pose_pull.quat}) collided")
+            if self.primitive_collision(objects):
+                raise ControlException(
+                    f"Robot.goto_pose({command_pose_pull.pos}, {command_pose_pull.quat}) collided"
+                )
             robot.goto_pose(post_pos, command_pose_pull.quat)
             if self.primitive_collision(objects):
                 raise ControlException(
