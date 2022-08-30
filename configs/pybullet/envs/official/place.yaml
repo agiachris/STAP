@@ -78,6 +78,11 @@ env_kwargs:
       - object_type: Null
       - object_type: Null
       - object_type: Null
+      - object_type: Null
+      - object_type: Null
+      - object_type: Null
+      - object_type: Null
+      - object_type: Null
 
   objects:
     - object_type: Urdf
