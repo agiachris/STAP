@@ -425,7 +425,6 @@ class TableEnv(PybulletEnv):
                 seed = self._seed_queue.get()
                 assert self._seed_buffer is not None
                 self._seed_buffer.release()
-                print("SEED", seed)
                 yield seed
 
     def reset(  # type: ignore
