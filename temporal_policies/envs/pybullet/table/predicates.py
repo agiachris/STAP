@@ -1,5 +1,5 @@
 import dataclasses
-from typing import Dict, List, Optional, Sequence, Type
+from typing import Dict, List, Optional, Sequence
 
 from ctrlutils import eigen
 import numpy as np
@@ -38,10 +38,14 @@ def is_upright(obj: Object) -> bool:
     return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= ALIGN_EPS
 
 
-def is_within_distance(obj_a: Object, obj_b: Object, distance: float, physics_id: int) -> bool:
+def is_within_distance(
+    obj_a: Object, obj_b: Object, distance: float, physics_id: int
+) -> bool:
     """Returns True if the closest points between two objects are within distance."""
     return bool(
-        p.getClosestPoints(obj_a.body_id, obj_b.body_id, distance, physicsClientId=physics_id)
+        p.getClosestPoints(
+            obj_a.body_id, obj_b.body_id, distance, physicsClientId=physics_id
+        )
     )
 
 
@@ -56,8 +60,8 @@ def is_below_table(obj: Object) -> bool:
 
 
 def is_touching(
-    body_a: Type[body.Body],
-    body_b: Type[body.Body],
+    body_a: body.Body,
+    body_b: body.Body,
     physics_id: int,
     link_id_a: Optional[int] = None,
     link_id_b: Optional[int] = None,
@@ -158,7 +162,6 @@ class Predicate:
 
 
 class BeyondWorkspace(Predicate):
-
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -172,7 +175,6 @@ class BeyondWorkspace(Predicate):
 
 
 class InWorkspace(Predicate):
-
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -183,25 +185,24 @@ class InWorkspace(Predicate):
 
         xyz = obj.pose().pos
         distance = float(np.linalg.norm(xyz[:2]))
-        is_inworkspace = (
-            WORKSPACE_MIN_X < xyz[0] and distance <= WORKSPACE_RADIUS
-        )
+        is_inworkspace = WORKSPACE_MIN_X < xyz[0] and distance <= WORKSPACE_RADIUS
         dbprint(f"{self}.value():", is_inworkspace, "x:", xyz[0], "distance:", distance)
         return is_inworkspace
 
 
 class IsTippable(Predicate):
     """Unary predicate admitting non-upright configurations of an object."""
+
     pass
 
 
 class Under(Predicate):
     """Unary predicate enforcing that an object be placed underneath another."""
+
     pass
 
 
 class On(Predicate):
-
     def sample(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -211,7 +212,7 @@ class On(Predicate):
         if child_obj.is_static:
             dbprint(f"{self}.sample():", True, "- static")
             return True
-        
+
         xy_min = np.empty(2)
         xy_max = np.empty(2)
         z_max = parent_obj.aabb()[1, 2] + AABB_EPS
@@ -234,7 +235,9 @@ class On(Predicate):
                 if f"beyondworkspace({child_obj})" in state:
                     # Increase the likelihood of sampling outside the workspace
                     r = WORKSPACE_RADIUS
-                    xy_min[0] = r * np.cos(np.arcsin(0.5 * (xyz_max[1] - xyz_min[1]) / r))
+                    xy_min[0] = r * np.cos(
+                        np.arcsin(0.5 * (xyz_max[1] - xyz_min[1]) / r)
+                    )
                     xy_max[0] = xyz_max[0] - margin
                     xy_min[1] = xyz_min[1] + margin
                     xy_max[1] = xyz_max[1] - margin
@@ -255,27 +258,29 @@ class On(Predicate):
         elif parent_obj.isinstance(Box):
             xy_min[:2] = np.array([margin, margin])
             xy_max[:2] = parent_obj.size[:2] - margin
-            if np.any(xy_max - xy_min < 0): 
+            if np.any(xy_max - xy_min < 0):
                 # Increase the likelihood of a stable placement location
                 child_parent_ratio = child_obj.size[0] / parent_obj.size[0]
-                x_min_ratio = np.min(0.25 * child_parent_ratio[0], 0.45)
-                x_max_ratio = np.max(0.55, np.min(0.75 * child_parent_ratio[0], 0.95))
-                y_min_ratio = np.min(0.25 * child_parent_ratio[1], 0.45)
-                y_max_ratio = np.max(0.55, np.min(0.75 * child_parent_ratio[1], 0.95))
+                x_min_ratio = min(0.25 * child_parent_ratio[0], 0.45)
+                x_max_ratio = max(0.55, min(0.75 * child_parent_ratio[0], 0.95))
+                y_min_ratio = min(0.25 * child_parent_ratio[1], 0.45)
+                y_max_ratio = max(0.55, min(0.75 * child_parent_ratio[1], 0.95))
                 xy_min[:2] = parent_obj.size[:2] * np.array([x_min_ratio, y_min_ratio])
-                xy_max[:2] = parent_obj.size[:2] * np.array([x_max_ratio, y_max_ratio])  
+                xy_max[:2] = parent_obj.size[:2] * np.array([x_max_ratio, y_max_ratio])
             xy_min -= parent_obj.size[:2] / 2
             xy_max -= parent_obj.size[:2] / 2
         else:
-            raise ValueError("[Predicate.On] parent object must be a table, rack, or box")
-        
+            raise ValueError(
+                "[Predicate.On] parent object must be a table, rack, or box"
+            )
+
         # Generate pose in parent coordinate frame
         xyz_parent_obj = np.zeros(3)
         xyz_parent_obj[:2] = np.random.uniform(xy_min, xy_max)
-       
+
         # Convert pose to world coordinate frame (assumes parent in upright)
         xyz_world = T_parent_obj_to_world.to_eigen() * xyz_parent_obj
-        
+
         # Correct z-axis position
         xyz_world[2] = z_max + 0.5 * child_obj.size[2]
         if child_obj.isinstance(Rack):
@@ -286,7 +291,9 @@ class On(Predicate):
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
         quat = eigen.Quaterniond(aa)
 
-        if f"istippable({child_obj})" in state and not child_obj.isinstance((Hook, Rack)):
+        if f"istippable({child_obj})" in state and not child_obj.isinstance(
+            (Hook, Rack)
+        ):
             # Tip the object over
             if np.random.random() < TIPPING_PROB:
                 axis = np.random.uniform(-1, 1, size=2)
@@ -314,7 +321,9 @@ class On(Predicate):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
-        if f"istippable({child_obj})" not in state or child_obj.isinstance((Hook, Rack)):
+        if f"istippable({child_obj})" not in state or child_obj.isinstance(
+            (Hook, Rack)
+        ):
             if not is_upright(child_obj):
                 dbprint(f"{self}.value():", False, "- child not upright")
                 return False
@@ -325,11 +334,11 @@ class On(Predicate):
 
 class HandleGrasp(Predicate):
     """Unary predicate enforcing a handle grasp on a hook object."""
+
     pass
 
 
 class Inhand(Predicate):
-
     def sample(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
