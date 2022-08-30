@@ -209,7 +209,7 @@ class Place(Primitive):
 
             # Make sure object won't drop from too high.
             if not predicates.is_within_distance(
-                obj.body_id, target.body_id, MAX_DROP_DISTANCE, robot.physics_id
+                obj, target, MAX_DROP_DISTANCE, robot.physics_id
             ):
                 raise ControlException("Object dropped from too high.")
 
@@ -222,13 +222,12 @@ class Place(Primitive):
 
         wait_until_stable_fn()
 
-        obj_pose = obj.pose()
-        if predicates.is_below_table(obj_pose.pos):
+        if predicates.is_below_table(obj):
             # Falling off the table is an exception.
             return ExecutionResult(success=False, truncated=True)
 
-        if not predicates.is_upright(obj_pose.quat) or not predicates.is_above(
-            obj.aabb(), target.aabb()
+        if not predicates.is_upright(obj) or not predicates.is_above(
+            obj, target
         ):
             return ExecutionResult(success=False, truncated=False)
 
@@ -319,7 +318,7 @@ class Pull(Primitive):
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             robot.goto_pose(command_pose_reach.pos, command_pose_reach.quat)
-            if not predicates.is_upright(target.pose().quat):
+            if not predicates.is_upright(target):
                 raise ControlException("Target is not upright", target.pose().quat)
             robot.goto_pose(
                 command_pose_pull.pos,
@@ -333,11 +332,10 @@ class Pull(Primitive):
 
         wait_until_stable_fn()
 
-        new_target_pose = target.pose()
-        if not predicates.is_upright(new_target_pose.quat):
+        if not predicates.is_upright(target):
             return ExecutionResult(success=False, truncated=False)
 
-        new_target_distance = np.linalg.norm(new_target_pose.pos[:2])
+        new_target_distance = np.linalg.norm(target.pose().pos[:2])
         if new_target_distance >= target_distance - MIN_PULL_DISTANCE:
             return ExecutionResult(success=False, truncated=False)
 
