@@ -59,7 +59,7 @@ def load_config(config: Union[str, Any]) -> Any:
 
 
 class TableEnv(PybulletEnv):
-    MAX_NUM_OBJECTS = 5  # Number of rows in the observation matrix.
+    MAX_NUM_OBJECTS = 9  # Number of rows in the observation matrix.
     EE_OBSERVATION_IDX = 0  # Index of the end-effector in the observation matrix.
 
     state_space = gym.spaces.Box(
@@ -523,7 +523,7 @@ class TableEnv(PybulletEnv):
 
     def _is_any_object_below_table(self) -> bool:
         return any(
-            not obj.is_static and predicates.is_below_table(obj.pose().pos)
+            not obj.is_static and predicates.is_below_table(obj)
             for obj in self.objects.values()
         )
 
@@ -531,7 +531,7 @@ class TableEnv(PybulletEnv):
         return any(
             not obj.is_static
             and predicates.is_touching(
-                self.robot.body_id, obj.body_id, link_id_a=0, physics_id=self.physics_id
+                self.robot, obj, link_id_a=0, physics_id=self.physics_id
             )
             for obj in self.objects.values()
         )
@@ -541,7 +541,7 @@ class TableEnv(PybulletEnv):
     ) -> int:
         def is_any_object_moving() -> bool:
             return any(
-                not obj.is_static and predicates.is_moving(obj.twist())
+                not obj.is_static and predicates.is_moving(obj)
                 for obj in self.objects.values()
             )
 
