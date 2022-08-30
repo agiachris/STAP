@@ -11,6 +11,7 @@ env_kwargs:
         - pull(a, hook)
       initial_state:
         - inhand(hook)
+        - handlegrasp(hook)
         - beyondworkspace(a)
         - on(rack, table)
         - on(a, table)
@@ -26,6 +27,7 @@ env_kwargs:
         - pull(a, hook)
       initial_state:
         - inhand(hook)
+        - handlegrasp(hook)
         - beyondworkspace(a)
         - on(rack, table)
         - on(a, table)
@@ -41,6 +43,7 @@ env_kwargs:
     #     - pull(rack, hook)
     #   initial_state:
     #     - inhand(hook)
+    #     - handlegrasp(hook)
     #     - beyondworkspace(rack)
     #     - on(rack, table)
     #     - on(a, table)
@@ -56,6 +59,7 @@ env_kwargs:
     #     - pull(rack, hook)
     #   initial_state:
     #     - inhand(hook)
+    #     - handlegrasp(hook)
     #     - beyondworkspace(rack)
     #     - on(rack, table)
     #     - on(a, table)
@@ -71,6 +75,7 @@ env_kwargs:
     #     - pull(f, hook)
     #   initial_state:
     #     - inhand(hook)
+    #     - handlegrasp(hook)
     #     - beyondworkspace(rack)
     #     - on(rack, table)
     #     - on(a, table)
@@ -86,6 +91,7 @@ env_kwargs:
     #     - pull(e, hook)
     #   initial_state:
     #     - inhand(hook)
+    #     - handlegrasp(hook)
     #     - beyondworkspace(rack)
     #     - on(rack, table)
     #     - on(a, table)
