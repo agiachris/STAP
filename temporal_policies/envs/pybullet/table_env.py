@@ -90,7 +90,7 @@ class TableEnv(PybulletEnv):
         gui: bool = True,
         num_processes: int = 1,
         reset_queue_size: int = 100,
-        child_process_seed: Optional[int] = 0,
+        child_process_seed: Optional[int] = None,
     ):
         """Constructs the TableEnv.
 
