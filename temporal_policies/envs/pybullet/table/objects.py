@@ -1,4 +1,5 @@
 import dataclasses
+import itertools
 import random
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
 
@@ -125,6 +126,36 @@ class Object(body.Body):
         raise NotImplementedError
 
     @property
+    def bbox(self) -> np.ndarray:
+        """Returns the bounding box in the object frame.
+
+        The array has shape [2, 3] (min/max, x/y/z).
+
+        If the origin of the object is at its geometric center, this will be
+        equivalent to `(-0.5 * self.size, 0.5 * self.size)`.
+        """
+        raise NotImplementedError
+
+    def aabb(self) -> np.ndarray:
+        """Computes the axis-aligned bounding box from the object pose and size.
+
+        This should be more accurate than `super().aabb()`, which gets the aabb
+        from Pybullet. Pybullet returns an *enlarged* aabb for the object *base*
+        link, while this returns the exact aabb for the entire object.
+        """
+        T_obj_to_world = self.pose().to_eigen()
+        xs, ys, zs = self.bbox.T
+
+        # List of box corners [8, 4] (num_corners, x/y/z/1).
+        corners = np.array(list(itertools.product(xs, ys, zs, [1.0])))
+        corners = (corners @ T_obj_to_world.matrix.T)[:, :3]
+
+        xyz_min = corners.min(axis=0)
+        xyz_max = corners.max(axis=0)
+
+        return np.array([xyz_min, xyz_max])
+
+    @property
     def shapes(self) -> Sequence[shapes.Shape]:
         return []
 
@@ -163,12 +194,19 @@ class Urdf(Object):
             is_static=is_static,
         )
 
-        xyz_min, xyz_max = self.aabb()
-        self._size = xyz_max - xyz_min - 2 * Urdf.AABB_MARGIN
+        xyz_min, xyz_max = body.Body.aabb(self)
+        xyz_min += Urdf.AABB_MARGIN
+        xyz_max -= Urdf.AABB_MARGIN
+        self._size = xyz_max - xyz_min
+        self._bbox = np.array([xyz_min, xyz_max])
 
     @property
     def size(self) -> np.ndarray:
         return self._size
+
+    @property
+    def bbox(self) -> np.ndarray:
+        return self._bbox
 
 
 class Box(Object):
@@ -194,10 +232,15 @@ class Box(Object):
         )
 
         self._state.box_size = box.size
+        self._bbox = np.array([-0.5 * self.size, 0.5 * self.size])
 
     @property
     def size(self) -> np.ndarray:
         return self._state.box_size
+
+    @property
+    def bbox(self) -> np.ndarray:
+        return self._bbox
 
     @property
     def shapes(self) -> Sequence[shapes.Shape]:
@@ -294,7 +337,7 @@ class Hook(Object):
         self._size = np.array(
             [handle_length + radius, head_length + 2 * abs(pos_head[1]), 2 * radius]
         )
-        self._bbox = np.array([-self.size / 2, self.size / 2])
+        self._bbox = np.array([-0.5 * self.size, 0.5 * self.size])
 
     @property
     def head_length(self) -> float:
@@ -405,10 +448,17 @@ class Rack(Object):
         )
 
         self._state.box_size = np.array(size)
+        self._bbox = np.array([-0.5 * self.size, 0.5 * self.size])
+        self._bbox[0, 2] = -size[2]
+        self._bbox[1, 2] = 0
 
     @property
     def size(self) -> np.ndarray:
         return self._state.box_size
+
+    @property
+    def bbox(self) -> np.ndarray:
+        return self._bbox
 
     @property
     def shapes(self) -> Sequence[shapes.Shape]:
@@ -440,7 +490,7 @@ class WrapperObject(Object):
         self.body = body
         self.name = body.name
 
-    def isinstance(self, class_or_tuple: type) -> bool:
+    def isinstance(self, class_or_tuple: Union[type, Tuple[type, ...]]) -> bool:
         return self.body.isinstance(class_or_tuple)
 
     # Body methods.
@@ -483,6 +533,10 @@ class WrapperObject(Object):
         return self.body.size
 
     @property
+    def bbox(self) -> np.ndarray:
+        return self.body.bbox
+
+    @property
     def shapes(self) -> Sequence[shapes.Shape]:
         return self.body.shapes
 
@@ -507,11 +561,6 @@ class WrapperObject(Object):
     def radius(self) -> float:
         assert isinstance(self.body, Hook)
         return self.body.radius
-
-    @property
-    def bbox(self) -> np.ndarray:
-        assert isinstance(self.body, Hook)
-        return self.body.bbox
 
 
 class ObjectGroup:

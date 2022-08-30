@@ -90,7 +90,7 @@ class TableEnv(PybulletEnv):
         gui: bool = True,
         num_processes: int = 1,
         reset_queue_size: int = 100,
-        child_process_seed: Optional[int] = 0,
+        child_process_seed: Optional[int] = None,
     ):
         """Constructs the TableEnv.
 
@@ -538,9 +538,18 @@ class TableEnv(PybulletEnv):
                 continue
 
             # Check state again after objects have settled.
-            self.wait_until_stable(min_iters=1)
+            num_iters = self.wait_until_stable(
+                min_iters=1, max_iters=math.PYBULLET_STEPS_PER_SEC
+            )
+            if num_iters == math.PYBULLET_STEPS_PER_SEC:
+                # Skip if settling takes longer than 1s.
+                continue
 
-            if self._is_any_object_below_table() or self._is_any_object_touching_base():
+            if (
+                self._is_any_object_below_table()
+                or self._is_any_object_touching_base()
+                or self._is_any_object_falling_off_parent()
+            ):
                 continue
 
             if all(
@@ -578,21 +587,38 @@ class TableEnv(PybulletEnv):
 
     def _is_any_object_below_table(self) -> bool:
         return any(
-            not obj.is_static and predicates.is_below_table(obj)
+            not obj.is_static
+            and not obj.isinstance(Null)
+            and predicates.is_below_table(obj)
             for obj in self.objects.values()
+        )
+
+    def _is_any_object_falling_off_parent(self) -> bool:
+        def is_falling_off(child: Object, parent: Object) -> bool:
+            return (
+                # Assume on(child, table) has already been checked.
+                parent.name != "table"
+                and not child.isinstance(Null)
+                and not parent.isinstance(Null)
+                and not predicates.is_above(child, parent)
+            )
+
+        return any(
+            is_falling_off(*prop.get_arg_objects(self.objects))
+            for prop in self.task.initial_state
+            if isinstance(prop, predicates.On)
         )
 
     def _is_any_object_touching_base(self) -> bool:
         return any(
             not obj.is_static
-            and predicates.is_touching(
-                self.robot, obj, link_id_a=0, physics_id=self.physics_id
-            )
+            and not obj.isinstance(Null)
+            and predicates.is_touching(self.robot, obj, link_id_a=-1)
             for obj in self.objects.values()
         )
 
     def wait_until_stable(
-        self, min_iters: int = 0, max_iters: int = int(3.0 / math.PYBULLET_TIMESTEP)
+        self, min_iters: int = 0, max_iters: int = 3 * math.PYBULLET_STEPS_PER_SEC
     ) -> int:
         def is_any_object_moving() -> bool:
             return any(
@@ -607,6 +633,7 @@ class TableEnv(PybulletEnv):
             and (num_iters < min_iters or is_any_object_moving())
             and not self._is_any_object_below_table()
             and not self._is_any_object_touching_base()
+            and not self._is_any_object_falling_off_parent()
         ):
             self.robot.arm.update_torques()
             self.robot.gripper.update_torques()

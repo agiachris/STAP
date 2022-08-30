@@ -4,7 +4,8 @@ from ctrlutils import eigen
 import numpy as np
 
 
-PYBULLET_TIMESTEP = 1 / 240
+PYBULLET_STEPS_PER_SEC = 240
+PYBULLET_TIMESTEP = 1 / PYBULLET_STEPS_PER_SEC
 
 
 @dataclasses.dataclass
