@@ -88,7 +88,6 @@ class Primitive(envs.Primitive, abc.ABC):
 
     def primitive_collision(self, object_dict: Dict[str, objects.Object]) -> bool:
         """Checks if non-primitive argument has been significantly perturbed."""
-        
         non_arg_objects = [obj for obj in object_dict.values() if obj not in self.policy_args]
         for obj in non_arg_objects:
             if obj.isinstance(objects.Null):
