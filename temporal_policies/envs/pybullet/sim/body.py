@@ -18,6 +18,8 @@ class Body:
 
         Note: The aabb given by Pybullet is larger than the true aabb for
         collision detection purposes.
+
+        Also, the aabb is only reported for the object base.
         """
         return np.array(p.getAABB(self.body_id, physicsClientId=self.physics_id))
 

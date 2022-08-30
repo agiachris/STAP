@@ -55,7 +55,7 @@ def train(
             eval_env_kwargs["gui"] = bool(gui)
         if num_env_processes is not None:
             env_kwargs["num_processes"] = num_env_processes
-        if num_eval_env_processes is None:
+        if num_eval_env_processes is not None:
             eval_env_kwargs["num_processes"] = num_eval_env_processes
         env = env_factory(**env_kwargs)
         eval_env = None if eval_env_factory is None else eval_env_factory(**eval_env_kwargs)

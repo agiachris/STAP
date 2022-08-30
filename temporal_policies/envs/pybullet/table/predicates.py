@@ -62,18 +62,21 @@ def is_below_table(obj: Object) -> bool:
 def is_touching(
     body_a: body.Body,
     body_b: body.Body,
-    physics_id: int,
     link_id_a: Optional[int] = None,
     link_id_b: Optional[int] = None,
 ) -> bool:
     """Returns True if there are any contact points between the two bodies."""
+    assert body_a.physics_id == body_b.physics_id
     kwargs = {}
     if link_id_a is not None:
         kwargs["linkIndexA"] = link_id_a
     if link_id_b is not None:
         kwargs["linkIndexB"] = link_id_b
     contacts = p.getContactPoints(
-        bodyA=body_a.body_id, bodyB=body_b.body_id, physicsClientId=physics_id, **kwargs
+        bodyA=body_a.body_id,
+        bodyB=body_b.body_id,
+        physicsClientId=body_a.physics_id,
+        **kwargs,
     )
     return len(contacts) > 0
 
