@@ -541,12 +541,12 @@ class TableEnv(PybulletEnv):
                 continue
 
             # Sample random robot pose.
+            for obj in self.objects.values():
+                obj.unfreeze()
             if not initialize_robot_pose(self.robot):
                 continue
 
             # Check state again after objects have settled.
-            for obj in self.objects.values():
-                obj.unfreeze()
             num_iters = self.wait_until_stable(
                 min_iters=1, max_iters=math.PYBULLET_STEPS_PER_SEC
             )

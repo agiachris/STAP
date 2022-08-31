@@ -60,11 +60,11 @@ class Body:
         except AttributeError:
             pass
 
-        self.unfreeze()
+        was_frozen = self.unfreeze()
         dynamics_info = p.getDynamicsInfo(
             self.body_id, -1, physicsClientId=self.physics_id
         )
-        if hasattr(self, "_mass"):
+        if was_frozen:
             self.freeze()
 
         mass = dynamics_info[0]
@@ -79,22 +79,37 @@ class Body:
 
         return self._inertia
 
-    def freeze(self) -> None:
-        """Disable simulation for this body."""
-        if not hasattr(self, "_mass"):
+    def freeze(self) -> bool:
+        """Disable simulation for this body.
+
+        Returns:
+            Whether the object's frozen status changed.
+        """
+        if not hasattr(self, "_is_frozen"):
             self._mass = p.getDynamicsInfo(
                 self.body_id, -1, physicsClientId=self.physics_id
             )[0]
-        p.changeDynamics(self.body_id, -1, mass=0, physicsClientId=self.physics_id)
+        elif self._is_frozen:  # type: ignore
+            return False
 
-    def unfreeze(self) -> None:
-        """Enable simulation for this body."""
-        try:
-            p.changeDynamics(
-                self.body_id, -1, mass=self._mass, physicsClientId=self.physics_id
-            )
-        except AttributeError:
-            pass
+        p.changeDynamics(self.body_id, -1, mass=0, physicsClientId=self.physics_id)
+        self._is_frozen = True
+        return True
+
+    def unfreeze(self) -> bool:
+        """Enable simulation for this body.
+
+        Returns:
+            Whether the object's frozen status changed.
+        """
+        if not hasattr(self, "_is_frozen") or not self._is_frozen:
+            return False
+
+        p.changeDynamics(
+            self.body_id, -1, mass=self._mass, physicsClientId=self.physics_id
+        )
+        self._is_frozen = False
+        return True
 
 
 @dataclasses.dataclass
