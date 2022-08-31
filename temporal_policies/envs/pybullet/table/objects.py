@@ -109,7 +109,7 @@ class Object(body.Body):
         object_type: Optional[str],
         object_kwargs: Dict[str, Any] = {},
         object_groups: Dict[str, "ObjectGroup"] = {},
-        **kwargs
+        **kwargs,
     ) -> "Object":
         object_class = Null if object_type is None else globals()[object_type]
         if issubclass(object_class, Variant):
@@ -481,8 +481,8 @@ class Null(Object):
     def enable_collisions(self) -> None:
         pass
 
-    def unfreeze(self) -> None:
-        pass
+    def unfreeze(self) -> bool:
+        return False
 
 
 class WrapperObject(Object):
@@ -503,11 +503,11 @@ class WrapperObject(Object):
     def dof(self) -> int:
         return self.body.dof
 
-    def freeze(self) -> None:
-        self.body.freeze()
+    def freeze(self) -> bool:
+        return self.body.freeze()
 
-    def unfreeze(self) -> None:
-        self.body.unfreeze()
+    def unfreeze(self) -> bool:
+        return self.body.unfreeze()
 
     # Object methods.
 
@@ -574,7 +574,13 @@ class ObjectGroup:
             )
             for obj_config in objects
         ]
-        self.reset()
+
+        self._real_indices = [
+            i for i, obj in enumerate(self.objects) if not isinstance(obj, Null)
+        ]
+        self._null_indices = [
+            i for i, obj in enumerate(self.objects) if isinstance(obj, Null)
+        ]
 
     @property
     def name(self) -> str:
@@ -584,14 +590,54 @@ class ObjectGroup:
     def objects(self) -> List[Object]:
         return self._objects
 
-    def reset(self) -> None:
-        self.available_indices = list(range(len(self.objects)))
+    @property
+    def num_real_objects(self) -> int:
+        """Number of non-null objects."""
+        return len(self._real_indices)
+
+    @property
+    def num_null_objects(self) -> int:
+        return len(self._null_indices)
+
+    def reset(
+        self,
+        objects: Dict[str, Object],
+        min_num_objects: Optional[int] = None,
+        max_num_objects: Optional[int] = None,
+    ) -> int:
+        if min_num_objects is None:
+            min_num_objects = 0
+        if max_num_objects is None:
+            max_num_objects = self.num_real_objects
+
+        # Number of objects in this group that will be instantiated in the world.
+        num_used = sum(
+            isinstance(obj, Variant) and obj.variants == self
+            for obj in objects.values()
+        )
+
+        # Compute valid range.
+        hard_min = max(0, num_used - self.num_null_objects)
+        hard_max = min(self.num_real_objects, num_used)
+        min_num_objects = int(np.clip(min_num_objects, hard_min, hard_max))
+        max_num_objects = int(np.clip(max_num_objects, hard_min, hard_max))
+        max_num_objects = max(min_num_objects, max_num_objects)
+
+        # Uniformly select the number of non-null objects to instantiate.
+        num_objects = random.randint(min_num_objects, max_num_objects)
+        num_null = num_used - num_objects
+
+        self.available_indices = random.sample(
+            self._real_indices, num_objects
+        ) + random.sample(self._null_indices, num_null)
 
         # Hide objects below table.
         for obj in self.objects:
             obj.disable_collisions()
             obj.set_pose(math.Pose(pos=np.array([0.0, 0.0, -0.5])))
             obj.freeze()
+
+        return num_objects
 
     def pop_index(self, idx: Optional[int] = None) -> int:
         """Pops an index from the list of available indices.
@@ -617,6 +663,35 @@ class ObjectGroup:
 
     def __getitem__(self, idx: Union[int, slice]):
         return self.objects[idx]
+
+    def compute_probabilities(self, objects: Dict[str, Object]) -> None:
+        # Number of non-null objects in this group.
+        num_obj = sum(not isinstance(obj, Null) for obj in self.objects)
+
+        # Total number of objects in this group.
+        num_total = len(self.objects)
+
+        # Number of objects in this group that will be instantiated by variants.
+        num_used = sum(
+            isinstance(obj, Variant) and obj.variants == self
+            for obj in objects.values()
+        )
+
+        # Number of objects in this group that will remain uninstantiated.
+        num_unused = num_total - num_used
+
+        # Number of non-null objects in this group that will be instantiated.
+        for num_obj_used in range(min(num_obj, num_used) + 1):
+            # Number of non-null objects in this group that will remain uninstantiated.
+            num_obj_unused = num_obj - num_obj_used
+
+            num_comb_obj_used = math.comb(num_used, num_obj_used)
+            num_comb_obj_unused = math.comb(num_unused, num_obj_unused)
+            num_comb_obj = math.comb(num_total, num_obj)
+
+            p_num_obj_used = num_comb_obj_used * num_comb_obj_unused / num_comb_obj
+
+            print(f"p(num_obj_used = {num_obj_used}):", p_num_obj_used)
 
 
 class Variant(WrapperObject):
@@ -644,7 +719,7 @@ class Variant(WrapperObject):
                     physics_id=self.physics_id,
                     idx_object=idx_object,
                     name=self.name,
-                    **obj_config
+                    **obj_config,
                 )
                 for obj_config in variants
             ]

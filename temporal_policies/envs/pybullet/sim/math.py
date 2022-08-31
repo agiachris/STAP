@@ -1,3 +1,5 @@
+import math
+
 import dataclasses
 
 from ctrlutils import eigen
@@ -30,3 +32,11 @@ class Pose:
     def to_eigen(self) -> eigen.Isometry3d:
         """Converts a pose to an Eigen Isometry3d."""
         return eigen.Translation3d(self.pos) * eigen.Quaterniond(self.quat)
+
+
+def comb(n: int, r: int) -> int:
+    """Computes (n choose r)."""
+    try:
+        return math.comb(n, r)
+    except AttributeError:
+        return math.factorial(n) // (math.factorial(r) * math.factorial(n - 4))
