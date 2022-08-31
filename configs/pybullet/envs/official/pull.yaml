@@ -10,7 +10,6 @@ env_kwargs:
     - action_skeleton:
         - pull(a, hook)
       initial_state:
-        - inhand(hook)
         - beyondworkspace(a)
         - on(rack, table)
         - on(a, table)
@@ -22,10 +21,10 @@ env_kwargs:
         - on(g, rack)
         - on(h, rack)
         - on(i, rack)
+        - inhand(hook)
     - action_skeleton:
         - pull(a, hook)
       initial_state:
-        - inhand(hook)
         - beyondworkspace(a)
         - on(rack, table)
         - on(a, table)
@@ -37,6 +36,7 @@ env_kwargs:
         - on(g, rack)
         - on(h, rack)
         - on(i, rack)
+        - inhand(hook)
     # - action_skeleton:
     #     - pull(rack, hook)
     #   initial_state:

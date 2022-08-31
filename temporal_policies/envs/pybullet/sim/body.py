@@ -60,9 +60,13 @@ class Body:
         except AttributeError:
             pass
 
+        self.unfreeze()
         dynamics_info = p.getDynamicsInfo(
             self.body_id, -1, physicsClientId=self.physics_id
         )
+        if hasattr(self, "_mass"):
+            self.freeze()
+
         mass = dynamics_info[0]
         inertia_xyz = dynamics_info[2]
         com = np.array(dynamics_info[3])

@@ -1,5 +1,5 @@
 import copy
-from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Type, Union
 
 from ctrlutils import eigen
 import numpy as np
@@ -69,7 +69,6 @@ class Robot(body.Body):
         )
 
         self.step_simulation = step_simulation_fn
-        self._table: Optional[body.Body] = None
 
     @property
     def arm(self) -> arm.Arm:
@@ -80,14 +79,6 @@ class Robot(body.Body):
     def gripper(self) -> gripper.Gripper:
         """Controllable gripper."""
         return self._gripper
-
-    @property
-    def table(self) -> Optional[body.Body]:
-        return self._table
-
-    @table.setter
-    def table(self, table: body.Body) -> None:
-        self._table = table
 
     @property
     def home_pose(self) -> math.Pose:
@@ -140,6 +131,22 @@ class Robot(body.Body):
             ori_gains=(64, 16),
         )
 
+    def _is_colliding(
+        self, body_id_a: int, body_id_b: int, link_id_a: Optional[int] = None
+    ) -> bool:
+        kwargs = {}
+        if link_id_a is not None:
+            kwargs["linkIndexA"] = link_id_a
+        contacts = p.getContactPoints(
+            bodyA=body_id_a, bodyB=body_id_b, physicsClientId=self.physics_id, **kwargs
+        )
+
+        if not contacts:
+            return False
+
+        force = contacts[0][9]
+        return force > 0.0
+
     def goto_pose(
         self,
         pos: Optional[np.ndarray] = None,
@@ -147,6 +154,7 @@ class Robot(body.Body):
         pos_gains: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         ori_gains: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         timeout: Optional[float] = None,
+        check_collisions: Sequence[int] = [],
     ) -> bool:
         """Uses opspace control to go to the desired pose.
 
@@ -159,6 +167,8 @@ class Robot(body.Body):
             pos_gains: (kp, kv) gains or [3 x 2] array of xyz gains.
             ori_gains: (kp, kv) gains or [3 x 2] array of xyz gains.
             timeout: Uses the timeout specified in the yaml arm config if None.
+            check_collisions: Raise an exception if the gripper or grasped
+                object collides with any of the body_ids in this list.
         Returns:
             True if the grasp controller converges to the desired position or
             zero velocity, false if the command times out.
@@ -174,24 +184,22 @@ class Robot(body.Body):
             status = self.arm.update_torques()
             self.gripper.update_torques()
 
-            if self.table is not None and not isinstance(self.arm, real.arm.Arm):
-                grasp_body_id = self.gripper._gripper_state.grasp_body_id
-                if grasp_body_id is not None:
-                    contacts = p.getContactPoints(
-                        bodyA=grasp_body_id,
-                        bodyB=self.table.body_id,
-                        physicsClientId=self.physics_id,
-                    )
-                else:
-                    contacts = p.getContactPoints(
-                        bodyA=self.body_id,
-                        bodyB=self.table.body_id,
-                        linkIndexA=self.gripper.finger_links[0],
-                        physicsClientId=self.physics_id,
-                    )
-                if contacts:
-                    force = contacts[0][9]
-                    if force > 0.0:
+            if isinstance(self.arm, real.arm.Arm):
+                continue
+
+            grasp_body_id = self.gripper._gripper_state.grasp_body_id
+            if grasp_body_id is None:
+                body_ids_a = [self.body_id] * len(self.gripper.finger_links)
+                link_ids_a: Sequence[Optional[int]] = self.gripper.finger_links
+            else:
+                body_ids_a = [grasp_body_id]
+                link_ids_a = [None]
+
+            # Terminate early if there are collisions with the gripper fingers
+            # or grasped object.
+            for body_id_a, link_id_a in zip(body_ids_a, link_ids_a):
+                for body_id_b in check_collisions:
+                    if self._is_colliding(body_id_a, body_id_b, link_id_a):
                         raise ControlException(
                             f"Robot.goto_pose({pos}, {quat}): Collision"
                         )

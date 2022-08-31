@@ -11,11 +11,19 @@ from temporal_policies.envs import base as envs
 from temporal_policies.envs.pybullet.sim import robot, math
 from temporal_policies.envs.pybullet.sim.robot import ControlException
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Null, Object
-from temporal_policies.envs.pybullet.table import predicates, primitive_actions
+from temporal_policies.envs.pybullet.table import (
+    object_state,
+    predicates,
+    primitive_actions,
+)
 
 
 dbprint = lambda *args: None  # noqa
 # dbprint = print
+
+
+LIFT_HEIGHT = 0.4
+MAX_LIFT_RADIUS = 0.7
 
 
 def compute_top_down_orientation(
@@ -30,11 +38,6 @@ def compute_top_down_orientation(
     command_aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
     command_quat = quat_obj * eigen.Quaterniond(command_aa)
     return command_quat
-
-
-def compute_lift_height(obj_size: np.ndarray) -> float:
-    LIFT_HEIGHT = 0.15
-    return obj_size[2] + LIFT_HEIGHT
 
 
 def did_object_move(
@@ -53,6 +56,31 @@ def did_object_move(
     delta_theta = eigen.AngleAxisd(eigen.Quaterniond(T_new_to_old.linear)).angle
 
     return delta_xyz >= max_delta_xyz or delta_theta >= max_delta_theta
+
+
+def initialize_robot_pose(robot: robot.Robot) -> bool:
+    x_min, x_max = predicates.WORKSPACE_MIN_X, MAX_LIFT_RADIUS
+    y_min, y_max = primitive_actions.PlaceAction.RANGES["y"]
+    xy_min = np.array([x_min, y_min])
+    xy_max = np.array([x_max, y_max])
+
+    while True:
+        xy = np.random.uniform(xy_min, xy_max)
+        if np.linalg.norm(xy) < MAX_LIFT_RADIUS:
+            break
+    theta = np.random.uniform(*object_state.ObjectState.RANGES["wz"])
+
+    pos = np.append(xy, LIFT_HEIGHT)
+    aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+    quat = eigen.Quaterniond(aa)
+
+    try:
+        robot.goto_pose(pos, quat)
+    except ControlException as e:
+        dbprint("initialize_robot_pose():\n", e)
+        return False
+
+    return True
 
 
 class ExecutionResult(NamedTuple):
@@ -110,7 +138,9 @@ class Primitive(envs.Primitive, abc.ABC):
             if obj not in self.policy_args and not obj.isinstance(Null)
         ]
 
-    def create_non_arg_movement_check(self, objects: Dict[str, Object]) -> Callable[[], bool]:
+    def create_non_arg_movement_check(
+        self, objects: Dict[str, Object]
+    ) -> Callable[[], bool]:
         """Returns a function that checks if any non-primitive argument has been significantly perturbed."""
         # Get non-arg object poses.
         non_arg_objects = self.get_non_arg_objects(objects)
@@ -173,7 +203,7 @@ class Pick(Primitive):
         # Compute orientation.
         command_quat = compute_top_down_orientation(a.theta.item(), obj_quat)
 
-        pre_pos = np.append(command_pos[:2], compute_lift_height(obj.size))
+        pre_pos = np.append(command_pos[:2], LIFT_HEIGHT)
 
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
@@ -183,11 +213,13 @@ class Pick(Primitive):
                     f"Robot.goto_pose({pre_pos}, {command_quat}) collided"
                 )
 
-            robot.goto_pose(command_pos, command_quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
-                raise ControlException(
-                    f"Robot.goto_pose({command_pos}, {command_quat}) collided"
-                )
+            robot.goto_pose(
+                command_pos,
+                command_quat,
+                check_collisions=[
+                    obj.body_id for obj in self.get_non_arg_objects(objects)
+                ],
+            )
 
             if not robot.grasp_object(obj):
                 raise ControlException(f"Robot.grasp_object({obj}) failed")
@@ -236,7 +268,6 @@ class Place(Primitive):
     action_scale = gym.spaces.Box(*primitive_actions.PlaceAction.range())
     Action = primitive_actions.PlaceAction
     ALLOW_COLLISIONS = False
-    MAX_LIFT_HEIGHT = 0.4
 
     def execute(
         self,
@@ -264,10 +295,7 @@ class Place(Primitive):
         # Compute orientation.
         command_quat = compute_top_down_orientation(a.theta.item(), target_quat)
 
-        pre_pos = np.append(
-            command_pos[:2],
-            min(Place.MAX_LIFT_HEIGHT, command_pos[2] + compute_lift_height(obj.size)),
-        )
+        pre_pos = np.append(command_pos[:2], LIFT_HEIGHT)
 
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
@@ -277,11 +305,12 @@ class Place(Primitive):
                     f"Robot.goto_pose({pre_pos}, {command_quat}) collided"
                 )
 
-            robot.goto_pose(command_pos, command_quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
-                raise ControlException(
-                    f"Robot.goto_pose({command_pos}, {command_quat}) collided"
-                )
+            robot.goto_pose(
+                command_pos,
+                command_quat,
+                check_collisions=[target.body_id]
+                + [obj.body_id for obj in self.get_non_arg_objects(objects)],
+            )
 
             # Make sure object won't drop from too high.
             if not predicates.is_within_distance(
@@ -326,7 +355,7 @@ class Place(Primitive):
 
         # Compute an appropriate place height given the grasped object's height.
         obj = self.policy_args[0]
-        z_gripper = compute_lift_height(obj.size)
+        z_gripper = LIFT_HEIGHT
         z_obj = obj.pose().pos[2]
         action.pos[2] = z_gripper - z_obj + 0.5 * obj.size[2]
 
@@ -396,8 +425,8 @@ class Pull(Primitive):
         command_pose_reach = math.Pose.from_eigen(T_reach_to_world)
         command_pose_pull = math.Pose.from_eigen(T_pull_to_world)
 
-        pre_pos = np.append(command_pose_reach.pos[:2], compute_lift_height(hook.size))
-        post_pos = np.append(command_pose_pull.pos[:2], compute_lift_height(hook.size))
+        pre_pos = np.append(command_pose_reach.pos[:2], LIFT_HEIGHT)
+        post_pos = np.append(command_pose_pull.pos[:2], LIFT_HEIGHT)
 
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
@@ -407,11 +436,13 @@ class Pull(Primitive):
                     f"Robot.goto_pose({pre_pos}, {command_pose_reach.quat}) collided"
                 )
 
-            robot.goto_pose(command_pose_reach.pos, command_pose_reach.quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
-                raise ControlException(
-                    f"Robot.goto_pose({command_pose_reach.pos}, {command_pose_reach.quat}) collided"
-                )
+            robot.goto_pose(
+                command_pose_reach.pos,
+                command_pose_reach.quat,
+                check_collisions=[
+                    obj.body_id for obj in self.get_non_arg_objects(objects)
+                ],
+            )
             if not predicates.is_upright(target):
                 raise ControlException("Target is not upright", target.pose().quat)
 
