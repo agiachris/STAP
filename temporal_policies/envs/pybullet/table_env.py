@@ -40,10 +40,14 @@ class CameraView:
 class Task:
     action_skeleton: List[Primitive]
     initial_state: List[predicates.Predicate]
+    prob: float
 
     @staticmethod
     def create(
-        env: "TableEnv", action_skeleton: List[str], initial_state: List[str]
+        env: "TableEnv",
+        action_skeleton: List[str],
+        initial_state: List[str],
+        prob: Optional[float] = None,
     ) -> "Task":
         primitives = []
         for action_call in action_skeleton:
@@ -51,7 +55,35 @@ class Task:
             assert isinstance(primitive, Primitive)
             primitives.append(primitive)
         propositions = [predicates.Predicate.create(prop) for prop in initial_state]
-        return Task(action_skeleton=primitives, initial_state=propositions)
+        return Task(
+            action_skeleton=primitives,
+            initial_state=propositions,
+            prob=float("nan") if prob is None else prob,
+        )
+
+
+class TaskDistribution:
+    def __init__(self, env: "TableEnv", tasks: List[Dict[str, Any]]):
+        self._tasks = [Task.create(env, **task) for task in tasks]
+        assert all(np.isnan(task.prob) for task in self.tasks) or all(
+            not np.isnan(task.prob) for task in self.tasks
+        )
+
+        # Normalize probabilities.
+        self._probabilities = np.array(
+            [1.0 if np.isnan(task.prob) else task.prob for task in self.tasks]
+        )
+        self._probabilities /= self._probabilities.sum()
+        for task, prob in zip(self.tasks, self._probabilities):
+            task.prob = prob
+
+    @property
+    def tasks(self) -> List[Task]:
+        return self._tasks
+
+    def sample(self) -> Task:
+        idx_task = np.random.choice(len(self.tasks), p=self._probabilities)
+        return self.tasks[idx_task]
 
 
 def load_config(config: Union[str, Any]) -> Any:
@@ -84,7 +116,7 @@ class TableEnv(PybulletEnv):
         self,
         name: str,
         primitives: List[str],
-        tasks: List[Dict[str, List[str]]],
+        tasks: List[Dict[str, Any]],
         robot_config: Union[str, Dict[str, Any]],
         objects: Union[str, List[Dict[str, Any]]],
         object_groups: Optional[List[Dict[str, Any]]] = None,
@@ -189,6 +221,8 @@ class TableEnv(PybulletEnv):
             for idx_object, obj_config in enumerate(object_kwargs)
         ]
         self._objects = {obj.name: obj for obj in object_list}
+        # for group in self.object_groups.values():
+        #     group.compute_probabilities(self.objects)
 
         # Load optional object tracker.
         if object_tracker_config is not None:
@@ -202,8 +236,8 @@ class TableEnv(PybulletEnv):
             self._object_tracker = None
 
         # Create tasks.
-        self._tasks = [Task.create(self, **task) for task in tasks]
-        self._task = self.tasks[0]
+        self._tasks = TaskDistribution(self, tasks)
+        self._task = self.tasks.tasks[0]
         self.set_primitive(self.action_skeleton[0])
 
         # Initialize pybullet state cache.
@@ -261,7 +295,7 @@ class TableEnv(PybulletEnv):
         self.close()
 
     @property
-    def tasks(self) -> List[Task]:
+    def tasks(self) -> TaskDistribution:
         return self._tasks
 
     @property
@@ -489,8 +523,12 @@ class TableEnv(PybulletEnv):
         # Parse reset options.
         try:
             max_prop_sample_attempts: int = options["max_prop_sample_attempts"]  # type: ignore
-        except (TypeError, AttributeError):
+        except (TypeError, KeyError):
             max_prop_sample_attempts = 10
+        try:
+            max_num_objects: Optional[int] = options["max_num_objects"]  # type: ignore
+        except (TypeError, KeyError):
+            max_num_objects = None
 
         # Clear state cache.
         for state_id in self._states:
@@ -500,7 +538,7 @@ class TableEnv(PybulletEnv):
         for seed in self._seed_generator(seed):
             random_utils.seed(seed)
 
-            self._task = random.choice(self.tasks)
+            self._task = self.tasks.sample()
             self.set_primitive(self.task.action_skeleton[0])
 
             self.robot.reset()
@@ -517,7 +555,11 @@ class TableEnv(PybulletEnv):
 
             # Reset variants and freeze objects so they don't get simulated.
             for object_group in self.object_groups.values():
-                object_group.reset()
+                num_objects = object_group.reset(
+                    self.objects, max_num_objects=max_num_objects
+                )
+                if max_num_objects is not None:
+                    max_num_objects -= num_objects
             for obj in self.objects.values():
                 obj.reset()
                 obj.freeze()
@@ -541,12 +583,12 @@ class TableEnv(PybulletEnv):
                 continue
 
             # Sample random robot pose.
+            for obj in self.objects.values():
+                obj.unfreeze()
             if not initialize_robot_pose(self.robot):
                 continue
 
             # Check state again after objects have settled.
-            for obj in self.objects.values():
-                obj.unfreeze()
             num_iters = self.wait_until_stable(
                 min_iters=1, max_iters=math.PYBULLET_STEPS_PER_SEC
             )
@@ -785,7 +827,7 @@ class VariantTableEnv(VariantEnv, TableEnv):  # type: ignore
         return env
 
     @property
-    def tasks(self) -> List[Task]:
+    def tasks(self) -> TaskDistribution:
         return self.env.tasks
 
     @property

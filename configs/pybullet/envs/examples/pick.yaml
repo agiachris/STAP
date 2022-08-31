@@ -7,52 +7,61 @@ env_kwargs:
     - pick
 
   tasks:
-    - action_skeleton:
+    - prob: 0.25
+      action_skeleton:
         - pick(a, table)
       initial_state:
+        - on(rack, table)
+        - on(hook, table)
         - on(a, table)
-        - istippable(a)
         - on(b, table)
-        - istippable(b)
-        - on(c, table)
-    # - action_skeleton:
-    #     - pick(box, table)
-    #   initial_state:
-    #     - on(box, table)
-    #     - istippable(box)
-    #     - on(hook, table)
-    #     - istippable(hook)
-    # - action_skeleton:
-    #     - pick(hook, table)
-    #   initial_state:
-    #     - on(box, table)
-    #     - istippable(box)
-    #     - on(hook, table)
-    #     - istippable(hook)
+        - on(c, rack)
+        - on(d, rack)
+    - prob: 0.25
+      action_skeleton:
+        - pick(c, rack)
+      initial_state:
+        - on(rack, table)
+        - on(hook, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - on(d, rack)
+    - prob: 0.5
+      action_skeleton:
+        - pick(hook, table)
+      initial_state:
+        - on(rack, table)
+        - on(hook, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - on(d, rack)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
-  # robot_config: configs/pybullet/envs/robots/franka_panda_real.yaml
-  # object_tracker_config: configs/pybullet/envs/perception/object_tracker.yaml
 
   object_groups:
-    - name: movable
+    - name: box
       objects:
-      - object_type: Box
-        object_kwargs:
-          size: [0.05, 0.05, 0.1]
-          color: [1.0, 0.0, 0.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.05, 0.1, 0.1]
-          color: [0.0, 0.0, 1.0, 1.0]
-      - object_type: Hook
-        object_kwargs:
-          head_length: 0.2
-          handle_length: 0.38
-          handle_y: -1.0
-          color: [0.4, 0.2, 0.0, 1.0]
-      - object_type: Null
-      - object_type: Null
+        - object_type: Box
+          object_kwargs:
+            size: [0.05, 0.05, 0.1]
+            color: [1.0, 0.0, 0.0, 1.0]
+        - object_type: Box
+          object_kwargs:
+            size: [0.1, 0.05, 0.1]
+            color: [0.0, 0.0, 1.0, 1.0]
+        - object_type: Null
+        - object_type: Null
+        - object_type: Null
+          #           selected null * unselected null / total null
+          # 1 object:  (4 choose (4-1)) * (1 choose 0) / (5 choose 3) = 4 / 10 = 2 / 5
+          # 2 objects: (4 choose (4-2)) * (1 choose 1) / (5 choose 3) = 6 / 10 = 3 / 5
+          # (#on choose (#on - #obj)) * ((#tot - #on) choose (#null - (#on - #obj)) / (#tot choose #null)
+        - object_type: Null
+          # 0 objects: (4 choose (4-0)) * (2 choose 0) / (6 choose 4) = 1 / 15
+          # 1 object:  (4 choose (4-1)) * (2 choose 1) / (6 choose 4) = 4 * 2 / 15 = 8 / 15
+          # 2 objects: (4 choose (4-2)) * (2 choose 2) / (6 choose 4) = 6 / 15
 
   objects:
     - object_type: Urdf
@@ -62,25 +71,37 @@ env_kwargs:
         is_static: true
     - object_type: Variant
       object_kwargs:
+        name: rack
+        variants:
+          - object_type: Rack
+            object_kwargs:
+              size: [0.22, 0.32, 0.16]
+              color: [0.4, 0.2, 0.0, 1.0]
+          - object_type: Null
+    - object_type: Variant
+      object_kwargs:
+        name: hook
+        variants:
+          - object_type: Hook
+            object_kwargs:
+              head_length: 0.2
+              handle_length: 0.38
+              handle_y: -1.0
+              color: [0.4, 0.2, 0.0, 1.0]
+          - object_type: Null
+    - object_type: Variant
+      object_kwargs:
         name: a
-        group: movable
+        group: box
     - object_type: Variant
       object_kwargs:
         name: b
-        group: movable
+        group: box
     - object_type: Variant
       object_kwargs:
         name: c
-        group: movable
-    # - object_type: Box
-    #   object_kwargs:
-    #     name: box
-    #     size: [0.05, 0.05, 0.1]
-    #     color: [1.0, 0.0, 0.0, 1.0]
-    # - object_type: Hook
-    #   object_kwargs:
-    #     name: hook
-    #     head_length: 0.2
-    #     handle_length: 0.38
-    #     handle_y: -1.0
-    #     color: [0.4, 0.2, 0.0, 1.0]
+        group: box
+    - object_type: Variant
+      object_kwargs:
+        name: d
+        group: box

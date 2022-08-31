@@ -212,8 +212,11 @@ class On(Predicate):
         child_obj, parent_obj = self.get_arg_objects(objects)
 
         if child_obj.is_static:
-            dbprint(f"{self}.sample():", True, "- static")
+            dbprint(f"{self}.sample():", True, "- static child")
             return True
+        if parent_obj.isinstance(Null):
+            dbprint(f"{self}.sample():", False, "- null parent")
+            return False
 
         xy_min = np.empty(2)
         xy_max = np.empty(2)
@@ -286,9 +289,11 @@ class On(Predicate):
         # Ensure object is placed in specified region
         if f"beyondworkspace({child_obj})" in state:
             if xyz_world[0] < WORKSPACE_RADIUS:
+                dbprint(f"{self}.sample():", False, "- should be beyond workspace")
                 return False
         elif f"inworkspace({child_obj})" in state:
             if xyz_world[0] < WORKSPACE_MIN_X or xyz_world[0] > WORKSPACE_RADIUS:
+                dbprint(f"{self}.sample():", False, "- should be in workspace")
                 return False
 
         # Correct z-axis position
@@ -387,6 +392,7 @@ class Inhand(Predicate):
             if not is_touching(obj, robot):
                 break
             elif i + 1 == Inhand.MAX_GRASP_ATTEMPTS:
+                dbprint(f"{self}.sample():", False, "- exceeded max grasp attempts")
                 return False
 
         dbprint(f"{self}.sample():", True)
