@@ -201,11 +201,7 @@ class TableEnv(PybulletEnv):
             object_group_list = []
         else:
             object_group_list = [
-                ObjectGroup(
-                    physics_id=self.physics_id,
-                    idx_object=TableEnv.MAX_NUM_OBJECTS + 1,  # Will be set by Variant.
-                    **group_config,
-                )
+                ObjectGroup(physics_id=self.physics_id, **group_config)
                 for group_config in object_groups
             ]
         self._object_groups = {group.name: group for group in object_group_list}
@@ -214,11 +210,10 @@ class TableEnv(PybulletEnv):
         object_list = [
             Object.create(
                 physics_id=self.physics_id,
-                idx_object=idx_object,
                 object_groups=self.object_groups,
                 **obj_config,
             )
-            for idx_object, obj_config in enumerate(object_kwargs)
+            for obj_config in object_kwargs
         ]
         self._objects = {obj.name: obj for obj in object_list}
         # for group in self.object_groups.values():
@@ -326,23 +321,54 @@ class TableEnv(PybulletEnv):
     def object_tracker(self) -> Optional[object_tracker.ObjectTracker]:
         return self._object_tracker
 
-    def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
+    def get_arg_indices(
+        self, idx_policy: int, policy_args: Optional[Any]
+    ) -> Tuple[List[int], int]:
+        """Computes the ordered object indices for the given policy.
+
+        The first index is the end-effector, the following indices are the
+        primitive arguments (in order), and the remaining indices are for the
+        rest of the objects.
+
+        This method will also compute the number of non-null objects. The
+        observation matrix indexed beyond this number should be all null.
+
+        Returns:
+            (list of object indices, number of non-null objects).
+        """
         assert isinstance(policy_args, list)
 
+        # Add end-effector index first.
         arg_indices = [TableEnv.EE_OBSERVATION_IDX]
 
+        # Get an ordered list of all other indices besides the end-effector.
         object_indices = [
             i
             for i in range(TableEnv.MAX_NUM_OBJECTS)
             if i != TableEnv.EE_OBSERVATION_IDX
         ]
-        arg_indices += [object_indices[obj.idx_object] for obj in policy_args]
 
+        # Create a map of non-null object indices.
+        real_object_indices = {
+            obj: object_indices[i]
+            for i, obj in enumerate(
+                obj for obj in self.objects.values() if not obj.isinstance(Null)
+            )
+        }
+
+        # Add policy args next.
+        arg_indices += [real_object_indices[obj] for obj in policy_args]
+
+        # Add all remaining indices in sequential order.
         other_indices: List[Optional[int]] = list(range(TableEnv.MAX_NUM_OBJECTS))
         for i in arg_indices:
             other_indices[i] = None
+        arg_indices += [i for i in other_indices if i is not None]
 
-        return arg_indices + [i for i in other_indices if i is not None]
+        # Compute number of non-null objects + 1 for the end-effector.
+        num_objects = 1 + sum(not obj.isinstance(Null) for obj in self.objects.values())
+
+        return arg_indices, num_objects
 
     def get_primitive(self) -> envs.Primitive:
         return self._primitive
@@ -438,15 +464,15 @@ class TableEnv(PybulletEnv):
         The first item in the dict corresponds to the end-effector pose.
         """
         state = {}
-        for i, obj in enumerate(self.objects.values()):
+        # Skip Null objects since they don't exist in the scene.
+        real_objects = (
+            obj for obj in self.objects.values() if not obj.isinstance(Null)
+        )
+        for i, obj in enumerate(real_objects):
             if i == TableEnv.EE_OBSERVATION_IDX:
                 ee_state = object_state.ObjectState()
                 ee_state.set_pose(self.robot.arm.ee_pose())
                 state["TableEnv.robot.arm.ee_pose"] = ee_state
-
-            # Skip Null objects since they don't exist in the scene.
-            if obj.isinstance(Null):
-                continue
 
             state[obj.name] = obj.state()
 
@@ -842,7 +868,9 @@ class VariantTableEnv(VariantEnv, TableEnv):  # type: ignore
     def objects(self) -> Dict[str, Object]:
         return self.env.objects
 
-    def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
+    def get_arg_indices(
+        self, idx_policy: int, policy_args: Optional[Any]
+    ) -> Tuple[List[int], int]:
         return self.env.get_arg_indices(idx_policy, policy_args)
 
     def set_observation(self, observation: np.ndarray) -> None:

@@ -74,13 +74,13 @@ class TableEnvEncoder(Encoder):
         if env is None:
             env = self._env
         primitive = env.get_primitive()
-        idx_args = env.get_arg_indices(
+        idx_args, num_objects = env.get_arg_indices(
             idx_policy=primitive.idx_policy, policy_args=primitive.policy_args
         )
 
         if randomize:
             np_idx_args = np.array(idx_args)
-            np.random.shuffle(np_idx_args[1 + len(primitive.policy_args) :])
+            np.random.shuffle(np_idx_args[1 + len(primitive.policy_args) : num_objects])
             idx_args = np_idx_args.tolist()
 
         observation = observation[:, idx_args, :]

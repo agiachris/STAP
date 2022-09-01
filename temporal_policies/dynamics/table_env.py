@@ -172,7 +172,7 @@ class TableEnvDynamics(LatentDynamics):
     ) -> List[int]:
         if self.planning:
             assert self.env is not None
-            idx_args = self.env.get_arg_indices(idx_policy, policy_args)
+            idx_args, _ = self.env.get_arg_indices(idx_policy, policy_args)
         else:
             if env is None:
                 policy = self.policies[idx_policy]
@@ -184,7 +184,7 @@ class TableEnvDynamics(LatentDynamics):
                 env = policy.env
 
             primitive = env.get_primitive()
-            idx_args = env.get_arg_indices(primitive.idx_policy, primitive.policy_args)
+            idx_args, _ = env.get_arg_indices(primitive.idx_policy, primitive.policy_args)
 
         idx_args += list(i for i in range(env_state.shape[-2]) if i not in idx_args)
 

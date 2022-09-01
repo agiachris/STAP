@@ -19,7 +19,7 @@ AABB_EPS = 0.01
 ALIGN_EPS = 0.99
 TWIST_EPS = 0.001
 TABLE_HEIGHT = 0.0
-WORKSPACE_RADIUS = 0.75
+WORKSPACE_RADIUS = 0.7
 WORKSPACE_MIN_X = 0.4
 TIPPING_PROB = 0.1
 
@@ -95,7 +95,10 @@ def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
         ):
             # Handle.
             half_size = np.array([0.5 * hook.handle_length, hook.radius, hook.radius])
-            xyz = pos_handle + np.random.uniform(-half_size, half_size)
+            if handlegrasp:
+                xyz = pos_handle + np.random.uniform(-half_size, 0)
+            else:
+                xyz = pos_handle + np.random.uniform(-half_size, half_size)
             theta = 0.0
         else:
             # Head.
