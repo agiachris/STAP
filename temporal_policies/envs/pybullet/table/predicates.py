@@ -95,7 +95,10 @@ def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
         ):
             # Handle.
             half_size = np.array([0.5 * hook.handle_length, hook.radius, hook.radius])
-            xyz = pos_handle + np.random.uniform(-half_size, half_size)
+            if handlegrasp:
+                xyz = pos_handle + np.random.uniform(-half_size, 0)
+            else:
+                xyz = pos_handle + np.random.uniform(-half_size, half_size)
             theta = 0.0
         else:
             # Head.

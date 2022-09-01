@@ -7,7 +7,7 @@ env_kwargs:
     - place
 
   tasks:
-    - prob: 0.25
+    - prob: 0.2
       action_skeleton:
         - place(a, table)
       initial_state:
@@ -17,7 +17,7 @@ env_kwargs:
         - on(c, rack)
         - on(d, rack)
         - inhand(a)
-    - prob: 0.25
+    - prob: 0.2
       action_skeleton:
         - place(c, rack)
       initial_state:
@@ -27,7 +27,7 @@ env_kwargs:
         - on(b, table)
         - on(d, rack)
         - inhand(c)
-    - prob: 0.5
+    - prob: 0.4
       action_skeleton:
         - place(hook, table)
       initial_state:
@@ -37,6 +37,17 @@ env_kwargs:
         - on(c, rack)
         - on(d, rack)
         - inhand(hook)
+    - prob: 0.2
+      action_skeleton:
+        - place(c, rack)
+      initial_state:
+        - inworkspace(rack)
+        - on(rack, table)
+        - on(hook, table)
+        - on(a, table)
+        - on(b, table)
+        - on(d, rack)
+        - inhand(c)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 

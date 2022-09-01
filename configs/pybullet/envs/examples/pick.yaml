@@ -37,6 +37,40 @@ env_kwargs:
         - on(b, table)
         - on(c, rack)
         - on(d, rack)
+    - prob: 0.25
+      action_skeleton:
+        - pick(a, table)
+      initial_state:
+        - inworkspace(a)
+        - on(rack, table)
+        - on(hook, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - on(d, rack)
+    - prob: 0.25
+      action_skeleton:
+        - pick(c, rack)
+      initial_state:
+        - inworkspace(rack)
+        - inworkspace(c)
+        - on(rack, table)
+        - on(hook, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - on(d, rack)
+    - prob: 0.5
+      action_skeleton:
+        - pick(hook, table)
+      initial_state:
+        - inworkspace(hook)
+        - on(rack, table)
+        - on(hook, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - on(d, rack)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 

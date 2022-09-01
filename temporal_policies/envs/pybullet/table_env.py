@@ -326,7 +326,9 @@ class TableEnv(PybulletEnv):
     def object_tracker(self) -> Optional[object_tracker.ObjectTracker]:
         return self._object_tracker
 
-    def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
+    def get_arg_indices(
+        self, idx_policy: int, policy_args: Optional[Any]
+    ) -> Tuple[List[int], int]:
         assert isinstance(policy_args, list)
 
         arg_indices = [TableEnv.EE_OBSERVATION_IDX]
@@ -336,13 +338,22 @@ class TableEnv(PybulletEnv):
             for i in range(TableEnv.MAX_NUM_OBJECTS)
             if i != TableEnv.EE_OBSERVATION_IDX
         ]
-        arg_indices += [object_indices[obj.idx_object] for obj in policy_args]
+        real_object_indices = {
+            obj: object_indices[i]
+            for i, obj in enumerate(
+                obj for obj in self.objects.values() if not obj.isinstance(Null)
+            )
+        }
+        arg_indices += [real_object_indices[obj] for obj in policy_args]
 
         other_indices: List[Optional[int]] = list(range(TableEnv.MAX_NUM_OBJECTS))
         for i in arg_indices:
             other_indices[i] = None
+        arg_indices += [i for i in other_indices if i is not None]
 
-        return arg_indices + [i for i in other_indices if i is not None]
+        num_objects = 1 + sum(not obj.isinstance(Null) for obj in self.objects.values())
+
+        return arg_indices, num_objects
 
     def get_primitive(self) -> envs.Primitive:
         return self._primitive
@@ -438,15 +449,15 @@ class TableEnv(PybulletEnv):
         The first item in the dict corresponds to the end-effector pose.
         """
         state = {}
-        for i, obj in enumerate(self.objects.values()):
+        # Skip Null objects since they don't exist in the scene.
+        real_objects = (
+            obj for obj in self.objects.values() if not obj.isinstance(Null)
+        )
+        for i, obj in enumerate(real_objects):
             if i == TableEnv.EE_OBSERVATION_IDX:
                 ee_state = object_state.ObjectState()
                 ee_state.set_pose(self.robot.arm.ee_pose())
                 state["TableEnv.robot.arm.ee_pose"] = ee_state
-
-            # Skip Null objects since they don't exist in the scene.
-            if obj.isinstance(Null):
-                continue
 
             state[obj.name] = obj.state()
 
