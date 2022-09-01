@@ -34,6 +34,12 @@ def main(env_config: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--env-config", "-e", type=str, required=True, help="Path to environment config.")
+    parser.add_argument(
+        "--env-config",
+        "-e",
+        type=str,
+        required=True,
+        help="Path to environment config.",
+    )
     args = parser.parse_args()
     main(**vars(args))

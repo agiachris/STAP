@@ -20,33 +20,32 @@ def load_planner_results(parent_dir, planner_name):
     fpaths = [path.join(parent_dir, fn) for fn in fnames]
     results = []
     for fp in fpaths:
-        with open(fp, "r") as fs: results.append(json.load(fs))
+        with open(fp, "r") as fs:
+            results.append(json.load(fs))
     return results
 
 
-def standard_plot(x, y, 
-                  title,
-                  xlabel, 
-                  ylabel, 
-                  labels,
-                  output_path,
-                  std=None
-                  ):
+def standard_plot(x, y, title, xlabel, ylabel, labels, output_path, std=None):
 
     for i in range(len(x)):
-        plt.plot(x[i], y[i], 
-                 label=labels[i],
-                 color=Box2DVisualizer._get_color(i),
-                 linestyle="-",
-                 marker="o"
-                 )
-        if std is None: continue
-        plt.fill_between(x[i], 
-                         y[i]-std[i], 
-                         y[i]+std[i],
-                         color=Box2DVisualizer._get_color(i),
-                         alpha=0.2,
-                         linewidth=0)
+        plt.plot(
+            x[i],
+            y[i],
+            label=labels[i],
+            color=Box2DVisualizer._get_color(i),
+            linestyle="-",
+            marker="o",
+        )
+        if std is None:
+            continue
+        plt.fill_between(
+            x[i],
+            y[i] - std[i],
+            y[i] + std[i],
+            color=Box2DVisualizer._get_color(i),
+            alpha=0.2,
+            linewidth=0,
+        )
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
@@ -55,23 +54,19 @@ def standard_plot(x, y,
     plt.close()
 
 
-def bar_plot(vals,
-             stds,
-             title,
-             xlabel,
-             ylabel,
-             labels,
-             output_path
-             ):
+def bar_plot(vals, stds, title, xlabel, ylabel, labels, output_path):
     fig, ax = plt.subplots()
     y = np.arange(len(vals))
-    ax.barh(y, vals, 
-            xerr=stds, 
-            align='center', 
-            alpha=0.5, 
-            ecolor='black', 
-            capsize=10, 
-            color=[Box2DVisualizer._get_color(i) for i in range(len(vals))])
+    ax.barh(
+        y,
+        vals,
+        xerr=stds,
+        align="center",
+        alpha=0.5,
+        ecolor="black",
+        capsize=10,
+        color=[Box2DVisualizer._get_color(i) for i in range(len(vals))],
+    )
     ax.set_ylabel(ylabel)
     ax.set_yticks(y, labels)
     ax.set_xlabel(xlabel)
@@ -84,8 +79,10 @@ def bar_plot(vals,
 
 
 def get_param(result, param_name):
-    try: param_value = result[param_name]
-    except: param_value = result["settings"][param_name]
+    try:
+        param_value = result[param_name]
+    except:
+        param_value = result["settings"][param_name]
     return param_value
 
 
@@ -115,7 +112,8 @@ def extract_sorted_axes(results, x_name, y_name, y_opt_name=None, return_sorted=
     x = np.sort(x)
     y = y[sort_idx]
     y_opt = y_opt[sort_idx] if y_opt_name is not None else None
-    if return_sorted: return x, y, y_opt, sort_idx 
+    if return_sorted:
+        return x, y, y_opt, sort_idx
     return x, y, y_opt
 
 
@@ -123,8 +121,10 @@ def group_by_param(results, param_names):
     groups = defaultdict(list)
     for res in results:
         if isinstance(param_names, list):
-            param_value = tuple([get_param(res, param_name) for param_name in param_names])
-        else: 
+            param_value = tuple(
+                [get_param(res, param_name) for param_name in param_names]
+            )
+        else:
             param_value = get_param(res, param_names)
         groups[param_value].append(deepcopy(res))
     groups_items = list(groups.items())
@@ -133,9 +133,13 @@ def group_by_param(results, param_names):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()    
-    parser.add_argument("--path", "-p", type=str, required=True, help="Path to results directory")
-    parser.add_argument("--output-path", "-o", type=str, required=True, help="Path to output figures")
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--path", "-p", type=str, required=True, help="Path to results directory"
+    )
+    parser.add_argument(
+        "--output-path", "-o", type=str, required=True, help="Path to output figures"
+    )
     args = parser.parse_args()
 
     # Results directories
@@ -145,25 +149,31 @@ if __name__ == "__main__":
     ## Plot 1: Easy vs Hard - Uniform Sampling
     easy_us_results = load_planner_results(easy_path, "uniform_sampling")
     hard_us_results = load_planner_results(hard_path, "uniform_sampling")
-    easy_us_x, easy_us_y, easy_us_std = extract_sorted_axes(easy_us_results, "samples", "return_mean", y_opt_name="return_std")
-    hard_us_x, hard_us_y, hard_us_std = extract_sorted_axes(hard_us_results, "samples", "return_mean", y_opt_name="return_std")
+    easy_us_x, easy_us_y, easy_us_std = extract_sorted_axes(
+        easy_us_results, "samples", "return_mean", y_opt_name="return_std"
+    )
+    hard_us_x, hard_us_y, hard_us_std = extract_sorted_axes(
+        hard_us_results, "samples", "return_mean", y_opt_name="return_std"
+    )
 
     standard_plot(
-        x=[easy_us_x, hard_us_x], 
-        y=[easy_us_y, hard_us_y], 
-        std=[easy_us_std ** 2, hard_us_std ** 2], 
+        x=[easy_us_x, hard_us_x],
+        y=[easy_us_y, hard_us_y],
+        std=[easy_us_std**2, hard_us_std**2],
         title="Complexity Analysis: Standard vs Randomized Domain",
         xlabel="Number of Discrete Action Space Partitions",
         ylabel=r"Mean Returns (error $\pm \sigma^2$)",
         labels=["BFS Standard", "BFS Randomized"],
-        output_path=path.join(args.output_path, "analysis_env_complexity.png")
+        output_path=path.join(args.output_path, "analysis_env_complexity.png"),
     )
 
     ## Plot 2-3: Hard - Random Shooting vs Policy Shooting (multiple std)
     for postfix, data_path in zip(["standard", "randomized"], [easy_path, hard_path]):
         rs_results = load_planner_results(data_path, "random_shooting")
         ps_results = load_planner_results(data_path, "policy_shooting")
-        rs_x, rs_y, rs_std = extract_sorted_axes(rs_results, "samples", "return_mean", y_opt_name="return_std")
+        rs_x, rs_y, rs_std = extract_sorted_axes(
+            rs_results, "samples", "return_mean", y_opt_name="return_std"
+        )
         x, y, std, labels = [rs_x], [rs_y], [rs_std], []
 
         # Store for plot 4
@@ -174,25 +184,37 @@ if __name__ == "__main__":
                 rs_means[s] = np.array([rs_y[rs_x == s].item()])
                 rs_stds[s] = np.array([rs_std[rs_x == s].item()])
 
-        for standard_deviation, hard_ps_group_results in group_by_param(ps_results, "standard_deviation"):
-            ps_x, ps_y, ps_std = extract_sorted_axes(hard_ps_group_results, "samples", "return_mean", y_opt_name="return_std")            
-            x.append(ps_x); y.append(ps_y); std.append(ps_std); labels.append(standard_deviation)
-            
+        for standard_deviation, hard_ps_group_results in group_by_param(
+            ps_results, "standard_deviation"
+        ):
+            ps_x, ps_y, ps_std = extract_sorted_axes(
+                hard_ps_group_results, "samples", "return_mean", y_opt_name="return_std"
+            )
+            x.append(ps_x)
+            y.append(ps_y)
+            std.append(ps_std)
+            labels.append(standard_deviation)
+
             # Store for plot 4
             if standard_deviation == 0.5 and postfix == "randomized":
-                ps_means = {} 
-                ps_stds = {}  
+                ps_means = {}
+                ps_stds = {}
                 for s in [50, 100]:
                     ps_means[s] = np.array([ps_y[ps_x == s].item()])
                     ps_stds[s] = np.array([ps_std[ps_x == s].item()])
 
         standard_plot(
-            x=x, y=y, std=None,
+            x=x,
+            y=y,
+            std=None,
             title=f"Primitive init. in Shooting Planners: {postfix.capitalize()} Domain",
             xlabel="Number of Sampled Trajectories",
             ylabel=r"Mean Returns (error $\pm \sigma^2$)",
-            labels=["Random Shooting"] + [r"Policy Shooting ($\sigma=${:.1f})".format(l) for l in labels],
-            output_path=path.join(args.output_path, f"analysis_shooting_planners_{postfix}.png")
+            labels=["Random Shooting"]
+            + [r"Policy Shooting ($\sigma=${:.1f})".format(l) for l in labels],
+            output_path=path.join(
+                args.output_path, f"analysis_shooting_planners_{postfix}.png"
+            ),
         )
 
     ## Plot 4-5: Hard - Random Shooting vs Policy Shooting (best std) vs CEMs (best std)
@@ -204,30 +226,71 @@ if __name__ == "__main__":
     rcem_params, rcem_groups = list(zip(*rcem_groups))
     pcem_params, pcem_groups = list(zip(*pcem_groups))
     assert rcem_params == pcem_params
-    
+
     for num_trajectories in [50, 100]:
-        for (standard_deviation, elites), rcem_group, pcem_group in zip(rcem_params, rcem_groups, pcem_groups):
-            if elites != 5 or standard_deviation != 0.5: continue
-            # Extract filter by number of trajectories sampled 
-            rcem_samples, rcem_iterations, _ = extract_axes(rcem_group, "samples", "iterations")
-            pcem_samples, pcem_iterations, _ = extract_axes(pcem_group, "samples", "iterations")
-            rcem_group = [r for i, r in enumerate(rcem_group) if int(rcem_samples[i] * rcem_iterations[i]) == num_trajectories]
-            pcem_group = [r for i, r in enumerate(pcem_group) if int(pcem_samples[i] * pcem_iterations[i]) == num_trajectories]
+        for (standard_deviation, elites), rcem_group, pcem_group in zip(
+            rcem_params, rcem_groups, pcem_groups
+        ):
+            if elites != 5 or standard_deviation != 0.5:
+                continue
+            # Extract filter by number of trajectories sampled
+            rcem_samples, rcem_iterations, _ = extract_axes(
+                rcem_group, "samples", "iterations"
+            )
+            pcem_samples, pcem_iterations, _ = extract_axes(
+                pcem_group, "samples", "iterations"
+            )
+            rcem_group = [
+                r
+                for i, r in enumerate(rcem_group)
+                if int(rcem_samples[i] * rcem_iterations[i]) == num_trajectories
+            ]
+            pcem_group = [
+                r
+                for i, r in enumerate(pcem_group)
+                if int(pcem_samples[i] * pcem_iterations[i]) == num_trajectories
+            ]
             # Sort returns and return std by increasing samples
-            rcem_means, rcem_stds, _  = extract_axes(rcem_group, "return_mean", "return_std")
-            pcem_means, pcem_stds, _ = extract_axes(pcem_group, "return_mean", "return_std")
-            rcem_samples, rcem_iterations, _, rcem_sort = extract_sorted_axes(rcem_group, "samples", "iterations", return_sorted=True)
-            pcem_samples, pcem_iterations, _, pcem_sort = extract_sorted_axes(pcem_group, "samples", "iterations", return_sorted=True)
+            rcem_means, rcem_stds, _ = extract_axes(
+                rcem_group, "return_mean", "return_std"
+            )
+            pcem_means, pcem_stds, _ = extract_axes(
+                pcem_group, "return_mean", "return_std"
+            )
+            rcem_samples, rcem_iterations, _, rcem_sort = extract_sorted_axes(
+                rcem_group, "samples", "iterations", return_sorted=True
+            )
+            pcem_samples, pcem_iterations, _, pcem_sort = extract_sorted_axes(
+                pcem_group, "samples", "iterations", return_sorted=True
+            )
             rcem_means, rcem_stds = rcem_means[rcem_sort], rcem_stds[rcem_sort]
             pcem_means, pcem_stds = pcem_means[pcem_sort], pcem_stds[pcem_sort]
-            rcem_labels = [fr"Random CEM ($s={s}$, $i={i}$)" for s, i in zip(rcem_samples.astype(int), rcem_iterations.astype(int))]
-            pcem_labels = [fr"Policy CEM ($s={s}$, $i={i}$)" for s, i in zip(pcem_samples.astype(int), pcem_iterations.astype(int))]
+            rcem_labels = [
+                rf"Random CEM ($s={s}$, $i={i}$)"
+                for s, i in zip(rcem_samples.astype(int), rcem_iterations.astype(int))
+            ]
+            pcem_labels = [
+                rf"Policy CEM ($s={s}$, $i={i}$)"
+                for s, i in zip(pcem_samples.astype(int), pcem_iterations.astype(int))
+            ]
             bar_plot(
-                vals=np.concatenate((rs_means[num_trajectories], rcem_means, ps_means[num_trajectories], pcem_means)),
+                vals=np.concatenate(
+                    (
+                        rs_means[num_trajectories],
+                        rcem_means,
+                        ps_means[num_trajectories],
+                        pcem_means,
+                    )
+                ),
                 stds=np.concatenate((np.zeros(1), rcem_stds, np.zeros(1), pcem_stds)),
-                labels=[fr"Random Shooting ($s={num_trajectories}$)"] + rcem_labels + [fr"Policy Shooting ($s={num_trajectories}$)"] + pcem_labels,
-                title=fr"Effect of Updating the Sampling Dist. ($\tau={num_trajectories}$, $\sigma={standard_deviation}$, $\epsilon={elites}$)",
+                labels=[rf"Random Shooting ($s={num_trajectories}$)"]
+                + rcem_labels
+                + [rf"Policy Shooting ($s={num_trajectories}$)"]
+                + pcem_labels,
+                title=rf"Effect of Updating the Sampling Dist. ($\tau={num_trajectories}$, $\sigma={standard_deviation}$, $\epsilon={elites}$)",
                 xlabel=r"Mean Returns (error $\pm \sigma$)",
                 ylabel="Planner Variations",
-                output_path=path.join(args.output_path, f"analysis_cem_{num_trajectories}")
+                output_path=path.join(
+                    args.output_path, f"analysis_cem_{num_trajectories}"
+                ),
             )
