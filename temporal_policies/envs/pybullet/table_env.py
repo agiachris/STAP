@@ -329,28 +329,48 @@ class TableEnv(PybulletEnv):
     def get_arg_indices(
         self, idx_policy: int, policy_args: Optional[Any]
     ) -> Tuple[List[int], int]:
+        """Computes the ordered object indices for the given policy.
+
+        The first index is the end-effector, the following indices are the
+        primitive arguments (in order), and the remaining indices are for the
+        rest of the objects.
+
+        This method will also compute the number of non-null objects. The
+        observation matrix indexed beyond this number should be all null.
+
+        Returns:
+            (list of object indices, number of non-null objects).
+        """
         assert isinstance(policy_args, list)
 
+        # Add end-effector index first.
         arg_indices = [TableEnv.EE_OBSERVATION_IDX]
 
+        # Get an ordered list of all other indices besides the end-effector.
         object_indices = [
             i
             for i in range(TableEnv.MAX_NUM_OBJECTS)
             if i != TableEnv.EE_OBSERVATION_IDX
         ]
+
+        # Create a map of non-null object indices.
         real_object_indices = {
             obj: object_indices[i]
             for i, obj in enumerate(
                 obj for obj in self.objects.values() if not obj.isinstance(Null)
             )
         }
+
+        # Add policy args next.
         arg_indices += [real_object_indices[obj] for obj in policy_args]
 
+        # Add all remaining indices in sequential order.
         other_indices: List[Optional[int]] = list(range(TableEnv.MAX_NUM_OBJECTS))
         for i in arg_indices:
             other_indices[i] = None
         arg_indices += [i for i in other_indices if i is not None]
 
+        # Compute number of non-null objects + 1 for the end-effector.
         num_objects = 1 + sum(not obj.isinstance(Null) for obj in self.objects.values())
 
         return arg_indices, num_objects
@@ -853,7 +873,9 @@ class VariantTableEnv(VariantEnv, TableEnv):  # type: ignore
     def objects(self) -> Dict[str, Object]:
         return self.env.objects
 
-    def get_arg_indices(self, idx_policy: int, policy_args: Optional[Any]) -> List[int]:
+    def get_arg_indices(
+        self, idx_policy: int, policy_args: Optional[Any]
+    ) -> Tuple[List[int], int]:
         return self.env.get_arg_indices(idx_policy, policy_args)
 
     def set_observation(self, observation: np.ndarray) -> None:
