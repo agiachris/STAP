@@ -37,6 +37,40 @@ env_kwargs:
         - on(b, table)
         - on(c, rack)
         - on(d, rack)
+    - prob: 0.25
+      action_skeleton:
+        - pick(a, table)
+      initial_state:
+        - inworkspace(a)
+        - on(rack, table)
+        - on(hook, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - on(d, rack)
+    - prob: 0.25
+      action_skeleton:
+        - pick(c, rack)
+      initial_state:
+        - inworkspace(rack)
+        - inworkspace(c)
+        - on(rack, table)
+        - on(hook, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - on(d, rack)
+    - prob: 0.5
+      action_skeleton:
+        - pick(hook, table)
+      initial_state:
+        - inworkspace(hook)
+        - on(rack, table)
+        - on(hook, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - on(d, rack)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -54,14 +88,7 @@ env_kwargs:
         - object_type: Null
         - object_type: Null
         - object_type: Null
-          #           selected null * unselected null / total null
-          # 1 object:  (4 choose (4-1)) * (1 choose 0) / (5 choose 3) = 4 / 10 = 2 / 5
-          # 2 objects: (4 choose (4-2)) * (1 choose 1) / (5 choose 3) = 6 / 10 = 3 / 5
-          # (#on choose (#on - #obj)) * ((#tot - #on) choose (#null - (#on - #obj)) / (#tot choose #null)
         - object_type: Null
-          # 0 objects: (4 choose (4-0)) * (2 choose 0) / (6 choose 4) = 1 / 15
-          # 1 object:  (4 choose (4-1)) * (2 choose 1) / (6 choose 4) = 4 * 2 / 15 = 8 / 15
-          # 2 objects: (4 choose (4-2)) * (2 choose 2) / (6 choose 4) = 6 / 15
 
   objects:
     - object_type: Urdf

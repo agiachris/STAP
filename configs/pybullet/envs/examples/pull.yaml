@@ -10,13 +10,55 @@ env_kwargs:
     - action_skeleton:
         - pull(a, hook)
       initial_state:
-        - on(a, table)
         - beyondworkspace(a)
+        - on(rack, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
         - inhand(hook)
-        # - on(b, table)
-        # - istippable(b)
+    - action_skeleton:
+        - pull(a, hook)
+      initial_state:
+        - beyondworkspace(a)
+        - on(rack, table)
+        - on(a, table)
+        - on(b, table)
+        - inhand(hook)
+    - action_skeleton:
+        - pull(a, hook)
+      initial_state:
+        - handlegrasp(hook)
+        - beyondworkspace(a)
+        - on(rack, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - inhand(hook)
+    - action_skeleton:
+        - pull(a, hook)
+      initial_state:
+        - handlegrasp(hook)
+        - beyondworkspace(a)
+        - on(rack, table)
+        - on(a, table)
+        - on(b, table)
+        - inhand(hook)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
+
+  object_groups:
+    - name: box
+      objects:
+        - object_type: Box
+          object_kwargs:
+            size: [0.05, 0.05, 0.1]
+            color: [1.0, 0.0, 0.0, 1.0]
+        - object_type: Box
+          object_kwargs:
+            size: [0.1, 0.05, 0.1]
+            color: [0.0, 0.0, 1.0, 1.0]
+        - object_type: Null
+        - object_type: Null
 
   objects:
     - object_type: Urdf
@@ -24,11 +66,15 @@ env_kwargs:
         name: table
         path: configs/pybullet/envs/assets/iprl_table.urdf
         is_static: true
-    - object_type: Box
+    - object_type: Variant
       object_kwargs:
-        name: a
-        size: [0.05, 0.05, 0.1]
-        color: [1.0, 0.0, 0.0, 1.0]
+        name: rack
+        variants:
+          - object_type: Rack
+            object_kwargs:
+              size: [0.22, 0.32, 0.16]
+              color: [0.4, 0.2, 0.0, 1.0]
+          - object_type: Null
     - object_type: Hook
       object_kwargs:
         name: hook
@@ -36,8 +82,19 @@ env_kwargs:
         handle_length: 0.38
         handle_y: -1.0
         color: [0.4, 0.2, 0.0, 1.0]
-    # - object_type: Box
-    #   object_kwargs:
-    #     name: b
-    #     size: [0.05, 0.05, 0.1]
-    #     color: [1.0, 0.0, 0.0, 1.0]
+    - object_type: Variant
+      object_kwargs:
+        name: a
+        group: box
+    - object_type: Variant
+      object_kwargs:
+        name: b
+        group: box
+    - object_type: Variant
+      object_kwargs:
+        name: c
+        group: box
+    - object_type: Variant
+      object_kwargs:
+        name: d
+        group: box
