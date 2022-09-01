@@ -201,11 +201,7 @@ class TableEnv(PybulletEnv):
             object_group_list = []
         else:
             object_group_list = [
-                ObjectGroup(
-                    physics_id=self.physics_id,
-                    idx_object=TableEnv.MAX_NUM_OBJECTS + 1,  # Will be set by Variant.
-                    **group_config,
-                )
+                ObjectGroup(physics_id=self.physics_id, **group_config)
                 for group_config in object_groups
             ]
         self._object_groups = {group.name: group for group in object_group_list}
@@ -214,11 +210,10 @@ class TableEnv(PybulletEnv):
         object_list = [
             Object.create(
                 physics_id=self.physics_id,
-                idx_object=idx_object,
                 object_groups=self.object_groups,
                 **obj_config,
             )
-            for idx_object, obj_config in enumerate(object_kwargs)
+            for obj_config in object_kwargs
         ]
         self._objects = {obj.name: obj for obj in object_list}
         # for group in self.object_groups.values():
