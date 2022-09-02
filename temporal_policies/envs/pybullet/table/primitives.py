@@ -150,7 +150,7 @@ class Primitive(envs.Primitive, abc.ABC):
         ]
         object_indices = {
             obj: object_to_observation_indices[idx_object]
-            for idx_object, obj in enumerate(self.env.objects.values())
+            for idx_object, obj in enumerate(self.env.real_objects())
         }
 
         # Add primitive args next.
@@ -158,12 +158,9 @@ class Primitive(envs.Primitive, abc.ABC):
         idx_shuffle_start = len(observation_indices)
 
         # Add non-null objects next.
-        real_objects = [
-            obj for obj in self.env.objects.values() if not obj.isinstance(Null)
-        ]
         observation_indices += [
-            object_indices[obj]
-            for obj in real_objects
+            idx_object
+            for obj, idx_object in object_indices.items()
             if obj not in self.primitive_args
         ]
         idx_shuffle_end = len(observation_indices)

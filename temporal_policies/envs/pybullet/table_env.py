@@ -398,6 +398,7 @@ class TableEnv(PybulletEnv):
         except robot.ControlException:
             print(f"TableEnv.set_observation(): Failed to reach pose {ee_pose}.")
 
+        # TODO: Fix.
         for idx_observation, object in zip(
             filter(lambda i: i != TableEnv.EE_OBSERVATION_IDX, range(len(observation))),
             self.objects.values(),
@@ -405,13 +406,16 @@ class TableEnv(PybulletEnv):
             obj_state = object_state.ObjectState(observation[idx_observation])
             object.set_state(obj_state)
 
+    def real_objects(self) -> Generator[Object, None, None]:
+        return (obj for obj in self.objects.values() if not obj.isinstance(Null))
+
     def object_states(self) -> Dict[str, object_state.ObjectState]:
         """Returns the object states as an ordered dict indexed by object name.
 
         The first item in the dict corresponds to the end-effector pose.
         """
         state = {}
-        for i, obj in enumerate(self.objects.values()):
+        for i, obj in enumerate(self.real_objects()):
             if i == TableEnv.EE_OBSERVATION_IDX:
                 ee_state = object_state.ObjectState()
                 ee_state.set_pose(self.robot.arm.ee_pose())
@@ -552,7 +556,7 @@ class TableEnv(PybulletEnv):
                 continue
 
             # Sample random robot pose.
-            for obj in self.objects.values():
+            for obj in self.real_objects():
                 obj.unfreeze()
             if not initialize_robot_pose(self.robot):
                 continue
@@ -613,9 +617,8 @@ class TableEnv(PybulletEnv):
     def _is_any_object_below_table(self) -> bool:
         return any(
             not obj.is_static
-            and not obj.isinstance(Null)
             and predicates.is_below_table(obj)
-            for obj in self.objects.values()
+            for obj in self.real_objects()
         )
 
     def _is_any_object_falling_off_parent(self) -> bool:
@@ -637,9 +640,8 @@ class TableEnv(PybulletEnv):
     def _is_any_object_touching_base(self) -> bool:
         return any(
             not obj.is_static
-            and not obj.isinstance(Null)
             and predicates.is_touching(self.robot, obj, link_id_a=-1)
-            for obj in self.objects.values()
+            for obj in self.real_objects()
         )
 
     def wait_until_stable(
@@ -648,7 +650,7 @@ class TableEnv(PybulletEnv):
         def is_any_object_moving() -> bool:
             return any(
                 not obj.is_static and predicates.is_moving(obj)
-                for obj in self.objects.values()
+                for obj in self.real_objects()
             )
 
         num_iters = 0
@@ -676,7 +678,7 @@ class TableEnv(PybulletEnv):
             self.robot.arm, real.arm.Arm
         ):
             # Send objects to RedisGl.
-            self.object_tracker.send_poses(self.objects.values())
+            self.object_tracker.send_poses(self.real_objects())
 
     def render(self) -> np.ndarray:  # type: ignore
         if "top" in self.render_mode:
