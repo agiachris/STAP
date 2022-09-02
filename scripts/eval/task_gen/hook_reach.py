@@ -109,7 +109,12 @@ if __name__ == "__main__":
                 "place(hook, table)",
                 "pick(?B, table)",
             ],
-            "predicates": ["free(hook)", "inworkspace(hook)", "on(rack, table)", "on(hook, table)"],
+            "predicates": [
+                "free(hook)",
+                "inworkspace(hook)",
+                "on(rack, table)",
+                "on(hook, table)",
+            ],
         },
         {
             "num_tasks": 2,
