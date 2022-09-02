@@ -313,6 +313,10 @@ class TableEnv(PybulletEnv):
     def objects(self) -> Dict[str, Object]:
         return self._objects
 
+    def real_objects(self) -> Generator[Object, None, None]:
+        """Returns an iterator over the non-null objects."""
+        return (obj for obj in self.objects.values() if not obj.isinstance(Null))
+
     @property
     def object_groups(self) -> Dict[str, ObjectGroup]:
         return self._object_groups
@@ -398,16 +402,12 @@ class TableEnv(PybulletEnv):
         except robot.ControlException:
             print(f"TableEnv.set_observation(): Failed to reach pose {ee_pose}.")
 
-        # TODO: Fix.
         for idx_observation, object in zip(
             filter(lambda i: i != TableEnv.EE_OBSERVATION_IDX, range(len(observation))),
-            self.objects.values(),
+            self.real_objects(),
         ):
             obj_state = object_state.ObjectState(observation[idx_observation])
             object.set_state(obj_state)
-
-    def real_objects(self) -> Generator[Object, None, None]:
-        return (obj for obj in self.objects.values() if not obj.isinstance(Null))
 
     def object_states(self) -> Dict[str, object_state.ObjectState]:
         """Returns the object states as an ordered dict indexed by object name.
@@ -616,8 +616,7 @@ class TableEnv(PybulletEnv):
 
     def _is_any_object_below_table(self) -> bool:
         return any(
-            not obj.is_static
-            and predicates.is_below_table(obj)
+            not obj.is_static and predicates.is_below_table(obj)
             for obj in self.real_objects()
         )
 
@@ -639,8 +638,7 @@ class TableEnv(PybulletEnv):
 
     def _is_any_object_touching_base(self) -> bool:
         return any(
-            not obj.is_static
-            and predicates.is_touching(self.robot, obj, link_id_a=-1)
+            not obj.is_static and predicates.is_touching(self.robot, obj, link_id_a=-1)
             for obj in self.real_objects()
         )
 

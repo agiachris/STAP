@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-from typing import Optional
-
 import argparse
 
 from temporal_policies import envs
@@ -16,14 +14,17 @@ def main(env_config: str) -> None:
 
     while True:
         timer.tic("reset")
-        obs = env.reset()
-        print("obs:", obs)
-        input("continue?")
+        obs, info = env.reset()
         dt_reset = timer.toc("reset")
 
-        timer.tic("step")
         primitive = env.get_primitive()
         assert isinstance(primitive, pybullet.table.primitives.Primitive)
+
+        print(primitive)
+        print("obs:", obs)
+        input("continue?")
+
+        timer.tic("step")
         action = primitive.sample_action()
         obs, success, _, _, _ = env.step(primitive.normalize_action(action.vector))
         dt_step = timer.toc("step")

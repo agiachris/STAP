@@ -21,6 +21,8 @@ def main() -> None:
         dt_reset = timer.toc("reset")
 
         primitive = env.get_primitive()
+        assert isinstance(primitive, pybullet.table.primitives.Primitive)
+
         policy_args = primitive.get_policy_args()
         print(env.object_states())
         print(primitive)
@@ -30,8 +32,6 @@ def main() -> None:
         input("continue?")
 
         timer.tic("step")
-        primitive = env.get_primitive()
-        assert isinstance(primitive, pybullet.table.primitives.Primitive)
         action = primitive.sample_action()
         obs, success, _, _, _ = env.step(primitive.normalize_action(action.vector))
         dt_step = timer.toc("step")

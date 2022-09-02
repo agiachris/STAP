@@ -137,12 +137,7 @@ class Dynamics(abc.ABC):
             actions[:, t, : action.shape[-1]] = action
 
             # Dynamics state -> dynamics state.
-            state = self.forward_eval(
-                state,
-                action,
-                primitive.idx_policy,
-                primitive.get_policy_args(),
-            )
+            state = self.forward_eval(state, action, primitive)
             states[:, t + 1] = state
 
         if batch_size is None:
@@ -175,8 +170,7 @@ class Dynamics(abc.ABC):
         self,
         state: torch.Tensor,
         action: torch.Tensor,
-        idx_policy: int,
-        policy_args: Optional[Any],
+        primitive: envs.Primitive,
     ) -> torch.Tensor:
         """Predicts the next state for planning.
 
@@ -189,7 +183,9 @@ class Dynamics(abc.ABC):
         Returns:
             Prediction of next state.
         """
-        return self.forward(state, action, idx_policy, policy_args)
+        return self.forward(
+            state, action, primitive.idx_policy, primitive.get_policy_args()
+        )
 
     def encode(
         self,

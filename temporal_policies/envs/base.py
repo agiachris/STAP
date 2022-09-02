@@ -94,7 +94,7 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
         primitive: Optional[Primitive] = None,
         action_call: Optional[str] = None,
         idx_policy: Optional[int] = None,
-        primitive_args: Optional[Any] = None,
+        policy_args: Optional[Any] = None,
     ) -> "Env":
         """Sets the environment primitive."""
         raise NotImplementedError
@@ -103,7 +103,7 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
         self,
         action_call: Optional[str] = None,
         idx_policy: Optional[int] = None,
-        primitive_args: Optional[Any] = None,
+        policy_args: Optional[Any] = None,
     ) -> Primitive:
         """Gets the primitive info."""
         raise NotImplementedError
@@ -208,10 +208,10 @@ class PrimitiveEnv(Env):
         primitive: Optional[Primitive] = None,
         action_call: Optional[str] = None,
         idx_policy: Optional[int] = None,
-        primitive_args: Optional[Any] = None,
+        policy_args: Optional[Any] = None,
     ) -> Env:
         if primitive is None:
-            primitive = self.get_primitive_info(action_call, idx_policy, primitive_args)
+            primitive = self.get_primitive_info(action_call, idx_policy, policy_args)
         if primitive != self._primitive:
             raise ValueError("Primitive cannot be set for PrimitiveTableEnv")
 
@@ -221,9 +221,9 @@ class PrimitiveEnv(Env):
         self,
         action_call: Optional[str] = None,
         idx_policy: Optional[int] = None,
-        primitive_args: Optional[Any] = None,
+        policy_args: Optional[Any] = None,
     ) -> Primitive:
-        return self._env.get_primitive_info(action_call, idx_policy, primitive_args)
+        return self._env.get_primitive_info(action_call, idx_policy, policy_args)
 
     def create_primitive_env(self, primitive: Primitive) -> Env:
         if primitive != self._primitive:

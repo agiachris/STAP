@@ -57,6 +57,29 @@ class TableEnvEncoder(Encoder):
 
         return observation_indices
 
+    @staticmethod
+    def rearrange_observation(
+        observation: torch.Tensor, observation_indices: np.ndarray
+    ) -> torch.Tensor:
+        # [num_objects] or [B, num_objects].
+        t_observation_indices = torch.from_numpy(observation_indices).to(
+            observation.device
+        )
+        if t_observation_indices.dim() == 1:
+            # [num_objects] => [B, num_objects].
+            t_observation_indices = t_observation_indices.unsqueeze(0)
+        # [B, num_objects] => [B, num_objects, 1].
+        t_observation_indices = t_observation_indices.unsqueeze(-1)
+        # [B, num_objects, 1] => [B, num_objects, object_state_size].
+        t_observation_indices = t_observation_indices.expand(
+            -1, -1, observation.shape[-1]
+        )
+
+        # [B, num_objects, object_state_size].
+        observation = torch.gather(observation, dim=1, index=t_observation_indices)
+
+        return observation
+
     @tensors.batch(dims=2)
     def forward(
         self,
@@ -82,18 +105,11 @@ class TableEnvEncoder(Encoder):
         """
         observation_indices = self._get_observation_indices(policy_args, randomize)
 
-        # [num_objects] or [B, num_objects].
-        t_observation_indices = torch.from_numpy(observation_indices).to(observation.device)
-        if t_observation_indices.dim() == 1:
-            # [num_objects] => [B, num_objects].
-            t_observation_indices = t_observation_indices.unsqueeze(0)
-        # [B, num_objects] => [B, num_objects, 1].
-        t_observation_indices = t_observation_indices.unsqueeze(-1)
-        # [B, num_objects, 1] => [B, num_objects, object_state_size].
-        t_observation_indices = t_observation_indices.expand(-1, -1, observation.shape[-1])
+        observation = TableEnvEncoder.rearrange_observation(
+            observation, observation_indices
+        )
 
-        # [B, num_objects, object_state_size].
-        observation = torch.gather(observation, dim=1, index=t_observation_indices)
+        # print("encoded:", observation)
         observation = (observation - self.observation_mid) / self.observation_range
         # [B, num_objects, object_state_size] => [B, num_objects * object_state_size].
         observation = torch.reshape(observation, (-1, self.state_space.shape[0]))

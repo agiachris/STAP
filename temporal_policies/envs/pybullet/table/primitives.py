@@ -129,11 +129,11 @@ class Primitive(envs.Primitive, abc.ABC):
         primitive arguments (in order), and the remaining indices are for the
         rest of the objects.
 
-        This method will also compute the number of non-null objects. The
-        observation matrix indexed beyond this number should be all null.
+        The non-arg objects can be shuffled randomly for training. This method
+        also returns the start and end indices of the non-arg objects.
 
         Returns:
-            (list of object indices, number of non-null objects).
+            Dict with `observation_indices` and `shuffle_range` keys.
         """
         from temporal_policies.envs.pybullet.table_env import TableEnv
 
