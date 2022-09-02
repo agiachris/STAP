@@ -49,6 +49,8 @@ class TableEnvEncoder(Encoder):
     def _get_observation_indices(
         self, policy_args: Dict[str, List[int]], randomize: bool
     ) -> np.ndarray:
+        """Gets the observation indices from the policy_args dict and shuffles
+        the indices inside the shuffle range."""
         observation_indices = np.array(policy_args["observation_indices"])
 
         if randomize:
@@ -61,6 +63,16 @@ class TableEnvEncoder(Encoder):
     def rearrange_observation(
         observation: torch.Tensor, observation_indices: np.ndarray
     ) -> torch.Tensor:
+        """Rearranges the objects in the observation matrix so that the
+        end-effector and primitive args are first.
+
+        Args:
+            observation: TableEnv observation.
+            observation_indices: List of indices computed by `primitive.get_policy_args()`.
+
+        Returns:
+            Observation with rearranged objects.
+        """
         # [num_objects] or [B, num_objects].
         t_observation_indices = torch.from_numpy(observation_indices).to(
             observation.device
