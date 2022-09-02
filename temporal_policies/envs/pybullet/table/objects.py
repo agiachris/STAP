@@ -41,7 +41,8 @@ def compute_bbox_vertices(
         # 3D box.
         vertices = np.array(list(itertools.product(xs, ys, zs, [1.0])))
         if pose is not None:
-            vertices = (vertices @ pose.to_eigen().matrix.T)[:, :3]
+            vertices = vertices @ pose.to_eigen().matrix.T
+        vertices = vertices[:, :3]
 
     return vertices
 
