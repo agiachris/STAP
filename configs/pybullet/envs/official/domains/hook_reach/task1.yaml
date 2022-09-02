@@ -15,10 +15,12 @@ env_kwargs:
         - place(hook, table)
         - pick(blue_box, table)
       initial_state:
+        - free(hook)
+        - free(blue_box)
         - inworkspace(hook)
-        - on(rack, table)
-        - on(hook, table)
         - beyondworkspace(blue_box)
+        - on(rack, table)
+        - on(hook, table)        
         - on(blue_box, table)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml

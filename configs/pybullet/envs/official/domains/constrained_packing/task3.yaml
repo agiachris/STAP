@@ -20,6 +20,11 @@ env_kwargs:
         - pick(red_box, table)
         - place(red_box, rack)
       initial_state:
+        - free(blue_box)
+        - free(cyan_box)
+        - free(purple_box)
+        - free(hook)
+        - free(red_box)
         - inworkspace(rack)
         - inworkspace(blue_box)
         - inworkspace(cyan_box)

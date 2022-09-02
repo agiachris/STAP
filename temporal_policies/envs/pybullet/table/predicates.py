@@ -1,10 +1,11 @@
 import dataclasses
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Union
 
 from ctrlutils import eigen
 import numpy as np
 import pybullet as p
 import symbolic
+from shapely.geometry import Polygon
 
 from temporal_policies.envs.pybullet.table.objects import Object, Null, Hook, Box, Rack
 from temporal_policies.envs.pybullet.sim import math, body
@@ -78,6 +79,31 @@ def is_touching(
         **kwargs,
     )
     return len(contacts) > 0
+
+
+def compute_vertices(obj: Object, transform=False) -> np.ndarray:
+    """Return object vertices and optionally transform to real world."""
+    assert hasattr(obj, "size")
+    dx, dy, dz = obj.size * 0.5    
+    vertices = np.array(
+        [[-dx, -dy, dz, 1],
+        [-dx, dy, dz, 1],
+        [dx, dy, dz, 1],
+        [dx, -dy, dz, 1],]
+    ).T
+    if transform:
+        vertices = obj.pose().to_eigen() * vertices
+    return vertices[:3, :]
+
+
+def is_intersecting(obj_a: Object, obj_b: Object) -> bool:
+    """Returns True if object a intersects object b in the world x-y plane."""
+    obj_a = compute_vertices(obj_a, transform=True)[:2].T
+    obj_b = compute_vertices(obj_b, transform=True)[:2].T
+    poly_a = Polygon(obj_a.tolist())
+    poly_b = Polygon(obj_b.tolist())
+    intersection = poly_a.intersects(poly_b)
+    return intersection
 
 
 def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
@@ -205,6 +231,24 @@ class Under(Predicate):
     """Unary predicate enforcing that an object be placed underneath another."""
 
     pass
+
+
+class Free(Predicate):
+    """Unary predicate enforcing that no top-down occlusions exist on the object."""
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        child_obj = self.get_arg_objects(objects)[0]
+        if child_obj.isinstance(Null):
+            return True
+        for obj in objects.values():
+            if (not obj.isinstance(Null) 
+                and not obj == child_obj
+                and not is_above(child_obj, obj) 
+                and is_intersecting(obj, child_obj)
+            ):
+                return False
+        return True
 
 
 class On(Predicate):

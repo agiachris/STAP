@@ -78,7 +78,8 @@ if __name__ == "__main__":
                 )
                 for x in p
             ],
-            "predicates": ["inworkspace(rack)"]
+            "predicates": [f"free({m})" for m in lifted_objects[:3]]
+            + ["inworkspace(rack)"]
             + [f"inworkspace({m})" for m in lifted_objects[:3]]
             + ["on(rack, table)"]
             + [f"on({m}, table)" for m in lifted_objects[:3]],
@@ -93,7 +94,8 @@ if __name__ == "__main__":
                 )
                 for x in p
             ],
-            "predicates": ["inworkspace(rack)"]
+            "predicates": [f"free({m})" for m in lifted_objects[:4]]
+            + ["inworkspace(rack)"]
             + [f"inworkspace({m})" for m in lifted_objects[:4]]
             + ["on(rack, table)"]
             + [f"on({m}, table)" for m in lifted_objects[:4]],
@@ -108,7 +110,8 @@ if __name__ == "__main__":
                 )
                 for x in p
             ],
-            "predicates": ["inworkspace(rack)"]
+            "predicates": [f"free({m})" for m in lifted_objects[:5]]
+            + ["inworkspace(rack)"]
             + [f"inworkspace({m})" for m in lifted_objects[:5]]
             + ["on(rack, table)"]
             + [f"on({m}, table)" for m in lifted_objects[:5]],
@@ -123,7 +126,8 @@ if __name__ == "__main__":
                 )
                 for x in p
             ],
-            "predicates": ["inworkspace(rack)"]
+            "predicates": [f"free({m})" for m in lifted_objects[:6]]
+            + ["inworkspace(rack)"]
             + [f"inworkspace({m})" for m in lifted_objects[:6]]
             + ["on(rack, table)"]
             + [f"on({m}, table)" for m in lifted_objects[:6]],
