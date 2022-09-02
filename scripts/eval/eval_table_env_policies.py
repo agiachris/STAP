@@ -53,7 +53,7 @@ def evaluate_pick_critic_state(
     xy_max = np.array(env.observation_space.high[:2])
     xy_min[1] = max(-0.45, xy_min[1])
     xy_max[1] = min(0.45, xy_max[1])
-    z = primitive.primitive_args[0].size[2] / 2
+    z = primitive.arg_objects[0].size[2] / 2
     xs, ys = np.meshgrid(*np.linspace(xy_min, xy_max, grid_resolution).T)
 
     # Create observation batch.
@@ -226,7 +226,7 @@ def evaluate_pick_action(
             ),
             quat=primitives.compute_top_down_orientation(
                 theta,
-                eigen.Quaterniond(env.get_primitive().primitive_args[0].pose().quat),
+                eigen.Quaterniond(primitive.arg_objects[0].pose().quat),
             ),
         )
     except ControlException:
@@ -303,7 +303,7 @@ def evaluate_pick(
     def _evaluate_pick(path: pathlib.Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
-        obj = primitive.primitive_args[0]
+        obj = primitive.arg_objects[0]
         obj.set_pose(math.Pose(pos=np.array([0.4, 0.0, obj.size[2] / 2])))
 
         evaluate_pick_state(
@@ -338,7 +338,7 @@ def evaluate_pick(
                 grid_resolution=grid_resolution,
             )
 
-    obj = primitive.primitive_args[0]
+    obj = primitive.arg_objects[0]
     if isinstance(obj, objects.Variant):
         for idx_variant in range(len(obj.variants)):
             obj.set_variant(idx_variant, lock=True)
@@ -367,7 +367,7 @@ def evaluate_place(
             grid_resolution=grid_resolution,
         )
 
-    obj = primitive.primitive_args[0]
+    obj = primitive.arg_objects[0]
     if isinstance(obj, objects.Variant):
         for idx_variant in range(len(obj.variants)):
             obj.set_variant(idx_variant, lock=True)

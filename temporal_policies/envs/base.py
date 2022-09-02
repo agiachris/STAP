@@ -12,10 +12,9 @@ class Primitive:
     action_space: gym.spaces.Box
     action_scale: gym.spaces.Box
 
-    def __init__(self, env: "Env", idx_policy: int, primitive_args):
+    def __init__(self, env: "Env", idx_policy: int):
         self._env = env
         self._idx_policy = idx_policy
-        self._primitive_args = primitive_args
 
     @property
     def env(self) -> "Env":
@@ -24,10 +23,6 @@ class Primitive:
     @property
     def idx_policy(self) -> int:
         return self._idx_policy
-
-    @property
-    def primitive_args(self):
-        return self._primitive_args
 
     def get_policy_args(self) -> Optional[Dict[str, List[int]]]:
         """Gets auxiliary policy args for the current primitive."""
@@ -49,12 +44,7 @@ class Primitive:
         return self.action_space.sample()
 
     def __str__(self) -> str:
-        args = (
-            ""
-            if self.primitive_args is None
-            else ", ".join(map(str, self.primitive_args))
-        )
-        return f"{type(self).__name__}({args})"
+        return f"{type(self).__name__}()"
 
 
 class Env(gym.Env[np.ndarray, np.ndarray]):

@@ -96,6 +96,14 @@ class ExecutionResult(NamedTuple):
 class Primitive(envs.Primitive, abc.ABC):
     Action: Type[primitive_actions.PrimitiveAction]
 
+    def __init__(self, env: envs.Env, idx_policy: int, arg_objects: List[Object]):
+        super().__init__(env=env, idx_policy=idx_policy)
+        self._arg_objects = arg_objects
+
+    @property
+    def arg_objects(self) -> List[Object]:
+        return self._arg_objects
+
     @abc.abstractmethod
     def execute(self, action: np.ndarray) -> ExecutionResult:
         """Executes the primitive.
@@ -154,14 +162,14 @@ class Primitive(envs.Primitive, abc.ABC):
         }
 
         # Add primitive args next.
-        observation_indices += [object_indices[obj] for obj in self.primitive_args]
+        observation_indices += [object_indices[obj] for obj in self.arg_objects]
         idx_shuffle_start = len(observation_indices)
 
         # Add non-null objects next.
         observation_indices += [
             idx_object
             for obj, idx_object in object_indices.items()
-            if obj not in self.primitive_args
+            if obj not in self.arg_objects
         ]
         idx_shuffle_end = len(observation_indices)
 
@@ -182,7 +190,7 @@ class Primitive(envs.Primitive, abc.ABC):
         return [
             obj
             for obj in objects.values()
-            if obj not in self.primitive_args and not obj.isinstance(Null)
+            if obj not in self.arg_objects and not obj.isinstance(Null)
         ]
 
     def create_non_arg_movement_check(
@@ -209,12 +217,12 @@ class Primitive(envs.Primitive, abc.ABC):
         assert isinstance(env, TableEnv)
 
         name, arg_names = symbolic.parse_proposition(action_call)
-        object_args = [env.objects[obj_name] for obj_name in arg_names]
+        arg_objects = [env.objects[obj_name] for obj_name in arg_names]
 
         primitive_class = globals()[name.capitalize()]
         idx_policy = env.primitives.index(name)
         return primitive_class(
-            env=env, idx_policy=idx_policy, primitive_args=object_args
+            env=env, idx_policy=idx_policy, arg_objects=arg_objects
         )
 
     def __eq__(self, other) -> bool:
@@ -222,6 +230,14 @@ class Primitive(envs.Primitive, abc.ABC):
             return str(self) == str(other)
         else:
             return False
+
+    def __str__(self) -> str:
+        args = (
+            ""
+            if self.arg_objects is None
+            else ", ".join(map(str, self.arg_objects))
+        )
+        return f"{type(self).__name__}({args})"
 
 
 class Pick(Primitive):
@@ -240,7 +256,7 @@ class Pick(Primitive):
         dbprint(a)
 
         # Get object pose.
-        obj: Object = self.primitive_args[0]
+        obj = self.arg_objects[0]
         obj_pose = obj.pose()
         obj_quat = eigen.Quaterniond(obj_pose.quat)
 
@@ -252,8 +268,8 @@ class Pick(Primitive):
 
         pre_pos = np.append(command_pos[:2], LIFT_HEIGHT)
 
-        objects: Dict[str, Object] = self.env.objects
-        robot: Robot = self.env.robot
+        objects = self.env.objects
+        robot = self.env.robot
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
@@ -285,7 +301,7 @@ class Pick(Primitive):
         return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
-        obj: Object = self.primitive_args[0]
+        obj = self.arg_objects[0]
         if obj.isinstance(Hook):
             hook: Hook = obj  # type: ignore
             pos_handle, pos_head, _ = Hook.compute_link_positions(
@@ -330,8 +346,7 @@ class Place(Primitive):
         a = primitive_actions.PlaceAction(self.scale_action(action))
         dbprint(a)
 
-        obj: Object = self.primitive_args[0]
-        target: Object = self.primitive_args[1]
+        obj, target = self.arg_objects
 
         # Get target pose.
         target_pose = target.pose()
@@ -345,8 +360,8 @@ class Place(Primitive):
 
         pre_pos = np.append(command_pos[:2], LIFT_HEIGHT)
 
-        objects: Dict[str, Object] = self.env.objects
-        robot: Robot = self.env.robot
+        objects = self.env.objects
+        robot = self.env.robot
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
@@ -398,13 +413,13 @@ class Place(Primitive):
         action_range = action.range()
 
         # Generate a random xy in the aabb of the parent.
-        parent: Object = self.primitive_args[1]
+        parent = self.arg_objects[1]
         xy_min = np.maximum(action_range[0, :2], -0.5 * parent.size[:2])
         xy_max = np.minimum(action_range[1, :2], 0.5 * parent.size[:2])
         action.pos[:2] = np.random.uniform(xy_min, xy_max)
 
         # Compute an appropriate place height given the grasped object's height.
-        obj: Object = self.primitive_args[0]
+        obj = self.arg_objects[0]
         z_gripper = LIFT_HEIGHT
         z_obj = obj.pose().pos[2]
         action.pos[2] = z_gripper - z_obj + 0.5 * obj.size[2]
@@ -437,8 +452,8 @@ class Pull(Primitive):
         dbprint(a)
 
         # Get target pose in polar coordinates
-        target: Object = self.primitive_args[0]
-        hook: Hook = self.primitive_args[1]
+        target = self.arg_objects[0]
+        hook: Hook = self.arg_objects[1]  # type: ignore
         target_pose = target.pose()
         if target_pose.pos[0] < 0:
             return ExecutionResult(success=False, truncated=True)
@@ -473,8 +488,8 @@ class Pull(Primitive):
         pre_pos = np.append(command_pose_reach.pos[:2], LIFT_HEIGHT)
         post_pos = np.append(command_pose_pull.pos[:2], LIFT_HEIGHT)
 
-        objects: Dict[str, Object] = self.env.objects
-        robot: Robot = self.env.robot
+        objects = self.env.objects
+        robot = self.env.robot
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
@@ -526,8 +541,8 @@ class Pull(Primitive):
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         action = self.Action.random()
 
-        obj: Object = self.primitive_args[0]
-        hook: Hook = self.primitive_args[1]
+        obj = self.arg_objects[0]
+        hook: Hook = self.arg_objects[1]  # type: ignore
         obj_halfsize = 0.5 * np.linalg.norm(obj.size[:2])
         collision_length = 0.5 * hook.size[0] - 2 * hook.radius - obj_halfsize
         action.r_reach = -collision_length

@@ -539,7 +539,7 @@ class TableEnv(PybulletEnv):
 
             # Make sure none of the action skeleton args is Null.
             if any(
-                any(obj.isinstance(Null) for obj in primitive.primitive_args)
+                any(obj.isinstance(Null) for obj in primitive.arg_objects)
                 for primitive in self.task.action_skeleton
             ):
                 continue
