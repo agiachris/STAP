@@ -58,6 +58,7 @@ module = [
   "scod_regression",
   "seaborn",
   "skimage",
+  "shapely.*",
   "spatialdyn",
   "symbolic",
   "tqdm"

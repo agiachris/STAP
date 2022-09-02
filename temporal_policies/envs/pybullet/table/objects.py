@@ -12,6 +12,40 @@ from temporal_policies.envs.pybullet.sim import body, math, shapes
 from temporal_policies.envs.pybullet.table import object_state
 
 
+def compute_bbox_vertices(
+        bbox: np.ndarray, pose: Optional[math.Pose] = None, project_2d: bool = False
+) -> np.ndarray:
+    """Computes the vertices of the given 3D bounding box.
+
+    Args:
+        bbox: Array of shape [2, 3] (min/max, x/y/z).
+        pose: Optional pose to transform the vertices.
+        project_2d: Whether to return 2D vertices or 3D vertices.
+
+    Returns:
+        Array of shape [6, 3] for 3D or [4, 2] for 2D.
+    """
+    xs, ys, zs = bbox.T
+
+    if project_2d:
+        # 2D box with vertices in clockwise order.
+        vertices = np.array(
+            [[xs[0], ys[0]], [xs[0], ys[1]], [xs[1], ys[1]], [xs[1], ys[0]]]
+        )
+        if pose is not None:
+            vertices = np.concatenate(
+                (vertices, np.tile([zs.mean(), 1.0], (vertices.shape[0], 1))), axis=1
+            )
+            vertices = (vertices @ pose.to_eigen().matrix.T)[:, :2]
+    else:
+        # 3D box.
+        vertices = np.array(list(itertools.product(xs, ys, zs, [1.0])))
+        if pose is not None:
+            vertices = (vertices @ pose.to_eigen().matrix.T)[:, :3]
+
+    return vertices
+
+
 @dataclasses.dataclass
 class Object(body.Body):
     name: str
@@ -119,12 +153,36 @@ class Object(body.Body):
     def bbox(self) -> np.ndarray:
         """Returns the bounding box in the object frame.
 
-        The array has shape [2, 3] (min/max, x/y/z).
-
         If the origin of the object is at its geometric center, this will be
         equivalent to `(-0.5 * self.size, 0.5 * self.size)`.
+
+        Returns:
+            An array of shape [2, 3] (min/max, x/y/z).
         """
         raise NotImplementedError
+
+    def convex_hulls(
+        self, world_frame: bool = True, project_2d: bool = False
+    ) -> List[np.ndarray]:
+        """Computes the object's convex hull.
+
+        These hulls will be used for rough collision checking. By default,
+        the vertices will be the 6 corners of the object's bounding box
+        (`Object.bbox`).
+
+        Args:
+            world_frame: Whether to transform the vertices in world frame or
+                leave them in object frame.
+            project_2d: Whether to return the 2d convex hull.
+
+        Returns:
+            List of arrays of shape [_, 3] or [_, 2], where each array is a
+            convex hull.
+        """
+        pose = self.pose() if world_frame else None
+        vertices = compute_bbox_vertices(self.bbox, pose, project_2d)
+
+        return [vertices]
 
     def aabb(self) -> np.ndarray:
         """Computes the axis-aligned bounding box from the object pose and size.
@@ -132,16 +190,13 @@ class Object(body.Body):
         This should be more accurate than `super().aabb()`, which gets the aabb
         from Pybullet. Pybullet returns an *enlarged* aabb for the object *base*
         link, while this returns the exact aabb for the entire object.
+
+        Returns:
+            An array of shape [2, 3] (min/max, x/y/z).
         """
-        T_obj_to_world = self.pose().to_eigen()
-        xs, ys, zs = self.bbox.T
-
-        # List of box corners [8, 4] (num_corners, x/y/z/1).
-        corners = np.array(list(itertools.product(xs, ys, zs, [1.0])))
-        corners = (corners @ T_obj_to_world.matrix.T)[:, :3]
-
-        xyz_min = corners.min(axis=0)
-        xyz_max = corners.max(axis=0)
+        vertices = np.concatenate(self.convex_hulls(world_frame=True), axis=0)
+        xyz_min = vertices.min(axis=0)
+        xyz_max = vertices.max(axis=0)
 
         return np.array([xyz_min, xyz_max])
 
@@ -330,6 +385,35 @@ class Hook(Object):
     def bbox(self) -> np.ndarray:
         return self._bbox
 
+    def convex_hulls(
+        self, world_frame: bool = True, project_2d: bool = False
+    ) -> List[np.ndarray]:
+        """Computes the convex hulls of the handle and head links."""
+        handle_pose = self.shapes[1].pose
+        head_pose = self.shapes[2].pose
+        assert handle_pose is not None and head_pose is not None
+
+        positions = np.array(
+            [
+                [0.0, handle_pose.pos[1], 0.0],
+                [head_pose.pos[0], 0.0, 0.0],
+            ]
+        )
+        sizes = np.array(
+            [
+                [self.size[0], 2 * self.radius, 2 * self.radius],
+                [2 * self.radius, self.size[1], 2 * self.radius],
+            ]
+        )
+        bboxes = np.array([positions - 0.5 * sizes, positions + 0.5 * sizes]).swapaxes(
+            0, 1
+        )
+
+        pose = self.pose() if world_frame else None
+        vertices = [compute_bbox_vertices(bbox, pose, project_2d) for bbox in bboxes]
+
+        return vertices
+
     @property
     def shapes(self) -> Sequence[shapes.Shape]:
         return self._shapes
@@ -493,6 +577,14 @@ class WrapperObject(Object):
     @property
     def bbox(self) -> np.ndarray:
         return self.body.bbox
+
+    def convex_hulls(
+        self, world_frame: bool = True, project_2d: bool = False
+    ) -> List[np.ndarray]:
+        return self.body.convex_hulls(world_frame, project_2d)
+
+    def aabb(self) -> np.ndarray:
+        return self.body.aabb()
 
     @property
     def shapes(self) -> Sequence[shapes.Shape]:

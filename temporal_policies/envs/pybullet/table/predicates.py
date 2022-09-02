@@ -1,5 +1,6 @@
 import dataclasses
-from typing import Dict, List, Optional, Sequence, Union
+import itertools
+from typing import Dict, List, Optional, Sequence
 
 from ctrlutils import eigen
 import numpy as np
@@ -7,7 +8,7 @@ import pybullet as p
 import symbolic
 from shapely.geometry import Polygon
 
-from temporal_policies.envs.pybullet.table.objects import Object, Null, Hook, Box, Rack
+from temporal_policies.envs.pybullet.table.objects import Box, Hook, Null, Object, Rack
 from temporal_policies.envs.pybullet.sim import math, body
 from temporal_policies.envs.pybullet.sim.robot import Robot
 
@@ -81,29 +82,19 @@ def is_touching(
     return len(contacts) > 0
 
 
-def compute_vertices(obj: Object, transform=False) -> np.ndarray:
-    """Return object vertices and optionally transform to real world."""
-    assert hasattr(obj, "size")
-    dx, dy, dz = obj.size * 0.5    
-    vertices = np.array(
-        [[-dx, -dy, dz, 1],
-        [-dx, dy, dz, 1],
-        [dx, dy, dz, 1],
-        [dx, -dy, dz, 1],]
-    ).T
-    if transform:
-        vertices = obj.pose().to_eigen() * vertices
-    return vertices[:3, :]
-
-
 def is_intersecting(obj_a: Object, obj_b: Object) -> bool:
     """Returns True if object a intersects object b in the world x-y plane."""
-    obj_a = compute_vertices(obj_a, transform=True)[:2].T
-    obj_b = compute_vertices(obj_b, transform=True)[:2].T
-    poly_a = Polygon(obj_a.tolist())
-    poly_b = Polygon(obj_b.tolist())
-    intersection = poly_a.intersects(poly_b)
-    return intersection
+    polygons_a = [
+        Polygon(hull) for hull in obj_a.convex_hulls(world_frame=True, project_2d=True)
+    ]
+    polygons_b = [
+        Polygon(hull) for hull in obj_b.convex_hulls(world_frame=True, project_2d=True)
+    ]
+
+    return any(
+        poly_a.intersects(poly_b)
+        for poly_a, poly_b in itertools.product(polygons_a, polygons_b)
+    )
 
 
 def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
@@ -235,6 +226,7 @@ class Under(Predicate):
 
 class Free(Predicate):
     """Unary predicate enforcing that no top-down occlusions exist on the object."""
+
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -242,9 +234,10 @@ class Free(Predicate):
         if child_obj.isinstance(Null):
             return True
         for obj in objects.values():
-            if (not obj.isinstance(Null) 
+            if (
+                not obj.isinstance(Null)
                 and not obj == child_obj
-                and not is_above(child_obj, obj) 
+                and not is_above(child_obj, obj)
                 and is_intersecting(obj, child_obj)
             ):
                 return False
