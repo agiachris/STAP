@@ -193,6 +193,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             idx_policy=batch["idx_replay_buffer"],
             action=batch["action"],
             next_observation=batch["next_observation"],
+            policy_args=batch["policy_args"],
         )
         return tensors.to(dynamics_batch, self.device)
 

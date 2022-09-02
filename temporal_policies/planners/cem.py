@@ -98,7 +98,7 @@ class CEMPlanner(planners.Planner):
 
         Args:
             observation: Start observation.
-            action_skeleton: List of (idx_policy, policy_args) 2-tuples.
+            action_skeleton: List of primitives.
 
         Returns:
             2-tuple (mean, std).
@@ -126,7 +126,7 @@ class CEMPlanner(planners.Planner):
 
         Args:
             observation: Environment observation.
-            action_skeleton: List of (idx_policy, policy_args) 2-tuples.
+            action_skeleton: List of primitives.
 
         Returns:
             Planning result.
@@ -146,11 +146,7 @@ class CEMPlanner(planners.Planner):
             self.policies[primitive.idx_policy].critic for primitive in action_skeleton
         ]
         decode_fns = [
-            functools.partial(
-                self.dynamics.decode,
-                idx_policy=primitive.idx_policy,
-                policy_args=primitive.policy_args,
-            )
+            functools.partial(self.dynamics.decode, primitive=primitive)
             for primitive in action_skeleton
         ]
 

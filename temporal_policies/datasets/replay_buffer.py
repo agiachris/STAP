@@ -5,7 +5,7 @@ import datetime
 import enum
 import functools
 import pathlib
-from typing import Generator, Optional, Sequence, Union
+from typing import Any, Generator, Optional, Sequence, Union
 
 try:
     from typing import TypedDict
@@ -28,6 +28,7 @@ class StorageBatch(TypedDict):
     discount: np.ndarray
     terminated: np.ndarray
     truncated: np.ndarray
+    policy_args: np.ndarray
 
 
 class ReplayBuffer(torch.utils.data.IterableDataset):
@@ -214,6 +215,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             "discount": np.full(size, float("nan"), dtype=np.float32),
             "terminated": np.zeros(size, dtype=bool),
             "truncated": np.zeros(size, dtype=bool),
+            "policy_args": np.empty(size, dtype=object),
         }
 
     def add(
@@ -225,6 +227,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         discount: Optional[Union[np.ndarray, float]] = None,
         terminated: Optional[Union[np.ndarray, bool]] = None,
         truncated: Optional[Union[np.ndarray, bool]] = None,
+        policy_args: Optional[Any] = None,
         batch: Optional[StorageBatch] = None,
         max_entries: Optional[int] = None,
     ) -> int:
@@ -244,6 +247,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             discount: Discount factor.
             terminated: Whether episode terminated normally.
             truncated: Whether episode terminated abnormally.
+            policy_args: Auxiliary policy arguments.
             batch: Batch dict. Useful for loading from disk.
             max_entries: Limit the number of entries to add.
 
@@ -261,9 +265,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             == (discount is None)
             == (terminated is None)
             == (truncated is None)
+            == (policy_args is None)
         ):
             raise ValueError(
-                "(action, reward, next_observation, discount, terminated, truncated) need to be set together."
+                "(action, reward, next_observation, discount, terminated, "
+                "truncated, policy_args) need to be set together."
             )
 
         # Prepare batch.
@@ -286,6 +292,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             assert discount is not None
             assert terminated is not None
             assert truncated is not None
+            assert policy_args is not None
             batch = {
                 "observation": next_observation,
                 "action": action,
@@ -293,6 +300,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 "discount": discount,  # type: ignore
                 "terminated": terminated,  # type: ignore
                 "truncated": truncated,  # type: ignore
+                "policy_args": policy_args,  # type: ignore
             }
 
         # Insert batch and advance indices.
@@ -422,6 +430,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             idx_sample_i = (idx_sample + i) % self._worker_size
             reward += discount * self.worker_buffers["reward"][idx_sample_i]
             discount *= self.worker_buffers["discount"][idx_sample_i]
+        policy_args = nest.map_structure(
+            functools.partial(_wrap_get, idx=idx_sample + 1),
+            self.worker_buffers["policy_args"],
+            atom_type=np.ndarray,
+        )
 
         return Batch(
             observation=observation,
@@ -429,6 +442,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             reward=reward,
             next_observation=next_observation,
             discount=discount,
+            policy_args=policy_args,
         )
 
     def load(

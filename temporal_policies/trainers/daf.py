@@ -120,6 +120,10 @@ class DafTrainer(UnifiedTrainer):
         next_observation, reward, terminated, truncated, info = self.env.step(action)
         done = terminated or truncated
         discount = 1.0 - float(done)
+        try:
+            policy_args = info["policy_args"]
+        except KeyError:
+            policy_args = None
 
         dataset.add(
             action=action,
@@ -128,6 +132,7 @@ class DafTrainer(UnifiedTrainer):
             discount=discount,
             terminated=terminated,
             truncated=truncated,
+            policy_args=policy_args,
         )
 
         agent_trainer._episode_length += 1

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, List, Union
 
 import gym
 import numpy as np
@@ -38,9 +38,6 @@ class TableEnvEncoder(Encoder):
             observation_space.high[0] - observation_space.low[0]
         )
 
-        self._env = env
-        # self._idx_args: Optional[List[int]] = None
-
     def _apply(self, fn):
         """Ensures members get transferred with TableEnvEncoder.to(device)."""
         super()._apply(fn)
@@ -48,12 +45,25 @@ class TableEnvEncoder(Encoder):
         self.observation_range = fn(self.observation_range)
         return self
 
+    @tensors.vmap(dims=0)
+    def _get_observation_indices(
+        self, policy_args: Dict[str, List[int]], randomize: bool
+    ) -> np.ndarray:
+        observation_indices = np.array(policy_args["observation_indices"])
+
+        if randomize:
+            shuffle_range = policy_args["shuffle_range"]
+            np.random.shuffle(observation_indices[shuffle_range[0] : shuffle_range[1]])
+
+        return observation_indices
+
     @tensors.batch(dims=2)
     def forward(
         self,
         observation: torch.Tensor,
-        env: Optional[envs.pybullet.TableEnv] = None,
+        policy_args: Union[np.ndarray, Dict[str, List[int]]],
         randomize: bool = True,
+        **kwargs,
     ) -> torch.Tensor:
         """Encodes the TableEnv observation into a flat vector.
 
@@ -67,24 +77,25 @@ class TableEnvEncoder(Encoder):
 
         Args:
             observation: TableEnv observation.
-            env: Optional TableEnv, for example if an eval env should be used
-                instead of the default train env.
+            policy_args: Auxiliary policy arguments.
             randomize: Whether to randomize the order of auxiliary objects.
         """
-        if env is None:
-            env = self._env
-        primitive = env.get_primitive()
-        idx_args, num_objects = env.get_arg_indices(
-            idx_policy=primitive.idx_policy, policy_args=primitive.policy_args
-        )
+        observation_indices = self._get_observation_indices(policy_args, randomize)
 
-        if randomize:
-            np_idx_args = np.array(idx_args)
-            np.random.shuffle(np_idx_args[1 + len(primitive.policy_args) : num_objects])
-            idx_args = np_idx_args.tolist()
+        # [num_objects] or [B, num_objects].
+        t_observation_indices = torch.from_numpy(observation_indices).to(observation.device)
+        if t_observation_indices.dim() == 1:
+            # [num_objects] => [B, num_objects].
+            t_observation_indices = t_observation_indices.unsqueeze(0)
+        # [B, num_objects] => [B, num_objects, 1].
+        t_observation_indices = t_observation_indices.unsqueeze(-1)
+        # [B, num_objects, 1] => [B, num_objects, object_state_size].
+        t_observation_indices = t_observation_indices.expand(-1, -1, observation.shape[-1])
 
-        observation = observation[:, idx_args, :]
+        # [B, num_objects, object_state_size].
+        observation = torch.gather(observation, dim=1, index=t_observation_indices)
         observation = (observation - self.observation_mid) / self.observation_range
+        # [B, num_objects, object_state_size] => [B, num_objects * object_state_size].
         observation = torch.reshape(observation, (-1, self.state_space.shape[0]))
 
         return observation

@@ -160,31 +160,30 @@ class OracleDynamics(dynamics.Dynamics):
     def decode(
         self,
         state: torch.Tensor,
-        idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        primitive: envs.Primitive,
     ) -> torch.Tensor:
         """Returns the encoded state for the policy.
 
         Args:
             state: Current state.
-            idx_policy: Index of the executed policy.
-            policy_args: Auxiliary policy arguments.
+            primitive: Current primitive.
 
         Returs:
             Encoded state for policy.
         """
-        assert isinstance(idx_policy, int)
-        self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
+        self.env.set_primitive(primitive)
 
         observation = self._oracle_decoder(state)
 
         with torch.no_grad():
-            policy_encoder = self.policies[idx_policy].encoder
+            policy_encoder = self.policies[primitive.idx_policy].encoder
             if isinstance(policy_encoder.network, networks.encoders.OracleEncoder):
                 # Oracle policy state is simply the env state.
                 policy_state = state
             else:
                 # Encode the policy state.
-                policy_state = policy_encoder.encode(observation)
+                policy_state = policy_encoder.encode(
+                    observation, primitive.get_policy_args()
+                )
 
         return policy_state

@@ -1,6 +1,7 @@
-from typing import Any, Dict, Type, Union
+from typing import Any, Dict, Optional, Type, Union
 
 import gym
+import numpy as np
 import torch
 
 from temporal_policies import envs, networks
@@ -63,5 +64,10 @@ class Encoder:
         """Switches the networks to eval mode."""
         self.network.eval()
 
-    def encode(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
-        return self.network.predict(observation, **kwargs)
+    def encode(
+        self,
+        observation: torch.Tensor,
+        policy_args: Union[np.ndarray, Optional[Any]],
+        **kwargs
+    ) -> torch.Tensor:
+        return self.network.predict(observation, policy_args, **kwargs)

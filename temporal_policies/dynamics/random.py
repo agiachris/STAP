@@ -1,6 +1,7 @@
 from typing import Any, Optional, Sequence, Union
 
 import torch
+import numpy as np
 
 from temporal_policies import agents, networks
 from temporal_policies.dynamics import base as dynamics
@@ -45,7 +46,7 @@ class RandomDynamics(dynamics.Dynamics):
         state: torch.Tensor,
         action: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        policy_args: Union[np.ndarray, Optional[Any]],
     ) -> torch.Tensor:
         """Generates a random batched state within the state space.
 

@@ -321,55 +321,6 @@ class TableEnv(PybulletEnv):
     def object_tracker(self) -> Optional[object_tracker.ObjectTracker]:
         return self._object_tracker
 
-    def get_arg_indices(
-        self, idx_policy: int, policy_args: Optional[Any]
-    ) -> Tuple[List[int], int]:
-        """Computes the ordered object indices for the given policy.
-
-        The first index is the end-effector, the following indices are the
-        primitive arguments (in order), and the remaining indices are for the
-        rest of the objects.
-
-        This method will also compute the number of non-null objects. The
-        observation matrix indexed beyond this number should be all null.
-
-        Returns:
-            (list of object indices, number of non-null objects).
-        """
-        assert isinstance(policy_args, list)
-
-        # Add end-effector index first.
-        arg_indices = [TableEnv.EE_OBSERVATION_IDX]
-
-        # Get an ordered list of all other indices besides the end-effector.
-        object_indices = [
-            i
-            for i in range(TableEnv.MAX_NUM_OBJECTS)
-            if i != TableEnv.EE_OBSERVATION_IDX
-        ]
-
-        # Create a map of non-null object indices.
-        real_object_indices = {
-            obj: object_indices[i]
-            for i, obj in enumerate(
-                obj for obj in self.objects.values() if not obj.isinstance(Null)
-            )
-        }
-
-        # Add policy args next.
-        arg_indices += [real_object_indices[obj] for obj in policy_args]
-
-        # Add all remaining indices in sequential order.
-        other_indices: List[Optional[int]] = list(range(TableEnv.MAX_NUM_OBJECTS))
-        for i in arg_indices:
-            other_indices[i] = None
-        arg_indices += [i for i in other_indices if i is not None]
-
-        # Compute number of non-null objects + 1 for the end-effector.
-        num_objects = 1 + sum(not obj.isinstance(Null) for obj in self.objects.values())
-
-        return arg_indices, num_objects
-
     def get_primitive(self) -> envs.Primitive:
         return self._primitive
 
@@ -394,15 +345,11 @@ class TableEnv(PybulletEnv):
         policy_args: Optional[Any] = None,
     ) -> envs.Primitive:
         if action_call is not None:
-            return Primitive.from_action_call(
-                action_call, self.primitives, self.objects
-            )
+            return Primitive.from_action_call(action_call, self)
         elif idx_policy is not None and policy_args is not None:
-            args = ", ".join(obj.name for obj in policy_args)
+            args = ", ".join(obj_name for obj_name in policy_args)
             action_call = f"{self.primitives[idx_policy]}({args})"
-            return Primitive.from_action_call(
-                action_call, self.primitives, self.objects
-            )
+            return Primitive.from_action_call(action_call, self)
         else:
             raise ValueError(
                 "One of action_call or (idx_policy, policy_args) must not be None."
@@ -464,11 +411,7 @@ class TableEnv(PybulletEnv):
         The first item in the dict corresponds to the end-effector pose.
         """
         state = {}
-        # Skip Null objects since they don't exist in the scene.
-        real_objects = (
-            obj for obj in self.objects.values() if not obj.isinstance(Null)
-        )
-        for i, obj in enumerate(real_objects):
+        for i, obj in enumerate(self.objects.values()):
             if i == TableEnv.EE_OBSERVATION_IDX:
                 ee_state = object_state.ObjectState()
                 ee_state.set_pose(self.robot.arm.ee_pose())
@@ -592,7 +535,7 @@ class TableEnv(PybulletEnv):
 
             # Make sure none of the action skeleton args is Null.
             if any(
-                any(obj.isinstance(Null) for obj in primitive.policy_args)
+                any(obj.isinstance(Null) for obj in primitive.primitive_args)
                 for primitive in self.task.action_skeleton
             ):
                 continue
@@ -636,7 +579,12 @@ class TableEnv(PybulletEnv):
                 # Break if all propositions in the initial state are true.
                 break
 
-        return self.get_observation(), {"seed": seed}
+        info = {
+            "seed": seed,
+            "policy_args": self.get_primitive().get_policy_args(),
+        }
+
+        return self.get_observation(), info
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
         primitive = self.get_primitive()
@@ -651,16 +599,16 @@ class TableEnv(PybulletEnv):
 
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
-        result = primitive.execute(
-            action, self.robot, self.objects, self.wait_until_stable
-        )
+        result = primitive.execute(action)
         obs = self.get_observation()
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
 
         reward = float(result.success)
         terminated = not result.truncated
-        return obs, reward, terminated, result.truncated, {}
+        info = {"policy_args": primitive.get_policy_args()}
+
+        return obs, reward, terminated, result.truncated, info
 
     def _is_any_object_below_table(self) -> bool:
         return any(
@@ -867,11 +815,6 @@ class VariantTableEnv(VariantEnv, TableEnv):  # type: ignore
     @property
     def objects(self) -> Dict[str, Object]:
         return self.env.objects
-
-    def get_arg_indices(
-        self, idx_policy: int, policy_args: Optional[Any]
-    ) -> Tuple[List[int], int]:
-        return self.env.get_arg_indices(idx_policy, policy_args)
 
     def set_observation(self, observation: np.ndarray) -> None:
         return self.env.set_observation(observation)

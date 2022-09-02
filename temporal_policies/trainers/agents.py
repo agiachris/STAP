@@ -197,8 +197,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     )
                     if isinstance(self.agent.encoder.network, IMAGE_ENCODERS):
                         t_observation = tensors.rgb_to_cnn(t_observation)
+                    policy_args = self.env.get_primitive().get_policy_args()
                     t_observation = self.agent.encoder.encode(
-                        t_observation, env=self.eval_env
+                        t_observation, policy_args
                     )
                     t_action = self.agent.actor.predict(t_observation, sample=True)
                     action = t_action.cpu().numpy()
@@ -209,6 +210,10 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             )
             done = terminated or truncated
             discount = 1.0 - float(done)
+            try:
+                policy_args = info["policy_args"]
+            except KeyError:
+                policy_args = None
 
             self.dataset.add(
                 action=action,
@@ -217,6 +222,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 discount=discount,
                 terminated=terminated,
                 truncated=truncated,
+                policy_args=policy_args,
             )
 
             self._episode_length += 1
@@ -331,7 +337,11 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         Returns:
             Dict of eval metrics for one episode.
         """
-        observation, _ = self.eval_env.reset()
+        observation, info = self.eval_env.reset()
+        try:
+            policy_args = info["policy_args"]
+        except KeyError:
+            policy_args = None
         self.eval_dataset.add(observation=observation)
 
         step_metrics_list = []
@@ -341,9 +351,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 t_observation = tensors.from_numpy(observation, self.device)
                 if isinstance(self.agent.encoder.network, IMAGE_ENCODERS):
                     t_observation = tensors.rgb_to_cnn(t_observation)
-                t_observation = self.agent.encoder.encode(
-                    t_observation, env=self.eval_env
-                )
+                t_observation = self.agent.encoder.encode(t_observation, policy_args)
                 t_action = self.agent.actor.predict(t_observation, sample=False)
                 action = t_action.cpu().numpy()
 
@@ -358,6 +366,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 discount=1.0 - done,
                 terminated=terminated,
                 truncated=truncated,
+                policy_args=policy_args,
             )
 
             step_metrics = {

@@ -136,6 +136,7 @@ class SAC(rl.RLAgent):
         reward: torch.Tensor,
         next_observation: torch.Tensor,
         discount: torch.Tensor,
+        policy_args: np.ndarray,
     ) -> Tuple[torch.Tensor, Dict[str, float]]:
         """Computes the critic loss.
 
@@ -258,9 +259,11 @@ class SAC(rl.RLAgent):
 
         if updating_actor or updating_critic:
             with torch.no_grad():
-                batch["observation"] = self.encoder.encode(batch["observation"])
+                batch["observation"] = self.encoder.encode(
+                    batch["observation"], batch["policy_args"]
+                )
                 batch["next_observation"] = self.target_encoder.encode(
-                    batch["next_observation"]
+                    batch["next_observation"], batch["policy_args"]
                 )
 
         metrics = {}

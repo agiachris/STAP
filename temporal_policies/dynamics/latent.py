@@ -109,7 +109,7 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         state: torch.Tensor,
         action: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        policy_args: Union[np.ndarray, Optional[Any]],
     ) -> torch.Tensor:
         """Predicts the next latent state given the current latent state and
         action.

@@ -1,5 +1,5 @@
 import functools
-from typing import Sequence
+from typing import Any, Dict, Sequence
 
 import numpy as np
 import torch
@@ -36,13 +36,15 @@ class ShootingPlanner(planners.Planner):
         return self._num_samples
 
     def plan(
-        self, observation: np.ndarray, action_skeleton: Sequence[envs.Primitive]
+        self,
+        observation: np.ndarray,
+        action_skeleton: Sequence[envs.Primitive],
     ) -> planners.PlanningResult:
         """Generates `num_samples` trajectories and picks the best one.
 
         Args:
             observation: Environment observation.
-            action_skeleton: List of (idx_policy, policy_args) 2-tuples.
+            action_skeleton: List of primitives.
 
         Returns:
             Planning result.
@@ -65,11 +67,7 @@ class ShootingPlanner(planners.Planner):
                 for primitive in action_skeleton
             ]
             decode_fns = [
-                functools.partial(
-                    self.dynamics.decode,
-                    idx_policy=primitive.idx_policy,
-                    policy_args=primitive.policy_args,
-                )
+                functools.partial(self.dynamics.decode, primitive)
                 for primitive in action_skeleton
             ]
             p_success, t_values = utils.evaluate_trajectory(

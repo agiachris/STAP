@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import gym
 import numpy as np
@@ -12,17 +12,26 @@ class Primitive:
     action_space: gym.spaces.Box
     action_scale: gym.spaces.Box
 
-    def __init__(self, idx_policy: int, policy_args):
+    def __init__(self, env: "Env", idx_policy: int, primitive_args):
+        self._env = env
         self._idx_policy = idx_policy
-        self._policy_args = policy_args
+        self._primitive_args = primitive_args
+
+    @property
+    def env(self) -> "Env":
+        return self._env
 
     @property
     def idx_policy(self) -> int:
         return self._idx_policy
 
     @property
-    def policy_args(self):
-        return self._policy_args
+    def primitive_args(self):
+        return self._primitive_args
+
+    def get_policy_args(self) -> Optional[Dict[str, List[int]]]:
+        """Gets auxiliary policy args for the current primitive."""
+        return None
 
     @classmethod
     def scale_action(cls, action: np.ndarray) -> np.ndarray:
@@ -40,7 +49,11 @@ class Primitive:
         return self.action_space.sample()
 
     def __str__(self) -> str:
-        args = "" if self.policy_args is None else ", ".join(map(str, self.policy_args))
+        args = (
+            ""
+            if self.primitive_args is None
+            else ", ".join(map(str, self.primitive_args))
+        )
         return f"{type(self).__name__}({args})"
 
 
@@ -81,7 +94,7 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
         primitive: Optional[Primitive] = None,
         action_call: Optional[str] = None,
         idx_policy: Optional[int] = None,
-        policy_args: Optional[Any] = None,
+        primitive_args: Optional[Any] = None,
     ) -> "Env":
         """Sets the environment primitive."""
         raise NotImplementedError
@@ -90,7 +103,7 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
         self,
         action_call: Optional[str] = None,
         idx_policy: Optional[int] = None,
-        policy_args: Optional[Any] = None,
+        primitive_args: Optional[Any] = None,
     ) -> Primitive:
         """Gets the primitive info."""
         raise NotImplementedError
@@ -98,10 +111,6 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
     def create_primitive_env(self, primitive: Primitive) -> "Env":
         """Creates an child env with a fixed primitive mode."""
         return PrimitiveEnv(self, primitive)
-
-    # @abc.abstractmethod
-    # def create_policy_env(self, idx_policy: int, policy_args: Optional[Any]) -> "Env":
-    #     raise NotImplementedError
 
     def get_state(self) -> np.ndarray:
         """Gets the environment state."""
@@ -199,10 +208,10 @@ class PrimitiveEnv(Env):
         primitive: Optional[Primitive] = None,
         action_call: Optional[str] = None,
         idx_policy: Optional[int] = None,
-        policy_args: Optional[Any] = None,
+        primitive_args: Optional[Any] = None,
     ) -> Env:
         if primitive is None:
-            primitive = self.get_primitive_info(action_call, idx_policy, policy_args)
+            primitive = self.get_primitive_info(action_call, idx_policy, primitive_args)
         if primitive != self._primitive:
             raise ValueError("Primitive cannot be set for PrimitiveTableEnv")
 
@@ -212,9 +221,9 @@ class PrimitiveEnv(Env):
         self,
         action_call: Optional[str] = None,
         idx_policy: Optional[int] = None,
-        policy_args: Optional[Any] = None,
+        primitive_args: Optional[Any] = None,
     ) -> Primitive:
-        return self._env.get_primitive_info(action_call, idx_policy, policy_args)
+        return self._env.get_primitive_info(action_call, idx_policy, primitive_args)
 
     def create_primitive_env(self, primitive: Primitive) -> Env:
         if primitive != self._primitive:

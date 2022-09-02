@@ -1,5 +1,5 @@
 import pathlib
-from typing import Generator, Optional, Sequence, Union
+from typing import Any, Generator, Optional, Sequence, Union
 
 import numpy as np
 
@@ -91,6 +91,7 @@ class StratifiedReplayBuffer(ReplayBuffer):
         discount: Optional[Union[np.ndarray, float]] = None,
         terminated: Optional[Union[np.ndarray, bool]] = None,
         truncated: Optional[Union[np.ndarray, bool]] = None,
+        policy_args: Optional[Union[np.ndarray, Any]] = None,
         batch: Optional[StorageBatch] = None,
         max_entries: Optional[int] = None,
     ) -> int:
@@ -148,6 +149,7 @@ class StratifiedReplayBuffer(ReplayBuffer):
                 reward=batch["reward"],
                 next_observation=batch["next_observation"],
                 discount=batch["discount"],
+                policy_args=batch["policy_args"],
                 idx_replay_buffer=np.full_like(
                     batch["discount"], idx_replay_buffer, dtype=int
                 ),

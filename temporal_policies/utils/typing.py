@@ -94,6 +94,7 @@ class Batch(TypedDict):
     reward: Tensor
     next_observation: Tensor
     discount: Tensor
+    policy_args: np.ndarray
 
 
 class WrappedBatch(Batch):
@@ -105,6 +106,7 @@ class DynamicsBatch(TypedDict):
     idx_policy: Tensor
     action: Tensor
     next_observation: Tensor
+    policy_args: np.ndarray
 
 
 class StateBatch(TypedDict):

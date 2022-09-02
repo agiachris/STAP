@@ -1,3 +1,5 @@
+from typing import Any, Optional, Union
+
 import gym
 import numpy as np
 import torch
@@ -33,6 +35,11 @@ class NormalizeObservation(Encoder):
         self.observation_range = fn(self.observation_range)
         return self
 
-    def forward(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(
+        self,
+        observation: torch.Tensor,
+        policy_args: Union[np.ndarray, Optional[Any]],
+        **kwargs
+    ) -> torch.Tensor:
         """Normalizes observation to the range (-0.5, 0.5)."""
         return (observation - self.observation_mid) / self.observation_range

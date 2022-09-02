@@ -2,6 +2,7 @@ import pathlib
 from typing import Any, Dict, List, Optional, Sequence, Type, Union
 
 import gym
+import numpy as np
 import torch
 
 from temporal_policies import agents, envs, networks
@@ -89,7 +90,7 @@ class TableEnvDynamics(LatentDynamics):
         self,
         observation: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        policy_args: Union[np.ndarray, Optional[Dict[str, List[int]]]],
         envs: Optional[Sequence[envs.pybullet.TableEnv]] = None,
     ) -> torch.Tensor:
         """Encodes the observation into a dynamics state.
@@ -184,18 +185,15 @@ class TableEnvDynamics(LatentDynamics):
                 env = policy.env
 
             primitive = env.get_primitive()
-            idx_args, _ = env.get_arg_indices(primitive.idx_policy, primitive.policy_args)
+            idx_args, _ = env.get_arg_indices(
+                primitive.idx_policy, primitive.policy_args
+            )
 
         idx_args += list(i for i in range(env_state.shape[-2]) if i not in idx_args)
 
         return idx_args
 
-    def decode(
-        self,
-        state: torch.Tensor,
-        idx_policy: int,
-        policy_args: Optional[Any],
-    ) -> torch.Tensor:
+    def decode(self, state: torch.Tensor, primitive: envs.Primitive) -> torch.Tensor:
         """Decodes the dynamics state into policy states.
 
         This is only used during planning, not training, so the input state will
@@ -203,23 +201,23 @@ class TableEnvDynamics(LatentDynamics):
 
         Args:
             state: Full TableEnv observation.
-            idx_policy: Index of executed policy.
-            policy_args: Auxiliary policy arguments.
+            primitive: Current primitive.
 
         Returns:
             Decoded observation.
         """
-        # Decode is only called during planning.
         assert self.env is not None
-        self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
-        return self.policies[idx_policy].encoder.encode(state, env=self.env)
+        self.env.set_primitive(primitive)
+        return self.policies[primitive.idx_policy].encoder.encode(
+            state, env=self.env, policy_args=primitive.get_policy_args()
+        )
 
     def forward_eval(
         self,
         state: torch.Tensor,
         action: torch.Tensor,
         idx_policy: int,
-        policy_args: Optional[Any],
+        policy_args: Optional[Dict[str, List[int]]],
     ) -> torch.Tensor:
         """Predicts the next state for planning.
 
