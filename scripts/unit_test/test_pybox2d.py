@@ -10,9 +10,19 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, required=True, help="Path to save gif")
-    parser.add_argument("--configs", nargs="+", type=str, required=True, help="Path to training configuration file")
-    parser.add_argument("--num-eps", type=int, default=1, help="Number of episodes to unit test across")
-    parser.add_argument("--every-n-frames", type=int, default=10, help="Save every n frames to the gif.")
+    parser.add_argument(
+        "--configs",
+        nargs="+",
+        type=str,
+        required=True,
+        help="Path to training configuration file",
+    )
+    parser.add_argument(
+        "--num-eps", type=int, default=1, help="Number of episodes to unit test across"
+    )
+    parser.add_argument(
+        "--every-n-frames", type=int, default=10, help="Save every n frames to the gif."
+    )
     args = parser.parse_args()
 
     assert not os.path.exists(args.path), "Save path already exists"
@@ -25,7 +35,7 @@ if __name__ == "__main__":
         for j in range(len(args.configs)):
             # Load config
             config = Config.load(args.configs[j])
-            
+
             # Instantiate environment
             curr_env = gym.make(config["env"], **config["env_kwargs"]).unwrapped
             curr_env.eval_mode()
@@ -39,12 +49,17 @@ if __name__ == "__main__":
             for _ in range(curr_env.unwrapped._max_episode_steps):
                 action = curr_env.action_space.sample()
                 obs, rew, terminated, truncated, info = curr_env.step(action)
-                if done: break
-            if not info["success"]: break
+                if done:
+                    break
+            if not info["success"]:
+                break
 
             prev_env = curr_env
 
         # Save frames
         filepath = os.path.join(args.path, f"example_{i}.gif")
-        frames = curr_env._frame_buffer + [curr_env._frame_buffer[-1]] * args.every_n_frames**2
-        imageio.mimsave(filepath, frames[::args.every_n_frames])
+        frames = (
+            curr_env._frame_buffer
+            + [curr_env._frame_buffer[-1]] * args.every_n_frames**2
+        )
+        imageio.mimsave(filepath, frames[:: args.every_n_frames])

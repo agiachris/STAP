@@ -1,12 +1,14 @@
 import dataclasses
-from typing import Dict, List, Optional, Sequence
+import itertools
+from typing import Dict, List, Optional, Sequence, Union, Tuple
 
 from ctrlutils import eigen
 import numpy as np
 import pybullet as p
 import symbolic
+from shapely.geometry import Polygon
 
-from temporal_policies.envs.pybullet.table.objects import Object, Null, Hook, Box, Rack
+from temporal_policies.envs.pybullet.table.objects import Box, Hook, Null, Object, Rack
 from temporal_policies.envs.pybullet.sim import math, body
 from temporal_policies.envs.pybullet.sim.robot import Robot
 
@@ -80,50 +82,19 @@ def is_touching(
     return len(contacts) > 0
 
 
-def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
-    """Generates a grasp pose in the object frame of reference."""
-    if obj.isinstance(Hook):
-        hook: Hook = obj  # type: ignore
-        pos_handle, pos_head, pos_joint = Hook.compute_link_positions(
-            head_length=hook.head_length,
-            handle_length=hook.handle_length,
-            handle_y=hook.handle_y,
-            radius=hook.radius,
-        )
-        if handlegrasp or np.random.random() < hook.handle_length / (
-            hook.handle_length + hook.head_length
-        ):
-            # Handle.
-            half_size = np.array([0.5 * hook.handle_length, hook.radius, hook.radius])
-            if handlegrasp:
-                xyz = pos_handle + np.random.uniform(-half_size, 0)
-            else:
-                xyz = pos_handle + np.random.uniform(-half_size, half_size)
-            theta = 0.0
-        else:
-            # Head.
-            half_size = np.array([hook.radius, 0.5 * hook.head_length, hook.radius])
-            xyz = pos_head + np.random.uniform(-half_size, half_size)
-            theta = np.pi / 2
+def is_intersecting(obj_a: Object, obj_b: Object) -> bool:
+    """Returns True if object a intersects object b in the world x-y plane."""
+    polygons_a = [
+        Polygon(hull) for hull in obj_a.convex_hulls(world_frame=True, project_2d=True)
+    ]
+    polygons_b = [
+        Polygon(hull) for hull in obj_b.convex_hulls(world_frame=True, project_2d=True)
+    ]
 
-        # Perturb angle by 10deg.
-        theta += np.random.normal(scale=0.2)
-        if theta > np.pi / 2:
-            theta -= np.pi
-
-        aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-    else:
-        # Fit object between gripper fingers.
-        max_aabb = 0.5 * obj.size
-        max_aabb[:2] = np.minimum(max_aabb[:2], np.array([0.02, 0.02]))
-        min_aabb = -0.5 * obj.size
-        min_aabb = np.maximum(min_aabb, np.array([-0.02, -0.02, max_aabb[2] - 0.05]))
-
-        xyz = np.random.uniform(min_aabb, max_aabb)
-        theta = np.random.uniform(-np.pi / 2, np.pi / 2)
-        aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-
-    return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
+    return any(
+        poly_a.intersects(poly_b)
+        for poly_a, poly_b in itertools.product(polygons_a, polygons_b)
+    )
 
 
 @dataclasses.dataclass
@@ -166,17 +137,42 @@ class Predicate:
         return str(self) == str(other)
 
 
-class BeyondWorkspace(Predicate):
+class IsTippable(Predicate):
+    """Unary predicate admitting non-upright configurations of an object."""
+
+    pass
+
+
+class Under(Predicate):
+    """Unary predicate enforcing that an object be placed underneath another."""
+
+    pass
+
+
+class HandleGrasp(Predicate):
+    """Unary predicate enforcing a handle grasp on a hook object."""
+
+    pass
+
+
+class Free(Predicate):
+    """Unary predicate enforcing that no top-down occlusions exist on the object."""
+
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
-        """Evaluates to True if the object is beyond the robot workspace radius."""
-        obj = self.get_arg_objects(objects)[0]
-        distance = float(np.linalg.norm(obj.pose().pos[:2]))
-        is_beyondworkspace = distance > WORKSPACE_RADIUS
-
-        dbprint(f"{self}.value():", is_beyondworkspace, "distance:", distance)
-        return is_beyondworkspace
+        child_obj = self.get_arg_objects(objects)[0]
+        if child_obj.isinstance(Null):
+            return True
+        for obj in objects.values():
+            if (
+                not obj.isinstance(Null)
+                and not obj == child_obj
+                and not is_above(child_obj, obj)
+                and is_intersecting(obj, child_obj)
+            ):
+                return False
+        return True
 
 
 class InWorkspace(Predicate):
@@ -194,17 +190,44 @@ class InWorkspace(Predicate):
         dbprint(f"{self}.value():", is_inworkspace, "x:", xyz[0], "distance:", distance)
         return is_inworkspace
 
+    @staticmethod
+    def bounds(child_obj: Object, parent_obj: Object) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the minimum and maximum x-y bounds inside the workspace."""
+        assert parent_obj.name == "table"
+        # breakpoint()
+        margin = 0.5 * child_obj.size[:2].max()
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        xy_min[0] = WORKSPACE_MIN_X
+        xy_max[0] = WORKSPACE_RADIUS
+        xy_min += margin
+        xy_max -= margin
+        return xy_min, xy_max
 
-class IsTippable(Predicate):
-    """Unary predicate admitting non-upright configurations of an object."""
 
-    pass
+class BeyondWorkspace(Predicate):
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        """Evaluates to True if the object is beyond the robot workspace radius."""
+        obj = self.get_arg_objects(objects)[0]
+        distance = float(np.linalg.norm(obj.pose().pos[:2]))
+        is_beyondworkspace = distance > WORKSPACE_RADIUS
 
+        dbprint(f"{self}.value():", is_beyondworkspace, "distance:", distance)
+        return is_beyondworkspace
 
-class Under(Predicate):
-    """Unary predicate enforcing that an object be placed underneath another."""
-
-    pass
+    @staticmethod
+    def bounds(child_obj: Object, parent_obj: Object) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the minimum and maximum x-y bounds outside the workspace."""
+        assert parent_obj.name == "table"
+        margin = 0.5 * child_obj.size[:2].max()
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        xy_min[0] = WORKSPACE_RADIUS * np.cos(
+            np.arcsin(0.5 * (xy_max[1] - xy_min[1]) / WORKSPACE_RADIUS)
+        )
+        xy_min += margin
+        xy_max -= margin
+        return xy_min, xy_max
 
 
 class On(Predicate):
@@ -221,51 +244,33 @@ class On(Predicate):
             dbprint(f"{self}.sample():", False, "- null parent")
             return False
 
-        xy_min = np.empty(2)
-        xy_max = np.empty(2)
         z_max = parent_obj.aabb()[1, 2] + AABB_EPS
-        T_parent_obj_to_world = parent_obj.pose()
-        margin = 0.5 * child_obj.size[:2].max()
-
+        has_parent = False
         if parent_obj.name == "table":
-            is_under = False
+            has_parent = True
+            rack_parent = False
             for obj in objects.values():
                 if obj.isinstance(Rack) and f"under({child_obj}, {obj})" in state:
                     # Restrict placement location to under the rack
-                    is_under = True
-                    T_parent_obj_to_world = obj.pose()
-                    xy_min[:2] = np.array([margin, margin]) - obj.size / 2
-                    xy_max[:2] = obj.size[:2] - margin - obj.size / 2
+                    parent_obj = obj
+                    rack_parent = True
                     break
-            if not is_under:
+            if not rack_parent:
                 T_parent_obj_to_world = math.Pose()
-                xyz_min, xyz_max = parent_obj.aabb()
                 if f"beyondworkspace({child_obj})" in state:
                     # Increase the likelihood of sampling outside the workspace
-                    r = WORKSPACE_RADIUS
-                    xy_min[0] = r * np.cos(
-                        np.arcsin(0.5 * (xyz_max[1] - xyz_min[1]) / r)
-                    )
-                    xy_max[0] = xyz_max[0] - margin
-                    xy_min[1] = xyz_min[1] + margin
-                    xy_max[1] = xyz_max[1] - margin
+                    xy_min, xy_max = BeyondWorkspace.bounds(child_obj, parent_obj)
                 elif f"inworkspace({child_obj})" in state:
                     # Increase the likelihood of sampling inside the workspace
-                    xy_min[0] = WORKSPACE_MIN_X
-                    xy_max[0] = WORKSPACE_RADIUS
-                    xy_min[1] = xyz_min[1] + margin
-                    xy_max[1] = xyz_max[1] - margin
+                    xy_min, xy_max = InWorkspace.bounds(child_obj, parent_obj)
                 else:
-                    xy_min[:2] = xyz_min[:2]
-                    xy_max[:2] = xyz_max[:2]
+                    xy_min, xy_max = parent_obj.aabb()[:, :2]
 
-        elif parent_obj.isinstance(Rack):
-            xy_min[:2] = np.array([margin, margin]) - parent_obj.size[:2] / 2
-            xy_max[:2] = parent_obj.size[:2] - margin - parent_obj.size[:2] / 2
-
-        elif parent_obj.isinstance(Box):
-            xy_min[:2] = np.array([margin, margin])
-            xy_max[:2] = parent_obj.size[:2] - margin
+        if parent_obj.isinstance((Rack, Box)):
+            T_parent_obj_to_world = parent_obj.pose()
+            margin = 0.5 * child_obj.size[:2].max()
+            xy_min = np.array([margin, margin])
+            xy_max = parent_obj.size[:2] - margin
             if np.any(xy_max - xy_min < 0):
                 # Increase the likelihood of a stable placement location
                 child_parent_ratio = child_obj.size[0] / parent_obj.size[0]
@@ -275,34 +280,20 @@ class On(Predicate):
                 y_max_ratio = max(0.55, min(0.75 * child_parent_ratio[1], 0.95))
                 xy_min[:2] = parent_obj.size[:2] * np.array([x_min_ratio, y_min_ratio])
                 xy_max[:2] = parent_obj.size[:2] * np.array([x_max_ratio, y_max_ratio])
-            xy_min -= parent_obj.size[:2] / 2
-            xy_max -= parent_obj.size[:2] / 2
-        else:
+            xy_min -= 0.5 * parent_obj.size[:2]
+            xy_max -= 0.5 * parent_obj.size[:2]
+        elif not has_parent:
             raise ValueError(
                 "[Predicate.On] parent object must be a table, rack, or box"
             )
 
-        # Generate pose in parent coordinate frame
-        xyz_parent_obj = np.zeros(3)
-        xyz_parent_obj[:2] = np.random.uniform(xy_min, xy_max)
-
-        # Convert pose to world coordinate frame (assumes parent in upright)
-        xyz_world = T_parent_obj_to_world.to_eigen() * xyz_parent_obj
-
-        # Ensure object is placed in specified region
-        if f"beyondworkspace({child_obj})" in state:
-            if xyz_world[0] < WORKSPACE_RADIUS:
-                dbprint(f"{self}.sample():", False, "- should be beyond workspace")
-                return False
-        elif f"inworkspace({child_obj})" in state:
-            if xyz_world[0] < WORKSPACE_MIN_X or xyz_world[0] > WORKSPACE_RADIUS:
-                dbprint(f"{self}.sample():", False, "- should be in workspace")
-                return False
-
-        # Correct z-axis position
-        xyz_world[2] = z_max + 0.5 * child_obj.size[2]
+        # Generate pose and convert to world frame (assumes parent in upright)
+        xyz_parent_frame = np.zeros(3)
+        xyz_parent_frame[:2] = np.random.uniform(xy_min, xy_max)
+        xyz_world_frame = T_parent_obj_to_world.to_eigen() * xyz_parent_frame
+        xyz_world_frame[2] = z_max + 0.5 * child_obj.size[2]
         if child_obj.isinstance(Rack):
-            xyz_world[2] += 0.5 * child_obj.size[2]
+            xyz_world_frame[2] += 0.5 * child_obj.size[2]
 
         # Generate theta in the world coordinate frame
         theta = np.random.uniform(-np.pi, np.pi)
@@ -319,9 +310,9 @@ class On(Predicate):
                 quat = quat * eigen.Quaterniond(
                     eigen.AngleAxisd(np.pi / 2, np.array([*axis, 0.0]))
                 )
-                xyz_world[2] = z_max + 0.8 * child_obj.size[:2].max()
+                xyz_world_frame[2] = z_max + 0.8 * child_obj.size[:2].max()
 
-        pose = math.Pose(pos=xyz_world, quat=quat.coeffs)
+        pose = math.Pose(pos=xyz_world_frame, quat=quat.coeffs)
         child_obj.set_pose(pose)
 
         dbprint(f"{self}.sample():", True)
@@ -339,15 +330,6 @@ class On(Predicate):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
-        # Ensure that object remains in specified region
-        child_pos_x = child_obj.pose().pos[0]
-        if f"beyondworkspace({child_obj})" in state:
-            if child_pos_x < WORKSPACE_RADIUS:
-                return False
-        elif f"inworkspace({child_obj})" in state:
-            if child_pos_x < WORKSPACE_MIN_X or child_pos_x > WORKSPACE_RADIUS:
-                return False
-
         if f"istippable({child_obj})" not in state or child_obj.isinstance(
             (Hook, Rack)
         ):
@@ -357,12 +339,6 @@ class On(Predicate):
 
         dbprint(f"{self}.value():", True)
         return True
-
-
-class HandleGrasp(Predicate):
-    """Unary predicate enforcing a handle grasp on a hook object."""
-
-    pass
 
 
 class Inhand(Predicate):
@@ -379,7 +355,7 @@ class Inhand(Predicate):
 
         # Generate grasp pose.
         for i in range(Inhand.MAX_GRASP_ATTEMPTS):
-            grasp_pose = generate_grasp_pose(obj, f"handlegrasp({obj})" in state)
+            grasp_pose = self.generate_grasp_pose(obj, f"handlegrasp({obj})" in state)
             obj_pose = math.Pose.from_eigen(grasp_pose.to_eigen().inverse())
             obj_pose.pos += robot.home_pose.pos
 
@@ -406,3 +382,53 @@ class Inhand(Predicate):
     ) -> bool:
         """The geometric grounding of InHand(a) evaluates to True by construction."""
         return True
+
+    @staticmethod
+    def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
+        """Generates a grasp pose in the object frame of reference."""
+        if obj.isinstance(Hook):
+            hook: Hook = obj  # type: ignore
+            pos_handle, pos_head, pos_joint = Hook.compute_link_positions(
+                head_length=hook.head_length,
+                handle_length=hook.handle_length,
+                handle_y=hook.handle_y,
+                radius=hook.radius,
+            )
+            if handlegrasp or np.random.random() < hook.handle_length / (
+                hook.handle_length + hook.head_length
+            ):
+                # Handle.
+                half_size = np.array(
+                    [0.5 * hook.handle_length, hook.radius, hook.radius]
+                )
+                if handlegrasp:
+                    xyz = pos_handle + np.random.uniform(-half_size, 0)
+                else:
+                    xyz = pos_handle + np.random.uniform(-half_size, half_size)
+                theta = 0.0
+            else:
+                # Head.
+                half_size = np.array([hook.radius, 0.5 * hook.head_length, hook.radius])
+                xyz = pos_head + np.random.uniform(-half_size, half_size)
+                theta = np.pi / 2
+
+            # Perturb angle by 10deg.
+            theta += np.random.normal(scale=0.2)
+            if theta > np.pi / 2:
+                theta -= np.pi
+
+            aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+        else:
+            # Fit object between gripper fingers.
+            max_aabb = 0.5 * obj.size
+            max_aabb[:2] = np.minimum(max_aabb[:2], np.array([0.02, 0.02]))
+            min_aabb = -0.5 * obj.size
+            min_aabb = np.maximum(
+                min_aabb, np.array([-0.02, -0.02, max_aabb[2] - 0.05])
+            )
+
+            xyz = np.random.uniform(min_aabb, max_aabb)
+            theta = np.random.uniform(-np.pi / 2, np.pi / 2)
+            aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+
+        return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)

@@ -82,7 +82,11 @@ def evaluate_planners(
         env.record_save(path / f"planning_{i}.gif")
 
         rewards = planners.evaluate_plan(
-            env, env.action_skeleton, state, plan.actions, gif_path=path / f"exec_{i}.gif"
+            env,
+            env.action_skeleton,
+            state,
+            plan.actions,
+            gif_path=path / f"exec_{i}.gif",
         )
         if rewards.prod() > 0:
             num_success += 1
