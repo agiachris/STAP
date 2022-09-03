@@ -272,7 +272,7 @@ class BeyondWorkspace(Predicate):
         return is_beyondworkspace
 
     @staticmethod
-    def bounds(child_obj: Object, parent_obj: Object) -> Tuple[np.ndarray, np.ndarray]:
+    def bounds(child_obj: Object, parent_obj: Object, margin: Optional[float]) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the minimum and maximum x-y bounds outside the workspace."""
         assert parent_obj.name == "table"
         margin = 0.5 * child_obj.size[:2].max()
@@ -299,11 +299,13 @@ class On(Predicate):
             dbprint(f"{self}.sample():", False, "- null parent")
             return False
 
+        margin = 0.5 * child_obj.size[:2].max()
         z_max = parent_obj.aabb()[1, 2] + AABB_EPS
         has_parent = False
         if parent_obj.name == "table":
             has_parent = True
             restricted = False
+            rack_obj = None
             for obj in objects.values():
                 if obj.isinstance(Rack):
                     if f"under({child_obj}, {obj})" in state:
@@ -314,6 +316,7 @@ class On(Predicate):
                         # Restrict placement location in front of the rack
                         xy_min, xy_max = InFront.bounds(child_obj, obj)
                         restricted = True
+                    rack_obj = obj
                     break
 
             T_parent_obj_to_world = math.Pose()                    
@@ -326,10 +329,16 @@ class On(Predicate):
                     xy_min, xy_max = InWorkspace.bounds(child_obj, parent_obj)
                 else:
                     xy_min, xy_max = parent_obj.aabb()[:, :2]
+                    xy_min += margin
+                    xy_max -= margin
+
+                # Partition bounds to accelerate feasible sampling pose
+                if f"free({child_obj})" in state and isinstance(rack_obj, Rack):
+                    # Here we can partition the space of possible placement locations
+                    pass
 
         if parent_obj.isinstance((Rack, Box)):
             T_parent_obj_to_world = parent_obj.pose()
-            margin = 0.5 * child_obj.size[:2].max()
             xy_min = np.array([margin, margin])
             xy_max = parent_obj.size[:2] - margin
             if np.any(xy_max - xy_min < 0):
@@ -357,10 +366,7 @@ class On(Predicate):
             xyz_world_frame[2] += 0.5 * child_obj.size[2]
 
         # Generate theta in the world coordinate frame
-        if f"aligned({child_obj})" in state:
-            theta = 0.01
-        else:
-            theta = np.random.uniform(-np.pi, np.pi)
+        theta = 0.01 if f"aligned({child_obj})" in state else np.random.uniform(-np.pi, np.pi)
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
         quat = eigen.Quaterniond(aa)
 
