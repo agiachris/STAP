@@ -122,10 +122,12 @@ def train(
         )
         for i in pbar:
             trainer.eval_env.record_start()
-            trainer.evaluate_step()
+            eval_metrics = trainer.evaluate_step()
+            suffix = "" if eval_metrics["reward"] > 0.0 else "_fail"
             trainer.eval_env.record_stop()
             trainer.eval_env.record_save(
-                eval_recording_path / trainer.env.name / f"eval_{i}.gif", reset=True
+                eval_recording_path / trainer.env.name / f"eval_{i}{suffix}.gif",
+                reset=True,
             )
 
     env.close()

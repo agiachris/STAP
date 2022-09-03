@@ -121,7 +121,7 @@ class TableEnv(PybulletEnv):
         objects: Union[str, List[Dict[str, Any]]],
         object_groups: Optional[List[Dict[str, Any]]] = None,
         object_tracker_config: Optional[Union[str, Dict[str, Any]]] = None,
-        recording_freq: int = 10,
+        recording_freq: int = 15,
         gui: bool = True,
         num_processes: int = 1,
         reset_queue_size: int = 100,
