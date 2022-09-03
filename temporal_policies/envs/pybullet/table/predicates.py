@@ -13,8 +13,8 @@ from temporal_policies.envs.pybullet.sim import math, body
 from temporal_policies.envs.pybullet.sim.robot import Robot
 
 
-dbprint = lambda *args: None  # noqa
-# dbprint = print
+# dbprint = lambda *args: None  # noqa
+dbprint = print
 
 
 AABB_EPS = 0.01
@@ -153,6 +153,7 @@ class Tippable(Predicate):
 class Aligned(Predicate):
     """Unary predicate enforcing that the object and world coordinate frames align."""
 
+    pass
 
 class Under(Predicate):
     """Unary predicate enforcing that an object be placed underneath another."""
@@ -162,6 +163,13 @@ class Under(Predicate):
 
 class HandleGrasp(Predicate):
     """Unary predicate enforcing a handle grasp on a hook object."""
+
+    pass
+
+
+class Closer(Predicate):
+    """Unary predicate enforcing that an object is in-front of another with 
+    repect to the world z coordiante axis."""
 
     pass
 
@@ -176,36 +184,36 @@ class Free(Predicate):
         if child_obj.isinstance(Null):
             return True
         for obj in objects.values():
-            if obj.isinstance(Hook) and f"inhand({obj})" in state:
+            if (f"inhand({obj})" in state
+                or obj.isinstance(Null)
+                or obj == child_obj):
                 continue
-            if (
-                not obj.isinstance((Null))
-                and not obj == child_obj
-                and is_under(child_obj, obj)
-            ):
+            if is_under(child_obj, obj):
                 return False
         return True
 
 
 class InFront(Predicate):
-    # def value(
-    #     self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    # ) -> bool:
-    #     """Evaluates to True if child object is in front of parent object."""
-    #     child_obj, parent_obj = self.get_arg_objects(objects)
-    #     if child_obj.isinstance(Null):
-    #         return True
+    """Binary predicate enforcing that one object is in-front of another with
+    respect to the world x-y coordinate axis."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        child_obj, parent_obj = self.get_arg_objects(objects)
+        if child_obj.isinstance(Null):
+            return True
         
-    #     child_pos = child_obj.pose().pos
-    #     margin = 0.5 * child_obj.size[:2].max()
-    #     xy_min, xy_max = parent_obj.aabb()[:, :2]
-    #     if (child_pos[0] >= xy_min[0] - margin
-    #         or child_pos[1] <= xy_min[1] + margin
-    #         or child_pos[1] >= xy_max[1] - margin
-    #     ):
-    #         return False
+        child_pos = child_obj.pose().pos
+        margin = 0.5 * child_obj.size[:2].max()
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        if (child_pos[0] >= xy_min[0] - margin
+            or child_pos[1] <= xy_min[1] + margin
+            or child_pos[1] >= xy_max[1] - margin
+        ):
+            return False
         
-    #     return True
+        return True
 
     @staticmethod
     def bounds(child_obj: Object, parent_obj: Object) -> Tuple[np.ndarray, np.ndarray]:
@@ -221,6 +229,8 @@ class InFront(Predicate):
 
 
 class InWorkspace(Predicate):
+    """Unary predicate ensuring than an object is in the robot workspace."""
+
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -249,10 +259,11 @@ class InWorkspace(Predicate):
 
 
 class BeyondWorkspace(Predicate):
+    """Unary predicate ensuring than an object is in beyond the robot workspace."""
+
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
-        """Evaluates to True if the object is beyond the robot workspace radius."""
         obj = self.get_arg_objects(objects)[0]
         distance = float(np.linalg.norm(obj.pose().pos[:2]))
         is_beyondworkspace = distance > WORKSPACE_RADIUS
@@ -323,7 +334,7 @@ class On(Predicate):
             xy_max = parent_obj.size[:2] - margin
             if np.any(xy_max - xy_min < 0):
                 # Increase the likelihood of a stable placement location
-                child_parent_ratio = child_obj.size[0] / parent_obj.size[0]
+                child_parent_ratio = child_obj.size[:2] / parent_obj.size[:2]
                 x_min_ratio = min(0.25 * child_parent_ratio[0], 0.45)
                 x_max_ratio = max(0.55, min(0.75 * child_parent_ratio[0], 0.95))
                 y_min_ratio = min(0.25 * child_parent_ratio[1], 0.45)
@@ -347,7 +358,7 @@ class On(Predicate):
 
         # Generate theta in the world coordinate frame
         if f"aligned({child_obj})" in state:
-            theta = 0
+            theta = 0.01
         else:
             theta = np.random.uniform(-np.pi, np.pi)
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
@@ -383,12 +394,9 @@ class On(Predicate):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
-        if f"tippable({child_obj})" not in state or child_obj.isinstance(
-            (Hook, Rack)
-        ):
-            if not is_upright(child_obj):
-                dbprint(f"{self}.value():", False, "- child not upright")
-                return False
+        if f"tippable({child_obj})" not in state and not is_upright(child_obj):
+            dbprint(f"{self}.value():", False, "- child not upright")
+            return False
 
         dbprint(f"{self}.value():", True)
         return True
