@@ -176,3 +176,72 @@ class PullAction(PrimitiveAction):
             f"    theta: {self.theta},\n"
             "}"
         )
+
+
+class PushAction(PrimitiveAction):
+    RANGES = {
+        "r_reach": (-0.4, -0.1),
+        "r_push": (0.1, 0.4),
+        "y": (-0.01, 0.01),
+        "theta": (-0.5 * np.pi, 0.5 * np.pi),
+    }
+
+    def __init__(
+        self,
+        vector: Optional[np.ndarray] = None,
+        r_reach: Optional[float] = None,
+        r_push: Optional[float] = None,
+        y: Optional[float] = None,
+        theta: Optional[float] = None,
+    ):
+        super().__init__(vector)
+        if r_reach is not None:
+            self.r_reach = r_reach  # type: ignore
+        if r_push is not None:
+            self.r_push = r_push  # type: ignore
+        if y is not None:
+            self.y = y  # type: ignore
+        if theta is not None:
+            self.theta = theta  # type: ignore
+
+    @property
+    def r_reach(self) -> np.ndarray:
+        return self.vector[..., 0]
+
+    @r_reach.setter
+    def r_reach(self, r_reach: np.ndarray) -> None:
+        self.vector[..., 0] = r_reach
+
+    @property
+    def r_push(self) -> np.ndarray:
+        return self.vector[..., 1]
+
+    @r_push.setter
+    def r_push(self, r_push: np.ndarray) -> None:
+        self.vector[..., 1] = r_push
+
+    @property
+    def y(self) -> np.ndarray:
+        return self.vector[..., 2]
+
+    @y.setter
+    def y(self, y: np.ndarray) -> None:
+        self.vector[..., 2] = y
+
+    @property
+    def theta(self) -> np.ndarray:
+        return self.vector[..., 3]
+
+    @theta.setter
+    def theta(self, theta: np.ndarray) -> None:
+        self.vector[..., 3] = theta
+
+    def __repr__(self) -> str:
+        return (
+            "Push {\n"
+            f"    r_reach: {self.r_reach},\n"
+            f"    r_push: {self.r_push},\n"
+            f"    y: {self.y},\n"
+            f"    theta: {self.theta},\n"
+            "}"
+        )
