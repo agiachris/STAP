@@ -9,6 +9,7 @@ scod-regression = { editable = true, path = "third_party/scod-regression" }
 matplotlib = "*"
 pandas = "*"
 seaborn = "*"
+shapely = "*"
 
 [dev-packages]
 black = "*"
