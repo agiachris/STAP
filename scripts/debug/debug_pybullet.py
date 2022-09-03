@@ -11,7 +11,7 @@ from temporal_policies.utils import timing
 
 def main(env_config: str) -> None:
     env_factory = envs.EnvFactory(config=env_config)
-    env: pybullet.table_env.TableEnv  = env_factory()
+    env: pybullet.table_env.TableEnv = env_factory()
     timer = timing.Timer()
 
     while True:
@@ -26,13 +26,15 @@ def main(env_config: str) -> None:
 
             # Sample action and step environment
             action = primitive.sample_action()
-            obs, success, _, truncated, _ = env.step(primitive.normalize_action(action.vector))    
+            obs, success, _, truncated, _ = env.step(
+                primitive.normalize_action(action.vector)
+            )
             print(f"Success {primitive}: {success}")
             if truncated:
                 break
 
         input("Done task, continue?\n")
-            
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
