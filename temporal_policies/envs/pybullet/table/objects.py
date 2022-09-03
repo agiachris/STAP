@@ -694,7 +694,8 @@ class ObjectGroup:
 
         # Get indices for all other instances.
         self._available_indices = random.sample(
-            self._real_indices, num_objects - num_required
+            set(self._real_indices) - set(self._reserved_indices),
+            num_objects - num_required,
         ) + random.sample(self._null_indices, num_null)
 
         # Hide objects below table.

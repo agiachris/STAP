@@ -27,6 +27,9 @@ from temporal_policies.utils import random as random_utils, recording
 
 import pybullet as p  # Import after envs.pybullet.base to avoid print statement.
 
+dbprint = lambda *args: None  # noqa
+dbprint = print
+
 
 @dataclasses.dataclass
 class CameraView:
@@ -350,10 +353,10 @@ class TableEnv(PybulletEnv):
     ) -> envs.Primitive:
         if action_call is not None:
             return Primitive.from_action_call(action_call, self)
-        elif idx_policy is not None and policy_args is not None:
-            args = ", ".join(obj_name for obj_name in policy_args)
-            action_call = f"{self.primitives[idx_policy]}({args})"
-            return Primitive.from_action_call(action_call, self)
+        # elif idx_policy is not None and policy_args is not None:
+        #     args = ", ".join(obj_name for obj_name in policy_args)
+        #     action_call = f"{self.primitives[idx_policy]}({args})"
+        #     return Primitive.from_action_call(action_call, self)
         else:
             raise ValueError(
                 "One of action_call or (idx_policy, policy_args) must not be None."
@@ -554,12 +557,14 @@ class TableEnv(PybulletEnv):
                 for prop in self.task.initial_state
             ):
                 # Continue if a proposition failed after max_attempts.
+                dbprint(f"TableEnv.reset(seed={seed}): Failed to sample propositions")
                 continue
 
             # Sample random robot pose.
             for obj in self.real_objects():
                 obj.unfreeze()
             if not initialize_robot_pose(self.robot):
+                dbprint(f"TableEnv.reset(seed={seed}): Failed to initialize robot")
                 continue
 
             # Check state again after objects have settled.
@@ -568,6 +573,7 @@ class TableEnv(PybulletEnv):
             )
             if num_iters == math.PYBULLET_STEPS_PER_SEC:
                 # Skip if settling takes longer than 1s.
+                dbprint(f"TableEnv.reset(seed={seed}): Failed to stabilize")
                 continue
 
             if (
@@ -575,6 +581,7 @@ class TableEnv(PybulletEnv):
                 or self._is_any_object_touching_base()
                 or self._is_any_object_falling_off_parent()
             ):
+                dbprint(f"TableEnv.reset(seed={seed}): Object fell")
                 continue
 
             if all(
@@ -583,6 +590,8 @@ class TableEnv(PybulletEnv):
             ):
                 # Break if all propositions in the initial state are true.
                 break
+
+            dbprint(f"TableEnv.reset(seed={seed}): Failed to satisfy propositions")
 
         info = {
             "seed": seed,
