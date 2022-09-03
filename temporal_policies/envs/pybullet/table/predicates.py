@@ -108,6 +108,13 @@ def is_intersecting(obj_a: Object, obj_b: Object) -> bool:
     return intersection
 
 
+def is_under(obj_a: Object, obj_b: Object) -> bool:
+    """Returns True if object a is underneath object b."""
+    if not is_above(obj_a, obj_b) and is_intersecting(obj_a, obj_b):
+        return True
+    return False
+
+
 @dataclasses.dataclass
 class Predicate:
     args: List[str]
@@ -148,10 +155,14 @@ class Predicate:
         return str(self) == str(other)
 
 
-class IsTippable(Predicate):
+class Tippable(Predicate):
     """Unary predicate admitting non-upright configurations of an object."""
 
     pass
+
+
+class Aligned(Predicate):
+    """Unary predicate enforcing that the object and world coordinate frames align."""
 
 
 class Under(Predicate):
@@ -176,14 +187,48 @@ class Free(Predicate):
         if child_obj.isinstance(Null):
             return True
         for obj in objects.values():
+            if obj.isinstance(Hook) and f"inhand({obj})" in state:
+                continue
             if (
-                not obj.isinstance(Null)
+                not obj.isinstance((Null))
                 and not obj == child_obj
-                and not is_above(child_obj, obj)
-                and is_intersecting(obj, child_obj)
+                and is_under(child_obj, obj)
             ):
                 return False
         return True
+
+
+class InFront(Predicate):
+    # def value(
+    #     self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    # ) -> bool:
+    #     """Evaluates to True if child object is in front of parent object."""
+    #     child_obj, parent_obj = self.get_arg_objects(objects)
+    #     if child_obj.isinstance(Null):
+    #         return True
+        
+    #     child_pos = child_obj.pose().pos
+    #     margin = 0.5 * child_obj.size[:2].max()
+    #     xy_min, xy_max = parent_obj.aabb()[:, :2]
+    #     if (child_pos[0] >= xy_min[0] - margin
+    #         or child_pos[1] <= xy_min[1] + margin
+    #         or child_pos[1] >= xy_max[1] - margin
+    #     ):
+    #         return False
+        
+    #     return True
+
+    @staticmethod
+    def bounds(child_obj: Object, parent_obj: Object) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the minimum and maximum x-y bounds in front of the parent object."""
+        assert parent_obj.isinstance(Rack)
+        margin = 0.5 * child_obj.size[:2].max()
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        xy_max[0] = xy_min[0]
+        xy_min[0] = WORKSPACE_MIN_X
+        xy_min += margin
+        xy_max -= margin
+        return xy_min, xy_max
 
 
 class InWorkspace(Predicate):
@@ -205,7 +250,6 @@ class InWorkspace(Predicate):
     def bounds(child_obj: Object, parent_obj: Object) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the minimum and maximum x-y bounds inside the workspace."""
         assert parent_obj.name == "table"
-        # breakpoint()
         margin = 0.5 * child_obj.size[:2].max()
         xy_min, xy_max = parent_obj.aabb()[:, :2]
         xy_min[0] = WORKSPACE_MIN_X
@@ -239,7 +283,7 @@ class BeyondWorkspace(Predicate):
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
-
+    
 
 class On(Predicate):
     def sample(
@@ -259,15 +303,21 @@ class On(Predicate):
         has_parent = False
         if parent_obj.name == "table":
             has_parent = True
-            rack_parent = False
+            restricted = False
             for obj in objects.values():
-                if obj.isinstance(Rack) and f"under({child_obj}, {obj})" in state:
-                    # Restrict placement location to under the rack
-                    parent_obj = obj
-                    rack_parent = True
+                if obj.isinstance(Rack):
+                    if f"under({child_obj}, {obj})" in state:
+                        # Restrict placement location to under the rack
+                        parent_obj = obj
+                        restricted = True
+                    elif f"infront({child_obj}, {obj})" in state:
+                        # Restrict placement location in front of the rack
+                        xy_min, xy_max = InFront.bounds(child_obj, obj)
+                        restricted = True
                     break
-            if not rack_parent:
-                T_parent_obj_to_world = math.Pose()
+
+            T_parent_obj_to_world = math.Pose()                    
+            if not restricted:
                 if f"beyondworkspace({child_obj})" in state:
                     # Increase the likelihood of sampling outside the workspace
                     xy_min, xy_max = BeyondWorkspace.bounds(child_obj, parent_obj)
@@ -307,11 +357,14 @@ class On(Predicate):
             xyz_world_frame[2] += 0.5 * child_obj.size[2]
 
         # Generate theta in the world coordinate frame
-        theta = np.random.uniform(-np.pi, np.pi)
+        if f"aligned({child_obj})" in state:
+            theta = 0
+        else:
+            theta = np.random.uniform(-np.pi, np.pi)
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
         quat = eigen.Quaterniond(aa)
 
-        if f"istippable({child_obj})" in state and not child_obj.isinstance(
+        if f"tippable({child_obj})" in state and not child_obj.isinstance(
             (Hook, Rack)
         ):
             # Tip the object over
@@ -341,7 +394,7 @@ class On(Predicate):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
-        if f"istippable({child_obj})" not in state or child_obj.isinstance(
+        if f"tippable({child_obj})" not in state or child_obj.isinstance(
             (Hook, Rack)
         ):
             if not is_upright(child_obj):
