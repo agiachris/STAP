@@ -5,6 +5,7 @@ import pathlib
 from pprint import pprint
 from typing import Any, Dict, Optional, Union
 
+import numpy as np
 import tqdm
 
 from temporal_policies import agents, envs, trainers
@@ -129,6 +130,12 @@ def train(
                 eval_recording_path / trainer.env.name / f"eval_{i}{suffix}.gif",
                 reset=True,
             )
+
+            with open(eval_recording_path / trainer.env.name / f"results_{i}.npz", "wb") as f:
+                save_dict = {
+                    "seed": trainer.eval_env.seed,
+                }
+                np.savez_compressed(f, **save_dict)  # type: ignore
 
     env.close()
     if eval_env is not None:

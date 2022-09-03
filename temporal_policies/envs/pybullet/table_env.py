@@ -588,6 +588,7 @@ class TableEnv(PybulletEnv):
             "seed": seed,
             "policy_args": self.get_primitive().get_policy_args(),
         }
+        self.seed = seed
 
         return self.get_observation(), info
 
