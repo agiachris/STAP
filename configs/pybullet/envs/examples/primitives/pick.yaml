@@ -75,7 +75,7 @@ env_kwargs:
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   object_groups:
-    - name: box
+    - name: boxes
       objects:
         - object_type: Box
           object_kwargs:
@@ -119,16 +119,16 @@ env_kwargs:
     - object_type: Variant
       object_kwargs:
         name: a
-        group: box
+        group: boxes
     - object_type: Variant
       object_kwargs:
         name: b
-        group: box
+        group: boxes
     - object_type: Variant
       object_kwargs:
         name: c
-        group: box
+        group: boxes
     - object_type: Variant
       object_kwargs:
         name: d
-        group: box
+        group: boxes

@@ -273,7 +273,7 @@ class On(Predicate):
             xy_max = parent_obj.size[:2] - margin
             if np.any(xy_max - xy_min < 0):
                 # Increase the likelihood of a stable placement location
-                child_parent_ratio = child_obj.size[0] / parent_obj.size[0]
+                child_parent_ratio = child_obj.size[:2] / parent_obj.size[:2]
                 x_min_ratio = min(0.25 * child_parent_ratio[0], 0.45)
                 x_max_ratio = max(0.55, min(0.75 * child_parent_ratio[0], 0.95))
                 y_min_ratio = min(0.25 * child_parent_ratio[1], 0.45)

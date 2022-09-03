@@ -529,20 +529,21 @@ class TableEnv(PybulletEnv):
             # Reset variants and freeze objects so they don't get simulated.
             for object_group in self.object_groups.values():
                 num_objects = object_group.reset(
-                    self.objects, max_num_objects=max_num_objects
+                    self.objects,
+                    self.task.action_skeleton,
+                    max_num_objects=max_num_objects,
                 )
                 if max_num_objects is not None:
                     max_num_objects -= num_objects
             for obj in self.objects.values():
-                obj.reset()
+                obj.reset(self.task.action_skeleton)
                 obj.freeze()
 
             # Make sure none of the action skeleton args is Null.
-            if any(
+            assert not any(
                 any(obj.isinstance(Null) for obj in primitive.arg_objects)
                 for primitive in self.task.action_skeleton
-            ):
-                continue
+            )
 
             # Sample initial state.
             if not all(
