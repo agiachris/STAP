@@ -1,0 +1,90 @@
+env: pybullet.TableEnv
+env_kwargs:
+  name: constrained_packing_7
+  gui: true
+
+  primitives:
+    - pick
+    - place
+
+  tasks:
+    - action_skeleton:
+        - pick(purple_box, table)
+        - place(purple_box, rack)
+        - pick(blue_box, table)
+        - place(blue_box, rack)
+        - pick(red_box, table)
+        - place(red_box, rack)
+        - pick(cyan_box, table)
+        - place(cyan_box, rack)
+        - pick(yellow_box, table)
+        - place(yellow_box, rack)
+        - pick(hook, table)
+        - place(hook, rack)
+      initial_state:
+        - free(purple_box)
+        - free(blue_box)
+        - free(red_box)
+        - free(cyan_box)
+        - free(yellow_box)
+        - free(hook)
+        - inworkspace(rack)
+        - inworkspace(purple_box)
+        - inworkspace(blue_box)
+        - inworkspace(red_box)
+        - inworkspace(cyan_box)
+        - inworkspace(yellow_box)
+        - inworkspace(hook)
+        - on(rack, table)
+        - on(purple_box, table)
+        - on(blue_box, table)
+        - on(red_box, table)
+        - on(cyan_box, table)
+        - on(yellow_box, table)
+        - on(hook, table)
+        
+  robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
+
+  objects:
+    - object_type: Urdf
+      object_kwargs:
+        name: table
+        path: configs/pybullet/envs/assets/iprl_table.urdf
+        is_static: true
+    - object_type: Rack
+      object_kwargs:
+        name: rack
+        size: [0.22, 0.32, 0.16]
+        color: [0.4, 0.2, 0.0, 1.0]
+    - object_type: Hook
+      object_kwargs:
+        name: hook
+        head_length: 0.2
+        handle_length: 0.38
+        handle_y: -1.0
+        color: [0.6, 0.6, 0.6, 1.0]
+    - object_type: Box
+      object_kwargs:
+        name: blue_box
+        size: [0.08, 0.05, 0.07]
+        color: [0.0, 0.0, 1.0, 1.0]
+    - object_type: Box
+      object_kwargs:
+        name: yellow_box
+        size: [0.07, 0.06, 0.1]
+        color: [1.0, 1.0, 0.0, 1.0]
+    - object_type: Box
+      object_kwargs:
+        name: red_box
+        size: [0.05, 0.05, 0.07]
+        color: [1.0, 0.0, 0.0, 1.0]
+    - object_type: Box
+      object_kwargs:
+        name: cyan_box
+        size: [0.06, 0.03, 0.06]
+        color: [0.0, 1.0, 1.0, 1.0]
+    - object_type: Box
+      object_kwargs:
+        name: purple_box
+        size: [0.04, 0.03, 0.09]
+        color: [1.0, 0.0, 1.0, 1.0]

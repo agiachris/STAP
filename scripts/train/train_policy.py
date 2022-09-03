@@ -58,7 +58,9 @@ def train(
         if num_eval_env_processes is not None:
             eval_env_kwargs["num_processes"] = num_eval_env_processes
         env = env_factory(**env_kwargs)
-        eval_env = None if eval_env_factory is None else eval_env_factory(**eval_env_kwargs)
+        eval_env = (
+            None if eval_env_factory is None else eval_env_factory(**eval_env_kwargs)
+        )
 
         agent_factory = agents.AgentFactory(
             config=agent_config,

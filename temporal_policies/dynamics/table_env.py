@@ -184,7 +184,9 @@ class TableEnvDynamics(LatentDynamics):
                 env = policy.env
 
             primitive = env.get_primitive()
-            idx_args, _ = env.get_arg_indices(primitive.idx_policy, primitive.policy_args)
+            idx_args, _ = env.get_arg_indices(
+                primitive.idx_policy, primitive.policy_args
+            )
 
         idx_args += list(i for i in range(env_state.shape[-2]) if i not in idx_args)
 
