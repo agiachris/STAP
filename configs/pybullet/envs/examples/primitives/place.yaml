@@ -7,52 +7,49 @@ env_kwargs:
     - place
 
   tasks:
-    - prob: 0.2
-      action_skeleton:
-        - place(a, table)
+    - action_skeleton:
+        - place(table_box_1, table)
       initial_state:
         - on(rack, table)
-        - on(hook, table)
-        - on(b, table)
-        - on(c, rack)
-        - on(d, rack)
-        - inhand(a)
-    - prob: 0.2
-      action_skeleton:
-        - place(c, rack)
+        - on(table_hook, table)
+        - on(rack_hook, rack)
+        - on(table_box_2, table)
+        - on(rack_box_1, rack)
+        - on(rack_box_2, rack)
+        - inhand(table_box_1)
+    - action_skeleton:
+        - place(rack_box_1, rack)
       initial_state:
         - on(rack, table)
-        - on(hook, table)
-        - on(a, table)
-        - on(b, table)
-        - on(d, rack)
-        - inhand(c)
-    - prob: 0.4
-      action_skeleton:
-        - place(hook, table)
+        - on(table_hook, table)
+        - on(rack_hook, rack)
+        - on(table_box_1, table)
+        - on(table_box_2, table)
+        - on(rack_box_2, rack)
+        - inhand(rack_box_1)
+    - action_skeleton:
+        - place(table_hook, table)
       initial_state:
         - on(rack, table)
-        - on(a, table)
-        - on(b, table)
-        - on(c, rack)
-        - on(d, rack)
-        - inhand(hook)
-    - prob: 0.2
-      action_skeleton:
-        - place(c, rack)
+        - on(table_box_1, table)
+        - on(table_box_2, table)
+        - on(rack_box_1, rack)
+        - on(rack_box_2, rack)
+        - inhand(table_hook)
+    - action_skeleton:
+        - place(rack_hook, rack)
       initial_state:
-        - inworkspace(rack)
         - on(rack, table)
-        - on(hook, table)
-        - on(a, table)
-        - on(b, table)
-        - on(d, rack)
-        - inhand(c)
+        - on(table_box_1, table)
+        - on(table_box_2, table)
+        - on(rack_box_1, rack)
+        - on(rack_box_2, rack)
+        - inhand(rack_hook)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   object_groups:
-    - name: box
+    - name: boxes
       objects:
         - object_type: Box
           object_kwargs:
@@ -64,6 +61,16 @@ env_kwargs:
             color: [0.0, 0.0, 1.0, 1.0]
         - object_type: Null
         - object_type: Null
+        - object_type: Null
+        - object_type: Null
+    - name: hooks
+      objects:
+        - object_type: Hook
+          object_kwargs:
+            head_length: 0.2
+            handle_length: 0.38
+            handle_y: -1.0
+            color: [0.6, 0.6, 0.6, 1.0]
         - object_type: Null
         - object_type: Null
 
@@ -84,28 +91,25 @@ env_kwargs:
           - object_type: Null
     - object_type: Variant
       object_kwargs:
-        name: hook
-        variants:
-          - object_type: Hook
-            object_kwargs:
-              head_length: 0.2
-              handle_length: 0.38
-              handle_y: -1.0
-              color: [0.4, 0.2, 0.0, 1.0]
-          - object_type: Null
+        name: table_hook
+        group: hooks
     - object_type: Variant
       object_kwargs:
-        name: a
-        group: box
+        name: rack_hook
+        group: hooks
     - object_type: Variant
       object_kwargs:
-        name: b
-        group: box
+        name: table_box_1
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: c
-        group: box
+        name: table_box_2
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: d
-        group: box
+        name: rack_box_1
+        group: boxes
+    - object_type: Variant
+      object_kwargs:
+        name: rack_box_2
+        group: boxes

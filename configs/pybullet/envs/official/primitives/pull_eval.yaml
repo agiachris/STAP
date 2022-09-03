@@ -30,6 +30,7 @@ env_kwargs:
     #   initial_state:
     #     - free(rack)
     #     - beyondworkspace(rack)
+    #     - handlegrasp(hook)
     #     - on(rack, table)
     #     - on(table_box_1, table)
     #     - on(table_box_2, table)
@@ -46,6 +47,7 @@ env_kwargs:
     #     - pull(rack_box_1, hook)
     #   initial_state:
     #     - beyondworkspace(rack)
+    #     - handlegrasp(hook)
     #     - on(rack, table)
     #     - on(table_box_1, table)
     #     - on(table_box_2, table)
