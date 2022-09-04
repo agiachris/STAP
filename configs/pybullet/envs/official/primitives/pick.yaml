@@ -23,7 +23,7 @@ env_kwargs:
         - on(j, rack)
         - on(k, rack)
     - action_skeleton:
-      - pick(f, rack)
+        - pick(f, rack)
       initial_state:
         - on(rack, table)
         - on(a, table)

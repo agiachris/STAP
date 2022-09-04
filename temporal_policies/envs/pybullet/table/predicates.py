@@ -6,7 +6,7 @@ from ctrlutils import eigen
 import numpy as np
 import pybullet as p
 import symbolic
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, LineString
 
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Null, Object, Rack
 from temporal_policies.envs.pybullet.sim import math, body
@@ -187,16 +187,8 @@ class Under(Predicate):
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
-        """Figure"""
         child_obj, parent_obj = self.get_arg_objects(objects)
         return is_under(child_obj, parent_obj)
-
-
-class Closer(Predicate):
-    """Unary predicate enforcing that an object is in-front of another with
-    repect to the world z coordiante axis."""
-
-    pass
 
 
 class Free(Predicate):
@@ -214,6 +206,32 @@ class Free(Predicate):
             if is_under(child_obj, obj):
                 return False
         return True
+
+
+class Closer(Predicate):
+    """Unary predicate enforcing that an object is in-front of another with
+    repect to the world z coordiante axis."""
+
+    pass
+
+
+class NonBlocking(Predicate):
+    """Binary predicate ensuring that one object is not occupying a straightline
+    path from the robot base to another object."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        child_obj, parent_obj = self.get_arg_objects(objects)
+        if child_obj.isinstance(Null) or parent_obj.isinstance(Null):
+            return True
+
+        child_line = LineString([[0, 0], child_obj.pose().pos[:2].tolist()])
+        vertices = np.concatenate(
+            parent_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
+        )
+        parent_poly = Polygon(vertices.tolist())
+        return not parent_poly.intersects(child_line)
 
 
 class InFront(Predicate):

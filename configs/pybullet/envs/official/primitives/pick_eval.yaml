@@ -25,8 +25,9 @@ env_kwargs:
         - on(j, rack)
         - on(k, rack)
     - action_skeleton:
-      - pick(f, rack)
+        - pick(f, rack)
       initial_state:
+        - free(f)
         - inworkspace(rack)
         - inworkspace(f)
         - on(rack, table)
