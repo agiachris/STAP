@@ -70,6 +70,7 @@ def main(
             # Construct predicates
             predicates = [
                 *lifted_task["predicates"],
+                f"nonblocking({target_box}, rack)"
                 f"free({target_box})",
                 f"beyondworkspace({target_box})",
                 f"on({target_box}, table)",
@@ -141,6 +142,7 @@ if __name__ == "__main__":
                 "pick(?B, table)",
             ],
             "predicates": [
+                "free(hook)",
                 "inworkspace(rack)",
                 "inworkspace(hook)",
                 "on(rack, table)",
@@ -156,6 +158,7 @@ if __name__ == "__main__":
                 "pick(?B, table)",
             ],
             "predicates": [
+                "free(hook)",
                 "inworkspace(rack)",
                 "inworkspace(hook)",
                 "on(rack, table)",
