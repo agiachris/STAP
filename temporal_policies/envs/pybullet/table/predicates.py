@@ -158,10 +158,11 @@ class HandleGrasp(Predicate):
 
 class Aligned(Predicate):
     """Unary predicate enforcing that the object and world coordinate frames align."""
+
     ANGLE_EPS = 0.002
     ANGLE_STD = 0.05
     ANGLE_ABS = 0.1
-    
+
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -173,12 +174,12 @@ class Aligned(Predicate):
         return Aligned.ANGLE_EPS < abs(angle) <= Aligned.ANGLE_ABS and is_upright(obj)
 
     @staticmethod
-    def sample_angle() -> float: 
+    def sample_angle() -> float:
         angle = 0
         while abs(angle) <= Aligned.ANGLE_EPS:
             angle = np.random.randn() * Aligned.ANGLE_STD
         return np.clip(angle, -Aligned.ANGLE_ABS, Aligned.ANGLE_ABS)
-    
+
 
 class Under(Predicate):
     """Unary predicate enforcing that an object be placed underneath another."""
@@ -192,7 +193,7 @@ class Under(Predicate):
 
 
 class Closer(Predicate):
-    """Unary predicate enforcing that an object is in-front of another with 
+    """Unary predicate enforcing that an object is in-front of another with
     repect to the world z coordiante axis."""
 
     pass
@@ -208,9 +209,7 @@ class Free(Predicate):
         if child_obj.isinstance(Null):
             return True
         for obj in objects.values():
-            if (f"inhand({obj})" in state
-                or obj.isinstance(Null)
-                or obj == child_obj):
+            if f"inhand({obj})" in state or obj.isinstance(Null) or obj == child_obj:
                 continue
             if is_under(child_obj, obj):
                 return False
@@ -227,10 +226,11 @@ class InFront(Predicate):
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
             return True
-        
+
         child_pos = child_obj.pose().pos
         xy_min, xy_max = parent_obj.aabb()[:, :2]
-        if (child_pos[0] >= xy_min[0]
+        if (
+            child_pos[0] >= xy_min[0]
             or child_pos[1] <= xy_min[1]
             or child_pos[1] >= xy_max[1]
             or is_under(child_obj, parent_obj)
@@ -314,11 +314,11 @@ class BeyondWorkspace(Predicate):
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
-    
+
 
 class On(Predicate):
     MAX_SAMPLE_ATTEMPTS = 10
-    
+
     def sample(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -336,18 +336,21 @@ class On(Predicate):
         parent_z = parent_obj.aabb()[1, 2] + AABB_EPS
 
         # Generate theta in the world coordinate frame
-        theta = Aligned.sample_angle() if f"aligned({child_obj})" in state else np.random.uniform(-np.pi, np.pi)
+        theta = (
+            Aligned.sample_angle()
+            if f"aligned({child_obj})" in state
+            else np.random.uniform(-np.pi, np.pi)
+        )
         aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
         quat = eigen.Quaterniond(aa)
-        
+
         # Determine object margins after rotating
         pre_pose = math.Pose(pos=child_obj.pose().pos, quat=quat.coeffs)
         child_obj.set_pose(pre_pose)
         child_aabb = child_obj.aabb()[:, :2]
-        margin_world_frame = 0.5 * np.array([
-            child_aabb[1, 0] - child_aabb[0, 0], 
-            child_aabb[1, 1] - child_aabb[0, 1]
-        ])
+        margin_world_frame = 0.5 * np.array(
+            [child_aabb[1, 0] - child_aabb[0, 0], child_aabb[1, 1] - child_aabb[0, 1]]
+        )
 
         # Determine stable sampling regions on parent surface
         has_parent = False
@@ -368,14 +371,18 @@ class On(Predicate):
                         rack_restricted = True
                     break
 
-            T_parent_obj_to_world = math.Pose()                    
+            T_parent_obj_to_world = math.Pose()
             if not rack_restricted:
                 if f"beyondworkspace({child_obj})" in state:
                     # Increase the likelihood of sampling outside the workspace
-                    xy_min, xy_max = BeyondWorkspace.bounds(parent_obj, margin=margin_world_frame)
+                    xy_min, xy_max = BeyondWorkspace.bounds(
+                        parent_obj, margin=margin_world_frame
+                    )
                 elif f"inworkspace({child_obj})" in state:
                     # Increase the likelihood of sampling inside the workspace
-                    xy_min, xy_max = InWorkspace.bounds(parent_obj, margin=margin_world_frame)
+                    xy_min, xy_max = InWorkspace.bounds(
+                        parent_obj, margin=margin_world_frame
+                    )
                 else:
                     xy_min, xy_max = parent_obj.aabb()[:, :2]
                     xy_min += margin_world_frame
@@ -390,8 +397,11 @@ class On(Predicate):
                 "[Predicate.On] parent object must be a table, rack, or box"
             )
 
-        free_predicate = state[state.index(f"free({child_obj})")] \
-            if f"free({child_obj})" in state else None
+        free_predicate = (
+            state[state.index(f"free({child_obj})")]
+            if f"free({child_obj})" in state
+            else None
+        )
         for samples in range(On.MAX_SAMPLE_ATTEMPTS):
             # Generate pose and convert to world frame (assumes parent in upright)
             xyz_parent_frame = np.zeros(3)
@@ -416,7 +426,9 @@ class On(Predicate):
             pose = math.Pose(pos=xyz_world_frame, quat=quat.coeffs)
             child_obj.set_pose(pose)
 
-            if free_predicate is not None and not free_predicate.value(robot, objects, state):
+            if free_predicate is not None and not free_predicate.value(
+                robot, objects, state
+            ):
                 if samples == On.MAX_SAMPLE_ATTEMPTS - 1:
                     return False
                 continue
@@ -458,10 +470,9 @@ class On(Predicate):
         child_aabb = np.array([vertices.min(axis=1), vertices.max(axis=1)])
 
         # Compute margin in the parent frame
-        margin = 0.5 * np.array([
-            child_aabb[1, 0] - child_aabb[0, 0],
-            child_aabb[1, 1] - child_aabb[0, 1]
-        ])
+        margin = 0.5 * np.array(
+            [child_aabb[1, 0] - child_aabb[0, 0], child_aabb[1, 1] - child_aabb[0, 1]]
+        )
         xy_min = margin
         xy_max = parent_obj.size[:2] - margin
         if np.any(xy_max - xy_min < 0):
@@ -473,10 +484,11 @@ class On(Predicate):
             y_max_ratio = max(0.55, min(0.75 * child_parent_ratio[1], 0.95))
             xy_min[:2] = parent_obj.size[:2] * np.array([x_min_ratio, y_min_ratio])
             xy_max[:2] = parent_obj.size[:2] * np.array([x_max_ratio, y_max_ratio])
-    
+
         xy_min -= 0.5 * parent_obj.size[:2]
         xy_max -= 0.5 * parent_obj.size[:2]
         return xy_min, xy_max
+
 
 class Inhand(Predicate):
     MAX_GRASP_ATTEMPTS = 1

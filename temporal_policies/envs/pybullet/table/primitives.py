@@ -565,7 +565,7 @@ class Push(Primitive):
                 raise ControlException(
                     f"Robot.goto_pose({command_pose_push.pos}, {command_pose_push.quat}) collided"
                 )
-            
+
             robot.goto_pose(
                 command_pose_reach.pos,
                 command_pose_reach.quat,
@@ -611,7 +611,7 @@ class Push(Primitive):
 
         obj, hook = self.policy_args
         obj_halfsize = 0.5 * np.linalg.norm(obj.size[:2])
-        collision_length = - 0.5 * hook.size[0] -2 * hook.radius - obj_halfsize
+        collision_length = -0.5 * hook.size[0] - 2 * hook.radius - obj_halfsize
         action.r_reach = collision_length
         action.theta = 0.125 * np.pi
 
