@@ -40,6 +40,7 @@ def train(
         scod_factory = scod.SCODFactory(
             config=scod_config,
             model=agent,
+            model_checkpoint=model_checkpoint,
             model_network=model_network,
             env_kwargs=env_kwargs,
             device=device,
