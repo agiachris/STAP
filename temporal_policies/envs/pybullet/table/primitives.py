@@ -536,9 +536,7 @@ class Push(Primitive):
         T_push_to_world = T_push_hook_to_world * T_gripper_to_hook
         command_pose_reach = math.Pose.from_eigen(T_reach_to_world)
         command_pose_push = math.Pose.from_eigen(T_push_to_world)
-
         pre_pos = np.append(command_pose_reach.pos[:2], LIFT_HEIGHT)
-        post_pos = np.append(command_pose_push.pos[:2], LIFT_HEIGHT)
 
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
@@ -567,12 +565,25 @@ class Push(Primitive):
                 raise ControlException(
                     f"Robot.goto_pose({command_pose_push.pos}, {command_pose_push.quat}) collided"
                 )
-
-            robot.goto_pose(post_pos, command_pose_push.quat)
+            
+            robot.goto_pose(
+                command_pose_reach.pos,
+                command_pose_reach.quat,
+                check_collisions=[
+                    obj.body_id for obj in self.get_non_arg_objects(objects)
+                ],
+            )
             if not self.ALLOW_COLLISIONS and did_non_args_move():
                 raise ControlException(
-                    f"Robot.goto_pose({post_pos}, {command_pose_push.quat}) collided"
+                    f"Robot.goto_pose({command_pose_reach.pos}, {command_pose_reach.quat}) collided"
                 )
+
+            robot.goto_pose(pre_pos, command_pose_reach.quat)
+            if not self.ALLOW_COLLISIONS and did_non_args_move():
+                raise ControlException(
+                    f"Robot.goto_pose({pre_pos}, {command_pose_reach.quat}) collided"
+                )
+
         except ControlException as e:
             dbprint("Push.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
