@@ -68,7 +68,6 @@ class TrainerFactory(configs.Factory):
 
             self.kwargs["agent"] = agent
             self.kwargs["eval_env"] = eval_env
-            self.kwargs["env_kwargs"] = env_kwargs
         elif issubclass(self.cls, (trainers.DynamicsTrainer, trainers.UnifiedTrainer)):
             if dynamics is None:
                 if checkpoint is None:
@@ -95,7 +94,6 @@ class TrainerFactory(configs.Factory):
 
                 self.kwargs["policy_checkpoints"] = policy_checkpoints
                 self.kwargs["policies"] = policies
-                self.kwargs["env_kwargs"] = env_kwargs
         elif issubclass(self.cls, trainers.AutoencoderTrainer):
             if encoder is None:
                 if checkpoint is None:
@@ -147,6 +145,7 @@ class TrainerFactory(configs.Factory):
         else:
             self.kwargs["path"] = path
 
+        self.kwargs["env_kwargs"] = env_kwargs
         self.kwargs["device"] = device
 
 

@@ -47,6 +47,7 @@ def train(
             config=trainer_config,
             scod=scod_factory(),
             policy_checkpoints=None if model_checkpoint is None else [model_checkpoint],
+            env_kwargs=env_kwargs,
             device=device,
         )
 

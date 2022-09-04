@@ -60,6 +60,7 @@ class SCODTrainer:
         dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
         policy_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        env_kwargs: Dict[str, Any] = {},
         collect_dataset: bool = False,
         device: str = "auto",
         num_train_steps: int = 10000,
@@ -74,6 +75,7 @@ class SCODTrainer:
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
             policy_checkpoint: Policy checkpoint.
+            env_kwargs: Optional kwargs passed to EnvFactory.
             collect_dataset: Whether to collect a new dataset or use the agent's
                 saved replay buffer.
             device: Torch device.
@@ -91,7 +93,9 @@ class SCODTrainer:
             )
         else:
             trainer_checkpoint = policy_checkpoint / "final_trainer.pt"
-        agent_trainer = load_trainer(checkpoint=trainer_checkpoint)
+        agent_trainer = load_trainer(
+            checkpoint=trainer_checkpoint, env_kwargs=env_kwargs
+        )
         assert isinstance(agent_trainer, trainers.AgentTrainer)
 
         self._path = pathlib.Path(path) / "scod"
