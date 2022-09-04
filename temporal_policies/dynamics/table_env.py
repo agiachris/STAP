@@ -203,7 +203,7 @@ class TableEnvDynamics(LatentDynamics):
 
         # Dynamics state -> dynamics state.
         next_dynamics_state = self.forward(
-            dynamics_state, action, primitive.idx_policy, primitive.get_policy_args()
+            dynamics_state, action, primitive.idx_policy, policy_args
         )
         next_dynamics_state = next_dynamics_state.clamp(-0.5, 0.5)
 

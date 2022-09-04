@@ -45,7 +45,7 @@ class Dynamics(torch.nn.Module):
     def forward(
         self,
         latents: torch.Tensor,
-        policy_indices: torch.Tensor,
+        policy_indices: Union[int, torch.Tensor],
         actions: torch.Tensor,
     ) -> torch.Tensor:
         """Predicts the next latent state using separate dynamics model per
@@ -59,12 +59,16 @@ class Dynamics(torch.nn.Module):
         Returns:
             Prediction of next latent state.
         """
-        next_latents = torch.full_like(latents, float("nan"))
-        for i, policy_model in enumerate(self.models):
-            idx_policy = policy_indices == i
-            next_latents[idx_policy] = policy_model(
-                latents[idx_policy], actions[idx_policy]
-            )
+        if isinstance(policy_indices, torch.Tensor):
+            next_latents = torch.full_like(latents, float("nan"))
+            for i, policy_model in enumerate(self.models):
+                idx_policy = policy_indices == i
+                next_latents[idx_policy] = policy_model(
+                    latents[idx_policy], actions[idx_policy]
+                )
+        else:
+            next_latents = self.models[policy_indices](latents, actions)
+
         return next_latents
 
 

@@ -86,7 +86,9 @@ class TableEnvEncoder(Encoder):
         )
         if t_observation_indices.dim() == 1:
             # [num_objects] => [B, num_objects].
-            t_observation_indices = t_observation_indices.unsqueeze(0)
+            t_observation_indices = t_observation_indices.expand(
+                observation.shape[0], -1
+            )
         # [B, num_objects] => [B, num_objects, 1].
         t_observation_indices = t_observation_indices.unsqueeze(-1)
         # [B, num_objects, 1] => [B, num_objects, object_state_size].
