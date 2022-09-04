@@ -96,8 +96,8 @@ class TableEnvDynamics(LatentDynamics):
     def to(self, device: Union[str, torch.device]) -> LatentDynamics:
         """Transfers networks to device."""
         super().to(device)
-        self._observation_mid.to(self.device)
-        self._observation_range.to(self.device)
+        self._observation_mid = self._observation_mid.to(self.device)
+        self._observation_range = self._observation_range.to(self.device)
         return self
 
     def encode(
@@ -105,7 +105,6 @@ class TableEnvDynamics(LatentDynamics):
         observation: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
         policy_args: Union[np.ndarray, Optional[Dict[str, List[int]]]],
-        envs: Optional[Sequence[envs.pybullet.TableEnv]] = None,
     ) -> torch.Tensor:
         """Encodes the observation into a dynamics state.
 
@@ -127,14 +126,9 @@ class TableEnvDynamics(LatentDynamics):
             # Return full observation.
             return observation
 
-        if isinstance(policy_args, np.ndarray):
-            observation_indices = policy_args
-        else:
-            assert policy_args is not None
-            observation_indices = np.array(policy_args["observation_indices"])
-
+        assert policy_args is not None
         observation = networks.encoders.TableEnvEncoder.rearrange_observation(
-            observation, observation_indices
+            observation, policy_args, randomize=False
         )
 
         dynamics_state = self._normalize_state(observation)
@@ -172,10 +166,8 @@ class TableEnvDynamics(LatentDynamics):
         Returns:
             Decoded observation.
         """
-        assert self.env is not None
-        self.env.set_primitive(primitive)
         return self.policies[primitive.idx_policy].encoder.encode(
-            state, env=self.env, policy_args=primitive.get_policy_args()
+            state, policy_args=primitive.get_policy_args()
         )
 
     def forward_eval(
@@ -201,7 +193,6 @@ class TableEnvDynamics(LatentDynamics):
         Returns:
             Prediction of next state.
         """
-        assert self.env is not None
         env_state = state
 
         # Env state -> dynamics state.

@@ -67,7 +67,7 @@ class ShootingPlanner(planners.Planner):
                 for primitive in action_skeleton
             ]
             decode_fns = [
-                functools.partial(self.dynamics.decode, primitive)
+                functools.partial(self.dynamics.decode, primitive=primitive)
                 for primitive in action_skeleton
             ]
             p_success, t_values = utils.evaluate_trajectory(

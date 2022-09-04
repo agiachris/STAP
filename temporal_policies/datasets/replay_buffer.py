@@ -472,7 +472,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         pbar = tqdm.tqdm(checkpoint_paths, desc=f"Load {path}", dynamic_ncols=True)
         for checkpoint_path in pbar:
             with open(checkpoint_path, "rb") as f:
-                checkpoint: StorageBatch = dict(np.load(f))  # type: ignore
+                checkpoint: StorageBatch = dict(np.load(f, allow_pickle=True))  # type: ignore
             num_added = self.add(batch=checkpoint, max_entries=max_entries)
             num_loaded += num_added
 

@@ -1,5 +1,5 @@
 import copy
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 from ctrlutils import eigen
 import numpy as np
@@ -155,6 +155,7 @@ class Robot(body.Body):
         ori_gains: Optional[Union[Tuple[float, float], np.ndarray]] = None,
         timeout: Optional[float] = None,
         check_collisions: Sequence[int] = [],
+        check_collision_freq: int = 10,
     ) -> bool:
         """Uses opspace control to go to the desired pose.
 
@@ -169,31 +170,38 @@ class Robot(body.Body):
             timeout: Uses the timeout specified in the yaml arm config if None.
             check_collisions: Raise an exception if the gripper or grasped
                 object collides with any of the body_ids in this list.
+            check_collision_freq: Iteration interval with which to check
+                collisions.
         Returns:
             True if the grasp controller converges to the desired position or
             zero velocity, false if the command times out.
         """
+        if check_collisions:
+            body_ids_a = [self.body_id] * len(self.gripper.finger_links)
+            link_ids_a: List[Optional[int]] = list(self.gripper.finger_links)
+            grasp_body_id = self.gripper._gripper_state.grasp_body_id
+            if grasp_body_id is not None:
+                body_ids_a.append(grasp_body_id)
+                link_ids_a.append(None)
+
         # Set the pose goal.
         self.arm.set_pose_goal(pos, quat, pos_gains, ori_gains, timeout)
 
         # Simulate until the pose goal is reached.
         status = self.arm.update_torques()
         self.gripper.update_torques()
+        iter = 0
         while status == articulated_body.ControlStatus.IN_PROGRESS:
             self.step_simulation()
             status = self.arm.update_torques()
             self.gripper.update_torques()
+            iter += 1
 
             if isinstance(self.arm, real.arm.Arm):
                 continue
 
-            grasp_body_id = self.gripper._gripper_state.grasp_body_id
-            if grasp_body_id is None:
-                body_ids_a = [self.body_id] * len(self.gripper.finger_links)
-                link_ids_a: Sequence[Optional[int]] = self.gripper.finger_links
-            else:
-                body_ids_a = [grasp_body_id]
-                link_ids_a = [None]
+            if not check_collisions or iter % check_collision_freq != 0:
+                continue
 
             # Terminate early if there are collisions with the gripper fingers
             # or grasped object.
@@ -201,7 +209,7 @@ class Robot(body.Body):
                 for body_id_b in check_collisions:
                     if self._is_colliding(body_id_a, body_id_b, link_id_a):
                         raise ControlException(
-                            f"Robot.goto_pose({pos}, {quat}): Collision"
+                            f"Robot.goto_pose({pos}, {quat}): Collision {body_id_a}:{link_id_a}, {body_id_b}"
                         )
         # print("Robot.goto_pose:", pos, quat, status)
 
