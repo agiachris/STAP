@@ -11,6 +11,7 @@ env_kwargs:
         - pull(a, hook)
       initial_state:
         - handlegrasp(hook)
+        - free(a)
         - beyondworkspace(a)
         - nonblocking(a, rack)
         - on(rack, table)
@@ -22,6 +23,7 @@ env_kwargs:
         - pull(a, hook)
       initial_state:
         - handlegrasp(hook)
+        - free(a)
         - beyondworkspace(a)
         - nonblocking(a, rack)
         - on(rack, table)

@@ -36,35 +36,6 @@ env_kwargs:
         - on(a, table)
         - on(b, table)
         - inhand(hook)
-    - action_skeleton:
-        - push(a, hook)
-      initial_state:
-        - handlegrasp(hook)
-        - aligned(rack)
-        - inobstructionzone(a)
-        - beyondworkspace(rack)
-        - infront(a, rack)
-        - nonblocking(a, b)
-        - nonblocking(rack, b)
-        - on(rack, table)
-        - on(a, table)
-        - on(b, table)
-        - on(c, rack)
-        - inhand(hook)
-    - action_skeleton:
-        - push(a, hook)
-      initial_state:
-        - handlegrasp(hook)
-        - aligned(rack)
-        - inobstructionzone(a)
-        - beyondworkspace(rack)
-        - infront(a, rack)
-        - nonblocking(a, b)
-        - nonblocking(rack, b)
-        - on(rack, table)
-        - on(a, table)
-        - on(b, table)
-        - inhand(hook)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
