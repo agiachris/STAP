@@ -58,6 +58,6 @@ class OracleCritic(Critic):
                 str(self.env.get_primitive()), tuple(state), tuple(action)
             ] = result
 
-        _, reward, _, _ = result
+        _, reward, _, _, _ = result
 
         return np.array(reward, dtype=np.float32)

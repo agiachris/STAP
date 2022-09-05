@@ -365,10 +365,18 @@ class TableEnv(PybulletEnv):
     ) -> envs.Primitive:
         if action_call is not None:
             return Primitive.from_action_call(action_call, self)
-        # elif idx_policy is not None and policy_args is not None:
-        #     args = ", ".join(obj_name for obj_name in policy_args)
-        #     action_call = f"{self.primitives[idx_policy]}({args})"
-        #     return Primitive.from_action_call(action_call, self)
+        elif idx_policy is not None and policy_args is not None:
+            arg_indices = [
+                idx_obs - 1 if idx_obs > TableEnv.EE_OBSERVATION_IDX else idx_obs
+                for idx_obs in policy_args["observation_indices"][
+                    : policy_args["shuffle_range"][0]
+                ]
+                if idx_obs != TableEnv.EE_OBSERVATION_IDX
+            ]
+            object_names = list(self.objects.keys())
+            args = ", ".join(object_names[idx_obj] for idx_obj in arg_indices)
+            action_call = f"{self.primitives[idx_policy]}({args})"
+            return Primitive.from_action_call(action_call, self)
         else:
             raise ValueError(
                 "One of action_call or (idx_policy, policy_args) must not be None."

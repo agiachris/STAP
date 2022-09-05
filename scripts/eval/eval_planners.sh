@@ -137,7 +137,7 @@ PLANNERS=(
 # Pybullet.
 exp_name="20220903/examples_collisions"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
-ENV_CONFIG="configs/pybullet/envs/workspace.yaml"
+ENV_CONFIG="configs/pybullet/envs/examples/domains/workspace.yaml"
 POLICY_ENVS=("pick" "place" "pull")
 checkpoints=(
     "final_model"

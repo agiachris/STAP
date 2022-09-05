@@ -142,7 +142,7 @@ class OracleDynamics(dynamics.Dynamics):
         self,
         observation: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        policy_args: Union[np.ndarray, Optional[Any]],
     ) -> torch.Tensor:
         """Returns the current environment state.
 
@@ -153,7 +153,7 @@ class OracleDynamics(dynamics.Dynamics):
         assert isinstance(idx_policy, int)
 
         self.env.set_primitive(idx_policy=idx_policy, policy_args=policy_args)
-        state = self._oracle_encoder(observation)
+        state = self._oracle_encoder(observation, policy_args)
 
         return state
 
