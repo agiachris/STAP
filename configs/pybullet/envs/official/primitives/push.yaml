@@ -10,7 +10,6 @@ env_kwargs:
     - action_skeleton:
         - push(a, hook)
       initial_state:
-        - free(a)
         - aligned(rack)
         - inworkspace(a)
         - beyondworkspace(rack)
@@ -28,7 +27,6 @@ env_kwargs:
     - action_skeleton:
         - push(a, hook)
       initial_state:
-        - free(a)
         - aligned(rack)
         - inworkspace(a)
         - beyondworkspace(rack)
@@ -47,7 +45,6 @@ env_kwargs:
         - push(a, hook)
       initial_state:
         - handlegrasp(hook)
-        - free(a)
         - aligned(rack)
         - inworkspace(a)
         - beyondworkspace(rack)
@@ -66,7 +63,6 @@ env_kwargs:
         - push(a, hook)
       initial_state:
         - handlegrasp(hook)
-        - free(a)
         - aligned(rack)
         - inworkspace(a)
         - beyondworkspace(rack)
