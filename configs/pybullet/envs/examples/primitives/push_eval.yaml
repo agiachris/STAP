@@ -10,53 +10,77 @@ env_kwargs:
     - action_skeleton:
         - push(a, hook)
       initial_state:
-        - free(a)
-        # - inworkspace(a)
-        - infront(a, rack)
-        - beyondworkspace(rack)
-        - aligned(rack)
         - handlegrasp(hook)
+        - aligned(rack)
+        - inoperationalzone(a)
+        - beyondworkspace(rack)
+        - infront(a, rack)
+        - nonblocking(a, b)
+        - nonblocking(rack, b)
         - on(rack, table)
         - on(a, table)
+        - on(b, table)
+        - on(c, rack)
         - inhand(hook)
     - action_skeleton:
         - push(a, hook)
       initial_state:
-        - free(a)
-        # - inworkspace(a)
-        - infront(a, rack)
-        - beyondworkspace(rack)
-        - aligned(rack)
         - handlegrasp(hook)
+        - aligned(rack)
+        - inoperationalzone(a)
+        - beyondworkspace(rack)
+        - infront(a, rack)
+        - nonblocking(a, b)
+        - nonblocking(rack, b)
         - on(rack, table)
         - on(a, table)
+        - on(b, table)
         - inhand(hook)
-      
+    - action_skeleton:
+        - push(a, hook)
+      initial_state:
+        - handlegrasp(hook)
+        - aligned(rack)
+        - inobstructionzone(a)
+        - beyondworkspace(rack)
+        - infront(a, rack)
+        - nonblocking(a, b)
+        - nonblocking(rack, b)
+        - on(rack, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, rack)
+        - inhand(hook)
+    - action_skeleton:
+        - push(a, hook)
+      initial_state:
+        - handlegrasp(hook)
+        - aligned(rack)
+        - inobstructionzone(a)
+        - beyondworkspace(rack)
+        - infront(a, rack)
+        - nonblocking(a, b)
+        - nonblocking(rack, b)
+        - on(rack, table)
+        - on(a, table)
+        - on(b, table)
+        - inhand(hook)
+
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   object_groups:
-    - name: movable
+    - name: box
       objects:
-      - object_type: Box
-        object_kwargs:
-          size: [0.08, 0.05, 0.07]
-          color: [0.0, 0.0, 1.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.07, 0.06, 0.1]
-          color: [1.0, 1.0, 0.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.05, 0.05, 0.07]
-          color: [1.0, 0.0, 0.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.06, 0.03, 0.06]
-          color: [0.0, 1.0, 1.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.04, 0.03, 0.09]
-          color: [1.0, 0.0, 1.0, 1.0]
+        - object_type: Box
+          object_kwargs:
+            size: [0.05, 0.05, 0.1]
+            color: [1.0, 0.0, 0.0, 1.0]
+        - object_type: Box
+          object_kwargs:
+            size: [0.1, 0.05, 0.1]
+            color: [0.0, 0.0, 1.0, 1.0]
+        - object_type: Null
+        - object_type: Null
 
   objects:
     - object_type: Urdf
@@ -64,20 +88,35 @@ env_kwargs:
         name: table
         path: configs/pybullet/envs/assets/iprl_table.urdf
         is_static: true
-    - object_type: Rack
+    - object_type: Variant
       object_kwargs:
         name: rack
-        size: [0.22, 0.32, 0.16]
-        color: [0.4, 0.2, 0.0, 1.0]
+        variants:
+          - object_type: Rack
+            object_kwargs:
+              size: [0.22, 0.32, 0.16]
+              color: [0.4, 0.2, 0.0, 1.0]
+          - object_type: Null
     - object_type: Hook
       object_kwargs:
         name: hook
         head_length: 0.2
         handle_length: 0.38
         handle_y: -1.0
-        color: [0.6, 0.6, 0.6, 1.0]
+        color: [0.4, 0.2, 0.0, 1.0]
     - object_type: Variant
       object_kwargs:
         name: a
-        group: movable
-
+        group: box
+    - object_type: Variant
+      object_kwargs:
+        name: b
+        group: box
+    - object_type: Variant
+      object_kwargs:
+        name: c
+        group: box
+    - object_type: Variant
+      object_kwargs:
+        name: d
+        group: box

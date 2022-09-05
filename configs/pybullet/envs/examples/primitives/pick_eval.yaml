@@ -11,6 +11,7 @@ env_kwargs:
       action_skeleton:
         - pick(a, table)
       initial_state:
+        - free(a)
         - inworkspace(a)
         - on(rack, table)
         - on(hook, table)
@@ -22,6 +23,7 @@ env_kwargs:
       action_skeleton:
         - pick(c, rack)
       initial_state:
+        - free(c)
         - inworkspace(rack)
         - inworkspace(c)
         - on(rack, table)
@@ -34,6 +36,7 @@ env_kwargs:
       action_skeleton:
         - pick(hook, table)
       initial_state:
+        - free(hook)
         - inworkspace(hook)
         - on(rack, table)
         - on(hook, table)
