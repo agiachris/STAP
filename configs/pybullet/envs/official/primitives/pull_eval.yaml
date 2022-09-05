@@ -10,10 +10,10 @@ env_kwargs:
     - action_skeleton:
         - pull(a, hook)
       initial_state:
+        - handlegrasp(hook)
         - free(a)
         - beyondworkspace(a)
         - nonblocking(a, rack)
-        - handlegrasp(hook)
         - on(rack, table)
         - on(a, table)
         - on(b, table)
@@ -28,10 +28,10 @@ env_kwargs:
     - action_skeleton:
         - pull(a, hook)
       initial_state:
+        - handlegrasp(hook)
         - free(a)
         - beyondworkspace(a)
         - nonblocking(a, rack)
-        - handlegrasp(hook)
         - on(rack, table)
         - on(a, table)
         - on(b, table)
