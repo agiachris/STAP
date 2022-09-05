@@ -1,6 +1,5 @@
 import dataclasses
-import itertools
-from typing import Dict, List, Optional, Sequence, Union, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 from ctrlutils import eigen
 import numpy as np
@@ -8,103 +7,15 @@ import pybullet as p
 import symbolic
 from shapely.geometry import Polygon, LineString
 
+
+from temporal_policies.envs.pybullet.table import utils
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Null, Object, Rack
-from temporal_policies.envs.pybullet.sim import math, body
+from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import Robot
 
 
 # dbprint = lambda *args: None  # noqa
 dbprint = print
-
-
-TABLE_CONSTRAINTS = {
-    "workspace_z_max": 0.0,
-    "workspace_x_min": 0.4,
-    "operational_x_min": 0.5,
-    "obstruction_x_min": 0.6,
-    "workspace_radius": 0.7,
-}
-
-
-EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 0.1}
-
-
-def is_above(obj_a: Object, obj_b: Object) -> bool:
-    """Returns True if the object a is above the object b."""
-    min_child_z = obj_a.aabb()[0, 2]
-    max_parent_z = obj_b.aabb()[1, 2]
-    return min_child_z > max_parent_z - EPSILONS["aabb"]
-
-
-def is_upright(obj: Object) -> bool:
-    """Returns True if the child objects z-axis aligns with the world frame."""
-    aa = eigen.AngleAxisd(eigen.Quaterniond(obj.pose().quat))
-    return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= EPSILONS["align"]
-
-
-def is_within_distance(
-    obj_a: Object, obj_b: Object, distance: float, physics_id: int
-) -> bool:
-    """Returns True if the closest points between two objects are within distance."""
-    return bool(
-        p.getClosestPoints(
-            obj_a.body_id, obj_b.body_id, distance, physicsClientId=physics_id
-        )
-    )
-
-
-def is_moving(obj: Object) -> bool:
-    """Returns True if the object is moving."""
-    return bool((np.abs(obj.twist()) >= EPSILONS["twist"]).any())
-
-
-def is_below_table(obj: Object) -> bool:
-    """Returns True if the object is below the table."""
-    return obj.pose().pos[2] < TABLE_CONSTRAINTS["workspace_z_max"]
-
-
-def is_touching(
-    body_a: body.Body,
-    body_b: body.Body,
-    link_id_a: Optional[int] = None,
-    link_id_b: Optional[int] = None,
-) -> bool:
-    """Returns True if there are any contact points between the two bodies."""
-    assert body_a.physics_id == body_b.physics_id
-    kwargs = {}
-    if link_id_a is not None:
-        kwargs["linkIndexA"] = link_id_a
-    if link_id_b is not None:
-        kwargs["linkIndexB"] = link_id_b
-    contacts = p.getContactPoints(
-        bodyA=body_a.body_id,
-        bodyB=body_b.body_id,
-        physicsClientId=body_a.physics_id,
-        **kwargs,
-    )
-    return len(contacts) > 0
-
-
-def is_intersecting(obj_a: Object, obj_b: Object) -> bool:
-    """Returns True if object a intersects object b in the world x-y plane."""
-    polygons_a = [
-        Polygon(hull) for hull in obj_a.convex_hulls(world_frame=True, project_2d=True)
-    ]
-    polygons_b = [
-        Polygon(hull) for hull in obj_b.convex_hulls(world_frame=True, project_2d=True)
-    ]
-
-    return any(
-        poly_a.intersects(poly_b)
-        for poly_a, poly_b in itertools.product(polygons_a, polygons_b)
-    )
-
-
-def is_under(obj_a: Object, obj_b: Object) -> bool:
-    """Returns True if object a is underneath object b."""
-    if not is_above(obj_a, obj_b) and is_intersecting(obj_a, obj_b):
-        return True
-    return False
 
 
 @dataclasses.dataclass
@@ -174,7 +85,9 @@ class Aligned(Predicate):
             return True
 
         angle = eigen.AngleAxisd(eigen.Quaterniond(obj.pose().quat)).angle
-        return Aligned.ANGLE_EPS <= abs(angle) <= Aligned.ANGLE_ABS and is_upright(obj)
+        return Aligned.ANGLE_EPS <= abs(
+            angle
+        ) <= Aligned.ANGLE_ABS and utils.is_upright(obj)
 
     @staticmethod
     def sample_angle() -> float:
@@ -191,7 +104,7 @@ class Under(Predicate):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         child_obj, parent_obj = self.get_arg_objects(objects)
-        return is_under(child_obj, parent_obj)
+        return utils.is_under(child_obj, parent_obj)
 
 
 class Free(Predicate):
@@ -206,7 +119,7 @@ class Free(Predicate):
         for obj in objects.values():
             if f"inhand({obj})" in state or obj.isinstance(Null) or obj == child_obj:
                 continue
-            if is_under(child_obj, obj):
+            if utils.is_under(child_obj, obj):
                 return False
         return True
 
@@ -218,16 +131,16 @@ class NonBlocking(Predicate):
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
-        child_obj, parent_obj = self.get_arg_objects(objects)
-        if child_obj.isinstance(Null) or parent_obj.isinstance(Null):
+        target_obj, intersect_obj = self.get_arg_objects(objects)
+        if target_obj.isinstance(Null) or intersect_obj.isinstance(Null):
             return True
 
-        child_line = LineString([[0, 0], child_obj.pose().pos[:2].tolist()])
+        target_line = LineString([[0, 0], target_obj.pose().pos[:2].tolist()])
         vertices = np.concatenate(
-            parent_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
+            intersect_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
         )
-        parent_poly = Polygon(vertices.tolist())
-        return not parent_poly.intersects(child_line)
+        intersect_poly = Polygon(vertices.tolist())
+        return not intersect_poly.intersects(target_line)
 
 
 class InFront(Predicate):
@@ -247,7 +160,7 @@ class InFront(Predicate):
             child_pos[0] >= xy_min[0]
             or child_pos[1] <= xy_min[1]
             or child_pos[1] >= xy_max[1]
-            or is_under(child_obj, parent_obj)
+            or utils.is_under(child_obj, parent_obj)
         ):
             return False
         return True
@@ -261,7 +174,7 @@ class InFront(Predicate):
         assert parent_obj.isinstance(Rack)
         xy_min, xy_max = parent_obj.aabb()[:, :2]
         xy_max[0] = xy_min[0]
-        xy_min[0] = TABLE_CONSTRAINTS["workspace_x_min"]
+        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
@@ -280,8 +193,8 @@ class InWorkspace(Predicate):
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
         return (
-            TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
-            and distance < TABLE_CONSTRAINTS["workspace_radius"]
+            utils.TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
+            and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
         )
 
     @staticmethod
@@ -292,8 +205,8 @@ class InWorkspace(Predicate):
         """Returns the minimum and maximum x-y bounds inside the workspace."""
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = TABLE_CONSTRAINTS["workspace_x_min"]
-        xy_max[0] = TABLE_CONSTRAINTS["workspace_radius"]
+        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
+        xy_max[0] = utils.TABLE_CONSTRAINTS["workspace_radius"]
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
@@ -310,7 +223,7 @@ class BeyondWorkspace(Predicate):
             return True
 
         distance = float(np.linalg.norm(obj.pose().pos[:2]))
-        return distance > TABLE_CONSTRAINTS["workspace_radius"]
+        return distance > utils.TABLE_CONSTRAINTS["workspace_radius"]
 
     @staticmethod
     def bounds(
@@ -320,9 +233,11 @@ class BeyondWorkspace(Predicate):
         """Returns the minimum and maximum x-y bounds outside the workspace."""
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
+        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
             np.arcsin(
-                0.5 * (xy_max[1] - xy_min[1]) / TABLE_CONSTRAINTS["workspace_radius"]
+                0.5
+                * (xy_max[1] - xy_min[1])
+                / utils.TABLE_CONSTRAINTS["workspace_radius"]
             )
         )
         xy_min += margin
@@ -341,9 +256,9 @@ class InCollisionZone(Predicate):
             return True
 
         return (
-            TABLE_CONSTRAINTS["workspace_x_min"]
+            utils.TABLE_CONSTRAINTS["workspace_x_min"]
             <= obj.pose().pos[0]
-            < TABLE_CONSTRAINTS["operational_x_min"]
+            < utils.TABLE_CONSTRAINTS["operational_x_min"]
         )
 
     @staticmethod
@@ -353,8 +268,8 @@ class InCollisionZone(Predicate):
     ) -> Tuple[np.ndarray, np.ndarray]:
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = TABLE_CONSTRAINTS["workspace_x_min"]
-        xy_max[0] = TABLE_CONSTRAINTS["operational_x_min"]
+        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
+        xy_max[0] = utils.TABLE_CONSTRAINTS["operational_x_min"]
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
@@ -371,9 +286,9 @@ class InOperationalZone(Predicate):
             return True
 
         return (
-            TABLE_CONSTRAINTS["operational_x_min"]
+            utils.TABLE_CONSTRAINTS["operational_x_min"]
             <= obj.pose().pos[0]
-            < TABLE_CONSTRAINTS["obstruction_x_min"]
+            < utils.TABLE_CONSTRAINTS["obstruction_x_min"]
         )
 
     @staticmethod
@@ -383,8 +298,8 @@ class InOperationalZone(Predicate):
     ) -> Tuple[np.ndarray, np.ndarray]:
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = TABLE_CONSTRAINTS["operational_x_min"]
-        xy_max[0] = TABLE_CONSTRAINTS["obstruction_x_min"]
+        xy_min[0] = utils.TABLE_CONSTRAINTS["operational_x_min"]
+        xy_max[0] = utils.TABLE_CONSTRAINTS["obstruction_x_min"]
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
@@ -403,8 +318,8 @@ class InObstructionZone(Predicate):
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
         return (
-            obj_pos[0] >= TABLE_CONSTRAINTS["obstruction_x_min"]
-            and distance < TABLE_CONSTRAINTS["workspace_radius"]
+            obj_pos[0] >= utils.TABLE_CONSTRAINTS["obstruction_x_min"]
+            and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
         )
 
     @staticmethod
@@ -414,10 +329,12 @@ class InObstructionZone(Predicate):
     ) -> Tuple[np.ndarray, np.ndarray]:
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = TABLE_CONSTRAINTS["obstruction_x_min"]
-        xy_max[0] = TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
+        xy_min[0] = utils.TABLE_CONSTRAINTS["obstruction_x_min"]
+        xy_max[0] = utils.TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
             np.arcsin(
-                0.5 * (xy_max[1] - xy_min[1]) / TABLE_CONSTRAINTS["workspace_radius"]
+                0.5
+                * (xy_max[1] - xy_min[1])
+                / utils.TABLE_CONSTRAINTS["workspace_radius"]
             )
         )
         xy_min += margin
@@ -442,7 +359,7 @@ class On(Predicate):
             return False
 
         # Parent surface height
-        parent_z = parent_obj.aabb()[1, 2] + EPSILONS["aabb"]
+        parent_z = parent_obj.aabb()[1, 2] + utils.EPSILONS["aabb"]
 
         # Generate theta in the world coordinate frame
         theta = (
@@ -544,7 +461,7 @@ class On(Predicate):
                 (Hook, Rack)
             ):
                 # Tip the object over
-                if np.random.random() < EPSILONS["tipping"]:
+                if np.random.random() < utils.EPSILONS["tipping"]:
                     axis = np.random.uniform(-1, 1, size=2)
                     axis /= np.linalg.norm(axis)
                     quat = quat * eigen.Quaterniond(
@@ -574,11 +491,11 @@ class On(Predicate):
         if child_obj.isinstance(Null):
             return True
 
-        if not is_above(child_obj, parent_obj):
+        if not utils.is_above(child_obj, parent_obj):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
-        if f"tippable({child_obj})" not in state and not is_upright(child_obj):
+        if f"tippable({child_obj})" not in state and not utils.is_upright(child_obj):
             dbprint(f"{self}.value():", False, "- child not upright")
             return False
 
@@ -662,7 +579,7 @@ class Inhand(Predicate):
             # Make sure object isn't touching gripper.
             obj.unfreeze()
             p.stepSimulation(physicsClientId=robot.physics_id)
-            if not is_touching(obj, robot):
+            if not utils.is_touching(obj, robot):
                 break
             elif i + 1 == Inhand.MAX_GRASP_ATTEMPTS:
                 dbprint(f"{self}.sample():", False, "- exceeded max grasp attempts")
@@ -726,3 +643,45 @@ class Inhand(Predicate):
             aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
 
         return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
+
+
+UNARY_PREDICATES = {
+    "handlegrasp": HandleGrasp,
+    "free": Free,
+    "aligned": Aligned,
+    "tippable": Tippable,
+    "inworkspace": InWorkspace,
+    "incollisionzone": InCollisionZone,
+    "inoperationalzone": InOperationalZone,
+    "inobstructionzone": InObstructionZone,
+    "beyondworkspace": BeyondWorkspace,
+    "inhand": Inhand,
+}
+
+
+BINARY_PREDICATES = {
+    "under": Under,
+    "infront": InFront,
+    "nonblocking": NonBlocking,
+    "on": On,
+}
+
+
+PREDICATE_HIERARCHY = [
+    "handlegrasp" "free",
+    "aligned",
+    "tippable",
+    "inworkspace",
+    "incollisionzone",
+    "inoperationalzone",
+    "inobstructionzone",
+    "beyondworkspace",
+    "under",
+    "infront",
+    "nonblocking",
+    "on",
+    "inhand",
+]
+
+
+assert len(UNARY_PREDICATES) + len(BINARY_PREDICATES) == len(PREDICATE_HIERARCHY)

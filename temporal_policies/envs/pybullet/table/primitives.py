@@ -13,7 +13,7 @@ from temporal_policies.envs.pybullet.sim.robot import ControlException
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Rack, Null, Object
 from temporal_policies.envs.pybullet.table import (
     object_state,
-    predicates,
+    utils,
     primitive_actions,
 )
 
@@ -59,7 +59,7 @@ def did_object_move(
 
 
 def initialize_robot_pose(robot: robot.Robot) -> bool:
-    x_min, x_max = predicates.TABLE_CONSTRAINTS["workspace_x_min"], MAX_LIFT_RADIUS
+    x_min, x_max = utils.TABLE_CONSTRAINTS["workspace_x_min"], MAX_LIFT_RADIUS
     y_min, y_max = primitive_actions.PlaceAction.RANGES["y"]
     xy_min = np.array([x_min, y_min])
     xy_max = np.array([x_max, y_max])
@@ -313,7 +313,7 @@ class Place(Primitive):
             )
 
             # Make sure object won't drop from too high.
-            if not predicates.is_within_distance(
+            if not utils.is_within_distance(
                 obj, target, MAX_DROP_DISTANCE, robot.physics_id
             ):
                 raise ControlException("Object dropped from too high.")
@@ -334,11 +334,11 @@ class Place(Primitive):
 
         wait_until_stable_fn()
 
-        if predicates.is_below_table(obj):
+        if utils.is_below_table(obj):
             # Falling off the table is an exception.
             return ExecutionResult(success=False, truncated=True)
 
-        if not predicates.is_upright(obj) or not predicates.is_above(obj, target):
+        if not utils.is_upright(obj) or not utils.is_above(obj, target):
             return ExecutionResult(success=False, truncated=False)
 
         return ExecutionResult(success=True, truncated=False)
@@ -439,7 +439,7 @@ class Pull(Primitive):
                     obj.body_id for obj in self.get_non_arg_objects(objects)
                 ],
             )
-            if not predicates.is_upright(target):
+            if not utils.is_upright(target):
                 raise ControlException("Target is not upright", target.pose().quat)
 
             robot.goto_pose(
@@ -463,7 +463,7 @@ class Pull(Primitive):
 
         wait_until_stable_fn()
 
-        if not predicates.is_upright(target):
+        if not utils.is_upright(target):
             return ExecutionResult(success=False, truncated=False)
 
         new_target_distance = np.linalg.norm(target.pose().pos[:2])
@@ -553,7 +553,7 @@ class Push(Primitive):
                     obj.body_id for obj in self.get_non_arg_objects(objects)
                 ],
             )
-            if not predicates.is_upright(target):
+            if not utils.is_upright(target):
                 raise ControlException("Target is not upright", target.pose().quat)
 
             robot.goto_pose(
@@ -590,7 +590,7 @@ class Push(Primitive):
 
         wait_until_stable_fn()
 
-        if not predicates.is_upright(target):
+        if not utils.is_upright(target):
             return ExecutionResult(success=False, truncated=False)
 
         new_target_distance = np.linalg.norm(target.pose().pos[:2])
@@ -600,7 +600,7 @@ class Push(Primitive):
         # Target must be pushed underneath rack if it exists
         for obj in self.get_non_arg_objects(objects):
             if obj.isinstance(Rack):
-                if not predicates.is_under(target, obj):
+                if not utils.is_under(target, obj):
                     return ExecutionResult(success=False, truncated=False)
                 break
 
