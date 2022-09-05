@@ -508,13 +508,14 @@ class On(Predicate):
                     # Restrict placement location in front of the rack
                     if child_obj.isinstance(Hook):
                         margin_world_frame *= 0.25
-                    xy_min_0, xy_max_0 = InFront.bounds(
-                        rack_obj, margin=margin_world_frame
-                    )
 
-                xy_min, xy_max = self.compute_bound_intersection(
-                    (xy_min, xy_min_0), (xy_max, xy_max_0)
-                )
+                    xy_bounds = list(
+                        zip(
+                            (xy_min, xy_max),
+                            InFront.bounds(rack_obj, margin=margin_world_frame),
+                        )
+                    )
+                    xy_min, xy_max = self.compute_bound_intersection(*xy_bounds)
 
         if parent_obj.isinstance((Rack, Box)):
             T_parent_obj_to_world = parent_obj.pose()
