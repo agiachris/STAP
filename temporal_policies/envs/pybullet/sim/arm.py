@@ -37,6 +37,7 @@ class Arm(articulated_body.ArticulatedBody):
         pos_gains: Tuple[float, float],
         ori_gains: Tuple[float, float],
         nullspace_joint_gains: Tuple[float, float],
+        nullspace_joint_indices: List[int],
         pos_threshold: Tuple[float, float],
         ori_threshold: Tuple[float, float],
         timeout: float,
@@ -55,6 +56,7 @@ class Arm(articulated_body.ArticulatedBody):
             pos_gains: (kp, kv) position gains.
             ori_gains: (kp, kv) orientation gains.
             nullspace_joint_gains: (kp, kv) nullspace joint gains.
+            nullspace_joint_indices: Joints to control in the nullspace.
             pos_threshold: (position, velocity) error threshold for position convergence.
             ori_threshold: (orientation, angular velocity) threshold for orientation convergence.
             timeout: Default command timeout.
@@ -74,6 +76,7 @@ class Arm(articulated_body.ArticulatedBody):
         self.pos_gains = np.array(pos_gains, dtype=np.float64)
         self.ori_gains = np.array(ori_gains, dtype=np.float64)
         self.nullspace_joint_gains = np.array(nullspace_joint_gains, dtype=np.float64)
+        self.nullspace_joint_indices = list(nullspace_joint_indices)
 
         self.pos_threshold = np.array(pos_threshold, dtype=np.float64)
         self.ori_threshold = np.array(ori_threshold, dtype=np.float64)
@@ -204,14 +207,22 @@ class Arm(articulated_body.ArticulatedBody):
             self.ab.q >= self._q_limits[1]
         ).any():
             return articulated_body.ControlStatus.ABORTED
-        # TODO: Debugging.
 
         # Compute torques.
+        q_nullspace = np.array(self.ab.q)
+        if self._arm_state.pos_des is not None:
+            # Assume base joint rotates about z-axis.
+            q_nullspace[0] = np.arctan2(
+                self._arm_state.pos_des[1], self._arm_state.pos_des[0]
+            )
+        q_nullspace[self.nullspace_joint_indices] = self.q_home[
+            self.nullspace_joint_indices
+        ]
         tau, status = dyn.opspace_control(
             self.ab,
             pos=self._arm_state.pos_des,
             ori=self._arm_state.quat_des,
-            joint=self.q_home,
+            joint=q_nullspace,
             pos_gains=self._arm_state.pos_gains,
             ori_gains=self._arm_state.ori_gains,
             joint_gains=self.nullspace_joint_gains,
