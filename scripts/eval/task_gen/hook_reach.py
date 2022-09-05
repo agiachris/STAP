@@ -3,6 +3,8 @@ from typing import Any, List, Tuple, Dict
 import random
 import numpy as np
 
+from temporal_policies.envs.pybullet.table.predicates import PREDICATE_HIERARCHY
+
 
 def get_random_indices(objects: Dict[int, str]) -> List[int]:
     arg_indices = list(range(len(objects)))
@@ -83,6 +85,7 @@ def main(
                 f"Plan skeleton: {substitute_vars(vars, lifted_task['plan_skeleton'])}"
             )
             print(f"Predicates: {predicates}")
+            input("\nContinue?")
             task_idx += 1
 
         arg_indices = get_random_indices(boxes)

@@ -180,7 +180,7 @@ class PullAction(PrimitiveAction):
 
 class PushAction(PrimitiveAction):
     RANGES = {
-        "r_reach": (-0.4, -0.1),
+        "r_reach": (-0.4, -0.2),
         "r_push": (0.1, 0.4),
         "y": (-0.01, 0.01),
         "theta": (-0.5 * np.pi, 0.5 * np.pi),
