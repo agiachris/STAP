@@ -22,8 +22,7 @@ dbprint = lambda *args: None  # noqa
 # dbprint = print
 
 
-LIFT_HEIGHT = 0.4
-MAX_LIFT_RADIUS = 0.7
+ACTION_CONSTRAINTS = {"max_lift_height": 0.4, "max_lift_radius": 0.7}
 
 
 def compute_top_down_orientation(
@@ -59,18 +58,21 @@ def did_object_move(
 
 
 def initialize_robot_pose(robot: robot.Robot) -> bool:
-    x_min, x_max = utils.TABLE_CONSTRAINTS["workspace_x_min"], MAX_LIFT_RADIUS
+    x_min, x_max = (
+        utils.TABLE_CONSTRAINTS["workspace_x_min"],
+        ACTION_CONSTRAINTS["max_lift_radius"],
+    )
     y_min, y_max = primitive_actions.PlaceAction.RANGES["y"]
     xy_min = np.array([x_min, y_min])
     xy_max = np.array([x_max, y_max])
 
     while True:
         xy = np.random.uniform(xy_min, xy_max)
-        if np.linalg.norm(xy) < MAX_LIFT_RADIUS:
+        if np.linalg.norm(xy) < ACTION_CONSTRAINTS["max_lift_radius"]:
             break
     theta = np.random.uniform(*object_state.ObjectState.RANGES["wz"])
 
-    pos = np.append(xy, LIFT_HEIGHT)
+    pos = np.append(xy, ACTION_CONSTRAINTS["max_lift_height"])
     aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
     quat = eigen.Quaterniond(aa)
 
@@ -203,7 +205,7 @@ class Pick(Primitive):
         # Compute orientation.
         command_quat = compute_top_down_orientation(a.theta.item(), obj_quat)
 
-        pre_pos = np.append(command_pos[:2], LIFT_HEIGHT)
+        pre_pos = np.append(command_pos[:2], ACTION_CONSTRAINTS["max_lift_height"])
 
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
@@ -295,7 +297,7 @@ class Place(Primitive):
         # Compute orientation.
         command_quat = compute_top_down_orientation(a.theta.item(), target_quat)
 
-        pre_pos = np.append(command_pos[:2], LIFT_HEIGHT)
+        pre_pos = np.append(command_pos[:2], ACTION_CONSTRAINTS["max_lift_height"])
 
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
@@ -355,7 +357,7 @@ class Place(Primitive):
 
         # Compute an appropriate place height given the grasped object's height.
         obj = self.policy_args[0]
-        z_gripper = LIFT_HEIGHT
+        z_gripper = ACTION_CONSTRAINTS["max_lift_height"]
         z_obj = obj.pose().pos[2]
         action.pos[2] = z_gripper - z_obj + 0.5 * obj.size[2]
 
@@ -421,8 +423,12 @@ class Pull(Primitive):
         command_pose_reach = math.Pose.from_eigen(T_reach_to_world)
         command_pose_pull = math.Pose.from_eigen(T_pull_to_world)
 
-        pre_pos = np.append(command_pose_reach.pos[:2], LIFT_HEIGHT)
-        post_pos = np.append(command_pose_pull.pos[:2], LIFT_HEIGHT)
+        pre_pos = np.append(
+            command_pose_reach.pos[:2], ACTION_CONSTRAINTS["max_lift_height"]
+        )
+        post_pos = np.append(
+            command_pose_pull.pos[:2], ACTION_CONSTRAINTS["max_lift_height"]
+        )
 
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
@@ -536,7 +542,9 @@ class Push(Primitive):
         T_push_to_world = T_push_hook_to_world * T_gripper_to_hook
         command_pose_reach = math.Pose.from_eigen(T_reach_to_world)
         command_pose_push = math.Pose.from_eigen(T_push_to_world)
-        pre_pos = np.append(command_pose_reach.pos[:2], LIFT_HEIGHT)
+        pre_pos = np.append(
+            command_pose_reach.pos[:2], ACTION_CONSTRAINTS["max_lift_height"]
+        )
 
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
