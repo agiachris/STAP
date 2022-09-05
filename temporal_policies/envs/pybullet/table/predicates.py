@@ -498,31 +498,34 @@ class On(Predicate):
                     xy_min, xy_max = InWorkspace.bounds(
                         parent_obj, margin=margin_world_frame
                     )
-                elif f"incollisionzone({child_obj})" in state:
-                    xy_min, xy_max = InCollisionZone.bounds(
-                        parent_obj, margin=margin_world_frame
-                    )
-                elif f"inoperationalzone({child_obj})" in state:
-                    xy_min, xy_max = InOperationalZone.bounds(
-                        parent_obj, margin=margin_world_frame
-                    )
-                elif f"inobstructionzone({child_obj})" in state:
-                    xy_min, xy_max = InObstructionZone.bounds(
-                        parent_obj, margin=margin_world_frame
-                    )
-                else:
+                elif not (
+                    f"incollisionzone({child_obj})" in state
+                    or f"inoperationalzone({child_obj})" in state
+                    or f"inobstructionzone({child_obj})" in state
+                ):
                     xy_min, xy_max = parent_obj.aabb()[:, :2]
                     xy_min += margin_world_frame
                     xy_max -= margin_world_frame
-
+                else:
+                    if child_obj.isinstance(Hook):
+                        # Scale down margins in tight spaces
+                        margin_world_frame *= 0.25
+                    if f"incollisionzone({child_obj})" in state:
+                        xy_min, xy_max = InCollisionZone.bounds(
+                            parent_obj, margin=margin_world_frame
+                        )
+                    elif f"inoperationalzone({child_obj})" in state:
+                        xy_min, xy_max = InOperationalZone.bounds(
+                            parent_obj, margin=margin_world_frame
+                        )
+                    elif f"inobstructionzone({child_obj})" in state:
+                        xy_min, xy_max = InObstructionZone.bounds(
+                            parent_obj, margin=margin_world_frame
+                        )
                 if (
                     rack_obj is not None
                     and f"infront({child_obj}, {rack_obj})" in state
                 ):
-                    # Restrict placement location in front of the rack
-                    if child_obj.isinstance(Hook):
-                        margin_world_frame *= 0.25
-
                     xy_bounds = list(
                         zip(
                             (xy_min, xy_max),
