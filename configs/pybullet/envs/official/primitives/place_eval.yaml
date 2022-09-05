@@ -11,7 +11,6 @@ env_kwargs:
         - place(a, table)
       initial_state:
         - on(rack, table)
-        - on(a, table)
         - on(b, table)
         - on(c, table)
         - on(d, table)
@@ -24,7 +23,7 @@ env_kwargs:
         - on(k, rack)
         - inhand(a)
     - action_skeleton:
-      - place(f, rack)
+        - place(f, rack)
       initial_state:
         - inworkspace(rack)
         - on(rack, table)
@@ -33,7 +32,6 @@ env_kwargs:
         - on(c, table)
         - on(d, table)
         - on(e, table)
-        - on(f, rack)
         - on(g, rack)
         - on(h, rack)
         - on(i, rack)

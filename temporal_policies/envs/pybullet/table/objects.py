@@ -13,7 +13,7 @@ from temporal_policies.envs.pybullet.table import object_state
 
 
 def compute_bbox_vertices(
-        bbox: np.ndarray, pose: Optional[math.Pose] = None, project_2d: bool = False
+    bbox: np.ndarray, pose: Optional[math.Pose] = None, project_2d: bool = False
 ) -> np.ndarray:
     """Computes the vertices of the given 3D bounding box.
 

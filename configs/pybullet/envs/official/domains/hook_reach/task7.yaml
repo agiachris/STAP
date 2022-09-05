@@ -15,10 +15,12 @@ env_kwargs:
         - place(hook, table)
         - pick(purple_box, table)
       initial_state:
+        - free(hook)
         - free(purple_box)
         - inworkspace(rack)
         - inworkspace(hook)
         - beyondworkspace(purple_box)
+        - nonblocking(purple_box, rack)
         - on(rack, table)
         - on(hook, rack)
         - on(purple_box, table)
