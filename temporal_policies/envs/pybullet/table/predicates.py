@@ -360,8 +360,8 @@ class InCollisionZone(Predicate):
         return xy_min, xy_max
 
 
-class InSafeZone(Predicate):
-    """Unary predicate ensuring the object is in the safe zone."""
+class InOperationalZone(Predicate):
+    """Unary predicate ensuring the object is in the operational zone."""
 
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
@@ -488,8 +488,8 @@ class On(Predicate):
                     xy_min, xy_max = InCollisionZone.bounds(
                         parent_obj, margin=margin_world_frame
                     )
-                elif f"insafezone({child_obj})" in state:
-                    xy_min, xy_max = InSafeZone.bounds(
+                elif f"inoperationalzone({child_obj})" in state:
+                    xy_min, xy_max = InOperationalZone.bounds(
                         parent_obj, margin=margin_world_frame
                     )
                 elif f"inobstructionzone({child_obj})" in state:
