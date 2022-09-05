@@ -841,7 +841,8 @@ class Variant(WrapperObject):
                 obj.freeze()
 
         self._body = self.variants[idx_variant]
-        self._idx_variant = idx_variant if lock else None
+        if lock:
+            self._idx_variant = idx_variant
 
     def reset(self, action_skeleton: List) -> None:
         self.set_variant(self._idx_variant, action_skeleton)

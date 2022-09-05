@@ -248,7 +248,7 @@ def evaluate_pick_action(
         name=f"action_q_values_z{z:.1f}_th{theta:.2f}",
         grid_resolution=grid_resolution,
         z_scale=0.0,
-        z_height=(obs.box_size[0, 2] if obs.box_size[0, 2] > 0 else 0.04) + 0.001,
+        z_height=(primitive.arg_objects[0].aabb()[1, 2]) + 0.001,
     )
 
     for view in ("front", "top"):
@@ -312,8 +312,13 @@ def evaluate_pick(
     def _evaluate_pick(path: pathlib.Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
+        # Setup scene.
+        env.reset()
         obj = primitive.arg_objects[0]
-        obj.set_pose(math.Pose(pos=np.array([0.4, 0.0, obj.size[2] / 2])))
+        obj.set_pose(math.Pose(pos=np.array([0.4, 0.0, -obj.bbox[0, 2]])))
+        if "rack" in env.objects:
+            rack = env.objects["rack"]
+            rack.set_pose(math.Pose(pos=np.array([0.5, 0.25, -rack.bbox[0, 2]])))
 
         evaluate_pick_state(
             env=env,
@@ -323,7 +328,7 @@ def evaluate_pick(
             grid_resolution=grid_resolution,
         )
 
-        observation, _ = env.reset()
+        observation = env.get_observation()
         for theta in np.linspace(0, np.pi / 2, 3):
             evaluate_pick_action(
                 env=env,
@@ -366,11 +371,17 @@ def evaluate_place(
     def _evaluate_place(path: pathlib.Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
+        # Setup scene.
+        env.reset()
+        if "rack" in env.objects:
+            rack = env.objects["rack"]
+            rack.set_pose(math.Pose(pos=np.array([0.5, 0.25, -rack.bbox[0, 2]])))
+
         evaluate_place_action(
             env=env,
             primitive=primitive,
             policy=policy,
-            observation=env.reset()[0],
+            observation=env.get_observation(),
             action=primitive.sample_action().vector,
             path=path,
             grid_resolution=grid_resolution,
