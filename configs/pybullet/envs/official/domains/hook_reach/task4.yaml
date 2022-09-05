@@ -20,6 +20,7 @@ env_kwargs:
         - inworkspace(rack)
         - inworkspace(hook)
         - beyondworkspace(yellow_box)
+        - nonblocking(yellow_box, rack)
         - on(rack, table)
         - on(hook, table)
         - on(yellow_box, table)

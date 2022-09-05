@@ -1,16 +1,18 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: pull
+  name: push
   gui: true
 
   primitives:
-    - pull
+    - push
 
   tasks:
     - action_skeleton:
-        - pull(a, hook)
+        - push(a, hook)
       initial_state:
-        - beyondworkspace(a)
+        - aligned(rack)
+        - inworkspace(a)
+        - beyondworkspace(rack)
         - on(rack, table)
         - on(a, table)
         - on(b, table)
@@ -23,9 +25,47 @@ env_kwargs:
         - on(i, rack)
         - inhand(hook)
     - action_skeleton:
-        - pull(a, hook)
+        - push(a, hook)
       initial_state:
-        - beyondworkspace(a)
+        - aligned(rack)
+        - inworkspace(a)
+        - beyondworkspace(rack)
+        - on(rack, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, table)
+        - on(d, table)
+        - on(e, rack)
+        - on(f, rack)
+        - on(g, rack)
+        - on(h, rack)
+        - on(i, rack)
+        - inhand(hook)
+    - action_skeleton:
+        - push(a, hook)
+      initial_state:
+        - handlegrasp(hook)
+        - aligned(rack)
+        - inworkspace(a)
+        - beyondworkspace(rack)
+        - on(rack, table)
+        - on(a, table)
+        - on(b, table)
+        - on(c, table)
+        - on(d, table)
+        - on(e, table)
+        - on(f, rack)
+        - on(g, rack)
+        - on(h, rack)
+        - on(i, rack)
+        - inhand(hook)
+    - action_skeleton:
+        - push(a, hook)
+      initial_state:
+        - handlegrasp(hook)
+        - aligned(rack)
+        - inworkspace(a)
+        - beyondworkspace(rack)
         - on(rack, table)
         - on(a, table)
         - on(b, table)
