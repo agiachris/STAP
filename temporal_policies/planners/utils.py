@@ -272,6 +272,9 @@ def evaluate_plan(
 
     if gif_path is not None:
         env.record_stop()
+        gif_path = pathlib.Path(gif_path)
+        if (rewards == 0.0).any():
+            gif_path = gif_path.parent / f"{gif_path.name}_fail{gif_path.suffix}"
         env.record_save(gif_path, reset=True)
 
     return rewards

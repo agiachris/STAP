@@ -23,6 +23,12 @@ function eval_policies {
         args="${args} --path plots/${EXP_NAME}"
         args="${args} --verbose 0"
     fi
+    if [[ -n "${EVAL_RESULTS}" ]]; then
+        args="${args} --eval-results ${EVAL_RESULTS}"
+    fi
+    if [[ -n "${ENV_CONFIG}" ]]; then
+        args="${args} --env-config ${ENV_CONFIG}"
+    fi
     CMD="python scripts/eval/eval_table_env_policies.py ${args}"
     run_cmd
 }
@@ -38,12 +44,15 @@ policy_envs=(
     "place"
 )
 experiments=(
-    "20220726/workspace"
+    "20220903/examples_collisions"
+    "20220903/official_collisions"
 )
 
 for EXP_NAME in "${experiments[@]}"; do
     for policy_env in "${policy_envs[@]}"; do
         POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/final_model.pt"
+        ENV_CONFIG="configs/pybullet/envs/examples/primitives/${policy_env}_single.yaml"
+        # EVAL_RESULTS="plots/${EXP_NAME}/${policy_env}/results_12.npz"
         eval_policies
     done
 done

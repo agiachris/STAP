@@ -4,6 +4,8 @@ env_kwargs:
   gui: true
 
   primitives:
+    - pick
+    - place
     - pull
 
   tasks:
