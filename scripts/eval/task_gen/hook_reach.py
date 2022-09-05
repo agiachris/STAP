@@ -70,7 +70,7 @@ def main(
             # Construct predicates
             predicates = [
                 *lifted_task["predicates"],
-                f"nonblocking({target_box}, rack)"
+                f"nonblocking({target_box}, rack)",
                 f"free({target_box})",
                 f"beyondworkspace({target_box})",
                 f"on({target_box}, table)",
