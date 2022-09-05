@@ -58,16 +58,28 @@ class Predicate:
         return str(self) == str(other)
 
 
-class Tippable(Predicate):
-    """Unary predicate admitting non-upright configurations of an object."""
-
-    pass
-
-
 class HandleGrasp(Predicate):
     """Unary predicate enforcing a handle grasp on a hook object."""
 
     pass
+
+
+class Free(Predicate):
+    """Unary predicate enforcing that no top-down occlusions exist on the object."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        child_obj = self.get_arg_objects(objects)[0]
+        if child_obj.isinstance(Null):
+            return True
+
+        for obj in objects.values():
+            if f"inhand({obj})" in state or obj.isinstance(Null) or obj == child_obj:
+                continue
+            if utils.is_under(child_obj, obj):
+                return False
+        return True
 
 
 class Aligned(Predicate):
@@ -97,87 +109,10 @@ class Aligned(Predicate):
         return np.clip(angle, -Aligned.ANGLE_ABS, Aligned.ANGLE_ABS)
 
 
-class Under(Predicate):
-    """Unary predicate enforcing that an object be placed underneath another."""
+class Tippable(Predicate):
+    """Unary predicate admitting non-upright configurations of an object."""
 
-    def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    ) -> bool:
-        child_obj, parent_obj = self.get_arg_objects(objects)
-        return utils.is_under(child_obj, parent_obj)
-
-
-class Free(Predicate):
-    """Unary predicate enforcing that no top-down occlusions exist on the object."""
-
-    def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    ) -> bool:
-        child_obj = self.get_arg_objects(objects)[0]
-        if child_obj.isinstance(Null):
-            return True
-        for obj in objects.values():
-            if f"inhand({obj})" in state or obj.isinstance(Null) or obj == child_obj:
-                continue
-            if utils.is_under(child_obj, obj):
-                return False
-        return True
-
-
-class NonBlocking(Predicate):
-    """Binary predicate ensuring that one object is not occupying a straightline
-    path from the robot base to another object."""
-
-    def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    ) -> bool:
-        target_obj, intersect_obj = self.get_arg_objects(objects)
-        if target_obj.isinstance(Null) or intersect_obj.isinstance(Null):
-            return True
-
-        target_line = LineString([[0, 0], target_obj.pose().pos[:2].tolist()])
-        vertices = np.concatenate(
-            intersect_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
-        )
-        intersect_poly = Polygon(vertices.tolist())
-        return not intersect_poly.intersects(target_line)
-
-
-class InFront(Predicate):
-    """Binary predicate enforcing that one object is in-front of another with
-    respect to the world x-y coordinate axis."""
-
-    def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    ) -> bool:
-        child_obj, parent_obj = self.get_arg_objects(objects)
-        if child_obj.isinstance(Null):
-            return True
-
-        child_pos = child_obj.pose().pos
-        xy_min, xy_max = parent_obj.aabb()[:, :2]
-        if (
-            child_pos[0] >= xy_min[0]
-            or child_pos[1] <= xy_min[1]
-            or child_pos[1] >= xy_max[1]
-            or utils.is_under(child_obj, parent_obj)
-        ):
-            return False
-        return True
-
-    @staticmethod
-    def bounds(
-        parent_obj: Object,
-        margin: np.ndarray = np.zeros(2),
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Returns the minimum and maximum x-y bounds in front of the parent object."""
-        assert parent_obj.isinstance(Rack)
-        xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_max[0] = xy_min[0]
-        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
-        xy_min += margin
-        xy_max -= margin
-        return xy_min, xy_max
+    pass
 
 
 class InWorkspace(Predicate):
@@ -207,39 +142,6 @@ class InWorkspace(Predicate):
         xy_min, xy_max = parent_obj.aabb()[:, :2]
         xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
         xy_max[0] = utils.TABLE_CONSTRAINTS["workspace_radius"]
-        xy_min += margin
-        xy_max -= margin
-        return xy_min, xy_max
-
-
-class BeyondWorkspace(Predicate):
-    """Unary predicate ensuring than an object is in beyond the robot workspace."""
-
-    def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    ) -> bool:
-        obj = self.get_arg_objects(objects)[0]
-        if obj.isinstance(Null):
-            return True
-
-        distance = float(np.linalg.norm(obj.pose().pos[:2]))
-        return distance > utils.TABLE_CONSTRAINTS["workspace_radius"]
-
-    @staticmethod
-    def bounds(
-        parent_obj: Object,
-        margin: np.ndarray = np.zeros(2),
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Returns the minimum and maximum x-y bounds outside the workspace."""
-        assert parent_obj.name == "table"
-        xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
-            np.arcsin(
-                0.5
-                * (xy_max[1] - xy_min[1])
-                / utils.TABLE_CONSTRAINTS["workspace_radius"]
-            )
-        )
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
@@ -340,6 +242,201 @@ class InObstructionZone(Predicate):
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
+
+
+class BeyondWorkspace(Predicate):
+    """Unary predicate ensuring than an object is in beyond the robot workspace."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        obj = self.get_arg_objects(objects)[0]
+        if obj.isinstance(Null):
+            return True
+
+        distance = float(np.linalg.norm(obj.pose().pos[:2]))
+        return distance > utils.TABLE_CONSTRAINTS["workspace_radius"]
+
+    @staticmethod
+    def bounds(
+        parent_obj: Object,
+        margin: np.ndarray = np.zeros(2),
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the minimum and maximum x-y bounds outside the workspace."""
+        assert parent_obj.name == "table"
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
+            np.arcsin(
+                0.5
+                * (xy_max[1] - xy_min[1])
+                / utils.TABLE_CONSTRAINTS["workspace_radius"]
+            )
+        )
+        xy_min += margin
+        xy_max -= margin
+        return xy_min, xy_max
+
+
+class Inhand(Predicate):
+    MAX_GRASP_ATTEMPTS = 1
+
+    def sample(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        """Samples a geometric grounding of the InHand(a) predicate."""
+        obj = self.get_arg_objects(objects)[0]
+        if obj.is_static:
+            dbprint(f"{self}.sample():", True, "- static")
+            return True
+
+        # Generate grasp pose.
+        for i in range(Inhand.MAX_GRASP_ATTEMPTS):
+            grasp_pose = self.generate_grasp_pose(obj, f"handlegrasp({obj})" in state)
+            obj_pose = math.Pose.from_eigen(grasp_pose.to_eigen().inverse())
+            obj_pose.pos += robot.home_pose.pos
+
+            # Use fake grasp.
+            obj.disable_collisions()
+            obj.set_pose(obj_pose)
+            robot.grasp_object(obj, realistic=False)
+            obj.enable_collisions()
+
+            # Make sure object isn't touching gripper.
+            obj.unfreeze()
+            p.stepSimulation(physicsClientId=robot.physics_id)
+            if not utils.is_touching(obj, robot):
+                break
+            elif i + 1 == Inhand.MAX_GRASP_ATTEMPTS:
+                dbprint(f"{self}.sample():", False, "- exceeded max grasp attempts")
+                return False
+
+        dbprint(f"{self}.sample():", True)
+        return True
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        """The geometric grounding of InHand(a) evaluates to True by construction."""
+        return True
+
+    @staticmethod
+    def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
+        """Generates a grasp pose in the object frame of reference."""
+        if obj.isinstance(Hook):
+            hook: Hook = obj  # type: ignore
+            pos_handle, pos_head, pos_joint = Hook.compute_link_positions(
+                head_length=hook.head_length,
+                handle_length=hook.handle_length,
+                handle_y=hook.handle_y,
+                radius=hook.radius,
+            )
+            if handlegrasp or np.random.random() < hook.handle_length / (
+                hook.handle_length + hook.head_length
+            ):
+                # Handle.
+                half_size = np.array(
+                    [0.5 * hook.handle_length, hook.radius, hook.radius]
+                )
+                if handlegrasp:
+                    xyz = pos_handle + np.random.uniform(-half_size, 0)
+                else:
+                    xyz = pos_handle + np.random.uniform(-half_size, half_size)
+                theta = 0.0
+            else:
+                # Head.
+                half_size = np.array([hook.radius, 0.5 * hook.head_length, hook.radius])
+                xyz = pos_head + np.random.uniform(-half_size, half_size)
+                theta = np.pi / 2
+
+            # Perturb angle by 10deg.
+            theta += np.random.normal(scale=0.2)
+            if theta > np.pi / 2:
+                theta -= np.pi
+
+            aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+        else:
+            # Fit object between gripper fingers.
+            max_aabb = 0.5 * obj.size
+            max_aabb[:2] = np.minimum(max_aabb[:2], np.array([0.02, 0.02]))
+            min_aabb = -0.5 * obj.size
+            min_aabb = np.maximum(
+                min_aabb, np.array([-0.02, -0.02, max_aabb[2] - 0.05])
+            )
+
+            xyz = np.random.uniform(min_aabb, max_aabb)
+            theta = np.random.uniform(-np.pi / 2, np.pi / 2)
+            aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+
+        return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
+
+
+class Under(Predicate):
+    """Unary predicate enforcing that an object be placed underneath another."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        if child_obj.isinstance(Null):
+            return True
+
+        child_obj, parent_obj = self.get_arg_objects(objects)
+        return utils.is_under(child_obj, parent_obj)
+
+
+class InFront(Predicate):
+    """Binary predicate enforcing that one object is in-front of another with
+    respect to the world x-y coordinate axis."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        child_obj, parent_obj = self.get_arg_objects(objects)
+        if child_obj.isinstance(Null):
+            return True
+
+        child_pos = child_obj.pose().pos
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        if (
+            child_pos[0] >= xy_min[0]
+            or child_pos[1] <= xy_min[1]
+            or child_pos[1] >= xy_max[1]
+            or utils.is_under(child_obj, parent_obj)
+        ):
+            return False
+        return True
+
+    @staticmethod
+    def bounds(
+        parent_obj: Object,
+        margin: np.ndarray = np.zeros(2),
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the minimum and maximum x-y bounds in front of the parent object."""
+        assert parent_obj.isinstance(Rack)
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        xy_max[0] = xy_min[0]
+        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
+        xy_min += margin
+        xy_max -= margin
+        return xy_min, xy_max
+
+
+class NonBlocking(Predicate):
+    """Binary predicate ensuring that one object is not occupying a straightline
+    path from the robot base to another object."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        target_obj, intersect_obj = self.get_arg_objects(objects)
+        if target_obj.isinstance(Null) or intersect_obj.isinstance(Null):
+            return True
+
+        target_line = LineString([[0, 0], target_obj.pose().pos[:2].tolist()])
+        vertices = np.concatenate(
+            intersect_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
+        )
+        intersect_poly = Polygon(vertices.tolist())
+        return not intersect_poly.intersects(target_line)
 
 
 class On(Predicate):
@@ -443,12 +540,19 @@ class On(Predicate):
                 "[Predicate.On] parent object must be a table, rack, or box"
             )
 
-        free_predicate = (
-            state[state.index(f"free({child_obj})")]
-            if f"free({child_obj})" in state
-            else None
-        )
-        for samples in range(On.MAX_SAMPLE_ATTEMPTS):
+        # Obtain predicates to validate sampled pose
+        propositions: List[Predicate] = []
+        if f"free({child_obj})" in state:
+            propositions.append(state[state.index(f"free({child_obj})")])
+        for obj in objects.values():
+            if f"nonblocking({obj}, {child_obj})" in state:
+                propositions.append(
+                    state[state.index(f"nonblocking({obj}, {child_obj})")]
+                )
+
+        samples = 0
+        success = False
+        while not success and samples < len(range(On.MAX_SAMPLE_ATTEMPTS)):
             # Generate pose and convert to world frame (assumes parent in upright)
             xyz_parent_frame = np.zeros(3)
             xyz_parent_frame[:2] = np.random.uniform(xy_min, xy_max)
@@ -472,16 +576,13 @@ class On(Predicate):
             pose = math.Pose(pos=xyz_world_frame, quat=quat.coeffs)
             child_obj.set_pose(pose)
 
-            if free_predicate is not None and not free_predicate.value(
-                robot, objects, state
-            ):
-                if samples == On.MAX_SAMPLE_ATTEMPTS - 1:
-                    return False
+            if any(not prop.value(robot, objects, state) for prop in propositions):
+                samples += 1
                 continue
-            break
+            success = True
 
-        dbprint(f"{self}.sample():", True)
-        return True
+        dbprint(f"{self}.sample():", success)
+        return success
 
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
@@ -552,99 +653,6 @@ class On(Predicate):
         return xy_min, xy_max
 
 
-class Inhand(Predicate):
-    MAX_GRASP_ATTEMPTS = 1
-
-    def sample(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    ) -> bool:
-        """Samples a geometric grounding of the InHand(a) predicate."""
-        obj = self.get_arg_objects(objects)[0]
-        if obj.is_static:
-            dbprint(f"{self}.sample():", True, "- static")
-            return True
-
-        # Generate grasp pose.
-        for i in range(Inhand.MAX_GRASP_ATTEMPTS):
-            grasp_pose = self.generate_grasp_pose(obj, f"handlegrasp({obj})" in state)
-            obj_pose = math.Pose.from_eigen(grasp_pose.to_eigen().inverse())
-            obj_pose.pos += robot.home_pose.pos
-
-            # Use fake grasp.
-            obj.disable_collisions()
-            obj.set_pose(obj_pose)
-            robot.grasp_object(obj, realistic=False)
-            obj.enable_collisions()
-
-            # Make sure object isn't touching gripper.
-            obj.unfreeze()
-            p.stepSimulation(physicsClientId=robot.physics_id)
-            if not utils.is_touching(obj, robot):
-                break
-            elif i + 1 == Inhand.MAX_GRASP_ATTEMPTS:
-                dbprint(f"{self}.sample():", False, "- exceeded max grasp attempts")
-                return False
-
-        dbprint(f"{self}.sample():", True)
-        return True
-
-    def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    ) -> bool:
-        """The geometric grounding of InHand(a) evaluates to True by construction."""
-        return True
-
-    @staticmethod
-    def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
-        """Generates a grasp pose in the object frame of reference."""
-        if obj.isinstance(Hook):
-            hook: Hook = obj  # type: ignore
-            pos_handle, pos_head, pos_joint = Hook.compute_link_positions(
-                head_length=hook.head_length,
-                handle_length=hook.handle_length,
-                handle_y=hook.handle_y,
-                radius=hook.radius,
-            )
-            if handlegrasp or np.random.random() < hook.handle_length / (
-                hook.handle_length + hook.head_length
-            ):
-                # Handle.
-                half_size = np.array(
-                    [0.5 * hook.handle_length, hook.radius, hook.radius]
-                )
-                if handlegrasp:
-                    xyz = pos_handle + np.random.uniform(-half_size, 0)
-                else:
-                    xyz = pos_handle + np.random.uniform(-half_size, half_size)
-                theta = 0.0
-            else:
-                # Head.
-                half_size = np.array([hook.radius, 0.5 * hook.head_length, hook.radius])
-                xyz = pos_head + np.random.uniform(-half_size, half_size)
-                theta = np.pi / 2
-
-            # Perturb angle by 10deg.
-            theta += np.random.normal(scale=0.2)
-            if theta > np.pi / 2:
-                theta -= np.pi
-
-            aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-        else:
-            # Fit object between gripper fingers.
-            max_aabb = 0.5 * obj.size
-            max_aabb[:2] = np.minimum(max_aabb[:2], np.array([0.02, 0.02]))
-            min_aabb = -0.5 * obj.size
-            min_aabb = np.maximum(
-                min_aabb, np.array([-0.02, -0.02, max_aabb[2] - 0.05])
-            )
-
-            xyz = np.random.uniform(min_aabb, max_aabb)
-            theta = np.random.uniform(-np.pi / 2, np.pi / 2)
-            aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-
-        return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
-
-
 UNARY_PREDICATES = {
     "handlegrasp": HandleGrasp,
     "free": Free,
@@ -668,7 +676,8 @@ BINARY_PREDICATES = {
 
 
 PREDICATE_HIERARCHY = [
-    "handlegrasp" "free",
+    "handlegrasp",
+    "free",
     "aligned",
     "tippable",
     "inworkspace",
