@@ -182,7 +182,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         with self.profiler.profile("collect"):
             if self._reset_collect:
                 self._reset_collect = False
-                observation, _ = self.env.reset()
+                observation, _ = self.env.reset(
+                    options={"schedule": self.step - self.num_pretrain_steps}
+                )
                 self.dataset.add(observation=observation)
                 self._episode_length = 0
                 self._episode_reward = 0.0
@@ -239,7 +241,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             }
 
             # Reset the environment
-            observation, _ = self.env.reset()
+            observation, _ = self.env.reset(
+                options={"schedule": self.step - self.num_pretrain_steps}
+            )
             self.dataset.add(observation=observation)
             self._episode_length = 0
             self._episode_reward = 0.0
