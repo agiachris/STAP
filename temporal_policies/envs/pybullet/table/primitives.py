@@ -59,7 +59,7 @@ def did_object_move(
 
 
 def initialize_robot_pose(robot: robot.Robot) -> bool:
-    x_min, x_max = predicates.WORKSPACE_MIN_X, MAX_LIFT_RADIUS
+    x_min, x_max = predicates.TABLE_CONSTRAINTS["workspace_x_min"], MAX_LIFT_RADIUS
     y_min, y_max = primitive_actions.PlaceAction.RANGES["y"]
     xy_min = np.array([x_min, y_min])
     xy_max = np.array([x_max, y_max])

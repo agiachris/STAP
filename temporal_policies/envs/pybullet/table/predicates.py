@@ -17,26 +17,29 @@ from temporal_policies.envs.pybullet.sim.robot import Robot
 dbprint = print
 
 
-AABB_EPS = 0.01
-ALIGN_EPS = 0.99
-TWIST_EPS = 0.001
-TABLE_HEIGHT = 0.0
-WORKSPACE_RADIUS = 0.7
-WORKSPACE_MIN_X = 0.4
-TIPPING_PROB = 0.1
+TABLE_CONSTRAINTS = {
+    "workspace_z_max": 0.0,
+    "workspace_x_min": 0.4,
+    "operational_x_min": 0.5,
+    "obstruction_x_min": 0.6,
+    "workspace_radius": 0.7,
+}
+
+
+EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 0.1}
 
 
 def is_above(obj_a: Object, obj_b: Object) -> bool:
     """Returns True if the object a is above the object b."""
     min_child_z = obj_a.aabb()[0, 2]
     max_parent_z = obj_b.aabb()[1, 2]
-    return min_child_z > max_parent_z - AABB_EPS
+    return min_child_z > max_parent_z - EPSILONS["aabb"]
 
 
 def is_upright(obj: Object) -> bool:
     """Returns True if the child objects z-axis aligns with the world frame."""
     aa = eigen.AngleAxisd(eigen.Quaterniond(obj.pose().quat))
-    return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= ALIGN_EPS
+    return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= EPSILONS["align"]
 
 
 def is_within_distance(
@@ -52,12 +55,12 @@ def is_within_distance(
 
 def is_moving(obj: Object) -> bool:
     """Returns True if the object is moving."""
-    return bool((np.abs(obj.twist()) > TWIST_EPS).any())
+    return bool((np.abs(obj.twist()) >= EPSILONS["twist"]).any())
 
 
 def is_below_table(obj: Object) -> bool:
     """Returns True if the object is below the table."""
-    return obj.pose().pos[2] < TABLE_HEIGHT
+    return obj.pose().pos[2] < TABLE_CONSTRAINTS["workspace_z_max"]
 
 
 def is_touching(
@@ -171,12 +174,12 @@ class Aligned(Predicate):
             return True
 
         angle = eigen.AngleAxisd(eigen.Quaterniond(obj.pose().quat)).angle
-        return Aligned.ANGLE_EPS < abs(angle) <= Aligned.ANGLE_ABS and is_upright(obj)
+        return Aligned.ANGLE_EPS <= abs(angle) <= Aligned.ANGLE_ABS and is_upright(obj)
 
     @staticmethod
     def sample_angle() -> float:
         angle = 0
-        while abs(angle) <= Aligned.ANGLE_EPS:
+        while abs(angle) < Aligned.ANGLE_EPS:
             angle = np.random.randn() * Aligned.ANGLE_STD
         return np.clip(angle, -Aligned.ANGLE_ABS, Aligned.ANGLE_ABS)
 
@@ -206,13 +209,6 @@ class Free(Predicate):
             if is_under(child_obj, obj):
                 return False
         return True
-
-
-class Closer(Predicate):
-    """Unary predicate enforcing that an object is in-front of another with
-    repect to the world z coordiante axis."""
-
-    pass
 
 
 class NonBlocking(Predicate):
@@ -265,7 +261,7 @@ class InFront(Predicate):
         assert parent_obj.isinstance(Rack)
         xy_min, xy_max = parent_obj.aabb()[:, :2]
         xy_max[0] = xy_min[0]
-        xy_min[0] = WORKSPACE_MIN_X
+        xy_min[0] = TABLE_CONSTRAINTS["workspace_x_min"]
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
@@ -277,16 +273,16 @@ class InWorkspace(Predicate):
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
-        """Evaluates to True if the object is within the robot workspace."""
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
 
-        xyz = obj.pose().pos
-        distance = float(np.linalg.norm(xyz[:2]))
-        is_inworkspace = WORKSPACE_MIN_X < xyz[0] and distance <= WORKSPACE_RADIUS
-        dbprint(f"{self}.value():", is_inworkspace, "x:", xyz[0], "distance:", distance)
-        return is_inworkspace
+        obj_pos = obj.pose().pos[:2]
+        distance = float(np.linalg.norm(obj_pos))
+        return (
+            TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
+            and distance < TABLE_CONSTRAINTS["workspace_radius"]
+        )
 
     @staticmethod
     def bounds(
@@ -296,8 +292,8 @@ class InWorkspace(Predicate):
         """Returns the minimum and maximum x-y bounds inside the workspace."""
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = WORKSPACE_MIN_X
-        xy_max[0] = WORKSPACE_RADIUS
+        xy_min[0] = TABLE_CONSTRAINTS["workspace_x_min"]
+        xy_max[0] = TABLE_CONSTRAINTS["workspace_radius"]
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
@@ -314,9 +310,7 @@ class BeyondWorkspace(Predicate):
             return True
 
         distance = float(np.linalg.norm(obj.pose().pos[:2]))
-        is_beyondworkspace = distance > WORKSPACE_RADIUS
-        dbprint(f"{self}.value():", is_beyondworkspace, "distance:", distance)
-        return is_beyondworkspace
+        return distance > TABLE_CONSTRAINTS["workspace_radius"]
 
     @staticmethod
     def bounds(
@@ -326,8 +320,105 @@ class BeyondWorkspace(Predicate):
         """Returns the minimum and maximum x-y bounds outside the workspace."""
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = WORKSPACE_RADIUS * np.cos(
-            np.arcsin(0.5 * (xy_max[1] - xy_min[1]) / WORKSPACE_RADIUS)
+        xy_min[0] = TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
+            np.arcsin(
+                0.5 * (xy_max[1] - xy_min[1]) / TABLE_CONSTRAINTS["workspace_radius"]
+            )
+        )
+        xy_min += margin
+        xy_max -= margin
+        return xy_min, xy_max
+
+
+class InCollisionZone(Predicate):
+    """Unary predicate ensuring the object is in the collision zone."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        obj = self.get_arg_objects(objects)[0]
+        if obj.isinstance(Null):
+            return True
+
+        return (
+            TABLE_CONSTRAINTS["workspace_x_min"]
+            <= obj.pose().pos[0]
+            < TABLE_CONSTRAINTS["operational_x_min"]
+        )
+
+    @staticmethod
+    def bounds(
+        parent_obj: Object,
+        margin: np.ndarray = np.zeros(2),
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        assert parent_obj.name == "table"
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        xy_min[0] = TABLE_CONSTRAINTS["workspace_x_min"]
+        xy_max[0] = TABLE_CONSTRAINTS["operational_x_min"]
+        xy_min += margin
+        xy_max -= margin
+        return xy_min, xy_max
+
+
+class InSafeZone(Predicate):
+    """Unary predicate ensuring the object is in the safe zone."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        obj = self.get_arg_objects(objects)[0]
+        if obj.isinstance(Null):
+            return True
+
+        return (
+            TABLE_CONSTRAINTS["operational_x_min"]
+            <= obj.pose().pos[0]
+            < TABLE_CONSTRAINTS["obstruction_x_min"]
+        )
+
+    @staticmethod
+    def bounds(
+        parent_obj: Object,
+        margin: np.ndarray = np.zeros(2),
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        assert parent_obj.name == "table"
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        xy_min[0] = TABLE_CONSTRAINTS["operational_x_min"]
+        xy_max[0] = TABLE_CONSTRAINTS["obstruction_x_min"]
+        xy_min += margin
+        xy_max -= margin
+        return xy_min, xy_max
+
+
+class InObstructionZone(Predicate):
+    """Unary predicate ensuring the object is in the obstruction zone."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        obj = self.get_arg_objects(objects)[0]
+        if obj.isinstance(Null):
+            return True
+
+        obj_pos = obj.pose().pos[:2]
+        distance = float(np.linalg.norm(obj_pos))
+        return (
+            obj_pos[0] >= TABLE_CONSTRAINTS["obstruction_x_min"]
+            and distance < TABLE_CONSTRAINTS["workspace_radius"]
+        )
+
+    @staticmethod
+    def bounds(
+        parent_obj: Object,
+        margin: np.ndarray = np.zeros(2),
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        assert parent_obj.name == "table"
+        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        xy_min[0] = TABLE_CONSTRAINTS["obstruction_x_min"]
+        xy_max[0] = TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
+            np.arcsin(
+                0.5 * (xy_max[1] - xy_min[1]) / TABLE_CONSTRAINTS["workspace_radius"]
+            )
         )
         xy_min += margin
         xy_max -= margin
@@ -351,7 +442,7 @@ class On(Predicate):
             return False
 
         # Parent surface height
-        parent_z = parent_obj.aabb()[1, 2] + AABB_EPS
+        parent_z = parent_obj.aabb()[1, 2] + EPSILONS["aabb"]
 
         # Generate theta in the world coordinate frame
         theta = (
@@ -373,38 +464,57 @@ class On(Predicate):
         # Determine stable sampling regions on parent surface
         has_parent = False
         if parent_obj.name == "table":
-            rack_restricted = False
+            rack_obj = None
             has_parent = True
             for obj in objects.values():
                 if obj.isinstance(Rack):
+                    rack_obj = obj
                     if f"under({child_obj}, {obj})" in state:
                         # Restrict placement location to under the rack
                         parent_obj = obj
-                        rack_restricted = True
-                    elif f"infront({child_obj}, {obj})" in state:
-                        # Restrict placement location in front of the rack
-                        if child_obj.isinstance(Hook):
-                            margin_world_frame *= 0.25
-                        xy_min, xy_max = InFront.bounds(obj, margin=margin_world_frame)
-                        rack_restricted = True
                     break
 
             T_parent_obj_to_world = math.Pose()
-            if not rack_restricted:
+            if not parent_obj.isinstance(Rack):
                 if f"beyondworkspace({child_obj})" in state:
-                    # Increase the likelihood of sampling outside the workspace
                     xy_min, xy_max = BeyondWorkspace.bounds(
                         parent_obj, margin=margin_world_frame
                     )
                 elif f"inworkspace({child_obj})" in state:
-                    # Increase the likelihood of sampling inside the workspace
                     xy_min, xy_max = InWorkspace.bounds(
+                        parent_obj, margin=margin_world_frame
+                    )
+                elif f"incollisionzone({child_obj})" in state:
+                    xy_min, xy_max = InCollisionZone.bounds(
+                        parent_obj, margin=margin_world_frame
+                    )
+                elif f"insafezone({child_obj})" in state:
+                    xy_min, xy_max = InSafeZone.bounds(
+                        parent_obj, margin=margin_world_frame
+                    )
+                elif f"inobstructionzone({child_obj})" in state:
+                    xy_min, xy_max = InObstructionZone.bounds(
                         parent_obj, margin=margin_world_frame
                     )
                 else:
                     xy_min, xy_max = parent_obj.aabb()[:, :2]
                     xy_min += margin_world_frame
                     xy_max -= margin_world_frame
+
+                if (
+                    rack_obj is not None
+                    and f"infront({child_obj}, {rack_obj})" in state
+                ):
+                    # Restrict placement location in front of the rack
+                    if child_obj.isinstance(Hook):
+                        margin_world_frame *= 0.25
+                    xy_min_0, xy_max_0 = InFront.bounds(
+                        rack_obj, margin=margin_world_frame
+                    )
+
+                xy_min, xy_max = self.compute_bound_intersection(
+                    (xy_min, xy_min_0), (xy_max, xy_max_0)
+                )
 
         if parent_obj.isinstance((Rack, Box)):
             T_parent_obj_to_world = parent_obj.pose()
@@ -433,7 +543,7 @@ class On(Predicate):
                 (Hook, Rack)
             ):
                 # Tip the object over
-                if np.random.random() < TIPPING_PROB:
+                if np.random.random() < EPSILONS["tipping"]:
                     axis = np.random.uniform(-1, 1, size=2)
                     axis /= np.linalg.norm(axis)
                     quat = quat * eigen.Quaterniond(
@@ -493,7 +603,7 @@ class On(Predicate):
         )
         xy_min = margin
         xy_max = parent_obj.size[:2] - margin
-        if np.any(xy_max - xy_min < 0):
+        if np.any(xy_max - xy_min <= 0):
             # Increase the likelihood of a stable placement location
             child_parent_ratio = 2 * margin / parent_obj.size[:2]
             x_min_ratio = min(0.25 * child_parent_ratio[0], 0.45)
@@ -505,6 +615,22 @@ class On(Predicate):
 
         xy_min -= 0.5 * parent_obj.size[:2]
         xy_max -= 0.5 * parent_obj.size[:2]
+        return xy_min, xy_max
+
+    @staticmethod
+    def compute_bound_intersection(
+        xy_min_bounds: Sequence[np.ndarray],
+        xy_max_bounds: Sequence[np.ndarray],
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute intersection of a sequence of xy_min and xy_max bounds."""
+        if len(xy_min_bounds) != len(xy_max_bounds):
+            raise ValueError("Require equal number of minimum and maximum bounds")
+
+        xy_min = np.row_stack(xy_min_bounds).max(axis=0)
+        xy_max = np.row_stack(xy_max_bounds).min(axis=0)
+        if np.any(xy_max - xy_min <= 0):
+            raise ValueError("Bound intersection does not exist")
+
         return xy_min, xy_max
 
 
