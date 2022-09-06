@@ -10,7 +10,9 @@ env_kwargs:
     - action_skeleton:
         - pull(table_box_1, hook)
       initial_state:
+        - free(table_box_1)
         - beyondworkspace(table_box_1)
+        - nonblocking(table_box_1, rack)
         - on(rack, table)
         - on(table_box_1, table)
         - on(table_box_2, table)
@@ -20,34 +22,16 @@ env_kwargs:
     - action_skeleton:
         - pull(table_box_1, hook)
       initial_state:
-        - beyondworkspace(table_box_1)
         - handlegrasp(hook)
+        - free(table_box_1)
+        - beyondworkspace(table_box_1)
+        - nonblocking(table_box_1, rack)
         - on(rack, table)
         - on(table_box_1, table)
         - on(table_box_2, table)
         - on(rack_box_1, rack)
         - on(rack_box_2, rack)
         - inhand(hook)
-    # - action_skeleton:
-    #     - pull(rack, hook)
-    #   initial_state:
-    #     - beyondworkspace(rack)
-    #     - on(rack, table)
-    #     - on(table_box_1, table)
-    #     - on(table_box_2, table)
-    #     - on(rack_box_1, rack)
-    #     - on(rack_box_2, rack)
-    #     - inhand(hook)
-    # - action_skeleton:
-    #     - pull(rack_box_1, hook)
-    #   initial_state:
-    #     - beyondworkspace(rack)
-    #     - on(rack, table)
-    #     - on(table_box_1, table)
-    #     - on(table_box_2, table)
-    #     - on(rack_box_1, rack)
-    #     - on(rack_box_2, rack)
-    #     - inhand(hook)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 

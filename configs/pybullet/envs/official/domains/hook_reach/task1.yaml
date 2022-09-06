@@ -19,6 +19,7 @@ env_kwargs:
         - free(blue_box)
         - inworkspace(hook)
         - beyondworkspace(blue_box)
+        - nonblocking(blue_box, rack)
         - on(rack, table)
         - on(hook, table)        
         - on(blue_box, table)

@@ -3,6 +3,8 @@ from typing import Any, List, Tuple, Dict
 import random
 import numpy as np
 
+from temporal_policies.envs.pybullet.table.predicates import PREDICATE_HIERARCHY
+
 
 def get_random_indices(objects: Dict[int, str]) -> List[int]:
     arg_indices = list(range(len(objects)))
@@ -70,6 +72,7 @@ def main(
             # Construct predicates
             predicates = [
                 *lifted_task["predicates"],
+                f"nonblocking({target_box}, rack)",
                 f"free({target_box})",
                 f"beyondworkspace({target_box})",
                 f"on({target_box}, table)",
@@ -82,6 +85,7 @@ def main(
                 f"Plan skeleton: {substitute_vars(vars, lifted_task['plan_skeleton'])}"
             )
             print(f"Predicates: {predicates}")
+            input("\nContinue?")
             task_idx += 1
 
         arg_indices = get_random_indices(boxes)
@@ -141,6 +145,7 @@ if __name__ == "__main__":
                 "pick(?B, table)",
             ],
             "predicates": [
+                "free(hook)",
                 "inworkspace(rack)",
                 "inworkspace(hook)",
                 "on(rack, table)",
@@ -156,6 +161,7 @@ if __name__ == "__main__":
                 "pick(?B, table)",
             ],
             "predicates": [
+                "free(hook)",
                 "inworkspace(rack)",
                 "inworkspace(hook)",
                 "on(rack, table)",
