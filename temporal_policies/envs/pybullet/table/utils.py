@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import itertools
 import numpy as np
@@ -11,10 +11,12 @@ from temporal_policies.envs.pybullet.sim import body
 
 
 TABLE_CONSTRAINTS = {
-    "workspace_z_max": 0.0,
-    "workspace_x_min": 0.4,
-    "operational_x_min": 0.5,
-    "obstruction_x_min": 0.6,
+    "table_z_max": 0.00,
+    "table_x_min": 0.30,
+    "workspace_x_min": 0.40,
+    "operational_x_min": 0.50,
+    "operational_x_max": 0.60,
+    "obstruction_x_min": 0.575,
     "workspace_radius": 0.7,
 }
 
@@ -53,7 +55,7 @@ def is_moving(obj: Object) -> bool:
 
 def is_below_table(obj: Object) -> bool:
     """Returns True if the object is below the table."""
-    return obj.pose().pos[2] < TABLE_CONSTRAINTS["workspace_z_max"]
+    return obj.pose().pos[2] < TABLE_CONSTRAINTS["table_z_max"]
 
 
 def is_touching(
