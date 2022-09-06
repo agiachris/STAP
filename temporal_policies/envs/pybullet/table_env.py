@@ -668,7 +668,7 @@ class TableEnv(PybulletEnv):
 
     def _is_any_object_below_table(self) -> bool:
         return any(
-            not obj.is_static and predicates.is_below_table(obj)
+            not obj.is_static and utils.is_below_table(obj)
             for obj in self.real_objects()
         )
 
