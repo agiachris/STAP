@@ -16,6 +16,7 @@ function eval_policies {
     args=""
     args="${args} --checkpoint ${POLICY_CHECKPOINT}"
     args="${args} --seed 0"
+    args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path plots/${EXP_NAME}_debug"
         args="${args} --num-episodes 1"
@@ -36,7 +37,7 @@ function eval_policies {
 
 # Setup.
 
-DEBUG=1
+DEBUG=0
 
 # Evaluate policies.
 
@@ -53,9 +54,12 @@ ckpts=(
     # "final_model"
     "ckpt_model_50000"
 )
+if [[ `hostname` == "sc.stanford.edu" ]]; then
+    ENV_KWARGS="${ENV_KWARGS} --gui 0"
+fi
 
 for EXP_NAME in "${experiments[@]}"; do
-    for ckpt in "${ckpt[@]}"; do
+    for ckpt in "${ckpts[@]}"; do
         for policy_env in "${policy_envs[@]}"; do
             POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/${ckpt}.pt"
             # ENV_CONFIG="configs/pybullet/envs/examples/primitives/${policy_env}_single_rack.yaml"

@@ -2,7 +2,7 @@
 
 import argparse
 import pathlib
-from typing import Any, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import torch
@@ -110,6 +110,7 @@ def evaluate_policy(
     path: Optional[Union[str, pathlib.Path]] = None,
     num_episodes: int = 100,
     seed: Optional[int] = None,
+    gui: Optional[bool] = None,
     verbose: bool = True,
     device: str = "auto",
 ) -> None:
@@ -122,21 +123,26 @@ def evaluate_policy(
         random.seed(seed)
 
     # Load env.
+    env_kwargs: Dict[str, Any] = {}
+    if gui is not None:
+        env_kwargs["gui"] = bool(gui)
     if env_config is None:
         # Try to load eval env.
         env_config = pathlib.Path(checkpoint).parent / "eval/env_config.yaml"
     try:
-        env = envs.load(env_config)
+        env = envs.load(env_config, **env_kwargs)
     except FileNotFoundError:
+        # Default to train env.
         env = None
 
     # Load policy.
-    policy = agents.load(checkpoint=checkpoint, device=device)
+    policy = agents.load(
+        checkpoint=checkpoint, env=env, env_kwargs=env_kwargs, device=device
+    )
     assert isinstance(policy, agents.RLAgent)
     policy.eval_mode()
 
     if env is None:
-        # Default to train env.
         env = policy.env
 
     if debug_results is not None:
@@ -163,6 +169,7 @@ if __name__ == "__main__":
         "--num-episodes", type=int, default=100, help="Number of episodes to evaluate"
     )
     parser.add_argument("--seed", type=int, help="Random seed")
+    parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument("--verbose", type=int, default=1, help="Print debug messages")
     parser.add_argument("--device", default="auto", help="Torch device")
     args = parser.parse_args()

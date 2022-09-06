@@ -272,6 +272,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     def pretrain(self) -> None:
         """Runs the pretrain phase."""
         self.dataset.initialize()
+        log_freq = self.log_freq
+        self.log_freq = min(log_freq, self.num_pretrain_steps // 10)
         pbar = tqdm.tqdm(
             range(self.step, self.num_pretrain_steps),
             desc=f"Pretrain {self.name}",
@@ -287,6 +289,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             metrics_list = self.log_step(metrics_list, stage="pretrain")
 
             self.increment_step()
+        self.log_freq = log_freq
 
     def train_step(self, step: int, batch: Batch) -> Mapping[str, float]:
         """Performs a single training step.
