@@ -68,7 +68,6 @@ class TrainerFactory(configs.Factory):
 
             self.kwargs["agent"] = agent
             self.kwargs["eval_env"] = eval_env
-            self.kwargs["env_kwargs"] = env_kwargs
         elif issubclass(self.cls, (trainers.DynamicsTrainer, trainers.UnifiedTrainer)):
             if dynamics is None:
                 if checkpoint is None:
@@ -95,7 +94,6 @@ class TrainerFactory(configs.Factory):
 
                 self.kwargs["policy_checkpoints"] = policy_checkpoints
                 self.kwargs["policies"] = policies
-                self.kwargs["env_kwargs"] = env_kwargs
         elif issubclass(self.cls, trainers.AutoencoderTrainer):
             if encoder is None:
                 if checkpoint is None:
@@ -123,16 +121,18 @@ class TrainerFactory(configs.Factory):
         elif issubclass(self.cls, trainers.SCODTrainer):
             if scod is None:
                 if checkpoint is None:
-                    raise ValueError("EIther scod or checkpoint must be specified")
+                    raise ValueError("Either scod or checkpoint must be specified")
                 ckpt_scod = scod_regression.load(checkpoint=checkpoint, device=device)
                 if not isinstance(ckpt_scod, scod_regression.SCOD):
                     raise ValueError("Checkpoint scod must be a SCOD instance")
                 scod = ckpt_scod
             self.kwargs["scod"] = scod
-            assert policy_checkpoints is not None
-            if len(policy_checkpoints) != 1:
+            if not policy_checkpoints:
+                raise ValueError("Policy_checkpoints must be specified")
+            elif len(policy_checkpoints) != 1:
                 raise ValueError("Must specify exactly one policy checkpoint")
             self.kwargs["policy_checkpoint"] = policy_checkpoints[0]
+            self.kwargs["agent"] = agent
         else:
             raise NotImplementedError
 
@@ -147,6 +147,7 @@ class TrainerFactory(configs.Factory):
         else:
             self.kwargs["path"] = path
 
+        self.kwargs["env_kwargs"] = env_kwargs
         self.kwargs["device"] = device
 
 

@@ -92,6 +92,11 @@ PLANNERS=(
     "random_cem"
     "policy_shooting"
     "random_shooting"
+# SCOD value / Latent dynamics.
+    "policy_cem_var_scod_value"
+    "policy_cem_cvar_scod_value"
+    "policy_shooting_var_scod_value"
+    "policy_shooting_cvar_scod_value"
 # Q-value / Oracle dynamics.
     "policy_cem_oracle_dynamics"
     "random_cem_oracle_dynamics"
@@ -130,9 +135,9 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220806/workspace"
+exp_name="20220903/examples_collisions"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
-ENV_CONFIG="configs/pybullet/envs/workspace.yaml"
+ENV_CONFIG="configs/pybullet/envs/examples/domains/workspace.yaml"
 POLICY_ENVS=("pick" "place" "pull")
 checkpoints=(
     "final_model"

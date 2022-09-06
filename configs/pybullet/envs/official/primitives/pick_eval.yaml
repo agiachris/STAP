@@ -8,82 +8,122 @@ env_kwargs:
 
   tasks:
     - action_skeleton:
-        - pick(a, table)
+        - pick(table_box_1, table)
       initial_state:
-        - free(a)
-        - inworkspace(a)
+        - free(table_box_1)
+        - inworkspace(table_box_1)
         - on(rack, table)
-        - on(a, table)
-        - on(b, table)
-        - on(c, table)
-        - on(d, table)
-        - on(e, table)
-        - on(f, table)
-        - on(g, rack)
-        - on(h, rack)
-        - on(i, rack)
-        - on(j, rack)
-        - on(k, rack)
+        - on(table_hook, table)
+        - on(rack_hook, rack)
+        - on(table_box_1, table)
+        - on(table_box_2, table)
+        - on(table_box_3, table)
+        - on(table_box_4, table)
+        - on(table_box_5, table)
+        - on(rack_box_1, rack)
+        - on(rack_box_2, rack)
+        - on(rack_box_3, rack)
+        - on(rack_box_4, rack)
+        - on(rack_box_5, rack)
     - action_skeleton:
-        - pick(f, rack)
+        - pick(rack_box_1, rack)
       initial_state:
-        - free(f)
+        - free(rack_box_1)
         - inworkspace(rack)
-        - inworkspace(f)
+        - inworkspace(rack_box_1)
         - on(rack, table)
-        - on(a, table)
-        - on(b, table)
-        - on(c, table)
-        - on(d, table)
-        - on(e, table)
-        - on(f, rack)
-        - on(g, rack)
-        - on(h, rack)
-        - on(i, rack)
-        - on(j, rack)
-        - on(k, rack)
-        
+        - on(table_hook, table)
+        - on(rack_hook, rack)
+        - on(table_box_1, table)
+        - on(table_box_2, table)
+        - on(table_box_3, table)
+        - on(table_box_4, table)
+        - on(table_box_5, table)
+        - on(rack_box_1, rack)
+        - on(rack_box_2, rack)
+        - on(rack_box_3, rack)
+        - on(rack_box_4, rack)
+        - on(rack_box_5, rack)
+    - action_skeleton:
+        - pick(table_hook, table)
+      initial_state:
+        - free(table_hook)
+        - inworkspace(table_hook)
+        - on(rack, table)
+        - on(table_hook, table)
+        - on(table_box_1, table)
+        - on(table_box_2, table)
+        - on(table_box_3, table)
+        - on(table_box_4, table)
+        - on(table_box_5, table)
+        - on(rack_box_1, rack)
+        - on(rack_box_2, rack)
+        - on(rack_box_3, rack)
+        - on(rack_box_4, rack)
+        - on(rack_box_5, rack)
+    - action_skeleton:
+        - pick(rack_hook, rack)
+      initial_state:
+        - inworkspace(rack)
+        - inworkspace(rack_hook)
+        - on(rack, table)
+        - on(rack_hook, rack)
+        - on(table_box_1, table)
+        - on(table_box_2, table)
+        - on(table_box_3, table)
+        - on(table_box_4, table)
+        - on(table_box_5, table)
+        - on(rack_box_1, rack)
+        - on(rack_box_2, rack)
+        - on(rack_box_3, rack)
+        - on(rack_box_4, rack)
+        - on(rack_box_5, rack)
+
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   object_groups:
-    - name: movable
+    - name: boxes
       objects:
-      - object_type: Box
-        object_kwargs:
-          size: [0.08, 0.05, 0.07]
-          color: [0.0, 0.0, 1.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.07, 0.06, 0.1]
-          color: [1.0, 1.0, 0.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.05, 0.05, 0.07]
-          color: [1.0, 0.0, 0.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.06, 0.03, 0.06]
-          color: [0.0, 1.0, 1.0, 1.0]
-      - object_type: Box
-        object_kwargs:
-          size: [0.04, 0.03, 0.09]
-          color: [1.0, 0.0, 1.0, 1.0]
-      - object_type: Hook
-        object_kwargs:
-          head_length: 0.2
-          handle_length: 0.38
-          handle_y: -1.0
-          color: [0.6, 0.6, 0.6, 1.0]
-      - object_type: Null
-      - object_type: Null
-      - object_type: Null
-      - object_type: Null
-      - object_type: Null
-      - object_type: Null
-      - object_type: Null
-      - object_type: Null
-      - object_type: Null
-      - object_type: Null
+        - object_type: Box
+          object_kwargs:
+            size: [0.08, 0.05, 0.07]
+            color: [0.0, 0.0, 1.0, 1.0]
+        - object_type: Box
+          object_kwargs:
+            size: [0.07, 0.06, 0.1]
+            color: [1.0, 1.0, 0.0, 1.0]
+        - object_type: Box
+          object_kwargs:
+            size: [0.05, 0.05, 0.07]
+            color: [1.0, 0.0, 0.0, 1.0]
+        - object_type: Box
+          object_kwargs:
+            size: [0.06, 0.03, 0.06]
+            color: [0.0, 1.0, 1.0, 1.0]
+        - object_type: Box
+          object_kwargs:
+            size: [0.04, 0.03, 0.09]
+            color: [1.0, 0.0, 1.0, 1.0]
+        - object_type: Null
+        - object_type: Null
+        - object_type: Null
+        - object_type: Null
+        - object_type: Null
+        - object_type: Null
+        - object_type: Null
+        - object_type: Null
+        - object_type: Null
+        - object_type: Null
+    - name: hooks
+      objects:
+        - object_type: Hook
+          object_kwargs:
+            head_length: 0.2
+            handle_length: 0.38
+            handle_y: -1.0
+            color: [0.6, 0.6, 0.6, 1.0]
+        - object_type: Null
+        - object_type: Null
 
   objects:
     - object_type: Urdf
@@ -91,52 +131,60 @@ env_kwargs:
         name: table
         path: configs/pybullet/envs/assets/iprl_table.urdf
         is_static: true
-    - object_type: Rack
+    - object_type: Variant
       object_kwargs:
         name: rack
-        size: [0.22, 0.32, 0.16]
-        color: [0.4, 0.2, 0.0, 1.0]
+        variants:
+          - object_type: Rack
+            object_kwargs:
+              size: [0.22, 0.32, 0.16]
+              color: [0.4, 0.2, 0.0, 1.0]
+          - object_type: Null
     - object_type: Variant
       object_kwargs:
-        name: a
-        group: movable
+        name: table_hook
+        group: hooks
     - object_type: Variant
       object_kwargs:
-        name: b
-        group: movable
+        name: rack_hook
+        group: hooks
     - object_type: Variant
       object_kwargs:
-        name: c
-        group: movable
+        name: table_box_1
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: d
-        group: movable
+        name: table_box_2
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: e
-        group: movable
+        name: table_box_3
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: f
-        group: movable
+        name: table_box_4
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: g
-        group: movable
+        name: table_box_5
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: h
-        group: movable
+        name: rack_box_1
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: i
-        group: movable
+        name: rack_box_2
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: j
-        group: movable
+        name: rack_box_3
+        group: boxes
     - object_type: Variant
       object_kwargs:
-        name: k
-        group: movable
+        name: rack_box_4
+        group: boxes
+    - object_type: Variant
+      object_kwargs:
+        name: rack_box_5
+        group: boxes

@@ -17,7 +17,8 @@ arm_kwargs:
 
   pos_gains: [121, 22]
   ori_gains: [121, 16]
-  nullspace_joint_gains: [10, 5]
+  nullspace_joint_gains: [20, 8]
+  nullspace_joint_indices: [2, 4]
 
   pos_threshold: [0.01, 0.01]
   ori_threshold: [0.01, 0.01]

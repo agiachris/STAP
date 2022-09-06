@@ -5,6 +5,7 @@ import pathlib
 from pprint import pprint
 from typing import Any, Dict, Optional, Union
 
+import numpy as np
 import tqdm
 
 from temporal_policies import agents, envs, trainers
@@ -24,6 +25,7 @@ def train(
     device: str = "auto",
     seed: Optional[int] = None,
     gui: Optional[int] = None,
+    use_curriculum: Optional[int] = None,
     num_pretrain_steps: Optional[int] = None,
     num_train_steps: Optional[int] = None,
     num_eval_episodes: Optional[int] = None,
@@ -53,14 +55,17 @@ def train(
         if gui is not None:
             env_kwargs["gui"] = bool(gui)
             eval_env_kwargs["gui"] = bool(gui)
+        if use_curriculum is not None:
+            env_kwargs["use_curriculum"] = bool(use_curriculum)
+            eval_env_kwargs["use_curriculum"] = bool(use_curriculum)
         if num_env_processes is not None:
             env_kwargs["num_processes"] = num_env_processes
         if num_eval_env_processes is not None:
             eval_env_kwargs["num_processes"] = num_eval_env_processes
-        env = env_factory(**env_kwargs)
         eval_env = (
             None if eval_env_factory is None else eval_env_factory(**eval_env_kwargs)
         )
+        env = env_factory(**env_kwargs)
 
         agent_factory = agents.AgentFactory(
             config=agent_config,
@@ -122,11 +127,19 @@ def train(
         )
         for i in pbar:
             trainer.eval_env.record_start()
-            trainer.evaluate_step()
+            eval_metrics = trainer.evaluate_step()
+            suffix = "" if eval_metrics["reward"] > 0.0 else "_fail"
             trainer.eval_env.record_stop()
             trainer.eval_env.record_save(
-                eval_recording_path / trainer.env.name / f"eval_{i}.gif", reset=True
+                eval_recording_path / trainer.env.name / f"eval_{i}{suffix}.gif",
+                reset=True,
             )
+
+            with open(eval_recording_path / trainer.env.name / f"results_{i}.npz", "wb") as f:
+                save_dict = {
+                    "seed": trainer.eval_env._seed,
+                }
+                np.savez_compressed(f, **save_dict)  # type: ignore
 
     env.close()
     if eval_env is not None:
@@ -159,6 +172,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
+    parser.add_argument("--use-curriculum", type=int, help="Use training curriculum")
     parser.add_argument(
         "--num-pretrain-steps", type=int, help="Number of steps to pretrain"
     )

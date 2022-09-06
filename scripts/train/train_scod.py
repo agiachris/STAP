@@ -5,7 +5,7 @@ import pathlib
 from pprint import pprint
 from typing import Any, Dict, Optional, Union
 
-from temporal_policies import scod, trainers
+from temporal_policies import agents, scod, trainers
 from temporal_policies.utils import configs, random
 
 
@@ -35,8 +35,11 @@ def train(
         env_kwargs = {}
         if gui is not None:
             env_kwargs["gui"] = bool(gui)
+        agent = agents.load(checkpoint=model_checkpoint, env_kwargs=env_kwargs)
+        assert isinstance(agent, agents.RLAgent)
         scod_factory = scod.SCODFactory(
             config=scod_config,
+            model=agent,
             model_checkpoint=model_checkpoint,
             model_network=model_network,
             env_kwargs=env_kwargs,
@@ -45,8 +48,10 @@ def train(
         trainer_factory = trainers.TrainerFactory(
             path=path,
             config=trainer_config,
+            agent=agent,
             scod=scod_factory(),
             policy_checkpoints=None if model_checkpoint is None else [model_checkpoint],
+            env_kwargs=env_kwargs,
             device=device,
         )
 

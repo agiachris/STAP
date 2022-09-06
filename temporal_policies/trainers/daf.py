@@ -24,6 +24,7 @@ class DafTrainer(UnifiedTrainer):
         dynamics_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         agent_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        env_kwargs: Dict[str, Any] = {},
         sample_primitive_actions: bool = False,
         device: str = "auto",
         num_pretrain_steps: int = 1000,
@@ -43,6 +44,7 @@ class DafTrainer(UnifiedTrainer):
             dynamics_trainer_config: Dynamics trainer config.
             agent_trainer_config: Agent trainer config.
             checkpoint: Optional path to trainer checkpoint.
+            env_kwargs: Optional kwargs passed to EnvFactory.
             sample_primitive_actions: Whether to sample actions from the
                 primitive distribution.
             device: Torch device.
@@ -67,6 +69,7 @@ class DafTrainer(UnifiedTrainer):
             dynamics_trainer_config=dynamics_trainer_config,
             agent_trainer_config=agent_trainer_config,
             checkpoint=checkpoint,
+            env_kwargs=env_kwargs,
             device=device,
             num_pretrain_steps=num_pretrain_steps,
             num_train_steps=num_train_steps,

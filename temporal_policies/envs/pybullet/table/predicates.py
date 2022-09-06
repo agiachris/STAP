@@ -14,8 +14,8 @@ from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import Robot
 
 
-# dbprint = lambda *args: None  # noqa
-dbprint = print
+dbprint = lambda *args: None  # noqa
+# dbprint = print
 
 
 @dataclasses.dataclass
@@ -103,7 +103,7 @@ class Aligned(Predicate):
 
     @staticmethod
     def sample_angle() -> float:
-        angle = 0
+        angle = 0.0
         while abs(angle) < Aligned.ANGLE_EPS:
             angle = np.random.randn() * Aligned.ANGLE_STD
         return np.clip(angle, -Aligned.ANGLE_ABS, Aligned.ANGLE_ABS)
@@ -376,10 +376,10 @@ class Under(Predicate):
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
+        child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
             return True
 
-        child_obj, parent_obj = self.get_arg_objects(objects)
         return utils.is_under(child_obj, parent_obj)
 
 

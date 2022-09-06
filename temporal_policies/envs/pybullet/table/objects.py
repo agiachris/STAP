@@ -126,7 +126,7 @@ class Object(body.Body):
     def set_state(self, state: object_state.ObjectState) -> None:
         self.set_pose(state.pose())
 
-    def reset(self) -> None:
+    def reset(self, action_skeleton: List) -> None:
         pass
 
     @classmethod
@@ -653,6 +653,7 @@ class ObjectGroup:
     def reset(
         self,
         objects: Dict[str, Object],
+        action_skeleton: List,
         min_num_objects: Optional[int] = None,
         max_num_objects: Optional[int] = None,
     ) -> int:
@@ -662,13 +663,23 @@ class ObjectGroup:
             max_num_objects = self.num_real_objects
 
         # Number of objects in this group that will be instantiated in the world.
-        num_used = sum(
-            isinstance(obj, Variant) and obj.variants == self
+        instances = [
+            obj
             for obj in objects.values()
-        )
+            if isinstance(obj, Variant) and obj.variants == self
+        ]
+        num_used = len(instances)
+
+        # Remember objects that will be used in the action skeleton.
+        self._required_instances = [
+            obj
+            for obj in instances
+            if any(obj in primitive.arg_objects for primitive in action_skeleton)
+        ]
+        num_required = len(self._required_instances)
 
         # Compute valid range.
-        hard_min = max(0, num_used - self.num_null_objects)
+        hard_min = max(num_required, num_used - self.num_null_objects)
         hard_max = min(self.num_real_objects, num_used)
         min_num_objects = int(np.clip(min_num_objects, hard_min, hard_max))
         max_num_objects = int(np.clip(max_num_objects, hard_min, hard_max))
@@ -678,8 +689,13 @@ class ObjectGroup:
         num_objects = random.randint(min_num_objects, max_num_objects)
         num_null = num_used - num_objects
 
-        self.available_indices = random.sample(
-            self._real_indices, num_objects
+        # Reserve indices for required instances.
+        self._reserved_indices = random.sample(self._real_indices, num_required)
+
+        # Get indices for all other instances.
+        self._available_indices = random.sample(
+            set(self._real_indices) - set(self._reserved_indices),
+            num_objects - num_required,
         ) + random.sample(self._null_indices, num_null)
 
         # Hide objects below table.
@@ -690,21 +706,29 @@ class ObjectGroup:
 
         return num_objects
 
-    def pop_index(self, idx: Optional[int] = None) -> int:
+    def pop_index(self, obj: Object, idx: Optional[int] = None) -> int:
         """Pops an index from the list of available indices.
 
         Args:
+            obj: Object popping the index.
             idx: If specified, this index will be popped from the list.
 
         Returns:
             Popped index.
         """
-        if idx is None:
-            idx_available = random.randrange(len(self.available_indices))
+        if obj in self._required_instances:
+            index_pool = self._reserved_indices
         else:
-            idx_available = self.available_indices.index(idx)
+            index_pool = self._available_indices
 
-        return self.available_indices.pop(idx_available)
+        if idx is not None:
+            # Get the requested index.
+            idx_pool = index_pool.index(idx)
+        else:
+            # Choose a random index from the ones remaining.
+            idx_pool = random.randrange(len(index_pool))
+
+        return index_pool.pop(idx_pool)
 
     def __len__(self) -> int:
         return len(self.objects)
@@ -767,6 +791,11 @@ class Variant(WrapperObject):
                 Object.create(physics_id=self.physics_id, name=self.name, **obj_config)
                 for obj_config in variants
             ]
+            self._real_indices = [
+                i
+                for i, variant in enumerate(self.variants)
+                if not variant.isinstance(Null)
+            ]
         else:
             assert group is not None
             self._variants = object_groups[group]
@@ -784,18 +813,24 @@ class Variant(WrapperObject):
     def variants(self) -> Union[List[Object], ObjectGroup]:
         return self._variants
 
-    def set_variant(self, idx_variant: Optional[int], lock: bool = False) -> None:
+    def set_variant(
+        self, idx_variant: Optional[int], action_skeleton: List, lock: bool = False
+    ) -> None:
         """Sets the variant for debugging purposes.
 
         Args:
             idx_variant: Index of the variant to set.
+            action_skeleton: List of primitives used to identify required objects.
             lock: Whether to lock the variant so it remains the same upon resetting.
         """
         if isinstance(self.variants, ObjectGroup):
-            idx_variant = self.variants.pop_index(idx_variant)
+            idx_variant = self.variants.pop_index(self, idx_variant)
         else:
             if idx_variant is None:
-                idx_variant = random.randrange(len(self.variants))
+                if any(self in primitive.arg_objects for primitive in action_skeleton):
+                    idx_variant = random.choice(self._real_indices)
+                else:
+                    idx_variant = random.randrange(len(self.variants))
 
             # Hide unused variants below table.
             for i, obj in enumerate(self.variants):
@@ -806,10 +841,11 @@ class Variant(WrapperObject):
                 obj.freeze()
 
         self._body = self.variants[idx_variant]
-        self._idx_variant = idx_variant if lock else None
+        if lock:
+            self._idx_variant = idx_variant
 
-    def reset(self) -> None:
-        self.set_variant(self._idx_variant)
+    def reset(self, action_skeleton: List) -> None:
+        self.set_variant(self._idx_variant, action_skeleton)
         self.enable_collisions()
         self.unfreeze()
-        self.body.reset()
+        self.body.reset(action_skeleton)

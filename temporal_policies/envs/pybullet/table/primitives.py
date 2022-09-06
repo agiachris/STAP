@@ -266,7 +266,8 @@ class Pick(Primitive):
 
         objects = self.env.objects
         robot = self.env.robot
-        did_non_args_move = self.create_non_arg_movement_check(objects)
+        if not self.ALLOW_COLLISIONS:
+            did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
             if not self.ALLOW_COLLISIONS and did_non_args_move():
@@ -358,7 +359,8 @@ class Place(Primitive):
 
         objects = self.env.objects
         robot = self.env.robot
-        did_non_args_move = self.create_non_arg_movement_check(objects)
+        if not self.ALLOW_COLLISIONS:
+            did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
             if not self.ALLOW_COLLISIONS and did_non_args_move():
@@ -490,7 +492,8 @@ class Pull(Primitive):
 
         objects = self.env.objects
         robot = self.env.robot
-        did_non_args_move = self.create_non_arg_movement_check(objects)
+        if not self.ALLOW_COLLISIONS:
+            did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             if not self.ALLOW_COLLISIONS and did_non_args_move():
@@ -502,7 +505,9 @@ class Pull(Primitive):
                 command_pose_reach.pos,
                 command_pose_reach.quat,
                 check_collisions=[
-                    obj.body_id for obj in self.get_non_arg_objects(objects)
+                    obj.body_id
+                    for obj in self.get_non_arg_objects(objects)
+                    if obj.name != "table"
                 ],
             )
             if not utils.is_upright(target):
@@ -517,9 +522,12 @@ class Pull(Primitive):
                 raise ControlException(
                     f"Robot.goto_pose({command_pose_pull.pos}, {command_pose_pull.quat}) collided"
                 )
+            if self.ALLOW_COLLISIONS:
+                # No objects should move after lifting the hook.
+                did_non_args_move = self.create_non_arg_movement_check(objects)
 
             robot.goto_pose(post_pos, command_pose_pull.quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if did_non_args_move():
                 raise ControlException(
                     f"Robot.goto_pose({post_pos}, {command_pose_pull.quat}) collided"
                 )

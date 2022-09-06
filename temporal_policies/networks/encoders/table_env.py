@@ -45,9 +45,10 @@ class TableEnvEncoder(Encoder):
         self.observation_range = fn(self.observation_range)
         return self
 
+    @staticmethod
     @tensors.vmap(dims=0)
     def _get_observation_indices(
-        self, policy_args: Dict[str, List[int]], randomize: bool
+        policy_args: Dict[str, List[int]], randomize: bool
     ) -> np.ndarray:
         """Gets the observation indices from the policy_args dict and shuffles
         the indices inside the shuffle range."""
@@ -61,7 +62,9 @@ class TableEnvEncoder(Encoder):
 
     @staticmethod
     def rearrange_observation(
-        observation: torch.Tensor, observation_indices: np.ndarray
+        observation: torch.Tensor,
+        policy_args: Union[np.ndarray, Dict[str, List[int]]],
+        randomize: bool = False,
     ) -> torch.Tensor:
         """Rearranges the objects in the observation matrix so that the
         end-effector and primitive args are first.
@@ -73,13 +76,19 @@ class TableEnvEncoder(Encoder):
         Returns:
             Observation with rearranged objects.
         """
+        observation_indices = TableEnvEncoder._get_observation_indices(
+            policy_args, randomize=randomize
+        )
+
         # [num_objects] or [B, num_objects].
         t_observation_indices = torch.from_numpy(observation_indices).to(
             observation.device
         )
         if t_observation_indices.dim() == 1:
             # [num_objects] => [B, num_objects].
-            t_observation_indices = t_observation_indices.unsqueeze(0)
+            t_observation_indices = t_observation_indices.expand(
+                observation.shape[0], -1
+            )
         # [B, num_objects] => [B, num_objects, 1].
         t_observation_indices = t_observation_indices.unsqueeze(-1)
         # [B, num_objects, 1] => [B, num_objects, object_state_size].
@@ -115,10 +124,8 @@ class TableEnvEncoder(Encoder):
             policy_args: Auxiliary policy arguments.
             randomize: Whether to randomize the order of auxiliary objects.
         """
-        observation_indices = self._get_observation_indices(policy_args, randomize)
-
         observation = TableEnvEncoder.rearrange_observation(
-            observation, observation_indices
+            observation, policy_args, randomize
         )
 
         # print("encoded:", observation)

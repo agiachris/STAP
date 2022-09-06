@@ -24,6 +24,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         dynamics_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         agent_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
         num_pretrain_steps: int = 1000,
         num_train_steps: int = 100000,
@@ -41,6 +42,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
             dynamics_trainer_config: Dynamics trainer config.
             agent_trainer_config: Agent trainer config.
             checkpoint: Optional path to trainer checkpoint.
+            env_kwargs: Optional kwargs passed to EnvFactory.
             device: Torch device.
             num_pretrain_steps: Number of steps to pretrain. Overrides
                 agent trainer configs.
@@ -82,6 +84,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
                 path=path,
                 config=agent_trainer_config,
                 agent=agent,
+                env_kwargs=env_kwargs,
                 device=device,
                 name=primitive,
                 **agent_trainer_kwargs,  # type: ignore
@@ -95,6 +98,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
             config=dynamics_trainer_config,
             dynamics=dynamics,
             agent_trainers=agent_trainers,
+            env_kwargs=env_kwargs,
             device=device,
             **dynamics_trainer_kwargs,  # type: ignore
         )

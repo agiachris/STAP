@@ -27,6 +27,9 @@ from temporal_policies.utils import random as random_utils, recording
 
 import pybullet as p  # Import after envs.pybullet.base to avoid print statement.
 
+dbprint = lambda *args: None  # noqa
+# dbprint = print
+
 
 @dataclasses.dataclass
 class CameraView:
@@ -121,11 +124,12 @@ class TableEnv(PybulletEnv):
         objects: Union[str, List[Dict[str, Any]]],
         object_groups: Optional[List[Dict[str, Any]]] = None,
         object_tracker_config: Optional[Union[str, Dict[str, Any]]] = None,
-        recording_freq: int = 10,
+        recording_freq: int = 15,
         gui: bool = True,
         num_processes: int = 1,
         reset_queue_size: int = 100,
         child_process_seed: Optional[int] = None,
+        use_curriculum: bool = False,
     ):
         """Constructs the TableEnv.
 
@@ -147,15 +151,23 @@ class TableEnv(PybulletEnv):
             child_process_seed: Random seed to use for the first child process.
                 Helpful for deterministic evaluation. Will not be used for the
                 main process!
+            use_curriculum: Whether to use a curriculum on the number of objects.
         """
         super().__init__(name=name, gui=gui)
 
         # Launch external reset process.
         if reset_queue_size <= 0 or num_processes <= 1:
-            self._seed_queue: Optional[multiprocessing.Queue[int]] = None
+            self._process_pipes: Optional[
+                List[multiprocessing.connection.Connection]
+            ] = None
+            self._seed_queue: Optional[
+                multiprocessing.Queue[Tuple[int, Optional[dict]]]
+            ] = None
             self._seed_buffer = None
             self._reset_processes = None
         else:
+            pipes = [multiprocessing.Pipe() for idx_process in range(num_processes - 1)]
+            self._process_pipes = [pipe[0] for pipe in pipes]
             self._seed_queue = multiprocessing.Queue()
             self._seed_buffer = multiprocessing.Semaphore(reset_queue_size)
             self._reset_processes = [
@@ -164,6 +176,7 @@ class TableEnv(PybulletEnv):
                     daemon=True,
                     kwargs={
                         "process_id": (idx_process, num_processes - 1),
+                        "pipe": pipe[1],
                         "seed_queue": self._seed_queue,
                         "seed_buffer": self._seed_buffer,
                         "name": name,
@@ -176,7 +189,7 @@ class TableEnv(PybulletEnv):
                         "seed": child_process_seed if idx_process == 0 else None,
                     },
                 )
-                for idx_process in range(num_processes - 1)
+                for idx_process, pipe in enumerate(pipes)
             ]
             for process in self._reset_processes:
                 process.start()
@@ -238,6 +251,8 @@ class TableEnv(PybulletEnv):
         # Initialize pybullet state cache.
         self._initial_state_id = p.saveState(physicsClientId=self.physics_id)
         self._states: Dict[int, Dict[str, Any]] = {}  # Saved states.
+
+        self._use_curriculum = use_curriculum
 
         # Initialize rendering.
         WIDTH, HEIGHT = 405, 270
@@ -351,7 +366,15 @@ class TableEnv(PybulletEnv):
         if action_call is not None:
             return Primitive.from_action_call(action_call, self)
         elif idx_policy is not None and policy_args is not None:
-            args = ", ".join(obj_name for obj_name in policy_args)
+            arg_indices = [
+                idx_obs - 1 if idx_obs > TableEnv.EE_OBSERVATION_IDX else idx_obs
+                for idx_obs in policy_args["observation_indices"][
+                    : policy_args["shuffle_range"][0]
+                ]
+                if idx_obs != TableEnv.EE_OBSERVATION_IDX
+            ]
+            object_names = list(self.objects.keys())
+            args = ", ".join(object_names[idx_obj] for idx_obj in arg_indices)
             action_call = f"{self.primitives[idx_policy]}({args})"
             return Primitive.from_action_call(action_call, self)
         else:
@@ -428,6 +451,7 @@ class TableEnv(PybulletEnv):
     @staticmethod
     def _queue_reset_seeds(
         process_id: Tuple[int, int],
+        pipe: multiprocessing.connection.Connection,
         seed_queue: multiprocessing.Queue,
         seed_buffer: multiprocessing.synchronize.Semaphore,
         name: str,
@@ -454,16 +478,24 @@ class TableEnv(PybulletEnv):
             child_process_seed=None,
         )
         env._process_id = process_id
+        options: Optional[dict] = None
         while True:
             seed_buffer.acquire()
-            _, info = env.reset(seed=seed)
+            while pipe.poll():
+                message = pipe.recv()
+                if "options" in message:
+                    options = message["options"]
+
+            _, info = env.reset(seed=seed, options=options)
             seed = info["seed"]
             assert isinstance(seed, int)
             # print("PUT seed:", seed, "process:", process_id)
-            seed_queue.put(seed)
+            seed_queue.put((seed, options))
             seed += 1
 
-    def _seed_generator(self, seed: Optional[int]) -> Generator[int, None, None]:
+    def _seed_generator(
+        self, seed: Optional[int]
+    ) -> Generator[Tuple[int, Optional[dict]], None, None]:
         """Gets the next seed from the multiprocess queue or an incremented seed."""
         MAX_SIMPLE_INT = 2**30  # Largest simple int in Python.
         if self._seed_queue is None:
@@ -480,15 +512,15 @@ class TableEnv(PybulletEnv):
 
             # Increment seeds until one results in a valid env initialization.
             for seed in itertools.count(start=seed):
-                yield seed
+                yield seed, None
         else:
             # Get a successful reset seed from the multiprocess queue.
             while True:
-                seed = self._seed_queue.get()
+                seed, options = self._seed_queue.get()
                 # print("GET seed:", seed, "queue size:", self._seed_queue.qsize())
                 assert self._seed_buffer is not None
                 self._seed_buffer.release()
-                yield seed
+                yield seed, options
 
     def reset(  # type: ignore
         self, *, seed: Optional[int] = None, options: Optional[dict] = None
@@ -502,13 +534,25 @@ class TableEnv(PybulletEnv):
             max_num_objects: Optional[int] = options["max_num_objects"]  # type: ignore
         except (TypeError, KeyError):
             max_num_objects = None
+        if self._use_curriculum and options is not None and "schedule" in options:
+            collect_step: int = options["schedule"]
+            max_num_objects = collect_step // 10000 + 1
+            if self._process_pipes is not None:
+                for pipe in self._process_pipes:
+                    pipe.send({"options": {"max_num_objects": max_num_objects}})
 
         # Clear state cache.
         for state_id in self._states:
             p.removeState(state_id, physicsClientId=self.physics_id)
         self._states.clear()
 
-        for seed in self._seed_generator(seed):
+        for seed, options in self._seed_generator(seed):
+            if options is not None:
+                try:
+                    max_num_objects: Optional[int] = options["max_num_objects"]  # type: ignore
+                except (TypeError, KeyError):
+                    max_num_objects = None
+
             random_utils.seed(seed)
 
             self._task = self.tasks.sample()
@@ -529,20 +573,21 @@ class TableEnv(PybulletEnv):
             # Reset variants and freeze objects so they don't get simulated.
             for object_group in self.object_groups.values():
                 num_objects = object_group.reset(
-                    self.objects, max_num_objects=max_num_objects
+                    self.objects,
+                    self.task.action_skeleton,
+                    max_num_objects=max_num_objects,
                 )
                 if max_num_objects is not None:
                     max_num_objects -= num_objects
             for obj in self.objects.values():
-                obj.reset()
+                obj.reset(self.task.action_skeleton)
                 obj.freeze()
 
             # Make sure none of the action skeleton args is Null.
-            if any(
+            assert not any(
                 any(obj.isinstance(Null) for obj in primitive.arg_objects)
                 for primitive in self.task.action_skeleton
-            ):
-                continue
+            )
 
             # Sample initial state.
             if not all(
@@ -553,12 +598,14 @@ class TableEnv(PybulletEnv):
                 for prop in self.task.initial_state
             ):
                 # Continue if a proposition failed after max_attempts.
+                dbprint(f"TableEnv.reset(seed={seed}): Failed to sample propositions")
                 continue
 
             # Sample random robot pose.
             for obj in self.real_objects():
                 obj.unfreeze()
             if not initialize_robot_pose(self.robot):
+                dbprint(f"TableEnv.reset(seed={seed}): Failed to initialize robot")
                 continue
 
             # Check state again after objects have settled.
@@ -567,6 +614,7 @@ class TableEnv(PybulletEnv):
             )
             if num_iters == math.PYBULLET_STEPS_PER_SEC:
                 # Skip if settling takes longer than 1s.
+                dbprint(f"TableEnv.reset(seed={seed}): Failed to stabilize")
                 continue
 
             if (
@@ -574,6 +622,7 @@ class TableEnv(PybulletEnv):
                 or self._is_any_object_touching_base()
                 or self._is_any_object_falling_off_parent()
             ):
+                dbprint(f"TableEnv.reset(seed={seed}): Object fell")
                 continue
 
             if all(
@@ -583,10 +632,13 @@ class TableEnv(PybulletEnv):
                 # Break if all propositions in the initial state are true.
                 break
 
+            dbprint(f"TableEnv.reset(seed={seed}): Failed to satisfy propositions")
+
         info = {
             "seed": seed,
             "policy_args": self.get_primitive().get_policy_args(),
         }
+        self._seed = seed
 
         return self.get_observation(), info
 
@@ -616,7 +668,7 @@ class TableEnv(PybulletEnv):
 
     def _is_any_object_below_table(self) -> bool:
         return any(
-            not obj.is_static and predicates.is_below_table(obj)
+            not obj.is_static and utils.is_below_table(obj)
             for obj in self.real_objects()
         )
 

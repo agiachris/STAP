@@ -48,9 +48,12 @@ def evaluate_pick_critic_state(
     action: np.ndarray,
     grid_resolution: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
+    policy_args = primitive.get_policy_args()
+    assert policy_args is not None
+    idx_object = policy_args["observation_indices"][1]  # First pick arg.
     # Create grid of xy positions on the table.
-    xy_min = np.array(env.observation_space.low[:2])
-    xy_max = np.array(env.observation_space.high[:2])
+    xy_min = np.array(env.observation_space.low[idx_object, :2])
+    xy_max = np.array(env.observation_space.high[idx_object, :2])
     xy_min[1] = max(-0.45, xy_min[1])
     xy_max[1] = min(0.45, xy_max[1])
     z = primitive.arg_objects[0].size[2] / 2
@@ -61,9 +64,9 @@ def evaluate_pick_critic_state(
         observation, (xs.size, *np.ones_like(env.observation_space.shape))
     )
     obs = object_state.ObjectState(observations)
-    obs.pos[:, 0, 0] = xs.flatten()
-    obs.pos[:, 0, 1] = ys.flatten()
-    obs.pos[:, 0, 2] = z
+    obs.pos[:, idx_object, 0] = xs.flatten()
+    obs.pos[:, idx_object, 1] = ys.flatten()
+    obs.pos[:, idx_object, 2] = z
 
     # Create action batch.
     actions = np.tile(
@@ -75,7 +78,7 @@ def evaluate_pick_critic_state(
         policy, observations, normalized_actions, primitive.get_policy_args()
     )
 
-    return q_values, observations[:, :2]
+    return q_values, observations[:, idx_object, :2]
 
 
 def evaluate_pick_critic_action(
@@ -108,9 +111,12 @@ def evaluate_pick_critic_action(
     )
 
     # Compute image coordinates (on top of target object).
+    policy_args = primitive.get_policy_args()
+    assert policy_args is not None
+    idx_object = policy_args["observation_indices"][1]  # First pick arg.
     obs = object_state.ObjectState(observation)
-    xy = obs.pos[0, :2]
-    theta = obs.aa[0, 2]
+    xy = obs.pos[idx_object, :2]
+    theta = obs.aa[idx_object, 2]
     R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
     absolute_actions = a.pos[:, :2] @ R.T + xy
 
@@ -149,9 +155,12 @@ def evaluate_place_critic_action(
     )
 
     # Compute image coordinates (on top of target object).
+    policy_args = primitive.get_policy_args()
+    assert policy_args is not None
+    idx_object = policy_args["observation_indices"][2]  # Second place arg.
     obs = object_state.ObjectState(observation)
-    xy = obs.pos[1, :2]
-    theta = obs.aa[1, 2]
+    xy = obs.pos[idx_object, :2]
+    theta = obs.aa[idx_object, 2]
     R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
 
     absolute_actions = actions[:, :2] @ R.T + xy
@@ -239,7 +248,7 @@ def evaluate_pick_action(
         name=f"action_q_values_z{z:.1f}_th{theta:.2f}",
         grid_resolution=grid_resolution,
         z_scale=0.0,
-        z_height=(obs.box_size[0, 2] if obs.box_size[0, 2] > 0 else 0.04) + 0.001,
+        z_height=(primitive.arg_objects[0].aabb()[1, 2]) + 0.001,
     )
 
     for view in ("front", "top"):
@@ -303,8 +312,13 @@ def evaluate_pick(
     def _evaluate_pick(path: pathlib.Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
+        # Setup scene.
+        env.reset()
         obj = primitive.arg_objects[0]
-        obj.set_pose(math.Pose(pos=np.array([0.4, 0.0, obj.size[2] / 2])))
+        obj.set_pose(math.Pose(pos=np.array([0.4, 0.0, -obj.bbox[0, 2]])))
+        if "rack" in env.objects:
+            rack = env.objects["rack"]
+            rack.set_pose(math.Pose(pos=np.array([0.5, 0.25, -rack.bbox[0, 2]])))
 
         evaluate_pick_state(
             env=env,
@@ -314,7 +328,7 @@ def evaluate_pick(
             grid_resolution=grid_resolution,
         )
 
-        observation, _ = env.reset()
+        observation = env.get_observation()
         for theta in np.linspace(0, np.pi / 2, 3):
             evaluate_pick_action(
                 env=env,
@@ -341,7 +355,7 @@ def evaluate_pick(
     obj = primitive.arg_objects[0]
     if isinstance(obj, objects.Variant):
         for idx_variant in range(len(obj.variants)):
-            obj.set_variant(idx_variant, lock=True)
+            obj.set_variant(idx_variant, [primitive], lock=True)
             _evaluate_pick(path / f"{primitive}-{type(obj.body).__name__.lower()}")
     else:
         _evaluate_pick(path / str(primitive))
@@ -357,11 +371,17 @@ def evaluate_place(
     def _evaluate_place(path: pathlib.Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
+        # Setup scene.
+        env.reset()
+        if "rack" in env.objects:
+            rack = env.objects["rack"]
+            rack.set_pose(math.Pose(pos=np.array([0.5, 0.25, -rack.bbox[0, 2]])))
+
         evaluate_place_action(
             env=env,
             primitive=primitive,
             policy=policy,
-            observation=env.reset()[0],
+            observation=env.get_observation(),
             action=primitive.sample_action().vector,
             path=path,
             grid_resolution=grid_resolution,
@@ -370,47 +390,79 @@ def evaluate_place(
     obj = primitive.arg_objects[0]
     if isinstance(obj, objects.Variant):
         for idx_variant in range(len(obj.variants)):
-            obj.set_variant(idx_variant, lock=True)
+            obj.set_variant(idx_variant, [primitive], lock=True)
             _evaluate_place(path / f"{primitive}-{type(obj.body).__name__.lower()}")
     else:
         _evaluate_place(path / str(primitive))
 
 
 def evaluate_policies(
+    env_config: Optional[Union[str, pathlib.Path]],
     checkpoint: Union[str, pathlib.Path],
     device: str,
     path: Union[str, pathlib.Path],
     grid_resolution: int,
     verbose: bool,
     seed: Optional[int] = None,
+    eval_results: Optional[str] = None,
 ) -> None:
     if seed is not None:
         random.seed(seed)
 
     path = pathlib.Path(path)
 
-    policy = agents.load(checkpoint=checkpoint, device=device)
-    assert isinstance(policy, agents.RLAgent)
-    env = policy.env
-    assert isinstance(env, envs.pybullet.TableEnv)
+    if eval_results is not None:
+        eval_env_config = pathlib.Path(checkpoint).parent / "eval/env_config.yaml"
+        eval_env = envs.load(eval_env_config)
+        policy = agents.load(checkpoint=checkpoint, device=device)
+        assert isinstance(policy, agents.RLAgent)
 
-    primitive = env.get_primitive()
-    if isinstance(primitive, primitives.Pick):
-        evaluate_pick(
-            env=env,
-            primitive=primitive,
-            policy=policy,
-            path=path,
-            grid_resolution=grid_resolution,
+        assert isinstance(eval_env, envs.pybullet.TableEnv)
+        with open(eval_results, "rb") as f:
+            seed = int(np.load(f, allow_pickle=True)["seed"])
+        observation, info = eval_env.reset(seed=seed)
+        action = (
+            policy.actor.predict(
+                policy.encoder.encode(
+                    torch.from_numpy(observation).to(policy.device), info["policy_args"]
+                )
+            )
+            .cpu()
+            .detach()
+            .numpy()
         )
-    elif isinstance(primitive, primitives.Place):
-        evaluate_place(
-            env=env,
-            primitive=primitive,
-            policy=policy,
-            path=path,
-            grid_resolution=grid_resolution,
-        )
+        print(action)
+        eval_env.record_start(frequency=10)
+        observation, reward, terminated, truncated, info = eval_env.step(action)
+        print(reward, terminated, truncated)
+    else:
+        if env_config is not None:
+            env = envs.load(env_config)
+
+        policy = agents.load(checkpoint=checkpoint, device=device)
+        assert isinstance(policy, agents.RLAgent)
+
+        if env_config is None:
+            env = policy.env
+
+        assert isinstance(env, envs.pybullet.TableEnv)
+        primitive = env.get_primitive()
+        if isinstance(primitive, primitives.Pick):
+            evaluate_pick(
+                env=env,
+                primitive=primitive,
+                policy=policy,
+                path=path,
+                grid_resolution=grid_resolution,
+            )
+        elif isinstance(primitive, primitives.Place):
+            evaluate_place(
+                env=env,
+                primitive=primitive,
+                policy=policy,
+                path=path,
+                grid_resolution=grid_resolution,
+            )
 
 
 def save_critic_obj(
@@ -507,10 +559,12 @@ def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--env-config", help="Env config")
     parser.add_argument("--checkpoint", help="Policy checkpoint")
     parser.add_argument("--device", default="auto", help="Torch device")
     parser.add_argument("--path", default="plots", help="Path for output plots")
     parser.add_argument("--seed", type=int, help="Random seed")
+    parser.add_argument("--eval-results", type=str, help="Path to results_i.npz file.")
     parser.add_argument(
         "--grid-resolution",
         type=int,
