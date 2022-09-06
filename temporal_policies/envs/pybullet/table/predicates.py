@@ -67,7 +67,13 @@ class Predicate:
 
 
 class HandleGrasp(Predicate):
-    """Unary predicate enforcing a handle grasp on a hook object."""
+    """Unary predicate enforcing a lower handle grasp on a hook object."""
+
+    pass
+
+
+class UpperHandleGrasp(Predicate):
+    """Unary predicate enforcing an upper handle grasp on a hook object."""
 
     pass
 
@@ -765,6 +771,7 @@ class On(Predicate):
 
 UNARY_PREDICATES = {
     "handlegrasp": HandleGrasp,
+    "upperhandlegrasp": UpperHandleGrasp,
     "free": Free,
     "aligned": Aligned,
     "tippable": Tippable,
@@ -788,6 +795,7 @@ BINARY_PREDICATES = {
 
 PREDICATE_HIERARCHY = [
     "handlegrasp",
+    "upperhandlegrasp",
     "free",
     "aligned",
     "tippable",

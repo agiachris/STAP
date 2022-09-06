@@ -10,7 +10,7 @@ env_kwargs:
     - action_skeleton:
         - push(a, hook)
       initial_state:
-        - handlegrasp(hook)
+        - upperhandlegrasp(hook)
         - free(a)
         - aligned(rack)
         - poslimit(rack)
@@ -27,7 +27,7 @@ env_kwargs:
     - action_skeleton:
         - push(a, hook)
       initial_state:
-        - handlegrasp(hook)
+        - upperhandlegrasp(hook)
         - free(a)
         - aligned(rack)
         - poslimit(rack)

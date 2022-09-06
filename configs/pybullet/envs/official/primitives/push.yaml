@@ -27,7 +27,7 @@ env_kwargs:
     - action_skeleton:
         - push(table_box_1, hook)
       initial_state:
-        - handlegrasp(hook)
+        - upperhandlegrasp(hook)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(table_box_1)
