@@ -412,8 +412,8 @@ class Place(Primitive):
 
         # Generate a random xy in the aabb of the parent.
         parent = self.arg_objects[1]
-        xy_min = np.maximum(action_range[0, :2], -0.5 * parent.size[:2])
-        xy_max = np.minimum(action_range[1, :2], 0.5 * parent.size[:2])
+        xy_min = np.maximum(action_range[0, :2], parent.bbox[0, :2])
+        xy_max = np.minimum(action_range[1, :2], parent.bbox[1, :2])
         action.pos[:2] = np.random.uniform(xy_min, xy_max)
 
         # Compute an appropriate place height given the grasped object's height.

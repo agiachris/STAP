@@ -8,7 +8,7 @@ import symbolic
 from shapely.geometry import Polygon, LineString
 
 
-from temporal_policies.envs.pybullet.table import utils
+from temporal_policies.envs.pybullet.table import primitive_actions, utils
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Null, Object, Rack
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import Robot
@@ -322,6 +322,15 @@ class Inhand(Predicate):
     @staticmethod
     def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
         """Generates a grasp pose in the object frame of reference."""
+        # Maximum deviation of the object from the gripper's center y.
+        MAX_GRASP_Y_OFFSET = 0.01
+        # Gap required between control point and object bottom.
+        FINGER_COLLISION_MARGIN = 0.02
+        FINGER_WIDTH = 0.022
+        FINGER_HEIGHT = 0.04
+        FINGER_DISTANCE = 0.08
+        THETA_STDDEV = 0.05
+
         if obj.isinstance(Hook):
             hook: Hook = obj  # type: ignore
             pos_handle, pos_head, pos_joint = Hook.compute_link_positions(
@@ -334,38 +343,60 @@ class Inhand(Predicate):
                 hook.handle_length + hook.head_length
             ):
                 # Handle.
-                half_size = np.array(
-                    [0.5 * hook.handle_length, hook.radius, hook.radius]
-                )
+                min_xyz, max_xyz = np.array(obj.bbox)
+
+                min_xyz[1] = pos_handle[1] - MAX_GRASP_Y_OFFSET
+                min_xyz[2] += FINGER_COLLISION_MARGIN
+
+                max_xyz[0] = pos_head[0] - hook.radius - 0.5 * FINGER_WIDTH
                 if handlegrasp:
-                    xyz = pos_handle + np.random.uniform(-half_size, 0)
-                else:
-                    xyz = pos_handle + np.random.uniform(-half_size, half_size)
+                    max_xyz[0] = 0.0
+                max_xyz[1] = pos_handle[1] + MAX_GRASP_Y_OFFSET
+
                 theta = 0.0
             else:
                 # Head.
-                half_size = np.array([hook.radius, 0.5 * hook.head_length, hook.radius])
-                xyz = pos_head + np.random.uniform(-half_size, half_size)
+                min_xyz, max_xyz = np.array(obj.bbox)
+
+                min_xyz[0] = pos_head[0] - MAX_GRASP_Y_OFFSET
+                if hook.handle_y < 0:
+                    min_xyz[1] = pos_handle[1] + hook.radius + 0.5 * FINGER_WIDTH
+                min_xyz[2] += FINGER_COLLISION_MARGIN
+
+                max_xyz[0] = pos_head[0] + MAX_GRASP_Y_OFFSET
+                if hook.handle_y > 0:
+                    max_xyz[1] = pos_handle[1] - hook.radius - 0.5 * FINGER_WIDTH
+
                 theta = np.pi / 2
-
-            # Perturb angle by 10deg.
-            theta += np.random.normal(scale=0.2)
-            if theta > np.pi / 2:
-                theta -= np.pi
-
-            aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
         else:
             # Fit object between gripper fingers.
-            max_aabb = 0.5 * obj.size
-            max_aabb[:2] = np.minimum(max_aabb[:2], np.array([0.02, 0.02]))
-            min_aabb = -0.5 * obj.size
-            min_aabb = np.maximum(
-                min_aabb, np.array([-0.02, -0.02, max_aabb[2] - 0.05])
-            )
+            theta = np.random.choice([0.0, np.pi / 2])
 
-            xyz = np.random.uniform(min_aabb, max_aabb)
-            theta = np.random.uniform(-np.pi / 2, np.pi / 2)
-            aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+            min_xyz, max_xyz = np.array(obj.bbox)
+            if theta == 0.0:
+                y_center = 0.5 * (min_xyz[1] + max_xyz[1])
+                min_xyz[1] = max(
+                    min_xyz[1] + 0.5 * FINGER_DISTANCE, y_center - MAX_GRASP_Y_OFFSET
+                )
+                max_xyz[1] = min(
+                    max_xyz[1] - 0.5 * FINGER_DISTANCE, y_center + MAX_GRASP_Y_OFFSET
+                )
+            elif theta == np.pi / 2:
+                x_center = 0.5 * (min_xyz[0] + max_xyz[0])
+                min_xyz[0] = max(
+                    min_xyz[0] + 0.5 * FINGER_DISTANCE, x_center - MAX_GRASP_Y_OFFSET
+                )
+                max_xyz[0] = min(
+                    max_xyz[0] - 0.5 * FINGER_DISTANCE, x_center + MAX_GRASP_Y_OFFSET
+                )
+
+            min_xyz[2] += FINGER_COLLISION_MARGIN
+            min_xyz[2] = max(min_xyz[2], max_xyz[0] - FINGER_HEIGHT)
+
+        xyz = np.random.uniform(min_xyz, max_xyz)
+        theta += np.random.normal(scale=THETA_STDDEV)
+        theta = np.clip(theta, *primitive_actions.PickAction.RANGES["theta"])
+        aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
 
         return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
 
