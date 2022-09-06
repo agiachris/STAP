@@ -4,8 +4,6 @@ env_kwargs:
   gui: true
 
   primitives:
-    - pick
-    - place
     - pull
 
   tasks:
@@ -14,6 +12,8 @@ env_kwargs:
       initial_state:
         - handlegrasp(hook)
         - free(table_box_1)
+        - aligned(rack)
+        - poslimit(rack)
         - beyondworkspace(table_box_1)
         - nonblocking(table_box_1, rack)
         - on(rack, table)
