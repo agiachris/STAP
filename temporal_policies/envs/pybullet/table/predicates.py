@@ -59,7 +59,13 @@ class Predicate:
 
 
 class HandleGrasp(Predicate):
-    """Unary predicate enforcing a handle grasp on a hook object."""
+    """Unary predicate enforcing a handle grasp towards the tail end on a hook object."""
+
+    pass
+
+
+class UpperHandleGrasp(Predicate):
+    """Unary predicate enforcing a handle grasp towards the head on a hook object."""
 
     pass
 
@@ -291,7 +297,11 @@ class Inhand(Predicate):
 
         # Generate grasp pose.
         for i in range(Inhand.MAX_GRASP_ATTEMPTS):
-            grasp_pose = self.generate_grasp_pose(obj, f"handlegrasp({obj})" in state)
+            grasp_pose = self.generate_grasp_pose(
+                obj,
+                handlegrasp=f"handlegrasp({obj})" in state,
+                upperhandlegrasp=f"upperhandlegrasp({obj})" in state,
+            )
             obj_pose = math.Pose.from_eigen(grasp_pose.to_eigen().inverse())
             obj_pose.pos += robot.home_pose.pos
 
@@ -320,7 +330,9 @@ class Inhand(Predicate):
         return True
 
     @staticmethod
-    def generate_grasp_pose(obj: Object, handlegrasp: bool = False) -> math.Pose:
+    def generate_grasp_pose(
+        obj: Object, handlegrasp: bool = False, upperhandlegrasp: bool = False
+    ) -> math.Pose:
         """Generates a grasp pose in the object frame of reference."""
         # Maximum deviation of the object from the gripper's center y.
         MAX_GRASP_Y_OFFSET = 0.01
@@ -339,12 +351,17 @@ class Inhand(Predicate):
                 handle_y=hook.handle_y,
                 radius=hook.radius,
             )
-            if handlegrasp or np.random.random() < hook.handle_length / (
-                hook.handle_length + hook.head_length
+            if (
+                handlegrasp
+                or upperhandlegrasp
+                or np.random.random()
+                < hook.handle_length / (hook.handle_length + hook.head_length)
             ):
                 # Handle.
                 min_xyz, max_xyz = np.array(obj.bbox)
 
+                if upperhandlegrasp:
+                    min_xyz[0] = 0.0
                 min_xyz[1] = pos_handle[1] - MAX_GRASP_Y_OFFSET
                 min_xyz[2] += FINGER_COLLISION_MARGIN
 
@@ -689,6 +706,7 @@ class On(Predicate):
 
 UNARY_PREDICATES = {
     "handlegrasp": HandleGrasp,
+    "upperhandlegrasp": UpperHandleGrasp,
     "free": Free,
     "aligned": Aligned,
     "tippable": Tippable,
@@ -711,6 +729,7 @@ BINARY_PREDICATES = {
 
 PREDICATE_HIERARCHY = [
     "handlegrasp",
+    "upperhandlegrasp",
     "free",
     "aligned",
     "tippable",
