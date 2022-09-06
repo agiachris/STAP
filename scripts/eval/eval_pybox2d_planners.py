@@ -63,9 +63,7 @@ def evaluate_critic_functions(
 
         q_values = torch.zeros_like(p_transitions)
         for t, primitive in enumerate(action_skeleton):
-            policy_state = planner.dynamics.decode(
-                states[:, t], primitive.idx_policy, primitive.policy_args
-            )
+            policy_state = planner.dynamics.decode(states[:, t], primitive)
             dim_action = torch.sum(~torch.isnan(actions[0, t])).cpu().item()
             assert isinstance(dim_action, int)
             action = actions[:, t, :dim_action]

@@ -34,6 +34,7 @@ class Arm(sim_arm.Arm):
         pos_gains: Tuple[float, float],
         ori_gains: Tuple[float, float],
         nullspace_joint_gains: Tuple[float, float],
+        nullspace_joint_indices: List[int],
         pos_threshold: Tuple[float, float],
         ori_threshold: Tuple[float, float],
         timeout: float,
@@ -55,6 +56,7 @@ class Arm(sim_arm.Arm):
             pos_gains: (kp, kv) position gains.
             ori_gains: (kp, kv) orientation gains.
             nullspace_joint_gains: (kp, kv) nullspace joint gains.
+            nullspace_joint_indices: Joints to control in the nullspace.
             pos_threshold: (position, velocity) error threshold for position convergence.
             ori_threshold: (orientation, angular velocity) threshold for orientation convergence.
             timeout: Default command timeout.
@@ -78,6 +80,7 @@ class Arm(sim_arm.Arm):
             pos_gains=pos_gains,
             ori_gains=ori_gains,
             nullspace_joint_gains=nullspace_joint_gains,
+            nullspace_joint_indices=nullspace_joint_indices,
             pos_threshold=pos_threshold,
             ori_threshold=ori_threshold,
             timeout=timeout,
