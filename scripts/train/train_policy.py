@@ -135,7 +135,9 @@ def train(
                 reset=True,
             )
 
-            with open(eval_recording_path / trainer.env.name / f"results_{i}.npz", "wb") as f:
+            with open(
+                eval_recording_path / trainer.env.name / f"results_{i}.npz", "wb"
+            ) as f:
                 save_dict = {
                     "seed": trainer.eval_env._seed,
                 }

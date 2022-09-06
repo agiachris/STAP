@@ -11,6 +11,7 @@ env_kwargs:
         - pull(table_box_1, hook)
       initial_state:
         - aligned(rack)
+        - poslimit(rack)
         - beyondworkspace(table_box_1)
         - on(rack, table)
         - on(table_box_1, table)
@@ -27,6 +28,7 @@ env_kwargs:
       initial_state:
         - handlegrasp(hook)
         - aligned(rack)
+        - poslimit(rack)
         - beyondworkspace(table_box_1)
         - on(rack, table)
         - on(table_box_1, table)
