@@ -14,8 +14,8 @@ from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import Robot
 
 
-# dbprint = lambda *args: None  # noqa
-dbprint = print
+dbprint = lambda *args: None  # noqa
+# dbprint = print
 
 
 @dataclasses.dataclass
