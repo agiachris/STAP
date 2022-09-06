@@ -646,15 +646,16 @@ class On(Predicate):
         # Determine stable sampling regions on parent surface
         has_parent = False
         if parent_obj.name == "table":
-            rack_obj = None
+            try:
+                rack_obj = next(obj for obj in objects.values() if obj.isinstance(Rack))
+            except StopIteration:
+                rack_obj = None
+            else:
+                assert rack_obj is not None
+                if f"under({child_obj}, {rack_obj})" in state:
+                    # Restrict placement location to under the rack
+                    parent_obj = rack_obj
             has_parent = True
-            for obj in objects.values():
-                if obj.isinstance(Rack):
-                    rack_obj = obj
-                    if f"under({child_obj}, {obj})" in state:
-                        # Restrict placement location to under the rack
-                        parent_obj = obj
-                    break
 
             T_parent_obj_to_world = math.Pose()
             if not parent_obj.isinstance(Rack):
@@ -725,14 +726,22 @@ class On(Predicate):
             )
 
         # Obtain predicates to validate sampled pose
-        propositions: List[Predicate] = []
-        if f"free({child_obj})" in state:
-            propositions.append(state[state.index(f"free({child_obj})")])
-        for obj in objects.values():
-            if f"nonblocking({obj}, {child_obj})" in state:
-                propositions.append(
-                    state[state.index(f"nonblocking({obj}, {child_obj})")]
-                )
+        predicates = (
+            # Unary.
+            Free,
+            InWorkspace,
+            InCollisionZone,
+            InOperationalZone,
+            InObstructionZone,
+            BeyondWorkspace,
+            # Binary (_, child_obj).
+            NonBlocking,
+        )
+        propositions = [
+            prop
+            for prop in state
+            if isinstance(prop, predicates) and prop.args[-1] == child_obj.name
+        ]
 
         samples = 0
         success = False
