@@ -97,7 +97,7 @@ def load_config(config: Union[str, Any]) -> Any:
 
 
 class TableEnv(PybulletEnv):
-    MAX_NUM_OBJECTS = 9  # Number of rows in the observation matrix.
+    MAX_NUM_OBJECTS = 8  # Number of rows in the observation matrix.
     EE_OBSERVATION_IDX = 0  # Index of the end-effector in the observation matrix.
 
     state_space = gym.spaces.Box(
