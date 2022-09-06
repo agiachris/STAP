@@ -43,14 +43,12 @@ class Predicate:
         self, robot: Robot, objects: Dict[str, Object], state: Sequence["Predicate"]
     ) -> bool:
         """Generates a geometric grounding of a predicate."""
-        dbprint(f"{self}.sample():", True)
         return True
 
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence["Predicate"]
     ) -> bool:
         """Evaluates to True if the geometrically grounded predicate is satisfied."""
-        dbprint(f"{self}.value():", True)
         return True
 
     def get_arg_objects(self, objects: Dict[str, Object]) -> List[Object]:
@@ -92,6 +90,7 @@ class Free(Predicate):
             if f"inhand({obj})" in state or obj.isinstance(Null) or obj == child_obj:
                 continue
             if utils.is_under(child_obj, obj):
+                dbprint(f"{self}.value():", False, f"{child_obj} under {obj}")
                 return False
         return True
 
@@ -111,9 +110,14 @@ class Aligned(Predicate):
             return True
 
         angle = eigen.AngleAxisd(eigen.Quaterniond(obj.pose().quat)).angle
-        return Aligned.ANGLE_EPS <= abs(
-            angle
-        ) <= Aligned.ANGLE_ABS and utils.is_upright(obj)
+        if not (
+            Aligned.ANGLE_EPS <= abs(angle) <= Aligned.ANGLE_ABS
+            and utils.is_upright(obj)
+        ):
+            dbprint(f"{self}.value():", False)
+            return False
+
+        return True
 
     @staticmethod
     def sample_angle() -> float:
@@ -209,10 +213,14 @@ class InWorkspace(TableBounds):
 
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
-        return (
+        if not (
             utils.TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
             and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
-        )
+        ):
+            dbprint(f"{self}.value():", False, "- pos:", obj_pos, "distance:", distance)
+            return False
+
+        return True
 
     @staticmethod
     def bounds(
@@ -248,12 +256,16 @@ class InCollisionZone(TableBounds):
 
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
-        return (
+        if not (
             utils.TABLE_CONSTRAINTS["workspace_x_min"]
             <= obj.pose().pos[0]
             < utils.TABLE_CONSTRAINTS["operational_x_min"]
             and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
-        )
+        ):
+            dbprint(f"{self}.value():", False, "- pos:", obj_pos, "distance:", distance)
+            return False
+
+        return True
 
     @staticmethod
     def bounds(
@@ -283,12 +295,16 @@ class InOperationalZone(TableBounds):
 
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
-        return (
+        if not (
             utils.TABLE_CONSTRAINTS["operational_x_min"]
             <= obj_pos[0]
             < utils.TABLE_CONSTRAINTS["operational_x_max"]
             and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
-        )
+        ):
+            dbprint(f"{self}.value():", False, "- pos:", obj_pos, "distance:", distance)
+            return False
+
+        return True
 
     @staticmethod
     def bounds(
@@ -318,10 +334,14 @@ class InObstructionZone(TableBounds):
 
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
-        return (
+        if not (
             obj_pos[0] >= utils.TABLE_CONSTRAINTS["obstruction_x_min"]
             and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
-        )
+        ):
+            dbprint(f"{self}.value():", False, "- pos:", obj_pos, "distance:", distance)
+            return False
+
+        return True
 
     @staticmethod
     def bounds(
@@ -350,7 +370,11 @@ class BeyondWorkspace(TableBounds):
             return True
 
         distance = float(np.linalg.norm(obj.pose().pos[:2]))
-        return distance > utils.TABLE_CONSTRAINTS["workspace_radius"]
+        if distance < utils.TABLE_CONSTRAINTS["workspace_radius"]:
+            dbprint(f"{self}.value():", False, "- distance:", distance)
+            return False
+
+        return True
 
     @staticmethod
     def bounds(
@@ -383,7 +407,6 @@ class Inhand(Predicate):
         """Samples a geometric grounding of the InHand(a) predicate."""
         obj = self.get_arg_objects(objects)[0]
         if obj.is_static:
-            dbprint(f"{self}.sample():", True, "- static")
             return True
 
         # Generate grasp pose.
@@ -412,12 +435,6 @@ class Inhand(Predicate):
                 return False
 
         dbprint(f"{self}.sample():", True)
-        return True
-
-    def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    ) -> bool:
-        """The geometric grounding of InHand(a) evaluates to True by construction."""
         return True
 
     @staticmethod
@@ -519,7 +536,11 @@ class Under(Predicate):
         if child_obj.isinstance(Null):
             return True
 
-        return utils.is_under(child_obj, parent_obj)
+        if not utils.is_under(child_obj, parent_obj):
+            dbprint(f"{self}.value():", False)
+            return False
+
+        return True
 
 
 class InFront(TableBounds):
@@ -541,7 +562,9 @@ class InFront(TableBounds):
             or child_pos[1] >= xy_max[1]
             or utils.is_under(child_obj, parent_obj)
         ):
+            dbprint(f"{self}.value():", False, "- pos:", child_pos)
             return False
+
         return True
 
     @staticmethod
@@ -577,7 +600,11 @@ class NonBlocking(Predicate):
             intersect_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
         )
         intersect_poly = Polygon(vertices.tolist())
-        return not intersect_poly.intersects(target_line)
+        if intersect_poly.intersects(target_line):
+            dbprint(f"{self}.value():", False)
+            return False
+
+        return True
 
 
 class On(Predicate):
@@ -757,7 +784,6 @@ class On(Predicate):
             dbprint(f"{self}.value():", False, "- child not upright")
             return False
 
-        dbprint(f"{self}.value():", True)
         return True
 
     @staticmethod
