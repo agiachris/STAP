@@ -45,8 +45,9 @@ class StateEncoder(Encoder, Model[StateEncoderBatch]):
         self,
         observation: torch.Tensor,
         state: torch.Tensor,
+        policy_args: np.ndarray,
     ) -> Tuple[torch.Tensor, Dict[str, Union[Scalar, np.ndarray]]]:
-        state_prediction = self.network.predict(observation)
+        state_prediction = self.network.predict(observation, policy_args)
         loss = torch.nn.functional.mse_loss(state_prediction, state)
         metrics: Dict[str, Union[Scalar, np.ndarray]] = {
             "loss": loss.item(),

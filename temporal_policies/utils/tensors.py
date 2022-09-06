@@ -120,8 +120,11 @@ def to(structure, device: torch.device):
     def _to(x):
         if isinstance(x, torch.Tensor):
             return x.to(device)
-        else:
+
+        try:
             return torch.from_numpy(x).to(device)
+        except TypeError:
+            return x
 
     return map_structure(_to, structure)
 

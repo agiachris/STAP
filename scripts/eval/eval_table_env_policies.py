@@ -2,7 +2,7 @@
 
 import argparse
 import pathlib
-from typing import Optional, Tuple, Union
+from typing import Dict, Optional, List, Tuple, Union
 
 from ctrlutils import eigen
 import numpy as np
@@ -25,12 +25,15 @@ import pybullet as p
 
 
 def evaluate_critic(
-    policy: agents.Agent, observations: np.ndarray, actions: np.ndarray
+    policy: agents.Agent,
+    observations: np.ndarray,
+    actions: np.ndarray,
+    policy_args: Optional[Dict[str, List[int]]],
 ) -> np.ndarray:
     with torch.no_grad():
         t_observations = torch.from_numpy(observations).to(policy.device)
         t_actions = torch.from_numpy(actions).to(policy.device)
-        t_states = policy.encoder.encode(t_observations)
+        t_states = policy.encoder.encode(t_observations, policy_args)
         t_q_values = policy.critic.predict(t_states, t_actions)
         q_values = t_q_values.cpu().numpy()
 
@@ -50,7 +53,7 @@ def evaluate_pick_critic_state(
     xy_max = np.array(env.observation_space.high[:2])
     xy_min[1] = max(-0.45, xy_min[1])
     xy_max[1] = min(0.45, xy_max[1])
-    z = primitive.policy_args[0].size[2] / 2
+    z = primitive.arg_objects[0].size[2] / 2
     xs, ys = np.meshgrid(*np.linspace(xy_min, xy_max, grid_resolution).T)
 
     # Create observation batch.
@@ -68,13 +71,16 @@ def evaluate_pick_critic_state(
     )
     normalized_actions = primitives.Pick.normalize_action(actions)
 
-    q_values = evaluate_critic(policy, observations, normalized_actions)
+    q_values = evaluate_critic(
+        policy, observations, normalized_actions, primitive.get_policy_args()
+    )
 
     return q_values, observations[:, :2]
 
 
 def evaluate_pick_critic_action(
     env: envs.pybullet.TableEnv,
+    primitive: primitives.Pick,
     policy: agents.Agent,
     observation: np.ndarray,
     action: np.ndarray,
@@ -97,7 +103,9 @@ def evaluate_pick_critic_action(
         observation, (xs.size, *([1] * len(env.observation_space.shape)))
     )
 
-    q_values = evaluate_critic(policy, observations, normalized_actions)
+    q_values = evaluate_critic(
+        policy, observations, normalized_actions, primitive.get_policy_args()
+    )
 
     # Compute image coordinates (on top of target object).
     obs = object_state.ObjectState(observation)
@@ -111,6 +119,7 @@ def evaluate_pick_critic_action(
 
 def evaluate_place_critic_action(
     env: envs.pybullet.TableEnv,
+    primitive: primitives.Place,
     policy: agents.Agent,
     observation: np.ndarray,
     action: np.ndarray,
@@ -135,7 +144,9 @@ def evaluate_place_critic_action(
         observation, (xs.size, *([1] * len(env.observation_space.shape)))
     )
 
-    q_values = evaluate_critic(policy, observations, normalized_actions)
+    q_values = evaluate_critic(
+        policy, observations, normalized_actions, primitive.get_policy_args()
+    )
 
     # Compute image coordinates (on top of target object).
     obs = object_state.ObjectState(observation)
@@ -187,6 +198,7 @@ def evaluate_pick_state(
 
 def evaluate_pick_action(
     env: envs.pybullet.TableEnv,
+    primitive: primitives.Pick,
     policy: agents.Agent,
     observation: np.ndarray,
     z: float,
@@ -196,6 +208,7 @@ def evaluate_pick_action(
 ) -> None:
     grid_q_values, grid_states = evaluate_pick_critic_action(
         env=env,
+        primitive=primitive,
         policy=policy,
         observation=observation,
         action=primitive_actions.PickAction(
@@ -213,7 +226,7 @@ def evaluate_pick_action(
             ),
             quat=primitives.compute_top_down_orientation(
                 theta,
-                eigen.Quaterniond(env.get_primitive().policy_args[0].pose().quat),
+                eigen.Quaterniond(primitive.arg_objects[0].pose().quat),
             ),
         )
     except ControlException:
@@ -242,6 +255,7 @@ def evaluate_pick_action(
 
 def evaluate_place_action(
     env: envs.pybullet.TableEnv,
+    primitive: primitives.Place,
     policy: agents.Agent,
     observation: np.ndarray,
     action: np.ndarray,
@@ -250,6 +264,7 @@ def evaluate_place_action(
 ) -> None:
     grid_q_values, grid_states = evaluate_place_critic_action(
         env=env,
+        primitive=primitive,
         policy=policy,
         observation=observation,
         action=action,
@@ -288,7 +303,7 @@ def evaluate_pick(
     def _evaluate_pick(path: pathlib.Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
-        obj = primitive.policy_args[0]
+        obj = primitive.arg_objects[0]
         obj.set_pose(math.Pose(pos=np.array([0.4, 0.0, obj.size[2] / 2])))
 
         evaluate_pick_state(
@@ -303,6 +318,7 @@ def evaluate_pick(
         for theta in np.linspace(0, np.pi / 2, 3):
             evaluate_pick_action(
                 env=env,
+                primitive=primitive,
                 policy=policy,
                 observation=observation,
                 z=0.0,
@@ -313,6 +329,7 @@ def evaluate_pick(
         for z in np.linspace(-0.05, 0.05, 3):
             evaluate_pick_action(
                 env=env,
+                primitive=primitive,
                 policy=policy,
                 observation=observation,
                 z=z,
@@ -321,7 +338,7 @@ def evaluate_pick(
                 grid_resolution=grid_resolution,
             )
 
-    obj = primitive.policy_args[0]
+    obj = primitive.arg_objects[0]
     if isinstance(obj, objects.Variant):
         for idx_variant in range(len(obj.variants)):
             obj.set_variant(idx_variant, lock=True)
@@ -342,6 +359,7 @@ def evaluate_place(
 
         evaluate_place_action(
             env=env,
+            primitive=primitive,
             policy=policy,
             observation=env.reset()[0],
             action=primitive.sample_action().vector,
@@ -349,7 +367,7 @@ def evaluate_place(
             grid_resolution=grid_resolution,
         )
 
-    obj = primitive.policy_args[0]
+    obj = primitive.arg_objects[0]
     if isinstance(obj, objects.Variant):
         for idx_variant in range(len(obj.variants)):
             obj.set_variant(idx_variant, lock=True)

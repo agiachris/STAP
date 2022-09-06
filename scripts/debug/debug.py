@@ -4,22 +4,34 @@ from temporal_policies import envs
 from temporal_policies.envs import pybullet
 from temporal_policies.utils import timing
 
+from temporal_policies.networks import encoders
+import torch
+
 
 def main() -> None:
-    env_factory = envs.EnvFactory(config="configs/pybullet/envs/pick.yaml")
+    env_factory = envs.EnvFactory(config="configs/pybullet/envs/examples/pick.yaml")
     env = env_factory()
+    assert isinstance(env, pybullet.TableEnv)
+    encoder = encoders.TableEnvEncoder(env)
 
     timer = timing.Timer()
     while True:
         timer.tic("reset")
         obs, _ = env.reset()
-        print("obs:", obs)
-        input("continue?")
         dt_reset = timer.toc("reset")
 
-        timer.tic("step")
         primitive = env.get_primitive()
         assert isinstance(primitive, pybullet.table.primitives.Primitive)
+
+        policy_args = primitive.get_policy_args()
+        print(env.object_states())
+        print(primitive)
+        print("policy_args:", policy_args)
+        print("obs:", obs)
+        encoder(torch.from_numpy(obs), policy_args)
+        input("continue?")
+
+        timer.tic("step")
         action = primitive.sample_action()
         obs, success, _, _, _ = env.step(primitive.normalize_action(action.vector))
         dt_step = timer.toc("step")

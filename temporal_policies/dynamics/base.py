@@ -2,6 +2,7 @@ import abc
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import gym
+import numpy as np
 import torch
 
 from temporal_policies import agents, envs
@@ -107,7 +108,9 @@ class Dynamics(abc.ABC):
             time_index = False
 
         state = self.encode(
-            observation, action_skeleton[0].idx_policy, action_skeleton[0].policy_args
+            observation,
+            action_skeleton[0].idx_policy,
+            action_skeleton[0].get_policy_args(),
         )
         _batch_size = 1 if batch_size is None else batch_size
         state = state.unsqueeze(0).repeat(_batch_size, *([1] * len(state.shape)))
@@ -128,17 +131,13 @@ class Dynamics(abc.ABC):
         # Rollout.
         for t, primitive in enumerate(action_skeleton):
             # Dynamics state -> policy state.
-            policy_state = self.decode(
-                state, primitive.idx_policy, primitive.policy_args
-            )
+            policy_state = self.decode(state, primitive)
             policy = policies[t] if time_index else policies[primitive.idx_policy]
             action = policy.actor.predict(policy_state)
             actions[:, t, : action.shape[-1]] = action
 
             # Dynamics state -> dynamics state.
-            state = self.forward_eval(
-                state, action, primitive.idx_policy, primitive.policy_args
-            )
+            state = self.forward_eval(state, action, primitive)
             states[:, t + 1] = state
 
         if batch_size is None:
@@ -152,7 +151,7 @@ class Dynamics(abc.ABC):
         state: torch.Tensor,
         action: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        policy_args: Union[np.ndarray, Optional[Any]],
     ) -> torch.Tensor:
         """Predicts the next state given the current state and action.
 
@@ -171,8 +170,7 @@ class Dynamics(abc.ABC):
         self,
         state: torch.Tensor,
         action: torch.Tensor,
-        idx_policy: int,
-        policy_args: Optional[Any],
+        primitive: envs.Primitive,
     ) -> torch.Tensor:
         """Predicts the next state for planning.
 
@@ -185,13 +183,15 @@ class Dynamics(abc.ABC):
         Returns:
             Prediction of next state.
         """
-        return self.forward(state, action, idx_policy, policy_args)
+        return self.forward(
+            state, action, primitive.idx_policy, primitive.get_policy_args()
+        )
 
     def encode(
         self,
         observation: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        policy_args: Union[np.ndarray, Optional[Any]],
     ) -> torch.Tensor:
         """Encodes the observation into a dynamics state.
 
@@ -212,24 +212,18 @@ class Dynamics(abc.ABC):
                 idx_policy = int(t_idx_policy.item())
             else:
                 idx_policy = t_idx_policy
-            return self.policies[idx_policy].encoder.encode(observation)
+            return self.policies[idx_policy].encoder.encode(observation, policy_args)
 
         return _encode(idx_policy, observation)
 
-    def decode(
-        self,
-        state: torch.Tensor,
-        idx_policy: int,
-        policy_args: Optional[Any],
-    ) -> torch.Tensor:
+    def decode(self, state: torch.Tensor, primitive: envs.Primitive) -> torch.Tensor:
         """Decodes the dynamics state into policy states.
 
         This is only used during planning, not training.
 
         Args:
             state: Encoded state state.
-            idx_policy: Index of executed policy.
-            policy_args: Auxiliary policy arguments.
+            primitive: Current primitive.
 
         Returns:
             Decoded observation.

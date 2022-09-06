@@ -1,6 +1,8 @@
 import abc
+from typing import Any, Optional, Union
 
 import gym
+import numpy as np
 import torch
 
 from temporal_policies import envs
@@ -25,29 +27,41 @@ class Encoder(torch.nn.Module, abc.ABC):
         return self._state_space
 
     @abc.abstractmethod
-    def forward(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(
+        self,
+        observation: torch.Tensor,
+        policy_args: Union[np.ndarray, Optional[Any]],
+        **kwargs
+    ) -> torch.Tensor:
         """Encodes the observation to the policy latent state.
 
         For VAEs, this will return the latent distribution parameters.
 
         Args:
             observation: Environment observation.
+            policy_args: Auxiliary policy arguments.
 
         Returns:
             Encoded policy state.
         """
         pass
 
-    def predict(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
+    def predict(
+        self,
+        observation: torch.Tensor,
+        policy_args: Union[np.ndarray, Optional[Any]],
+        **kwargs
+    ) -> torch.Tensor:
         """Encodes the observation to the policy latent state.
 
         Args:
             observation: Environment observation.
+            policy_args: Auxiliary policy arguments.
 
         Returns:
             Encoded policy state.
         """
-        return self.forward(observation, **kwargs)
+        return self.forward(observation, policy_args, **kwargs)
 
 
 class Decoder(torch.nn.Module, abc.ABC):

@@ -1,6 +1,6 @@
 import abc
 import random
-from typing import Callable, Dict, List, NamedTuple, Type
+from typing import Callable, Dict, List, Optional, NamedTuple, Type
 
 from ctrlutils import eigen
 import gym
@@ -8,8 +8,8 @@ import numpy as np
 import symbolic
 
 from temporal_policies.envs import base as envs
-from temporal_policies.envs.pybullet.sim import robot, math
-from temporal_policies.envs.pybullet.sim.robot import ControlException
+from temporal_policies.envs.pybullet.sim import math
+from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Rack, Null, Object
 from temporal_policies.envs.pybullet.table import (
     object_state,
@@ -57,7 +57,7 @@ def did_object_move(
     return delta_xyz >= max_delta_xyz or delta_theta >= max_delta_theta
 
 
-def initialize_robot_pose(robot: robot.Robot) -> bool:
+def initialize_robot_pose(robot: Robot) -> bool:
     x_min, x_max = (
         utils.TABLE_CONSTRAINTS["workspace_x_min"],
         ACTION_CONSTRAINTS["max_lift_radius"],
@@ -98,21 +98,20 @@ class ExecutionResult(NamedTuple):
 class Primitive(envs.Primitive, abc.ABC):
     Action: Type[primitive_actions.PrimitiveAction]
 
+    def __init__(self, env: envs.Env, idx_policy: int, arg_objects: List[Object]):
+        super().__init__(env=env, idx_policy=idx_policy)
+        self._arg_objects = arg_objects
+
+    @property
+    def arg_objects(self) -> List[Object]:
+        return self._arg_objects
+
     @abc.abstractmethod
-    def execute(
-        self,
-        action: np.ndarray,
-        robot: robot.Robot,
-        objects: Dict[str, Object],
-        wait_until_stable_fn: Callable[[], int],
-    ) -> ExecutionResult:
+    def execute(self, action: np.ndarray) -> ExecutionResult:
         """Executes the primitive.
 
         Args:
             action: Normalized action (inside action_space, not action_scale).
-            robot: Robot to control.
-            objects: List of objects in the environment.
-            wait_until_stable_fn: Function to run sim until environment is stable.
         Returns:
             (success, truncated) 2-tuple.
         """
@@ -132,12 +131,68 @@ class Primitive(envs.Primitive, abc.ABC):
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         pass
 
+    def get_policy_args(self) -> Optional[Dict[str, List[int]]]:
+        """Gets auxiliary policy args for the current primitive.
+        Computes the ordered object indices for the given policy.
+
+        The first index is the end-effector, the following indices are the
+        primitive arguments (in order), and the remaining indices are for the
+        rest of the objects.
+
+        The non-arg objects can be shuffled randomly for training. This method
+        also returns the start and end indices of the non-arg objects.
+
+        Returns:
+            Dict with `observation_indices` and `shuffle_range` keys.
+        """
+        from temporal_policies.envs.pybullet.table_env import TableEnv
+
+        assert isinstance(self.env, TableEnv)
+
+        # Add end-effector index first.
+        observation_indices = [TableEnv.EE_OBSERVATION_IDX]
+
+        # Get an ordered list of all other indices besides the end-effector.
+        object_to_observation_indices = [
+            i
+            for i in range(TableEnv.MAX_NUM_OBJECTS)
+            if i != TableEnv.EE_OBSERVATION_IDX
+        ]
+        object_indices = {
+            obj: object_to_observation_indices[idx_object]
+            for idx_object, obj in enumerate(self.env.real_objects())
+        }
+
+        # Add primitive args next.
+        observation_indices += [object_indices[obj] for obj in self.arg_objects]
+        idx_shuffle_start = len(observation_indices)
+
+        # Add non-null objects next.
+        observation_indices += [
+            idx_object
+            for obj, idx_object in object_indices.items()
+            if obj not in self.arg_objects
+        ]
+        idx_shuffle_end = len(observation_indices)
+
+        # Add all remaining indices in sequential order.
+        other_indices: List[Optional[int]] = list(range(TableEnv.MAX_NUM_OBJECTS))
+        for i in observation_indices:
+            other_indices[i] = None
+        observation_indices += [i for i in other_indices if i is not None]
+
+        return {
+            "observation_indices": observation_indices,
+            "shuffle_range": [idx_shuffle_start, idx_shuffle_end],
+        }
+        return self.env.get_policy_args(self)
+
     def get_non_arg_objects(self, objects: Dict[str, Object]) -> List[Object]:
         """Gets the non-primitive argument objects."""
         return [
             obj
             for obj in objects.values()
-            if obj not in self.policy_args and not obj.isinstance(Null)
+            if obj not in self.arg_objects and not obj.isinstance(Null)
         ]
 
     def create_non_arg_movement_check(
@@ -158,23 +213,27 @@ class Primitive(envs.Primitive, abc.ABC):
         return did_non_args_move
 
     @staticmethod
-    def from_action_call(
-        action_call: str,
-        primitives: List[str],
-        objects: Dict[str, Object],
-    ) -> "Primitive":
+    def from_action_call(action_call: str, env: envs.Env) -> "Primitive":
+        from temporal_policies.envs.pybullet.table_env import TableEnv
+
+        assert isinstance(env, TableEnv)
+
         name, arg_names = symbolic.parse_proposition(action_call)
-        args = [objects[obj_name] for obj_name in arg_names]
+        arg_objects = [env.objects[obj_name] for obj_name in arg_names]
 
         primitive_class = globals()[name.capitalize()]
-        idx_policy = primitives.index(name)
-        return primitive_class(idx_policy, args)
+        idx_policy = env.primitives.index(name)
+        return primitive_class(env=env, idx_policy=idx_policy, arg_objects=arg_objects)
 
     def __eq__(self, other) -> bool:
         if isinstance(other, Primitive):
             return str(self) == str(other)
         else:
             return False
+
+    def __str__(self) -> str:
+        args = "" if self.arg_objects is None else ", ".join(map(str, self.arg_objects))
+        return f"{type(self).__name__}({args})"
 
 
 class Pick(Primitive):
@@ -183,19 +242,17 @@ class Pick(Primitive):
     Action = primitive_actions.PickAction
     ALLOW_COLLISIONS = False
 
-    def execute(
-        self,
-        action: np.ndarray,
-        robot: robot.Robot,
-        objects: Dict[str, Object],
-        wait_until_stable_fn: Callable[[], int],
-    ) -> ExecutionResult:
+    def execute(self, action: np.ndarray) -> ExecutionResult:
+        from temporal_policies.envs.pybullet.table_env import TableEnv
+
+        assert isinstance(self.env, TableEnv)
+
         # Parse action.
         a = primitive_actions.PickAction(self.scale_action(action))
         dbprint(a)
 
         # Get object pose.
-        obj = self.policy_args[0]
+        obj = self.arg_objects[0]
         obj_pose = obj.pose()
         obj_quat = eigen.Quaterniond(obj_pose.quat)
 
@@ -207,6 +264,8 @@ class Pick(Primitive):
 
         pre_pos = np.append(command_pos[:2], ACTION_CONSTRAINTS["max_lift_height"])
 
+        objects = self.env.objects
+        robot = self.env.robot
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
@@ -238,14 +297,15 @@ class Pick(Primitive):
         return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
-        obj = self.policy_args[0]
+        obj = self.arg_objects[0]
         if obj.isinstance(Hook):
+            hook: Hook = obj  # type: ignore
             pos_handle, pos_head, _ = Hook.compute_link_positions(
-                obj.head_length, obj.handle_length, obj.handle_y, obj.radius
+                hook.head_length, hook.handle_length, hook.handle_y, hook.radius
             )
             action_range = self.Action.range()
-            if random.random() < obj.handle_length / (
-                obj.handle_length + obj.head_length
+            if random.random() < hook.handle_length / (
+                hook.handle_length + hook.head_length
             ):
                 # Handle.
                 random_x = np.random.uniform(*action_range[:, 0])
@@ -271,21 +331,18 @@ class Place(Primitive):
     Action = primitive_actions.PlaceAction
     ALLOW_COLLISIONS = False
 
-    def execute(
-        self,
-        action: np.ndarray,
-        robot: robot.Robot,
-        objects: Dict[str, Object],
-        wait_until_stable_fn: Callable[[], int],
-    ) -> ExecutionResult:
+    def execute(self, action: np.ndarray) -> ExecutionResult:
+        from temporal_policies.envs.pybullet.table_env import TableEnv
+
+        assert isinstance(self.env, TableEnv)
+
         MAX_DROP_DISTANCE = 0.05
 
         # Parse action.
         a = primitive_actions.PlaceAction(self.scale_action(action))
         dbprint(a)
 
-        obj: Object = self.policy_args[0]  # type: ignore
-        target: Object = self.policy_args[1]  # type: ignore
+        obj, target = self.arg_objects
 
         # Get target pose.
         target_pose = target.pose()
@@ -299,6 +356,8 @@ class Place(Primitive):
 
         pre_pos = np.append(command_pos[:2], ACTION_CONSTRAINTS["max_lift_height"])
 
+        objects = self.env.objects
+        robot = self.env.robot
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
@@ -334,7 +393,7 @@ class Place(Primitive):
             dbprint("Place.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
 
-        wait_until_stable_fn()
+        self.env.wait_until_stable()
 
         if utils.is_below_table(obj):
             # Falling off the table is an exception.
@@ -350,13 +409,13 @@ class Place(Primitive):
         action_range = action.range()
 
         # Generate a random xy in the aabb of the parent.
-        parent = self.policy_args[1]
+        parent = self.arg_objects[1]
         xy_min = np.maximum(action_range[0, :2], -0.5 * parent.size[:2])
         xy_max = np.minimum(action_range[1, :2], 0.5 * parent.size[:2])
         action.pos[:2] = np.random.uniform(xy_min, xy_max)
 
         # Compute an appropriate place height given the grasped object's height.
-        obj = self.policy_args[0]
+        obj = self.arg_objects[0]
         z_gripper = ACTION_CONSTRAINTS["max_lift_height"]
         z_obj = obj.pose().pos[2]
         action.pos[2] = z_gripper - z_obj + 0.5 * obj.size[2]
@@ -376,13 +435,11 @@ class Pull(Primitive):
     Action = primitive_actions.PullAction
     ALLOW_COLLISIONS = True
 
-    def execute(
-        self,
-        action: np.ndarray,
-        robot: robot.Robot,
-        objects: Dict[str, Object],
-        wait_until_stable_fn: Callable[[], int],
-    ) -> ExecutionResult:
+    def execute(self, action: np.ndarray) -> ExecutionResult:
+        from temporal_policies.envs.pybullet.table_env import TableEnv
+
+        assert isinstance(self.env, TableEnv)
+
         PULL_HEIGHT = 0.03
         MIN_PULL_DISTANCE = 0.01
 
@@ -391,7 +448,8 @@ class Pull(Primitive):
         dbprint(a)
 
         # Get target pose in polar coordinates
-        target, hook = self.policy_args
+        target = self.arg_objects[0]
+        hook: Hook = self.arg_objects[1]  # type: ignore
         target_pose = target.pose()
         if target_pose.pos[0] < 0:
             return ExecutionResult(success=False, truncated=True)
@@ -404,7 +462,7 @@ class Pull(Primitive):
 
         target_pos = np.append(target_pose.pos[:2], PULL_HEIGHT)
         T_hook_to_world = hook.pose().to_eigen()
-        T_gripper_to_world = robot.arm.ee_pose().to_eigen()
+        T_gripper_to_world = self.env.robot.arm.ee_pose().to_eigen()
         T_gripper_to_hook = T_hook_to_world.inverse() * T_gripper_to_world
 
         # Compute position.
@@ -430,6 +488,8 @@ class Pull(Primitive):
             command_pose_pull.pos[:2], ACTION_CONSTRAINTS["max_lift_height"]
         )
 
+        objects = self.env.objects
+        robot = self.env.robot
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
@@ -467,7 +527,7 @@ class Pull(Primitive):
             dbprint("Pull.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
 
-        wait_until_stable_fn()
+        self.env.wait_until_stable()
 
         if not utils.is_upright(target):
             return ExecutionResult(success=False, truncated=False)
@@ -481,7 +541,8 @@ class Pull(Primitive):
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         action = self.Action.random()
 
-        obj, hook = self.policy_args
+        obj = self.arg_objects[0]
+        hook: Hook = self.arg_objects[1]  # type: ignore
         obj_halfsize = 0.5 * np.linalg.norm(obj.size[:2])
         collision_length = 0.5 * hook.size[0] - 2 * hook.radius - obj_halfsize
         action.r_reach = -collision_length
@@ -496,13 +557,11 @@ class Push(Primitive):
     Action = primitive_actions.PushAction
     ALLOW_COLLISIONS = True
 
-    def execute(
-        self,
-        action: np.ndarray,
-        robot: robot.Robot,
-        objects: Dict[str, Object],
-        wait_until_stable_fn: Callable[[], int],
-    ) -> ExecutionResult:
+    def execute(self, action: np.ndarray) -> ExecutionResult:
+        from temporal_policies.envs.pybullet.table_env import TableEnv
+
+        assert isinstance(self.env, TableEnv)
+
         PUSH_HEIGHT = 0.03
         MIN_PUSH_DISTANCE = 0.01
 
@@ -511,7 +570,8 @@ class Push(Primitive):
         dbprint(a)
 
         # Get target pose in polar coordinates
-        target, hook = self.policy_args
+        target = self.arg_objects[0]
+        hook: Hook = self.arg_objects[1]  # type: ignore
         target_pose = target.pose()
         if target_pose.pos[0] < 0:
             return ExecutionResult(success=False, truncated=True)
@@ -522,6 +582,7 @@ class Push(Primitive):
         reach_aa = eigen.AngleAxisd(reach_theta, np.array([0.0, 0.0, 1.0]))
         reach_quat = eigen.Quaterniond(reach_aa)
 
+        robot = self.env.robot
         target_pos = np.append(target_pose.pos[:2], PUSH_HEIGHT)
         T_hook_to_world = hook.pose().to_eigen()
         T_gripper_to_world = robot.arm.ee_pose().to_eigen()
@@ -546,6 +607,7 @@ class Push(Primitive):
             command_pose_reach.pos[:2], ACTION_CONSTRAINTS["max_lift_height"]
         )
 
+        objects = self.env.objects
         did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
@@ -596,7 +658,7 @@ class Push(Primitive):
             dbprint("Push.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
 
-        wait_until_stable_fn()
+        self.env.wait_until_stable()
 
         if not utils.is_upright(target):
             return ExecutionResult(success=False, truncated=False)
@@ -617,7 +679,8 @@ class Push(Primitive):
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         action = self.Action.random()
 
-        obj, hook = self.policy_args
+        obj = self.arg_objects[0]
+        hook: Hook = self.arg_objects[1]  # type: ignore
         obj_halfsize = 0.5 * np.linalg.norm(obj.size[:2])
         collision_length = -0.5 * hook.size[0] - 2 * hook.radius - obj_halfsize
         action.r_reach = collision_length

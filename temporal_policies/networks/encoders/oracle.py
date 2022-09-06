@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 
@@ -50,7 +50,9 @@ class OracleEncoder(Encoder):
         self.env._state_obs_cache.clear()  # type: ignore
 
     @tensors.torch_wrap
-    def forward(self, observation: np.ndarray) -> np.ndarray:
+    def forward(
+        self, observation: np.ndarray, policy_args: Union[np.ndarray, Optional[Any]]
+    ) -> np.ndarray:
         """Returns the current environment state.
 
         WARNING: This ignores the input observation and instead returns the

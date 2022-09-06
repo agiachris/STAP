@@ -7,7 +7,7 @@ import tqdm
 
 from temporal_policies import agents, dynamics, envs, planners
 from temporal_policies.envs.pybullet.table import primitives as table_primitives
-from temporal_policies.utils import random, recording, timing
+from temporal_policies.utils import recording, timing
 
 import eval_pybox2d_planners as pybox2d
 

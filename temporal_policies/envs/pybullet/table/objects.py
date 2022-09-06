@@ -521,6 +521,10 @@ class Null(Object):
             physics_id=physics_id, body_id=body_id, name=name, is_static=True
         )
 
+    def state(self) -> object_state.ObjectState:
+        # Null object state is a zero vector.
+        return self._state
+
     def enable_collisions(self) -> None:
         pass
 

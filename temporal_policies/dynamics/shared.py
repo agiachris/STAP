@@ -2,6 +2,7 @@ import pathlib
 from typing import Any, Dict, Optional, Sequence, Type, Union
 
 import torch
+import numpy as np
 
 from temporal_policies import agents, networks
 from temporal_policies.dynamics.latent import LatentDynamics
@@ -58,7 +59,7 @@ class SharedDynamics(LatentDynamics):
         self,
         observation: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        policy_args: Union[np.ndarray, Optional[Any]],
     ) -> torch.Tensor:
         """Encodes the observation using the first policy's encoder.
 
@@ -72,10 +73,10 @@ class SharedDynamics(LatentDynamics):
         """
         if isinstance(idx_policy, int):
             # [B, O] => [B, Z].
-            return self.policies[idx_policy].encoder.encode(observation)
+            return self.policies[idx_policy].encoder.encode(observation, policy_args)
 
         # Assume all encoders are the same.
-        return self.policies[0].encoder.encode(observation)
+        return self.policies[0].encoder.encode(observation, policy_args)
 
         # # [B, O] => [A, B, Z].
         # policy_latents = torch.stack(

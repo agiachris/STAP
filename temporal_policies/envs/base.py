@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import gym
 import numpy as np
@@ -12,17 +12,21 @@ class Primitive:
     action_space: gym.spaces.Box
     action_scale: gym.spaces.Box
 
-    def __init__(self, idx_policy: int, policy_args):
+    def __init__(self, env: "Env", idx_policy: int):
+        self._env = env
         self._idx_policy = idx_policy
-        self._policy_args = policy_args
+
+    @property
+    def env(self) -> "Env":
+        return self._env
 
     @property
     def idx_policy(self) -> int:
         return self._idx_policy
 
-    @property
-    def policy_args(self):
-        return self._policy_args
+    def get_policy_args(self) -> Optional[Dict[str, List[int]]]:
+        """Gets auxiliary policy args for the current primitive."""
+        return None
 
     @classmethod
     def scale_action(cls, action: np.ndarray) -> np.ndarray:
@@ -40,8 +44,7 @@ class Primitive:
         return self.action_space.sample()
 
     def __str__(self) -> str:
-        args = "" if self.policy_args is None else ", ".join(map(str, self.policy_args))
-        return f"{type(self).__name__}({args})"
+        return f"{type(self).__name__}()"
 
 
 class Env(gym.Env[np.ndarray, np.ndarray]):
@@ -98,10 +101,6 @@ class Env(gym.Env[np.ndarray, np.ndarray]):
     def create_primitive_env(self, primitive: Primitive) -> "Env":
         """Creates an child env with a fixed primitive mode."""
         return PrimitiveEnv(self, primitive)
-
-    # @abc.abstractmethod
-    # def create_policy_env(self, idx_policy: int, policy_args: Optional[Any]) -> "Env":
-    #     raise NotImplementedError
 
     def get_state(self) -> np.ndarray:
         """Gets the environment state."""

@@ -109,7 +109,7 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         state: torch.Tensor,
         action: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        policy_args: Union[np.ndarray, Optional[Any]],
     ) -> torch.Tensor:
         """Predicts the next latent state given the current latent state and
         action.
@@ -131,8 +131,8 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         observation: torch.Tensor,
         action: torch.Tensor,
         next_observation: torch.Tensor,
-        idx_policy: Union[int, torch.Tensor],
-        **kwargs,
+        idx_policy: torch.Tensor,
+        policy_args: np.ndarray,
     ) -> Tuple[torch.Tensor, Dict[str, Union[Scalar, np.ndarray]]]:
         """Computes the L2 loss between the predicted next latent and the latent
         encoded from the given next observation.
@@ -148,16 +148,14 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         """
         # Predict next latent state.
         # [B, 3, H, W], [B] => [B, Z].
-        latent = self.encode(observation, idx_policy, policy_args=None, **kwargs)
+        latent = self.encode(observation, idx_policy, policy_args)
 
         # [B, Z], [B], [B, A] => [B, Z].
-        next_latent_pred = self.forward(latent, action, idx_policy, policy_args=None)
+        next_latent_pred = self.forward(latent, action, idx_policy, policy_args)
 
         # Encode next latent state.
         # [B, 3, H, W], [B] => [B, Z].
-        next_latent = self.encode(
-            next_observation, idx_policy, policy_args=None, **kwargs
-        )
+        next_latent = self.encode(next_observation, idx_policy, policy_args)
 
         # Compute L2 loss.
         # [B, Z], [B, Z] => [1].
@@ -173,26 +171,26 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
             next_latent_pred, next_latent, reduction="none"
         ).sum(dim=-1)
 
-        if isinstance(idx_policy, int):
-            # [B] => [B, P].
-            policy_l2_losses = torch.zeros(
-                *l2_losses.shape,
-                len(self.policies),
-                dtype=l2_losses.dtype,
-                device=self.device,
-            )
-            policy_l2_losses[..., idx_policy] = l2_losses
-        else:
-            # [B], [P] => [B, P].
-            idx_policies = idx_policy.unsqueeze(-1) == torch.arange(
-                len(self.policies), device=self.device
-            )
+        # if isinstance(idx_policy, int):
+        #     # [B] => [B, P].
+        #     policy_l2_losses = torch.zeros(
+        #         *l2_losses.shape,
+        #         len(self.policies),
+        #         dtype=l2_losses.dtype,
+        #         device=self.device,
+        #     )
+        #     policy_l2_losses[..., idx_policy] = l2_losses
+        # else:
+        # [B], [P] => [B, P].
+        idx_policies = idx_policy.unsqueeze(-1) == torch.arange(
+            len(self.policies), device=self.device
+        )
 
-            # [B] => [B, P].
-            l2_losses = l2_losses.unsqueeze(-1).tile((len(self.policies),))
+        # [B] => [B, P].
+        l2_losses = l2_losses.unsqueeze(-1).tile((len(self.policies),))
 
-            # [B] => [B, P].
-            policy_l2_losses = l2_losses * idx_policies
+        # [B] => [B, P].
+        policy_l2_losses = l2_losses * idx_policies
 
         # [B, P], [B, P] => [P].
         batch_dims = list(range(len(l2_losses.shape) - 1))
@@ -200,10 +198,10 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
             dim=batch_dims
         )
 
-        for idx_policy, policy_l2_loss in enumerate(
+        for i_policy, policy_l2_loss in enumerate(
             policy_l2_losses.detach().cpu().numpy()
         ):
-            metrics[f"l2_loss_policy_{idx_policy}"] = policy_l2_loss
+            metrics[f"l2_loss_policy_{i_policy}"] = policy_l2_loss
 
         return l2_loss, metrics
 

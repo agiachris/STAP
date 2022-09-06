@@ -172,7 +172,6 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         )
 
         self._eval_dataloader: Optional[torch.utils.data.DataLoader] = None
-        self._eval_envs = [trainer.eval_env for trainer in agent_trainers]
 
     @property
     def dynamics(self) -> dynamics.LatentDynamics:
@@ -193,6 +192,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             idx_policy=batch["idx_replay_buffer"],
             action=batch["action"],
             next_observation=batch["next_observation"],
+            policy_args=batch["policy_args"],
         )
         return tensors.to(dynamics_batch, self.device)
 
@@ -219,9 +219,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
 
             with torch.no_grad():
                 batch = self.process_batch(batch)
-                loss, eval_metrics = self.dynamics.compute_loss(
-                    **batch, envs=self._eval_envs
-                )
+                loss, eval_metrics = self.dynamics.compute_loss(**batch)
 
             pbar.set_postfix({self.eval_metric: eval_metrics[self.eval_metric]})
             eval_metrics_list.append(eval_metrics)

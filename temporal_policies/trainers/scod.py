@@ -1,7 +1,6 @@
 import pathlib
 from typing import Any, Dict, Mapping, Optional, Union, Type
 
-import numpy as np
 import torch
 import tqdm
 
@@ -43,9 +42,10 @@ class SCODReplayBuffer(torch.utils.data.IterableDataset):
             t_observation = tensors.from_numpy(batch["observation"], self.agent.device)
             if isinstance(self.agent.encoder.network, IMAGE_ENCODERS):
                 t_observation = tensors.rgb_to_cnn(t_observation)
+            t_state = self.agent.encoder.encode(t_observation, batch["policy_args"])
 
             yield {
-                "state": self.agent.encoder.encode(t_observation).cpu().numpy(),
+                "state": t_state.cpu().numpy(),
                 "action": batch["action"],
             }
 
@@ -287,8 +287,9 @@ class SCODTrainer:
                 )
                 if isinstance(self.agent.encoder.network, IMAGE_ENCODERS):
                     t_observation = tensors.rgb_to_cnn(t_observation)
+                policy_args = self.env.get_primitive().get_policy_args()
                 t_action = self.agent.actor.predict(
-                    self.agent.encoder.encode(t_observation)
+                    self.agent.encoder.encode(t_observation, policy_args)
                 )
                 action = t_action.cpu().numpy()
             self.train_mode()
@@ -296,6 +297,10 @@ class SCODTrainer:
         next_observation, reward, terminated, truncated, info = self.env.step(action)
         done = terminated or truncated
         discount = 1.0 - float(done)
+        try:
+            policy_args = info["policy_args"]
+        except KeyError:
+            policy_args = None
 
         self.dataset.add(
             action=action,
@@ -304,6 +309,7 @@ class SCODTrainer:
             discount=discount,
             terminated=terminated,
             truncated=truncated,
+            policy_args=policy_args,
         )
 
         self._episode_length += 1

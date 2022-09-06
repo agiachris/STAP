@@ -2,9 +2,9 @@ import pathlib
 from typing import Any, Dict, Optional, Sequence, Type, Union
 
 import torch
+import numpy as np
 
-
-from temporal_policies import agents, networks
+from temporal_policies import agents, envs, networks
 from temporal_policies.dynamics.latent import LatentDynamics
 from temporal_policies.utils import spaces, tensors
 
@@ -64,7 +64,7 @@ class DecoupledDynamics(LatentDynamics):
         self,
         observation: torch.Tensor,
         idx_policy: Union[int, torch.Tensor],
-        policy_args: Optional[Any],
+        policy_args: Union[np.ndarray, Optional[Any]],
     ) -> torch.Tensor:
         """Encodes the observation as a concatenation of latent states for each
         policy.
@@ -78,32 +78,32 @@ class DecoupledDynamics(LatentDynamics):
             Concatenated latent state vector of size [Z * A].
         """
         with torch.no_grad():
-            zs = [policy.encoder.encode(observation) for policy in self.policies]
+            zs = [
+                policy.encoder.encode(observation, policy_args)
+                for policy in self.policies
+            ]
             z = torch.cat(zs, dim=-1)
         return z
 
     @tensors.batch(dims=1)
     def decode(
         self,
-        latent: torch.Tensor,
-        idx_policy: int,
-        policy_args: Optional[Any],
+        state: torch.Tensor,
+        primitive: envs.Primitive,
     ) -> torch.Tensor:
         """Extracts the policy state from the concatenated latent states.
 
         Args:
-            latent: Encoded latent state.
-            idx_policy: Index of executed policy.
-            policy_args: Auxiliary policy arguments.
+            state: Current state.
+            primitive: Current primitive.
 
         Returns:
             Decoded policy state.
         """
         policy_latents = torch.reshape(
-            latent, (*latent.shape[:-1], len(self.policies), -1)
+            state, (*state.shape[:-1], len(self.policies), -1)
         )
-        assert isinstance(idx_policy, int)
-        return policy_latents[:, idx_policy]
+        return policy_latents[:, primitive.idx_policy]
         # if isinstance(idx_policy, int):
         #     return policy_latents[:, idx_policy]
         #

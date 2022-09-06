@@ -36,7 +36,9 @@ class OracleActor(Actor):
             Action distribution.
         """
         observation = self._oracle_decoder(state)
-        policy_state = self.encoder.encode(observation)
+        policy_args = self.env.get_primitive().get_policy_args()
+        policy_state = self.encoder.encode(observation, policy_args)
+
         return self.actor(policy_state)
 
     def predict(self, state: torch.Tensor, sample: bool = False) -> torch.Tensor:
@@ -50,5 +52,7 @@ class OracleActor(Actor):
             Action.
         """
         observation = self._oracle_decoder(state)
-        policy_state = self.encoder.encode(observation)
+        policy_args = self.env.get_primitive().get_policy_args()
+        policy_state = self.encoder.encode(observation, policy_args)
+
         return self.actor.predict(policy_state, sample=sample)

@@ -1,4 +1,4 @@
-from typing import List, Sequence, Type
+from typing import Any, List, Optional, Sequence, Type, Union
 
 import gym
 import numpy as np
@@ -73,7 +73,12 @@ class ConvEncoder(Encoder):
 
         self._latent_dim = latent_dim
 
-    def forward(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(
+        self,
+        observation: torch.Tensor,
+        policy_args: Union[np.ndarray, Optional[Any]],
+        **kwargs
+    ) -> torch.Tensor:
         """Encodes the observation to the policy latent state.
 
         Args:
@@ -92,7 +97,12 @@ class ConvEncoder(Encoder):
 
         return latent
 
-    def predict(self, observation: torch.Tensor, **kwargs) -> torch.Tensor:
+    def predict(
+        self,
+        observation: torch.Tensor,
+        policy_args: Union[np.ndarray, Optional[Any]],
+        **kwargs
+    ) -> torch.Tensor:
         # Make sure input has one batch dimension.
         if observation.dim() < 4:
             squeeze = True
@@ -105,7 +115,7 @@ class ConvEncoder(Encoder):
             observation = torch.moveaxis(observation, -1, -3)
 
         # [B, 3, H, W] => [B, latent_dim * 2].
-        latent = self.forward(observation)
+        latent = self.forward(observation, policy_args)
 
         # [B, latent_dim * 2] => [B, latent_dim, 2].
         latent = latent.view(*observation.shape[:-3], self._latent_dim, -1)
