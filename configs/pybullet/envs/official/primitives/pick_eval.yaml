@@ -12,6 +12,7 @@ env_kwargs:
       initial_state:
         - free(table_box_1)
         - aligned(rack)
+        - poslimit(rack)
         - inworkspace(table_box_1)
         - on(rack, table)
         - on(hook, table)
@@ -28,6 +29,7 @@ env_kwargs:
       initial_state:
         - free(rack_box_1)
         - aligned(rack)
+        - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(rack_box_1)
         - on(rack, table)
@@ -45,6 +47,7 @@ env_kwargs:
       initial_state:
         - free(hook)
         - aligned(rack)
+        - poslimit(rack)
         - inworkspace(hook)
         - on(rack, table)
         - on(hook, table)

@@ -11,6 +11,8 @@ env_kwargs:
         - pick(table_box_1, table)
       initial_state:
         - free(table_box_1)
+        - aligned(rack)
+        - poslimit(rack)
         - inworkspace(table_box_1)
         - on(rack, table)
         - on(table_hook, table)
@@ -23,6 +25,8 @@ env_kwargs:
         - pick(rack_box_1, rack)
       initial_state:
         - free(rack_box_1)
+        - aligned(rack)
+        - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(rack_box_1)
         - on(rack, table)
@@ -36,6 +40,8 @@ env_kwargs:
         - pick(table_hook, table)
       initial_state:
         - free(table_hook)
+        - aligned(rack)
+        - poslimit(rack)
         - inworkspace(table_hook)
         - on(rack, table)
         - on(table_hook, table)
@@ -46,6 +52,8 @@ env_kwargs:
     - action_skeleton:
         - pick(rack_hook, rack)
       initial_state:
+        - aligned(rack)
+        - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(rack_hook)
         - on(rack, table)

@@ -1,15 +1,23 @@
 import dataclasses
-from typing import Dict, List, Sequence, Tuple
+from typing import Optional, Dict, List, Sequence, Tuple
 
+import abc
+import random
 from ctrlutils import eigen
 import numpy as np
 import pybullet as p
 import symbolic
 from shapely.geometry import Polygon, LineString
 
-
 from temporal_policies.envs.pybullet.table import utils
-from temporal_policies.envs.pybullet.table.objects import Box, Hook, Null, Object, Rack
+from temporal_policies.envs.pybullet.table.objects import (
+    Box,
+    Hook,
+    Null,
+    Object,
+    Rack,
+    Variant,
+)
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import Robot
 
@@ -115,7 +123,75 @@ class Tippable(Predicate):
     pass
 
 
-class InWorkspace(Predicate):
+class TableBounds(Predicate, abc.ABC):
+    """Predicate that specifies minimum and maximum x-y bounds on the table."""
+
+    @staticmethod
+    @abc.abstractmethod
+    def bounds(
+        parent_obj: Object,
+        margin: np.ndarray = np.zeros(2),
+        child_obj: Optional[Object] = None,
+        state: Optional[Sequence[Predicate]] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the minimum and maximum x-y bounds on the table."""
+        assert parent_obj.name == "table"
+
+        has_pos_limit, child_obj = TableBounds.pre_poslimit_check(child_obj, state)
+        if has_pos_limit:
+            pos_bounds = PosLimit.bounds(parent_obj, margin, child_obj=child_obj)
+            xy_min, xy_max = pos_bounds[random.randint(0, 1)]
+        else:
+            xy_min, xy_max = parent_obj.aabb()[:, :2]
+            xy_min[0] = utils.TABLE_CONSTRAINTS["table_x_min"]
+            xy_min += margin
+            xy_max -= margin
+        return xy_min, xy_max
+
+    @staticmethod
+    def pre_poslimit_check(
+        child_obj: Optional[Object],
+        state: Optional[Sequence[Predicate]],
+    ) -> Tuple[bool, Object]:
+        if child_obj is None or state is None or not f"poslimit({child_obj})" in state:
+            return False, child_obj
+
+        if isinstance(child_obj, Variant):
+            if child_obj.body.isinstance(Null):
+                return False, Null
+            child_obj: Object = child_obj.body
+
+        return True, child_obj
+
+
+class PosLimit(TableBounds):
+    """Unary predicate limiting the placement positions of particular object types."""
+
+    POS_EPS = {Rack: 0.01}
+    POS_SPEC = {Rack: [(0.50, -0.25), (0.82, 0.00)]}
+
+    @staticmethod
+    def bounds(
+        parent_obj: Object,
+        margin: np.ndarray = np.zeros(2),
+        child_obj: Optional[Object] = None,
+        state: Optional[Sequence[Predicate]] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        if child_obj is None or not type(child_obj) in PosLimit.POS_SPEC:
+            raise ValueError(f"Positions not specified for {type(child_obj)}")
+
+        eps = PosLimit.POS_EPS[type(child_obj)]
+        (min_x, min_y), (max_x, max_y) = PosLimit.POS_SPEC[type(child_obj)]
+        obj_min_bounds = np.array(
+            [[min_x - eps, min_y - eps], [min_x + eps, min_y + eps]]
+        )
+        obj_max_bounds = np.array(
+            [[max_x - eps, max_y - eps], [max_x + eps, max_y + eps]]
+        )
+        return obj_min_bounds, obj_max_bounds
+
+
+class InWorkspace(TableBounds):
     """Unary predicate ensuring than an object is in the robot workspace."""
 
     def value(
@@ -136,18 +212,25 @@ class InWorkspace(Predicate):
     def bounds(
         parent_obj: Object,
         margin: np.ndarray = np.zeros(2),
+        child_obj: Optional[Object] = None,
+        state: Optional[Sequence[Predicate]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the minimum and maximum x-y bounds inside the workspace."""
         assert parent_obj.name == "table"
-        xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
-        xy_max[0] = utils.TABLE_CONSTRAINTS["workspace_radius"]
-        xy_min += margin
-        xy_max -= margin
+
+        has_pos_limit, child_obj = TableBounds.pre_poslimit_check(child_obj, state)
+        if has_pos_limit:
+            xy_min, xy_max = PosLimit.bounds(parent_obj, margin, child_obj=child_obj)[0]
+        else:
+            xy_min, xy_max = parent_obj.aabb()[:, :2]
+            xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
+            xy_max[0] = utils.TABLE_CONSTRAINTS["workspace_radius"]
+            xy_min += margin
+            xy_max -= margin
         return xy_min, xy_max
 
 
-class InCollisionZone(Predicate):
+class InCollisionZone(TableBounds):
     """Unary predicate ensuring the object is in the collision zone."""
 
     def value(
@@ -157,16 +240,21 @@ class InCollisionZone(Predicate):
         if obj.isinstance(Null):
             return True
 
+        obj_pos = obj.pose().pos[:2]
+        distance = float(np.linalg.norm(obj_pos))
         return (
             utils.TABLE_CONSTRAINTS["workspace_x_min"]
             <= obj.pose().pos[0]
             < utils.TABLE_CONSTRAINTS["operational_x_min"]
+            and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
         )
 
     @staticmethod
     def bounds(
         parent_obj: Object,
         margin: np.ndarray = np.zeros(2),
+        child_obj: Optional[Object] = None,
+        state: Optional[Sequence[Predicate]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
@@ -177,7 +265,7 @@ class InCollisionZone(Predicate):
         return xy_min, xy_max
 
 
-class InOperationalZone(Predicate):
+class InOperationalZone(TableBounds):
     """Unary predicate ensuring the object is in the operational zone."""
 
     def value(
@@ -187,27 +275,32 @@ class InOperationalZone(Predicate):
         if obj.isinstance(Null):
             return True
 
+        obj_pos = obj.pose().pos[:2]
+        distance = float(np.linalg.norm(obj_pos))
         return (
             utils.TABLE_CONSTRAINTS["operational_x_min"]
-            <= obj.pose().pos[0]
-            < utils.TABLE_CONSTRAINTS["obstruction_x_min"]
+            <= obj_pos[0]
+            < utils.TABLE_CONSTRAINTS["operational_x_max"]
+            and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
         )
 
     @staticmethod
     def bounds(
         parent_obj: Object,
         margin: np.ndarray = np.zeros(2),
+        child_obj: Optional[Object] = None,
+        state: Optional[Sequence[Predicate]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
         xy_min[0] = utils.TABLE_CONSTRAINTS["operational_x_min"]
-        xy_max[0] = utils.TABLE_CONSTRAINTS["obstruction_x_min"]
+        xy_max[0] = utils.TABLE_CONSTRAINTS["operational_x_max"]
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
 
 
-class InObstructionZone(Predicate):
+class InObstructionZone(TableBounds):
     """Unary predicate ensuring the object is in the obstruction zone."""
 
     def value(
@@ -228,23 +321,19 @@ class InObstructionZone(Predicate):
     def bounds(
         parent_obj: Object,
         margin: np.ndarray = np.zeros(2),
+        child_obj: Optional[Object] = None,
+        state: Optional[Sequence[Predicate]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         assert parent_obj.name == "table"
         xy_min, xy_max = parent_obj.aabb()[:, :2]
         xy_min[0] = utils.TABLE_CONSTRAINTS["obstruction_x_min"]
-        xy_max[0] = utils.TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
-            np.arcsin(
-                0.5
-                * (xy_max[1] - xy_min[1])
-                / utils.TABLE_CONSTRAINTS["workspace_radius"]
-            )
-        )
+        xy_max[0] = utils.TABLE_CONSTRAINTS["workspace_radius"]
         xy_min += margin
         xy_max -= margin
         return xy_min, xy_max
 
 
-class BeyondWorkspace(Predicate):
+class BeyondWorkspace(TableBounds):
     """Unary predicate ensuring than an object is in beyond the robot workspace."""
 
     def value(
@@ -261,19 +350,21 @@ class BeyondWorkspace(Predicate):
     def bounds(
         parent_obj: Object,
         margin: np.ndarray = np.zeros(2),
+        child_obj: Optional[Object] = None,
+        state: Optional[Sequence[Predicate]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the minimum and maximum x-y bounds outside the workspace."""
         assert parent_obj.name == "table"
-        xy_min, xy_max = parent_obj.aabb()[:, :2]
-        xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_radius"] * np.cos(
-            np.arcsin(
-                0.5
-                * (xy_max[1] - xy_min[1])
-                / utils.TABLE_CONSTRAINTS["workspace_radius"]
-            )
-        )
-        xy_min += margin
-        xy_max -= margin
+
+        has_pos_limit, child_obj = TableBounds.pre_poslimit_check(child_obj, state)
+        if has_pos_limit:
+            xy_min, xy_max = PosLimit.bounds(parent_obj, margin, child_obj=child_obj)[1]
+        else:
+            xy_min, xy_max = parent_obj.aabb()[:, :2]
+            r = utils.TABLE_CONSTRAINTS["workspace_radius"]
+            xy_min[0] = r * np.cos(np.arcsin(0.5 * (xy_max[1] - xy_min[1]) / r))
+            xy_min += margin
+            xy_max -= margin
         return xy_min, xy_max
 
 
@@ -383,7 +474,7 @@ class Under(Predicate):
         return utils.is_under(child_obj, parent_obj)
 
 
-class InFront(Predicate):
+class InFront(TableBounds):
     """Binary predicate enforcing that one object is in-front of another with
     respect to the world x-y coordinate axis."""
 
@@ -409,6 +500,8 @@ class InFront(Predicate):
     def bounds(
         parent_obj: Object,
         margin: np.ndarray = np.zeros(2),
+        child_obj: Optional[Object] = None,
+        state: Optional[Sequence[Predicate]] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the minimum and maximum x-y bounds in front of the parent object."""
         assert parent_obj.isinstance(Rack)
@@ -492,20 +585,29 @@ class On(Predicate):
             if not parent_obj.isinstance(Rack):
                 if f"beyondworkspace({child_obj})" in state:
                     xy_min, xy_max = BeyondWorkspace.bounds(
-                        parent_obj, margin=margin_world_frame
+                        parent_obj,
+                        margin=margin_world_frame,
+                        child_obj=child_obj,
+                        state=state,
                     )
                 elif f"inworkspace({child_obj})" in state:
                     xy_min, xy_max = InWorkspace.bounds(
-                        parent_obj, margin=margin_world_frame
+                        parent_obj,
+                        margin=margin_world_frame,
+                        child_obj=child_obj,
+                        state=state,
                     )
                 elif not (
                     f"incollisionzone({child_obj})" in state
                     or f"inoperationalzone({child_obj})" in state
                     or f"inobstructionzone({child_obj})" in state
                 ):
-                    xy_min, xy_max = parent_obj.aabb()[:, :2]
-                    xy_min += margin_world_frame
-                    xy_max -= margin_world_frame
+                    xy_min, xy_max = TableBounds.bounds(
+                        parent_obj,
+                        margin=margin_world_frame,
+                        child_obj=child_obj,
+                        state=state,
+                    )
                 else:
                     if child_obj.isinstance(Hook):
                         # Scale down margins in tight spaces
@@ -532,7 +634,11 @@ class On(Predicate):
                             InFront.bounds(rack_obj, margin=margin_world_frame),
                         )
                     )
-                    xy_min, xy_max = self.compute_bound_intersection(*xy_bounds)
+                    valid_bound, (xy_min, xy_max) = self.compute_bound_intersection(
+                        *xy_bounds
+                    )
+                    if not valid_bound:
+                        return False
 
         if parent_obj.isinstance((Rack, Box)):
             T_parent_obj_to_world = parent_obj.pose()
@@ -643,17 +749,18 @@ class On(Predicate):
     def compute_bound_intersection(
         xy_min_bounds: Sequence[np.ndarray],
         xy_max_bounds: Sequence[np.ndarray],
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[bool, Tuple[np.ndarray, np.ndarray]]:
         """Compute intersection of a sequence of xy_min and xy_max bounds."""
         if len(xy_min_bounds) != len(xy_max_bounds):
             raise ValueError("Require equal number of minimum and maximum bounds")
 
+        # print("Min bounds", xy_min_bounds)
+        # print("Max bounds", xy_max_bounds)
+        # breakpoint()
         xy_min = np.row_stack(xy_min_bounds).max(axis=0)
         xy_max = np.row_stack(xy_max_bounds).min(axis=0)
-        if np.any(xy_max - xy_min <= 0):
-            raise ValueError("Bound intersection does not exist")
-
-        return xy_min, xy_max
+        valid_bound = np.all(xy_max - xy_min > 0)
+        return valid_bound, (xy_min, xy_max)
 
 
 UNARY_PREDICATES = {
@@ -661,6 +768,7 @@ UNARY_PREDICATES = {
     "free": Free,
     "aligned": Aligned,
     "tippable": Tippable,
+    "poslimit": PosLimit,
     "inworkspace": InWorkspace,
     "incollisionzone": InCollisionZone,
     "inoperationalzone": InOperationalZone,
@@ -683,6 +791,7 @@ PREDICATE_HIERARCHY = [
     "free",
     "aligned",
     "tippable",
+    "poslimit",
     "inworkspace",
     "incollisionzone",
     "inoperationalzone",
