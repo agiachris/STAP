@@ -12,6 +12,9 @@ from temporal_policies.envs.pybullet.sim import body, math, shapes
 from temporal_policies.envs.pybullet.table import object_state
 
 
+OBJECT_HIERARCHY = ["rack", "table", "hook", "box"]
+
+
 def compute_bbox_vertices(
     bbox: np.ndarray, pose: Optional[math.Pose] = None, project_2d: bool = False
 ) -> np.ndarray:
