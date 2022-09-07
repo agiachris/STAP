@@ -51,14 +51,14 @@ output_path="models"
 #     # "ckpt_model_100000"
 # )
 
-exp_name="20220806/workspace"
+exp_name="20220905/official"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
-policy_envs=("pick" "place" "pull")
+policy_envs=("pick" "place" "pull" "push")
 checkpoints=(
-    "final_model"
+    # "final_model"
     # "best_model"
-    # "ckpt_model_50000"
+    "ckpt_model_50000"
     # "ckpt_model_100000"
 )
 if [[ `hostname` == "sc.stanford.edu" ]]; then

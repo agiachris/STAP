@@ -6,5 +6,6 @@ agent_configs:
   - "{AGENT_CONFIG}"
   - "{AGENT_CONFIG}"
   - "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
 
 dynamics_config: "{DYNAMICS_CONFIG}"

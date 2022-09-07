@@ -50,15 +50,15 @@ output_path="models"
 #     "ckpt_model_100000"
 # )
 
-exp_name="20220821/workspace_multi"
+exp_name="20220905/official"
 TRAINER_CONFIG="configs/pybullet/trainers/scod.yaml"
 SCOD_CONFIG="configs/pybullet/scod/scod.yaml"
 MODEL_NETWORK="critic"
-policy_envs=("pick" "place" "pull")
+policy_envs=("pick" "place" "pull" "push")
 checkpoints=(
-    "final_model"
+    # "final_model"
     # "best_model"
-    # "ckpt_model_50000"
+    "ckpt_model_50000"
     # "ckpt_model_100000"
 )
 if [[ `hostname` == "sc.stanford.edu" ]]; then

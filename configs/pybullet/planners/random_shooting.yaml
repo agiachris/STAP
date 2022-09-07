@@ -1,8 +1,11 @@
 planner: ShootingPlanner
 planner_kwargs:
-  num_samples: 1000
+  num_samples: 1000000
 
 agent_configs:
+  - agent: RandomAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
   - agent: RandomAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
