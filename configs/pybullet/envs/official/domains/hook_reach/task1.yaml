@@ -17,6 +17,7 @@ env_kwargs:
       initial_state:
         - free(hook)
         - free(yellow_box)
+        - aligned(rack)
         - poslimit(rack)
         - inworkspace(hook)
         - beyondworkspace(yellow_box)

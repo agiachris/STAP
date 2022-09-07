@@ -75,6 +75,7 @@ def hook_reach_task(
     target_location_box: Optional[str] = None,
     on_rack_table: bool = False,
     poslimit_rack: bool = False,
+    aligned_rack: bool = False,
 ) -> Dict[str, Any]:
     """Generate a hook reach lifted task.
 
@@ -109,6 +110,8 @@ def hook_reach_task(
         predicates.append("inworkspace(rack)")
     if poslimit_rack:
         predicates.append("poslimit(rack)")
+    if aligned_rack:
+        predicates.append("aligned(rack)")
 
     # Construct plan skeleton and arg-object predicates
     plan_skeleton = []
@@ -218,6 +221,7 @@ if __name__ == "__main__":
             num_non_arg_objects=2,
             on_rack_table=True,
             poslimit_rack=True,
+            aligned_rack=True,
         ),
         hook_reach_task(
             num_tasks=1,
@@ -235,6 +239,7 @@ if __name__ == "__main__":
             target_location_box="rack",
             on_rack_table=True,
             poslimit_rack=True,
+            aligned_rack=True,
         ),
         hook_reach_task(
             num_tasks=1,
@@ -245,6 +250,7 @@ if __name__ == "__main__":
             target_location_box="rack",
             on_rack_table=True,
             poslimit_rack=True,
+            aligned_rack=True,
         ),
     ]
 

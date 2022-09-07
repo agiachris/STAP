@@ -24,6 +24,7 @@ env_kwargs:
         - free(hook)
         - free(red_box)
         - free(blue_box)
+        - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(hook)
