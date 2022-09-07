@@ -122,8 +122,11 @@ def hook_reach_task(
         )
         plan_skeleton.extend(phase_skeleton)
         predicates.extend(phase_predicates)
+        for _arg_idx in range(num_arg_objects):
+            if _arg_idx != arg_idx:
+                predicates.append(f"nonblocking({objects[arg_idx]}, {objects[_arg_idx]})")
 
-    # Assign non-arg-object predicates
+    # Assign non-arg-object On and NonBlocking predicates
     for non_arg_idx in range(num_non_arg_objects):
         non_arg_object = objects[num_arg_objects + non_arg_idx]
         non_arg_location = (
@@ -171,9 +174,11 @@ def main(
         plan_skeleton = substitute_vars(vars, lifted_task["plan_skeleton"])
         propositions = substitute_vars(vars, lifted_task["predicates"])
         initial_state = sort_propositions(propositions)
-        task_config = {"plan_skeleton": plan_skeleton, "initial_state": initial_state}
+        task_config = {"action_skeleton": plan_skeleton, "initial_state": initial_state}
         print(yaml.dump(task_config, default_flow_style=False, sort_keys=False))
         input("Continue?")
+    
+    print("Done.")
 
 
 if __name__ == "__main__":
