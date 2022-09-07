@@ -187,8 +187,12 @@ def numpy_wrap(func: Callable) -> Callable:
     """
 
     def numpy_func(*args, **kwargs):
-        is_numpy = any(structure_iterator((args, kwargs), atom_type=np.ndarray))
-        if is_numpy:
+        try:
+            next(structure_iterator((args, kwargs), atom_type=np.ndarray))
+        except StopIteration:
+            is_numpy = False
+        else:
+            is_numpy = True
             args, kwargs = from_numpy((args, kwargs))
 
         result = func(*args, **kwargs)

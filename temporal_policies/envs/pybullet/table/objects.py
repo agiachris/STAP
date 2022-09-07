@@ -1,7 +1,7 @@
 import dataclasses
 import itertools
 import random
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple, Type, Union
 
 from ctrlutils import eigen
 import numpy as np
@@ -148,6 +148,9 @@ class Object(body.Body):
 
     def isinstance(self, class_or_tuple: Union[type, Tuple[type, ...]]) -> bool:
         return isinstance(self, class_or_tuple)
+
+    def type(self) -> Type["Object"]:
+        return type(self)
 
     @property
     def size(self) -> np.ndarray:
@@ -542,6 +545,9 @@ class WrapperObject(Object):
 
     def isinstance(self, class_or_tuple: Union[type, Tuple[type, ...]]) -> bool:
         return self.body.isinstance(class_or_tuple)
+
+    def type(self) -> Type["Object"]:
+        return type(self)
 
     # Body methods.
 

@@ -34,6 +34,7 @@ function train_policy {
         args="${args} --num-eval-episodes 10"
     else
         args="${args} --path ${POLICY_OUTPUT_PATH}"
+        # args="${args} --num-pretrain-steps 5000"
         args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
     fi
 
@@ -68,7 +69,7 @@ AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 ENV_KWARGS="--num-env-processes 4 --num-eval-env-processes 2"
-ENV_KWARGS="${ENV_KWARGS} --use-curriculum 1"
+# ENV_KWARGS="${ENV_KWARGS} --use-curriculum 1"
 if [[ `hostname` == "sc.stanford.edu" ]]; then
     ENV_KWARGS="${ENV_KWARGS} --gui 0"
 fi
