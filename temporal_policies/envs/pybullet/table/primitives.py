@@ -633,13 +633,20 @@ class Push(Primitive):
             )
             if not utils.is_upright(target):
                 raise ControlException("Target is not upright", target.pose().quat)
+            if self.ALLOW_COLLISIONS:
+                # Avoid pushing off the rack.
+                did_rack_move = self.create_non_arg_movement_check(
+                    {obj.name: obj for obj in objects.values() if obj.isinstance(Rack)}
+                )
 
             robot.goto_pose(
                 command_pose_push.pos,
                 command_pose_push.quat,
                 pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
             )
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if (not self.ALLOW_COLLISIONS and did_non_args_move()) or (
+                self.ALLOW_COLLISIONS and did_rack_move()
+            ):
                 raise ControlException(
                     f"Robot.goto_pose({command_pose_push.pos}, {command_pose_push.quat}) collided"
                 )

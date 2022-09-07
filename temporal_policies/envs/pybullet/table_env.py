@@ -527,10 +527,6 @@ class TableEnv(PybulletEnv):
     ) -> Tuple[np.ndarray, dict]:
         # Parse reset options.
         try:
-            max_prop_sample_attempts: int = options["max_prop_sample_attempts"]  # type: ignore
-        except (TypeError, KeyError):
-            max_prop_sample_attempts = 10
-        try:
             max_num_objects: Optional[int] = options["max_num_objects"]  # type: ignore
         except (TypeError, KeyError):
             max_num_objects = None
@@ -591,10 +587,7 @@ class TableEnv(PybulletEnv):
 
             # Sample initial state.
             if not all(
-                any(
-                    prop.sample(self.robot, self.objects, self.task.initial_state)
-                    for _ in range(max_prop_sample_attempts)
-                )
+                prop.sample(self.robot, self.objects, self.task.initial_state)
                 for prop in self.task.initial_state
             ):
                 # Continue if a proposition failed after max_attempts.
