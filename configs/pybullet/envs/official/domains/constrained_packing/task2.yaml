@@ -43,13 +43,6 @@ env_kwargs:
         name: rack
         size: [0.22, 0.32, 0.16]
         color: [0.4, 0.2, 0.0, 1.0]
-    - object_type: Hook
-      object_kwargs:
-        name: hook
-        head_length: 0.2
-        handle_length: 0.38
-        handle_y: -1.0
-        color: [0.6, 0.6, 0.6, 1.0]
     - object_type: Box
       object_kwargs:
         name: blue_box
