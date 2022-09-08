@@ -2,11 +2,15 @@
 
 set -e
 
+GCP_LOGIN="juno-login-lclbjqwy-001"
+
 function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]]; then
         sbatch scripts/eval/eval_planners_juno.sh "${CMD}"
+    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
+        sbatch scripts/train/eval_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -150,7 +154,7 @@ checkpoints=(
     # "best_model"
     "ckpt_model_50000"
 )
-if [[ `hostname` == "sc.stanford.edu" ]]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
@@ -170,7 +174,7 @@ for CKPT in "${checkpoints[@]}"; do
 done
 
 # Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]] || [ $DEBUG -ne 0 ]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [ $DEBUG -ne 0 ]; then
     exit
 fi
 
