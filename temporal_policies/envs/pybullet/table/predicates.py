@@ -197,11 +197,15 @@ class InWorkspace(Predicate, TableBounds):
 
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
-        if not (
-            utils.TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
-            and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
-        ):
-            dbprint(f"{self}.value():", False, "- pos:", obj_pos, "distance:", distance)
+        if not utils.is_inworkspace(obj_pos=obj_pos, distance=distance):
+            dbprint(
+                f"{self}.value():",
+                False,
+                "- pos:",
+                obj_pos[:2],
+                "distance:",
+                distance,
+            )
             return False
 
         return True
@@ -594,6 +598,17 @@ class NonBlocking(Predicate):
         vertices = np.concatenate(
             intersect_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
         )
+
+        if (
+            intersect_obj.isinstance(Rack)
+            and f"poslimit({intersect_obj})" in state
+            and f"aligned({intersect_obj})" in state
+        ):
+            # Add additional x-margin buffer for occluding Rack
+            target_margin = 3 * target_obj.size[:2].max()
+            vertices[[1, 2], 1] += target_margin
+            vertices[[0, 3], 1] -= target_margin
+
         intersect_poly = Polygon(vertices.tolist())
         if intersect_poly.intersects(target_line):
             dbprint(f"{self}.value():", False)
@@ -638,17 +653,21 @@ class On(Predicate):
             [child_aabb[1, 0] - child_aabb[0, 0], child_aabb[1, 1] - child_aabb[0, 1]]
         )
 
+        try:
+            rack_obj = next(obj for obj in objects.values() if obj.isinstance(Rack))
+        except StopIteration:
+            rack_obj = None
+
+        if (
+            parent_obj.name == "table"
+            and rack_obj is not None
+            and f"under({child_obj}, {rack_obj})" in state
+        ):
+            # Restrict placement location to under the rack
+            parent_obj = rack_obj
+
         # Determine stable sampling regions on parent surface
         if parent_obj.name == "table":
-            try:
-                rack_obj = next(obj for obj in objects.values() if obj.isinstance(Rack))
-            except StopIteration:
-                rack_obj = None
-
-            if rack_obj is not None and f"under({child_obj}, {rack_obj})" in state:
-                # Restrict placement location to under the rack
-                parent_obj = rack_obj
-
             zones = [
                 prop
                 for prop in state
@@ -701,8 +720,7 @@ class On(Predicate):
         propositions = [
             prop
             for prop in state
-            if isinstance(prop, (Free, TableBounds, NonBlocking))
-            and prop.args[-1] == child_obj.name
+            if isinstance(prop, (Free, TableBounds)) and prop.args[-1] == child_obj.name
         ]
 
         samples = 0

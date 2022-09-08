@@ -127,7 +127,9 @@ def hook_reach_task(
         predicates.extend(phase_predicates)
         for _arg_idx in range(num_arg_objects):
             if _arg_idx != arg_idx:
-                predicates.append(f"nonblocking({objects[arg_idx]}, {objects[_arg_idx]})")
+                predicates.append(
+                    f"nonblocking({objects[arg_idx]}, {objects[_arg_idx]})"
+                )
 
     # Assign non-arg-object On and NonBlocking predicates
     for non_arg_idx in range(num_non_arg_objects):
@@ -168,19 +170,21 @@ def main(
 
         # Sample ground objects for hook reach problem
         lifted_task = get_lifted_task(task_idx, lifted_tasks)
-        object_idxs = get_random_indices(objects)[
-            : lifted_task["metadata"]["num_lifted_objects"]
-        ]
+        num_lifted_objects = lifted_task["metadata"]["num_lifted_objects"]
+        object_idxs = get_random_indices(objects)[:num_lifted_objects]
         vars = [(f"?M{i}", objects[idx]) for i, idx in enumerate(object_idxs)]
 
-        # Construct plan skeleton and initial state
-        plan_skeleton = substitute_vars(vars, lifted_task["plan_skeleton"])
+        # Construct action skeleton and initial state
+        action_skeleton = substitute_vars(vars, lifted_task["plan_skeleton"])
         propositions = substitute_vars(vars, lifted_task["predicates"])
         initial_state = sort_propositions(propositions)
-        task_config = {"action_skeleton": plan_skeleton, "initial_state": initial_state}
+        task_config = {
+            "action_skeleton": action_skeleton,
+            "initial_state": initial_state,
+        }
         print(yaml.dump(task_config, default_flow_style=False, sort_keys=False))
         input("Continue?")
-    
+
     print("Done.")
 
 
@@ -201,10 +205,10 @@ if __name__ == "__main__":
         help="Names of ground placement locations for the task suite.",
     )
     args = parser.parse_args()
-
     assert all(x in OBJECTS for x in args.objects) and all(
         x in LOCATIONS for x in args.locations
     )
+
     lifted_objects = LIFTED_OBJECTS[: len(args.objects)]
     lifted_tasks = [
         hook_reach_task(
