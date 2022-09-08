@@ -9,7 +9,39 @@ env_kwargs:
     - push
 
   tasks:
-    - 
+    - action_skeleton:
+        - pick(blue_box, table)
+        - place(blue_box, table)
+        - pick(yellow_box, table)
+        - place(yellow_box, table)
+        - pick(cyan_box, table)
+        - place(cyan_box, table)
+        - pick(hook, table)
+        - push(red_box, hook)
+      initial_state:
+        - free(hook)
+        - free(blue_box)
+        - free(yellow_box)
+        - free(cyan_box)
+        - free(red_box)
+        - aligned(rack)
+        - poslimit(rack)
+        - inworkspace(hook)
+        - inoperationalzone(red_box)
+        - inobstructionzone(blue_box)
+        - inobstructionzone(yellow_box)
+        - inobstructionzone(cyan_box)
+        - beyondworkspace(rack)
+        - infront(blue_box, rack)
+        - infront(yellow_box, rack)
+        - infront(cyan_box, rack)
+        - infront(red_box, rack)
+        - on(rack, table)
+        - on(hook, table)
+        - on(blue_box, table)
+        - on(yellow_box, table)
+        - on(cyan_box, table)
+        - on(red_box, table)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
