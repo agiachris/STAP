@@ -1,4 +1,5 @@
-from typing import Optional, Tuple
+import collections
+from typing import Dict, Optional
 
 import itertools
 import numpy as np
@@ -48,9 +49,34 @@ def is_within_distance(
     )
 
 
-def is_moving(obj: Object) -> bool:
-    """Returns True if the object is moving."""
-    return bool((np.abs(obj.twist()) >= EPSILONS["twist"]).any())
+TWIST_HISTORY: Dict[str, Dict[Object, np.ndarray]] = collections.defaultdict(dict)
+
+
+def is_moving(obj: Object, use_history: Optional[str] = None) -> bool:
+    """Returns True if the object is moving.
+
+    Args:
+        obj: Object.
+        use_history: A unique user-provided key that if set, will average the
+            current velocity with the previous velocity from when this function
+            was last called with the same key to decide whether the object is
+            moving. This helps avoid reporting the object as moving when it is
+            simply vibrating due to Pybullet instability. The unique key helps
+            avoid interference between different functions calling
+            `is_moving()`.
+    """
+    global TWIST_HISTORY
+    twist = obj.twist()
+    if use_history is not None:
+        try:
+            old_twist = TWIST_HISTORY[use_history][obj]
+        except KeyError:
+            old_twist = twist
+
+        TWIST_HISTORY[use_history][obj] = twist
+        twist = 0.5 * (twist + old_twist)
+
+    return bool((np.abs(twist) >= EPSILONS["twist"]).any())
 
 
 def is_below_table(obj: Object) -> bool:
