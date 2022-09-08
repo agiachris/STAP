@@ -10,32 +10,32 @@ env_kwargs:
 
   tasks:
     - action_skeleton:
-        - pick(blue_box, table)
-        - place(blue_box, table)
-        - pick(yellow_box, table)
-        - place(yellow_box, table)
+        - pick(red_box, table)
+        - place(red_box, table)
+        - pick(cyan_box, table)
+        - place(cyan_box, table)
         - pick(hook, table)
-        - push(cyan_box, hook)
+        - push(blue_box, hook)
       initial_state:
         - free(hook)
-        - free(blue_box)
-        - free(yellow_box)
+        - free(red_box)
         - free(cyan_box)
+        - free(blue_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(hook)
-        - inoperationalzone(cyan_box)
-        - inobstructionzone(blue_box)
-        - inobstructionzone(yellow_box)
+        - inoperationalzone(blue_box)
+        - inobstructionzone(red_box)
+        - inobstructionzone(cyan_box)
         - beyondworkspace(rack)
-        - infront(blue_box, rack)
-        - infront(yellow_box, rack)
+        - infront(red_box, rack)
         - infront(cyan_box, rack)
+        - infront(blue_box, rack)
         - on(rack, table)
         - on(hook, table)
-        - on(blue_box, table)
-        - on(yellow_box, table)
+        - on(red_box, table)
         - on(cyan_box, table)
+        - on(blue_box, table)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -64,9 +64,9 @@ env_kwargs:
         color: [0.0, 0.0, 1.0, 1.0]
     - object_type: Box
       object_kwargs:
-        name: yellow_box
-        size: [0.07, 0.06, 0.1]
-        color: [1.0, 1.0, 0.0, 1.0]
+        name: red_box
+        size: [0.05, 0.05, 0.07]
+        color: [1.0, 0.0, 0.0, 1.0]
     - object_type: Box
       object_kwargs:
         name: cyan_box
