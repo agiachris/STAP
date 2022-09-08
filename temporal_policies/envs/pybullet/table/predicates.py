@@ -653,69 +653,65 @@ class On(Predicate):
             [child_aabb[1, 0] - child_aabb[0, 0], child_aabb[1, 1] - child_aabb[0, 1]]
         )
 
+        try:
+            rack_obj = next(obj for obj in objects.values() if obj.isinstance(Rack))
+        except StopIteration:
+            rack_obj = None
+
+        if (
+            parent_obj.name == "table"
+            and rack_obj is not None
+            and f"under({child_obj}, {rack_obj})" in state
+        ):
+            # Restrict placement location to under the rack
+            parent_obj = rack_obj
+
         # Determine stable sampling regions on parent surface
         if parent_obj.name == "table":
-            try:
-                rack_obj = next(obj for obj in objects.values() if obj.isinstance(Rack))
-            except StopIteration:
-                rack_obj = None
+            zones = [
+                prop
+                for prop in state
+                if isinstance(prop, TableBounds) and prop.args[0] == child_obj
+            ]
+            if len(zones) == 0:
+                zone = TableBounds()
+            elif len(zones) != 1:
+                raise ValueError(f"{child_obj} cannot be in multiple zones: {zones}")
+            else:
+                zone = zones[0]
 
-            if rack_obj is not None and f"under({child_obj}, {rack_obj})" in state:
-                # Restrict placement location to under the rack
-                parent_obj = rack_obj
+            if child_obj.isinstance(Hook) and isinstance(
+                zone, (InCollisionZone, InOperationalZone, InObstructionZone)
+            ):
+                # Scale down margins in tight spaces
+                margin_world_frame *= 0.25
 
-            if parent_obj.name == "table":
-                zones = [
-                    prop
-                    for prop in state
-                    if isinstance(prop, TableBounds) and prop.args[0] == child_obj
-                ]
-                if len(zones) == 0:
-                    zone = TableBounds()
-                elif len(zones) != 1:
-                    raise ValueError(
-                        f"{child_obj} cannot be in multiple zones: {zones}"
-                    )
-                else:
-                    zone = zones[0]
+            bounds = zone.bounds(
+                child_obj=child_obj,
+                parent_obj=parent_obj,
+                state=state,
+                margin=margin_world_frame,
+            )
+            xy_min, xy_max = bounds
 
-                if child_obj.isinstance(Hook) and isinstance(
-                    zone, (InCollisionZone, InOperationalZone, InObstructionZone)
-                ):
-                    # Scale down margins in tight spaces
-                    margin_world_frame *= 0.25
-
-                bounds = zone.bounds(
-                    child_obj=child_obj,
-                    parent_obj=parent_obj,
-                    state=state,
-                    margin=margin_world_frame,
+            if rack_obj is not None and f"infront({child_obj}, {rack_obj})" in state:
+                infront_bounds = InFront.bounds(
+                    parent_obj=rack_obj, margin=margin_world_frame
                 )
-                xy_min, xy_max = bounds
-
-                if (
-                    rack_obj is not None
-                    and f"infront({child_obj}, {rack_obj})" in state
-                ):
-                    infront_bounds = InFront.bounds(
-                        parent_obj=rack_obj, margin=margin_world_frame
+                intersection = self.compute_bound_intersection(bounds, infront_bounds)
+                if intersection is None:
+                    dbprint(
+                        f"{self}.sample():",
+                        False,
+                        f"- no intersection between infront({child_obj}, {rack_obj}) and {zone}",
                     )
-                    intersection = self.compute_bound_intersection(
-                        bounds, infront_bounds
-                    )
-                    if intersection is None:
-                        dbprint(
-                            f"{self}.sample():",
-                            False,
-                            f"- no intersection between infront({child_obj}, {rack_obj}) and {zone}",
-                        )
-                        return False
-                    xy_min, xy_max = intersection
+                    return False
+                xy_min, xy_max = intersection
 
-        if parent_obj.isinstance((Rack, Box)):
+        elif parent_obj.isinstance((Rack, Box)):
             xy_min, xy_max = self.compute_stable_region(child_obj, parent_obj)
 
-        elif parent_obj.name != "table":
+        else:
             raise ValueError(
                 "[Predicate.On] parent object must be a table, rack, or box"
             )
