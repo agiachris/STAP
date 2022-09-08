@@ -541,8 +541,10 @@ class Pull(Primitive):
             return ExecutionResult(success=False, truncated=False)
 
         new_target_distance = np.linalg.norm(target.pose().pos[:2])
-        if (new_target_distance >= target_distance - MIN_PULL_DISTANCE
-            or not utils.is_inworkspace(obj=target)):
+        if (
+            new_target_distance >= target_distance - MIN_PULL_DISTANCE
+            or not utils.is_inworkspace(obj=target)
+        ):
             return ExecutionResult(success=False, truncated=False)
 
         return ExecutionResult(success=True, truncated=False)

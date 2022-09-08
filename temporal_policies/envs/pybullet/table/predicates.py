@@ -198,8 +198,15 @@ class InWorkspace(Predicate, TableBounds):
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
         if not utils.is_inworkspace(obj_pos=obj_pos, distance=distance):
-            dbprint(f"{self}.value():", False, "- pos:", obj.pose().pos[:2], "distance:", distance)
-            return False            
+            dbprint(
+                f"{self}.value():",
+                False,
+                "- pos:",
+                obj.pose().pos[:2],
+                "distance:",
+                distance,
+            )
+            return False
 
         return True
 
@@ -592,7 +599,8 @@ class NonBlocking(Predicate):
             intersect_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
         )
 
-        if (intersect_obj.isinstance(Rack) 
+        if (
+            intersect_obj.isinstance(Rack)
             and f"poslimit({intersect_obj})" in state
             and f"aligned({intersect_obj})" in state
         ):

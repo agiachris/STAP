@@ -105,12 +105,12 @@ def is_under(obj_a: Object, obj_b: Object) -> bool:
 def is_inworkspace(
     obj: Optional[Object] = None,
     obj_pos: Optional[np.ndarray] = None,
-    distance: Optional[np.ndarray] = None,   
+    distance: Optional[np.ndarray] = None,
 ) -> bool:
     """Returns True if the objects is in the workspace."""
     if obj_pos is None or distance is None:
         if obj is None:
-            raise ValueError("Must specify obj or obj_pos and distance")    
+            raise ValueError("Must specify obj or obj_pos and distance")
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
     if not (
@@ -118,5 +118,5 @@ def is_inworkspace(
         and distance < TABLE_CONSTRAINTS["workspace_radius"]
     ):
         return False
-        
+
     return True
