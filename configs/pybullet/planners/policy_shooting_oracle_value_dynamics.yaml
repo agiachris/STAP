@@ -24,6 +24,13 @@ agent_configs:
         agent_kwargs:
           agent_config: "{AGENT_CONFIG}"
           std: 0.1
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config:
+        agent: GaussianAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          std: 0.1
 
 dynamics_config:
   dynamics: OracleDynamics

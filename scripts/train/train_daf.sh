@@ -2,11 +2,15 @@
 
 set -e
 
+GCP_LOGIN="juno-login-lclbjqwy-001"
+
 function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]]; then
         sbatch scripts/train/train_juno.sh "${CMD}"
+    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
+        sbatch scripts/train/train_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -47,20 +51,20 @@ plots_path="plots"
 
 # Experiments.
 
-exp_name="20220818/workspace"
+exp_name="20220818/workspace_sample"
 
 planners=(
-    "daf_policy_cem"
-    # "daf_random_cem"
+    # "daf_policy_cem"
+    "daf_random_cem"
     # "daf_policy_shooting"
-    "daf_random_shooting"
+    # "daf_random_shooting"
 )
 
 TRAINER_CONFIG="configs/pybullet/trainers/daf.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 ENV_CONFIG="configs/pybullet/envs/workspace.yaml"
-if [[ `hostname` == "sc.stanford.edu" ]]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
 

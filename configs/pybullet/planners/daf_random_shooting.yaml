@@ -12,5 +12,8 @@ agent_configs:
   - agent: RandomAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
+  - agent: RandomAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
 
 dynamics_config: "{DYNAMICS_CONFIG}"
