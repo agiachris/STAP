@@ -2,10 +2,11 @@
 
 import argparse
 import pathlib
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+import tqdm
 
 from temporal_policies import agents, envs
 from temporal_policies.utils import random, tensors
@@ -24,7 +25,7 @@ def query_policy_actor(
 def observation_str(env: envs.Env, observation: np.ndarray) -> str:
     """Converts observations to a pretty string."""
     if isinstance(env, envs.pybullet.TableEnv):
-        return str(envs.pybullet.table.object_state.ObjectState(observation))
+        return str(env.object_states())
 
     return str(observation)
 
@@ -44,13 +45,17 @@ def evaluate_episode(
     env: envs.Env,
     seed: Optional[int] = None,
     verbose: bool = False,
-    debug: bool = False,
-) -> bool:
+    debug: bool = True,
+    record: bool = False,
+) -> List[float]:
     """Evaluates the policy on one episode."""
     observation, reset_info = env.reset(seed=seed)
     if verbose:
         print("primitive:", env.get_primitive())
         print("reset_info:", reset_info)
+
+    if record:
+        env.record_start()
 
     rewards = []
     done = False
@@ -70,10 +75,13 @@ def evaluate_episode(
         rewards.append(reward)
         done = terminated or truncated
 
+    if record:
+        env.record_stop()
+
     if debug:
         input("finish?")
 
-    return sum(rewards) > 0.0
+    return rewards
 
 
 def evaluate_episodes(
@@ -84,11 +92,20 @@ def evaluate_episodes(
     verbose: bool,
 ) -> None:
     """Evaluates policy for the given number of episodes."""
-    for i in range(num_episodes):
+    num_successes = 0
+    pbar = tqdm.tqdm(
+        range(num_episodes),
+        desc=f"Evaluate {env.name}",
+        dynamic_ncols=True,
+    )
+    for i in pbar:
         # Evaluate episode.
-        env.record_start()
-        success = evaluate_episode(policy, env, verbose=verbose)
-        env.record_stop()
+        rewards = evaluate_episode(policy, env, verbose=verbose, record=True)
+        success = sum(rewards) > 0.0
+        num_successes += success
+        pbar.set_postfix(
+            {"rewards": rewards, "successes": f"{num_successes} / {num_episodes}"}
+        )
 
         # Save recording.
         suffix = "" if success else "_fail"

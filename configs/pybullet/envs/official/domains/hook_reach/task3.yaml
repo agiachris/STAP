@@ -14,19 +14,24 @@ env_kwargs:
         - pull(red_box, hook)
         - place(hook, table)
         - pick(red_box, table)
+        - place(red_box, rack)
       initial_state:
         - free(hook)
         - free(red_box)
+        - aligned(rack)
+        - poslimit(rack)
+        - inworkspace(rack)
         - inworkspace(hook)
         - beyondworkspace(red_box)
         - nonblocking(red_box, rack)
+        - nonblocking(red_box, cyan_box)
         - on(rack, table)
         - on(hook, table)
+        - on(yellow_box, rack)
+        - on(blue_box, rack)
         - on(red_box, table)
-        - on(yellow_box, table)
-        - on(blue_box, table)
         - on(cyan_box, table)
-        
+          
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   objects:

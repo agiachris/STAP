@@ -11,23 +11,23 @@ env_kwargs:
   tasks:
     - action_skeleton:
         - pick(hook, table)
-        - pull(purple_box, hook)
+        - pull(cyan_box, hook)
         - place(hook, table)
-        - pick(purple_box, table)
+        - pick(cyan_box, table)
       initial_state:
         - free(hook)
-        - free(purple_box)
+        - free(cyan_box)
         - inworkspace(hook)
-        - beyondworkspace(purple_box)
-        - nonblocking(purple_box, rack)
-        - on(rack, table)
+        - beyondworkspace(cyan_box)
+        - nonblocking(cyan_box, yellow_box)
+        - nonblocking(cyan_box, red_box)
+        - nonblocking(cyan_box, blue_box)
         - on(hook, table)
-        - on(purple_box, table)
-        - on(red_box, table)
+        - on(cyan_box, table)
         - on(yellow_box, table)
-        - on(cyan_box, rack)
+        - on(red_box, table)
         - on(blue_box, table)
-        
+          
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   objects:
@@ -36,11 +36,6 @@ env_kwargs:
         name: table
         path: configs/pybullet/envs/assets/iprl_table.urdf
         is_static: true
-    - object_type: Rack
-      object_kwargs:
-        name: rack
-        size: [0.22, 0.32, 0.16]
-        color: [0.4, 0.2, 0.0, 1.0]
     - object_type: Hook
       object_kwargs:
         name: hook
@@ -68,8 +63,3 @@ env_kwargs:
         name: cyan_box
         size: [0.06, 0.03, 0.06]
         color: [0.0, 1.0, 1.0, 1.0]
-    - object_type: Box
-      object_kwargs:
-        name: purple_box
-        size: [0.04, 0.03, 0.09]
-        color: [1.0, 0.0, 1.0, 1.0]

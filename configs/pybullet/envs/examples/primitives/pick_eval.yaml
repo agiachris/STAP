@@ -52,6 +52,7 @@ env_kwargs:
     - action_skeleton:
         - pick(rack_hook, rack)
       initial_state:
+        - free(rack_hook)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
