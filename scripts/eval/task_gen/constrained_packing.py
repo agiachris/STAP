@@ -1,6 +1,5 @@
 from typing import Any, List, Dict, Tuple
 
-import yaml
 import random
 import argparse
 
@@ -8,10 +7,7 @@ from utils import (
     OBJECTS,
     LOCATIONS,
     LIFTED_OBJECTS,
-    get_random_indices,
-    get_lifted_task,
-    substitute_vars,
-    sort_propositions,
+    generate_ground_tasks,
 )
 
 
@@ -57,6 +53,7 @@ def constrained_packing_task(
         num_arg_objects: Number of task-relevant boxes to be pulled.
         num_non_arg_objects: Number of task-irrelevant boxes in the environment.
         poslimit_rack: Whether or not the rack is at fixed locations.
+        aligned_rack: Whether or not the rack frame aligns with the world frame.
 
     Returns:
         lifted_task: Plan skeleton and initial state of the task
@@ -95,30 +92,6 @@ def constrained_packing_task(
         "metadata": {"num_lifted_objects": num_arg_objects + num_non_arg_objects},
     }
     return lifted_task
-
-
-def main(objects: Dict[int, str], lifted_tasks: List[Dict[str, Any]]) -> None:
-    """Randomly generate an even distribution of lifted evaluation tasks."""
-    num_tasks = sum(task["num_tasks"] for task in lifted_tasks)
-    for task_idx in range(num_tasks):
-        print(f"\nSampling lifted task: {task_idx}")
-
-        # Sample ground objects for constrained packing problem
-        lifted_task = get_lifted_task(task_idx, lifted_tasks)
-        num_lifted_objects = lifted_task["metadata"]["num_lifted_objects"]
-        object_idxs = get_random_indices(objects)[:num_lifted_objects]
-        vars = [(f"?M{i}", objects[idx]) for i, idx in enumerate(object_idxs)]
-
-        # Construct action skeleton and initial state
-        action_skeleton = substitute_vars(vars, lifted_task["plan_skeleton"])
-        propositions = substitute_vars(vars, lifted_task["predicates"])
-        initial_state = sort_propositions(propositions)
-        task_config = {
-            "action_skeleton": action_skeleton,
-            "initial_state": initial_state,
-        }
-        print(yaml.dump(task_config, default_flow_style=False, sort_keys=False))
-        input("Continue?")
 
 
 if __name__ == "__main__":
@@ -191,4 +164,4 @@ if __name__ == "__main__":
         ),
     ]
 
-    main(args.objects, lifted_tasks)
+    generate_ground_tasks(args.objects, lifted_tasks)
