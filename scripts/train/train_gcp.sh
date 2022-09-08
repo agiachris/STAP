@@ -28,6 +28,6 @@ if which pyenv > /dev/null; then
 fi
 pipenv run ${1}
 
-#MAIL_SUBJECT="'SLURM Job_id=${SLURM_JOBID} Log'"
-#MAIL_FILE="$(pwd -P)/logs/gcp-${SLURM_JOBID}.out"
-#MAIL_CMD="mail -s ${MAIL_SUBJECT} takatoki@stanford.edu < ${MAIL_FILE}"
+# MAIL_SUBJECT="'SLURM Job_id=${SLURM_JOBID} Log'"
+# MAIL_FILE="$(pwd -P)/logs/gcp-${SLURM_JOBID}.out"
+# MAIL_CMD="mail -s ${MAIL_SUBJECT} takatoki@stanford.edu < ${MAIL_FILE}"

@@ -10,7 +10,7 @@ function run_cmd {
     if [[ `hostname` == "sc.stanford.edu" ]]; then
         sbatch scripts/eval/eval_planners_juno.sh "${CMD}"
     elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
-        sbatch scripts/train/eval_gcp.sh "${CMD}"
+        sbatch scripts/eval/eval_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
