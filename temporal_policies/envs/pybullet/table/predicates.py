@@ -169,7 +169,7 @@ class PosLimit(Predicate):
 
     POS_EPS: Dict[Type[Object], float] = {Rack: 0.01}
     POS_SPEC: Dict[Type[Object], List[np.ndarray]] = {
-        Rack: [np.array([0.50, -0.25]), np.array([0.82, 0.00])],
+        Rack: [np.array([0.50, 0.25]), np.array([0.82, 0.00])],
     }
 
     def bounds(self, child_obj: Object) -> List[np.ndarray]:
@@ -591,6 +591,16 @@ class NonBlocking(Predicate):
         vertices = np.concatenate(
             intersect_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
         )
+
+        if (intersect_obj.isinstance(Rack) 
+            and f"poslimit({intersect_obj})" in state
+            and f"aligned({intersect_obj})" in state
+        ):
+            # Add additional x-margin buffer for occluding Rack
+            target_margin = target_obj.aabb().max()
+            vertices[:2, 0] -= target_margin
+            vertices[2:4, 0] += target_margin
+
         intersect_poly = Polygon(vertices.tolist())
         if intersect_poly.intersects(target_line):
             dbprint(f"{self}.value():", False)
