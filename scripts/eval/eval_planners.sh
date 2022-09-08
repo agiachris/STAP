@@ -2,11 +2,15 @@
 
 set -e
 
+GCP_LOGIN="juno-login-lclbjqwy-001"
+
 function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]]; then
         sbatch scripts/eval/eval_planners_juno.sh "${CMD}"
+    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
+        sbatch scripts/eval/eval_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -135,16 +139,22 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220903/examples_collisions"
+exp_name="20220905/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
-ENV_CONFIG="configs/pybullet/envs/examples/domains/workspace.yaml"
-POLICY_ENVS=("pick" "place" "pull")
-checkpoints=(
-    "final_model"
-    # "best_model"
-    # "ckpt_model_50000"
+env_configs=(
+    "configs/pybullet/envs/official/domains/hook_reach/task0.yaml"
+    # "configs/pybullet/envs/official/domains/hook_reach/task1.yaml"
+    # "configs/pybullet/envs/official/domains/hook_reach/task2.yaml"
+    # "configs/pybullet/envs/official/domains/hook_reach/task3.yaml"
+    # "configs/pybullet/envs/official/domains/hook_reach/task4.yaml"
 )
-if [[ `hostname` == "sc.stanford.edu" ]]; then
+POLICY_ENVS=("pick" "place" "pull" "push")
+checkpoints=(
+    # "final_model"
+    # "best_model"
+    "ckpt_model_50000"
+)
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
@@ -153,12 +163,18 @@ POLICY_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_INPUT_PATH="${input_path}/${exp_name}"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for CKPT in "${checkpoints[@]}"; do
-    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}"
-    run_planners
+    for ENV_CONFIG in "${env_configs[@]}"; do
+        env_name=${ENV_CONFIG//.yaml/}  # Cut off .yaml.
+        env_name=(${env_name//\// })  # Tokenize by '/'.
+        env_name=${env_name[@]: -2}  # Extract last two tokens.
+        env_name="${env_name// /\/}"  # Add back '/'.
+        PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env_name}"
+        run_planners
+    done
 done
 
 # Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]] || [ $DEBUG -ne 0 ]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [ $DEBUG -ne 0 ]; then
     exit
 fi
 

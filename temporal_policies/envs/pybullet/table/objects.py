@@ -547,7 +547,7 @@ class WrapperObject(Object):
         return self.body.isinstance(class_or_tuple)
 
     def type(self) -> Type["Object"]:
-        return type(self)
+        return type(self.body)
 
     # Body methods.
 

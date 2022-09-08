@@ -2,11 +2,15 @@
 
 set -e
 
+GCP_LOGIN="juno-login-lclbjqwy-001"
+
 function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]]; then
         sbatch scripts/train/train_juno.sh "${CMD}"
+    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
+        sbatch scripts/train/train_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -70,7 +74,7 @@ POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 ENV_KWARGS="--num-env-processes 4 --num-eval-env-processes 2"
 # ENV_KWARGS="${ENV_KWARGS} --use-curriculum 1"
-if [[ `hostname` == "sc.stanford.edu" ]]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="${ENV_KWARGS} --gui 0"
 fi
 

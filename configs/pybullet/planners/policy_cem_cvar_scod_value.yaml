@@ -30,5 +30,13 @@ agent_configs:
         scod_kwargs:
           scod_config: "{SCOD_CONFIG}"
           alpha: 0.9
+  - agent: SCODCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod_config:
+        scod: CVaRSCOD
+        scod_kwargs:
+          scod_config: "{SCOD_CONFIG}"
+          alpha: 0.9
 
 dynamics_config: "{DYNAMICS_CONFIG}"

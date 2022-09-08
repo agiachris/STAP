@@ -2,11 +2,15 @@
 
 set -e
 
+GCP_LOGIN="juno-login-lclbjqwy-001"
+
 function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]]; then
         sbatch scripts/train/train_juno.sh "${CMD}"
+    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
+        sbatch scripts/train/train_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -50,18 +54,18 @@ output_path="models"
 #     "ckpt_model_100000"
 # )
 
-exp_name="20220821/workspace_multi"
+exp_name="20220905/official"
 TRAINER_CONFIG="configs/pybullet/trainers/scod.yaml"
 SCOD_CONFIG="configs/pybullet/scod/scod.yaml"
 MODEL_NETWORK="critic"
-policy_envs=("pick" "place" "pull")
+policy_envs=("pick" "place" "pull" "push")
 checkpoints=(
-    "final_model"
+    # "final_model"
     # "best_model"
-    # "ckpt_model_50000"
+    "ckpt_model_50000"
     # "ckpt_model_100000"
 )
-if [[ `hostname` == "sc.stanford.edu" ]]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
 

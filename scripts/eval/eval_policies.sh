@@ -2,11 +2,15 @@
 
 set -e
 
+GCP_LOGIN="juno-login-lclbjqwy-001"
+
 function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]]; then
         sbatch scripts/eval/eval_planners_juno.sh "${CMD}"
+    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
+        sbatch scripts/eval/eval_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -54,7 +58,7 @@ ckpts=(
     # "final_model"
     "ckpt_model_50000"
 )
-if [[ `hostname` == "sc.stanford.edu" ]]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="${ENV_KWARGS} --gui 0"
 fi
 
