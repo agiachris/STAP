@@ -169,7 +169,7 @@ class PosLimit(Predicate):
 
     POS_EPS: Dict[Type[Object], float] = {Rack: 0.01}
     POS_SPEC: Dict[Type[Object], List[np.ndarray]] = {
-        Rack: [np.array([0.50, 0.25]), np.array([0.82, 0.00])],
+        Rack: [np.array([0.50, -0.25]), np.array([0.82, 0.00])],
     }
 
     def bounds(self, child_obj: Object) -> List[np.ndarray]:
@@ -202,7 +202,7 @@ class InWorkspace(Predicate, TableBounds):
                 f"{self}.value():",
                 False,
                 "- pos:",
-                obj.pose().pos[:2],
+                obj_pos[:2],
                 "distance:",
                 distance,
             )
@@ -605,9 +605,9 @@ class NonBlocking(Predicate):
             and f"aligned({intersect_obj})" in state
         ):
             # Add additional x-margin buffer for occluding Rack
-            target_margin = target_obj.aabb().max()
-            vertices[:2, 0] -= target_margin
-            vertices[2:4, 0] += target_margin
+            target_margin = 2 * target_obj.size[:2].max()
+            vertices[[1, 2], 1] += target_margin
+            vertices[[0, 3], 1] -= target_margin
 
         intersect_poly = Polygon(vertices.tolist())
         if intersect_poly.intersects(target_line):
@@ -664,50 +664,58 @@ class On(Predicate):
                 # Restrict placement location to under the rack
                 parent_obj = rack_obj
 
-            zones = [
-                prop
-                for prop in state
-                if isinstance(prop, TableBounds) and prop.args[0] == child_obj
-            ]
-            if len(zones) == 0:
-                zone = TableBounds()
-            elif len(zones) != 1:
-                raise ValueError(f"{child_obj} cannot be in multiple zones: {zones}")
-            else:
-                zone = zones[0]
-
-            if child_obj.isinstance(Hook) and isinstance(
-                zone, (InCollisionZone, InOperationalZone, InObstructionZone)
-            ):
-                # Scale down margins in tight spaces
-                margin_world_frame *= 0.25
-
-            bounds = zone.bounds(
-                child_obj=child_obj,
-                parent_obj=parent_obj,
-                state=state,
-                margin=margin_world_frame,
-            )
-            xy_min, xy_max = bounds
-
-            if rack_obj is not None and f"infront({child_obj}, {rack_obj})" in state:
-                infront_bounds = InFront.bounds(
-                    parent_obj=rack_obj, margin=margin_world_frame
-                )
-                intersection = self.compute_bound_intersection(bounds, infront_bounds)
-                if intersection is None:
-                    dbprint(
-                        f"{self}.sample():",
-                        False,
-                        f"- no intersection between infront({child_obj}, {rack_obj}) and {zone}",
+            if parent_obj.name == "table":
+                zones = [
+                    prop
+                    for prop in state
+                    if isinstance(prop, TableBounds) and prop.args[0] == child_obj
+                ]
+                if len(zones) == 0:
+                    zone = TableBounds()
+                elif len(zones) != 1:
+                    raise ValueError(
+                        f"{child_obj} cannot be in multiple zones: {zones}"
                     )
-                    return False
-                xy_min, xy_max = intersection
+                else:
+                    zone = zones[0]
 
-        elif parent_obj.isinstance((Rack, Box)):
+                if child_obj.isinstance(Hook) and isinstance(
+                    zone, (InCollisionZone, InOperationalZone, InObstructionZone)
+                ):
+                    # Scale down margins in tight spaces
+                    margin_world_frame *= 0.25
+
+                bounds = zone.bounds(
+                    child_obj=child_obj,
+                    parent_obj=parent_obj,
+                    state=state,
+                    margin=margin_world_frame,
+                )
+                xy_min, xy_max = bounds
+
+                if (
+                    rack_obj is not None
+                    and f"infront({child_obj}, {rack_obj})" in state
+                ):
+                    infront_bounds = InFront.bounds(
+                        parent_obj=rack_obj, margin=margin_world_frame
+                    )
+                    intersection = self.compute_bound_intersection(
+                        bounds, infront_bounds
+                    )
+                    if intersection is None:
+                        dbprint(
+                            f"{self}.sample():",
+                            False,
+                            f"- no intersection between infront({child_obj}, {rack_obj}) and {zone}",
+                        )
+                        return False
+                    xy_min, xy_max = intersection
+
+        if parent_obj.isinstance((Rack, Box)):
             xy_min, xy_max = self.compute_stable_region(child_obj, parent_obj)
 
-        else:
+        elif parent_obj.name != "table":
             raise ValueError(
                 "[Predicate.On] parent object must be a table, rack, or box"
             )
@@ -716,8 +724,7 @@ class On(Predicate):
         propositions = [
             prop
             for prop in state
-            if isinstance(prop, (Free, TableBounds, NonBlocking))
-            and prop.args[-1] == child_obj.name
+            if isinstance(prop, (Free, TableBounds)) and prop.args[-1] == child_obj.name
         ]
 
         samples = 0
