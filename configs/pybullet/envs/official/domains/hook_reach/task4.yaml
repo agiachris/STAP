@@ -34,14 +34,12 @@ env_kwargs:
         - nonblocking(blue_box, rack)
         - nonblocking(red_box, blue_box)
         - nonblocking(blue_box, red_box)
-        - nonblocking(red_box, yellow_box)
-        - nonblocking(blue_box, yellow_box)
         - on(rack, table)
         - on(hook, table)
         - on(cyan_box, rack)
+        - on(yellow_box, rack)
         - on(red_box, table)
         - on(blue_box, table)
-        - on(yellow_box, table)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 

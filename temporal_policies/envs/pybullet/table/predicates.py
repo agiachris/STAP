@@ -605,7 +605,7 @@ class NonBlocking(Predicate):
             and f"aligned({intersect_obj})" in state
         ):
             # Add additional x-margin buffer for occluding Rack
-            target_margin = 2 * target_obj.size[:2].max()
+            target_margin = 3 * target_obj.size[:2].max()
             vertices[[1, 2], 1] += target_margin
             vertices[[0, 3], 1] -= target_margin
 
