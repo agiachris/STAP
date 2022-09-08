@@ -5,8 +5,8 @@ import numpy as np
 import torch
 import yaml
 
-from temporal_policies import agents, dynamics, envs, networks, planners
-from temporal_policies.dynamics import load as load_dynamics
+from temporal_policies import agents, envs, networks, planners
+from temporal_policies.dynamics import Dynamics, LatentDynamics, load as load_dynamics
 from temporal_policies.utils import configs, tensors
 
 
@@ -23,7 +23,7 @@ class PlannerFactory(configs.Factory):
         policies: Optional[Sequence[agents.Agent]] = None,
         scod_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
         dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
-        dynamics: Optional[dynamics.Dynamics] = None,
+        dynamics: Optional[Dynamics] = None,
         device: str = "auto",
     ):
         """Creates the planner factory from a planner_config.
@@ -149,6 +149,8 @@ class PlannerFactory(configs.Factory):
 
         self.kwargs["policies"] = policies
         self.kwargs["dynamics"] = dynamics
+        if isinstance(dynamics, LatentDynamics):
+            dynamics.plan_mode()
         self.kwargs["device"] = device
 
 
@@ -159,7 +161,7 @@ def load(
     policy_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
     scod_checkpoints: Optional[Sequence[Optional[Union[str, pathlib.Path]]]] = None,
     dynamics_checkpoint: Optional[Union[str, pathlib.Path]] = None,
-    dynamics: Optional[dynamics.Dynamics] = None,
+    dynamics: Optional[Dynamics] = None,
     device: str = "auto",
     **kwargs,
 ) -> planners.Planner:

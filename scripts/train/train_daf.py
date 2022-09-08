@@ -27,6 +27,7 @@ def train(
     num_pretrain_steps: Optional[int] = None,
     num_train_steps: Optional[int] = None,
     num_eval_steps: Optional[int] = None,
+    num_env_processes: Optional[int] = None,
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
@@ -47,9 +48,11 @@ def train(
             raise ValueError("planner_config must be specified")
 
         env_factory = envs.EnvFactory(config=env_config)
-        env_kwargs = {}
+        env_kwargs: Dict[str, Any] = {}
         if gui is not None:
             env_kwargs["gui"] = bool(gui)
+        if num_env_processes is not None:
+            env_kwargs["num_processes"] = num_env_processes
         env = env_factory(**env_kwargs)
 
         agent_factories = [
@@ -176,5 +179,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num-eval-steps", type=int, help="Number of steps per evaluation"
     )
+    parser.add_argument("--num-env-processes", type=int, help="Number of env processes")
 
     main(parser.parse_args())

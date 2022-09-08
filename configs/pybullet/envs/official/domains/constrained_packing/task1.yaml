@@ -6,6 +6,8 @@ env_kwargs:
   primitives:
     - pick
     - place
+    - pull
+    - push
 
   tasks:
     - action_skeleton:

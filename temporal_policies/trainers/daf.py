@@ -172,6 +172,7 @@ class DafTrainer(UnifiedTrainer):
             Collect metrics for each trainer.
         """
         self.eval_mode()
+        self.dynamics_trainer.dynamics.plan_mode()
         self.env.reset()
 
         if random:

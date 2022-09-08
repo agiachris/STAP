@@ -7,6 +7,7 @@ env_kwargs:
     - pick
     - place
     - pull
+    - push
 
   tasks:
     - action_skeleton:

@@ -124,6 +124,9 @@ class TableEnvEncoder(Encoder):
             policy_args: Auxiliary policy arguments.
             randomize: Whether to randomize the order of auxiliary objects.
         """
+        if observation.shape[0] == 0:
+            return torch.reshape(observation, (-1, self.state_space.shape[0]))
+
         observation = TableEnvEncoder.rearrange_observation(
             observation, policy_args, randomize
         )
