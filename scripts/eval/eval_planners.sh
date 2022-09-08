@@ -135,14 +135,20 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220903/examples_collisions"
+exp_name="20220905/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
-ENV_CONFIG="configs/pybullet/envs/examples/domains/workspace.yaml"
-POLICY_ENVS=("pick" "place" "pull")
+env_configs=(
+    "configs/pybullet/envs/official/domains/hook_reach/task0.yaml"
+    # "configs/pybullet/envs/official/domains/hook_reach/task1.yaml"
+    # "configs/pybullet/envs/official/domains/hook_reach/task2.yaml"
+    # "configs/pybullet/envs/official/domains/hook_reach/task3.yaml"
+    # "configs/pybullet/envs/official/domains/hook_reach/task4.yaml"
+)
+POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(
-    "final_model"
+    # "final_model"
     # "best_model"
-    # "ckpt_model_50000"
+    "ckpt_model_50000"
 )
 if [[ `hostname` == "sc.stanford.edu" ]]; then
     ENV_KWARGS="--gui 0"
@@ -153,8 +159,14 @@ POLICY_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_INPUT_PATH="${input_path}/${exp_name}"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for CKPT in "${checkpoints[@]}"; do
-    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}"
-    run_planners
+    for ENV_CONFIG in "${env_configs[@]}"; do
+        env_name=${ENV_CONFIG//.yaml/}  # Cut off .yaml.
+        env_name=(${env_name//\// })  # Tokenize by '/'.
+        env_name=${env_name[@]: -2}  # Extract last two tokens.
+        env_name="${env_name// /\/}"  # Add back '/'.
+        PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env_name}"
+        run_planners
+    done
 done
 
 # Visualize results.
