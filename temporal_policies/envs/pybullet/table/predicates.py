@@ -197,12 +197,9 @@ class InWorkspace(Predicate, TableBounds):
 
         obj_pos = obj.pose().pos[:2]
         distance = float(np.linalg.norm(obj_pos))
-        if not (
-            utils.TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
-            and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
-        ):
-            dbprint(f"{self}.value():", False, "- pos:", obj_pos, "distance:", distance)
-            return False
+        if not utils.is_inworkspace(obj_pos=obj_pos, distance=distance):
+            dbprint(f"{self}.value():", False, "- pos:", obj.pose().pos[:2], "distance:", distance)
+            return False            
 
         return True
 
