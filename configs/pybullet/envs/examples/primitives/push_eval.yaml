@@ -8,7 +8,7 @@ env_kwargs:
 
   tasks:
     - action_skeleton:
-        - push(a, hook)
+        - push(a, hook, rack)
       initial_state:
         - upperhandlegrasp(hook)
         - free(a)
@@ -25,7 +25,7 @@ env_kwargs:
         - on(c, rack)
         - inhand(hook)
     - action_skeleton:
-        - push(a, hook)
+        - push(a, hook, rack)
       initial_state:
         - upperhandlegrasp(hook)
         - free(a)
