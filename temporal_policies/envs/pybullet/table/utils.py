@@ -7,8 +7,8 @@ from ctrlutils import eigen
 import pybullet as p
 from shapely.geometry import Polygon
 
+from temporal_policies.envs.pybullet.sim import body, math
 from temporal_policies.envs.pybullet.table.objects import Object
-from temporal_policies.envs.pybullet.sim import body
 
 
 TABLE_CONSTRAINTS = {
@@ -28,8 +28,16 @@ EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 0.1}
 def compute_margins(obj: Object) -> np.ndarray:
     """Compute the x-y margins of the object in the world frame."""
     aabb = obj.aabb()[:, :2]
-    margin = 0.5 * np.array([aabb[1, 0] - aabb[0, 0], aabb[1, 1] - aabb[0, 1]])
+    margin = 0.5 * (aabb[1] - aabb[0])
     return margin
+
+
+def compute_object_pose(obj: Object, theta: float) -> math.Pose:
+    """Computes a new pose for the object with the given theta."""
+    aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+    quat = eigen.Quaterniond(aa)
+    pose = math.Pose(pos=obj.pose().pos, quat=quat.coeffs)
+    return pose
 
 
 def is_above(obj_a: Object, obj_b: Object) -> bool:
@@ -138,7 +146,7 @@ def is_under(obj_a: Object, obj_b: Object) -> bool:
 def is_inworkspace(
     obj: Optional[Object] = None,
     obj_pos: Optional[np.ndarray] = None,
-    distance: Optional[np.ndarray] = None,
+    distance: Optional[float] = None,
 ) -> bool:
     """Returns True if the objects is in the workspace."""
     if obj_pos is None or distance is None:
