@@ -671,7 +671,7 @@ class NonBlocking(Predicate):
     """Binary predicate ensuring that one object is not occupying a straightline
     path from the robot base to another object."""
 
-    PULL_MARGIN: Dict[Tuple[Type[Object], str], int] = {
+    PULL_MARGIN: Dict[Tuple[Type[Object], str], float] = {
         (Box, "inworkspace"): 3.0,
         (Box, "beyondworkspace"): 1.5,
     }
@@ -684,9 +684,10 @@ class NonBlocking(Predicate):
             return True
 
         target_line = LineString([[0, 0], target_obj.pose().pos[:2].tolist()])
-        vertices = np.concatenate(
-            intersect_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
-        )
+        convex_hulls = intersect_obj.convex_hulls(world_frame=True, project_2d=True)
+        if len(convex_hulls) > 1:
+            raise NotImplementedError("Compound shapes not yet supported")
+        vertices = convex_hulls[0]
 
         if (
             intersect_obj.isinstance(Rack)
@@ -704,12 +705,11 @@ class NonBlocking(Predicate):
             except KeyError:
                 margin_scale = 1.0
             target_margin = margin_scale * target_obj.size[:2].max()
-            vertices[[0, 1], 0] -= target_margin
-            vertices[[2, 3], 0] += target_margin
-            vertices[[1, 2], 1] += target_margin
-            vertices[[0, 3], 1] -= target_margin
+            # Expand the vertices by the margin.
+            center = vertices.mean(axis=0)
+            vertices += np.sign(vertices - center) * target_margin
 
-        intersect_poly = Polygon(vertices.tolist())
+        intersect_poly = Polygon(vertices)
         if intersect_poly.intersects(target_line):
             dbprint(f"{self}.value():", False)
             return False
