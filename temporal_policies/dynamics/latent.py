@@ -104,6 +104,10 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         """Switches to eval mode."""
         self.network.eval()
 
+    def plan_mode(self) -> None:
+        """Switches to plan mode."""
+        self.eval_mode()
+
     def forward(
         self,
         state: torch.Tensor,

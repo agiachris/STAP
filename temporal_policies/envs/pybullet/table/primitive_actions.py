@@ -113,7 +113,7 @@ class PullAction(PrimitiveAction):
     RANGES = {
         "r_reach": (-0.2, 0.0),
         "r_pull": (-0.4, -0.1),
-        "y": (-0.01, 0.01),
+        "y": (-0.05, 0.05),
         "theta": (-0.5 * np.pi, 0.5 * np.pi),
     }
 
@@ -182,7 +182,7 @@ class PushAction(PrimitiveAction):
     RANGES = {
         "r_reach": (-0.4, -0.2),
         "r_push": (0.1, 0.4),
-        "y": (-0.01, 0.01),
+        "y": (-0.05, 0.05),
         "theta": (-0.5 * np.pi, 0.5 * np.pi),
     }
 

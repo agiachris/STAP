@@ -39,7 +39,7 @@ class TableEnvDynamics(LatentDynamics):
             device: Torch device.
         """
         self._env = env
-        self.planning = self.env is not None
+        self._plan_mode = False
 
         if self.env is None:
             observation_space = policies[0].observation_space
@@ -53,20 +53,17 @@ class TableEnvDynamics(LatentDynamics):
             observation_space.high[0] - observation_space.low[0]
         )
 
-        self._flat_state_space = gym.spaces.Box(
+        self._observation_space = observation_space
+        flat_observation_space = gym.spaces.Box(
             low=observation_space.low.flatten(),
             high=observation_space.high.flatten(),
         )
-
-        if self.planning:
-            state_space = observation_space
-        else:
-            state_space = gym.spaces.Box(
-                low=-0.5,
-                high=0.5,
-                shape=self.flat_state_space.shape,
-                dtype=self.flat_state_space.dtype,  # type: ignore
-            )
+        self._flat_state_space = gym.spaces.Box(
+            low=-0.5,
+            high=0.5,
+            shape=flat_observation_space.shape,
+            dtype=flat_observation_space.dtype,  # type: ignore
+        )
 
         parent_network_class = networks.dynamics.Dynamics
         parent_network_kwargs = {
@@ -79,7 +76,7 @@ class TableEnvDynamics(LatentDynamics):
             policies=policies,
             network_class=parent_network_class,
             network_kwargs=parent_network_kwargs,
-            state_space=state_space,
+            state_space=self.state_space,
             action_space=None,
             checkpoint=checkpoint,
             device=device,
@@ -88,6 +85,13 @@ class TableEnvDynamics(LatentDynamics):
     @property
     def env(self) -> Optional[envs.pybullet.TableEnv]:
         return self._env
+
+    @property
+    def state_space(self) -> gym.spaces.Box:
+        if self._plan_mode:
+            return self._observation_space
+        else:
+            return self._flat_state_space
 
     @property
     def flat_state_space(self) -> gym.spaces.Box:
@@ -99,6 +103,21 @@ class TableEnvDynamics(LatentDynamics):
         self._observation_mid = self._observation_mid.to(self.device)
         self._observation_range = self._observation_range.to(self.device)
         return self
+
+    def train_mode(self) -> None:
+        "Switches to train mode."""
+        super().train_mode()
+        self._plan_mode = False
+
+    def eval_mode(self) -> None:
+        "Switches to eval mode."""
+        super().eval_mode()
+        self._plan_mode = False
+
+    def plan_mode(self) -> None:
+        """Switches to plan mode."""
+        super().eval_mode()
+        self._plan_mode = True
 
     def encode(
         self,
@@ -122,7 +141,7 @@ class TableEnvDynamics(LatentDynamics):
         Returns:
             Encoded latent state vector.
         """
-        if self.planning:
+        if self._plan_mode:
             # Return full observation.
             return observation
 

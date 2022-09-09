@@ -59,19 +59,39 @@ planners=(
     # "daf_policy_shooting"
     # "daf_random_shooting"
 )
+envs=(
+    "hook_reach/task0"
+    "hook_reach/task1"
+    "hook_reach/task2"
+    "hook_reach/task3"
+    "hook_reach/task4"
+    "constrained_packing/task0"
+    "constrained_packing/task1"
+    "constrained_packing/task2"
+    "constrained_packing/task3"
+    "constrained_packing/task4"
+    "rearrangement_push/task0"
+    "rearrangement_push/task1"
+    "rearrangement_push/task2"
+    "rearrangement_push/task3"
+    "rearrangement_push/task4"
+)
 
 TRAINER_CONFIG="configs/pybullet/trainers/daf.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
-ENV_CONFIG="configs/pybullet/envs/workspace.yaml"
+ENV_KWARGS="--num-env-processes 6"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
-for planner in "${planners[@]}"; do
-    PLANNER_CONFIG="configs/pybullet/planners/${planner}.yaml"
-    OUTPUT_PATH="${output_path}/${exp_name}/${planner}"
-    EVAL_RECORDING_PATH="${plots_path}/${exp_name}/${planner}"
+for env in "${envs[@]}"; do
+    ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
+    for planner in "${planners[@]}"; do
+        PLANNER_CONFIG="configs/pybullet/planners/${planner}.yaml"
+        OUTPUT_PATH="${output_path}/${exp_name}/${env}/${planner}"
+        EVAL_RECORDING_PATH="${plots_path}/${exp_name}/${planner}"
 
-    train_daf
+        train_daf
+    done
 done
