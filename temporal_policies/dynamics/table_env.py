@@ -141,7 +141,7 @@ class TableEnvDynamics(LatentDynamics):
         Returns:
             Encoded latent state vector.
         """
-        if self.state_space == self._observation_space:
+        if self._plan_mode:
             # Return full observation.
             return observation
 
