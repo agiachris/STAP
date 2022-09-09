@@ -284,7 +284,7 @@ class InWorkspace(Predicate, TableBounds):
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
-        margin: np.ndarray = np.zeros(2),
+        margin: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the minimum and maximum x-y bounds inside the workspace."""
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
@@ -337,7 +337,7 @@ class InCollisionZone(Predicate, TableBounds):
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
-        margin: np.ndarray = np.zeros(2),
+        margin: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
 
@@ -380,7 +380,7 @@ class InOperationalZone(Predicate, TableBounds):
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
-        margin: np.ndarray = np.zeros(2),
+        margin: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
 
@@ -421,7 +421,7 @@ class InObstructionZone(Predicate, TableBounds):
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
-        margin: np.ndarray = np.zeros(2),
+        margin: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
 
@@ -458,7 +458,7 @@ class BeyondWorkspace(Predicate, TableBounds):
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
-        margin: np.ndarray = np.zeros(2),
+        margin: np.ndarray,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the minimum and maximum x-y bounds outside the workspace."""
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
