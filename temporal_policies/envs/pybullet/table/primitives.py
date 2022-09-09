@@ -654,42 +654,27 @@ class Push(Primitive):
                     f"Robot.goto_pose({command_pose_push.pos}, {command_pose_push.quat}) collided"
                 )
 
-            robot.goto_pose(
-                command_pose_reach.pos,
-                command_pose_reach.quat,
-                check_collisions=[
-                    obj.body_id for obj in self.get_non_arg_objects(objects)
-                ],
-            )
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
-                raise ControlException(
-                    f"Robot.goto_pose({command_pose_reach.pos}, {command_pose_reach.quat}) collided"
-                )
+            # Target must be pushed a minimum distance.
+            new_target_distance = np.linalg.norm(target.pose().pos[:2])
+            if new_target_distance <= target_distance + MIN_PUSH_DISTANCE:
+                return ExecutionResult(success=False, truncated=True)
+
+            # Target must be pushed underneath rack if it exists.
+            if len(self.arg_objects) == 3:
+                obj = self.arg_objects[2]
+                if obj.isinstance(Rack) and not utils.is_under(target, obj):
+                    return ExecutionResult(success=False, truncated=True)
+
+            robot.goto_pose(command_pose_reach.pos, command_pose_reach.quat)
+
+            # Target must be upright.
+            if not utils.is_upright(target):
+                return ExecutionResult(success=False, truncated=True)
 
             robot.goto_pose(pre_pos, command_pose_reach.quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
-                raise ControlException(
-                    f"Robot.goto_pose({pre_pos}, {command_pose_reach.quat}) collided"
-                )
-
         except ControlException as e:
             dbprint("Push.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
-
-        self.env.wait_until_stable()
-
-        if not utils.is_upright(target):
-            return ExecutionResult(success=False, truncated=False)
-
-        new_target_distance = np.linalg.norm(target.pose().pos[:2])
-        if new_target_distance <= target_distance + MIN_PUSH_DISTANCE:
-            return ExecutionResult(success=False, truncated=False)
-
-        # Target must be pushed underneath rack if it exists
-        if len(self.arg_objects) == 3:
-            obj = self.arg_objects[2]
-            if obj.isinstance(Rack) and not utils.is_under(target, obj):
-                return ExecutionResult(success=False, truncated=False)
 
         return ExecutionResult(success=True, truncated=False)
 
