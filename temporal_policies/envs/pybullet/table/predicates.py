@@ -681,6 +681,11 @@ class NonBlocking(Predicate):
     """Binary predicate ensuring that one object is not occupying a straightline
     path from the robot base to another object."""
 
+    PULL_MARGIN: Dict[Tuple[Type[Object], str], int] = {
+        (Box, "inworkspace"): 3.0,
+        (Box, "beyondworkspace"): 1.5,
+    }
+
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -698,8 +703,19 @@ class NonBlocking(Predicate):
             and f"poslimit({intersect_obj})" in state
             and f"aligned({intersect_obj})" in state
         ):
-            # Add additional y-margin buffer for occluding Rack
-            target_margin = 2 * target_obj.size[:2].max()
+            # Add additional xy-margin buffer to occluding Rack
+            zone = (
+                "inworkspace"
+                if utils.is_inworkspace(obj=intersect_obj)
+                else "beyondworkspace"
+            )
+            try:
+                margin_scale = NonBlocking.PULL_MARGIN[(type(target_obj), zone)]
+            except KeyError:
+                margin_scale = 1.0
+            target_margin = margin_scale * target_obj.size[:2].max()
+            vertices[[0, 1], 0] -= target_margin
+            vertices[[2, 3], 0] += target_margin
             vertices[[1, 2], 1] += target_margin
             vertices[[0, 3], 1] -= target_margin
 
