@@ -45,7 +45,7 @@ def evaluate_episode(
     env: envs.Env,
     seed: Optional[int] = None,
     verbose: bool = False,
-    debug: bool = True,
+    debug: bool = False,
     record: bool = False,
 ) -> List[float]:
     """Evaluates the policy on one episode."""
@@ -100,7 +100,9 @@ def evaluate_episodes(
     )
     for i in pbar:
         # Evaluate episode.
-        rewards = evaluate_episode(policy, env, verbose=verbose, record=True)
+        rewards = evaluate_episode(
+            policy, env, verbose=verbose, debug=False, record=True
+        )
         success = sum(rewards) > 0.0
         num_successes += success
         pbar.set_postfix(
@@ -166,7 +168,9 @@ def evaluate_policy(
         # Load reset seed.
         with open(debug_results, "rb") as f:
             seed = int(np.load(f, allow_pickle=True)["seed"])
-        evaluate_episode(policy, env, seed=seed, verbose=verbose, debug=True)
+        evaluate_episode(
+            policy, env, seed=seed, verbose=verbose, debug=True, record=False
+        )
     elif path is not None:
         # Evaluate episodes.
         evaluate_episodes(env, policy, num_episodes, pathlib.Path(path), verbose)
