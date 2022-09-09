@@ -87,38 +87,6 @@ class Free(Predicate):
         return True
 
 
-class Aligned(Predicate):
-    """Unary predicate enforcing that the object and world coordinate frames align."""
-
-    ANGLE_EPS = 0.002
-    ANGLE_STD = 0.05
-    ANGLE_ABS = 0.1
-
-    def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    ) -> bool:
-        obj = self.get_arg_objects(objects)[0]
-        if obj.isinstance(Null):
-            return True
-
-        angle = eigen.AngleAxisd(eigen.Quaterniond(obj.pose().quat)).angle
-        if not (
-            Aligned.ANGLE_EPS <= abs(angle) <= Aligned.ANGLE_ABS
-            and utils.is_upright(obj)
-        ):
-            dbprint(f"{self}.value():", False)
-            return False
-
-        return True
-
-    @staticmethod
-    def sample_angle() -> float:
-        angle = 0.0
-        while abs(angle) < Aligned.ANGLE_EPS:
-            angle = np.random.randn() * Aligned.ANGLE_STD
-        return np.clip(angle, -Aligned.ANGLE_ABS, Aligned.ANGLE_ABS)
-
-
 class Tippable(Predicate):
     """Unary predicate admitting non-upright configurations of an object."""
 
@@ -128,20 +96,35 @@ class Tippable(Predicate):
 class TableBounds:
     """Predicate that specifies minimum and maximum x-y bounds on the table."""
 
-    def bounds(
+    MARGIN_SCALE: Dict[Type[Object], float] = {Hook: 0.25}
+
+    def get_bounds_and_margin(
         self,
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
-        margin: np.ndarray = np.zeros(2),
-    ) -> np.ndarray:
-        """Returns the minimum and maximum x-y bounds on the table."""
+        margin: np.ndarray,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the minimum and maximum x-y bounds on the table as well as the modified margins."""
         assert parent_obj.name == "table"
 
+        zone = type(self).__name__.lower()
         poslimit = TableBounds.get_poslimit(child_obj, state)
         if poslimit is not None:
             pos_bounds = poslimit.bounds(child_obj)
-            return random.choice(pos_bounds)
+            zone = random.choice(list(pos_bounds.keys()))
+            # Compute poslimit zone-specific angle
+            if f"aligned({child_obj})" in state:
+                theta = Aligned.sample_angle(obj=child_obj, zone=zone)
+                child_obj.set_pose(utils.compute_object_pose(child_obj, theta))
+                margin = utils.compute_margins(child_obj)
+
+            return pos_bounds[zone], margin
+
+        elif f"aligned({child_obj})" in state:
+            theta = Aligned.sample_angle(obj=child_obj, zone=zone)
+            child_obj.set_pose(utils.compute_object_pose(child_obj, theta))
+            margin = utils.compute_margins(child_obj)
 
         bounds = parent_obj.aabb()[:, :2]
         xy_min, xy_max = bounds
@@ -149,30 +132,122 @@ class TableBounds:
         xy_min += margin
         xy_max -= margin
 
-        return bounds
+        return bounds, margin
 
     @staticmethod
     def get_poslimit(
-        child_obj: Object,
+        obj: Object,
         state: Sequence[Predicate],
     ) -> Optional["PosLimit"]:
         try:
-            prop = state[state.index(f"poslimit({child_obj})")]
-            assert isinstance(prop, PosLimit)
-            return prop
+            idx_prop = state.index(f"poslimit({obj})")
         except ValueError:
             return None
+        prop = state[idx_prop]
+        assert isinstance(prop, PosLimit)
+        return prop
+
+    @classmethod
+    def get_zone(
+        cls,
+        obj: Object,
+        state: Sequence[Predicate],
+    ) -> Optional["TableBounds"]:
+        zones = [
+            prop
+            for prop in state
+            if isinstance(prop, TableBounds) and prop.args[0] == obj
+        ]
+        if not zones and f"on({obj}, table)" in state:
+            return cls()
+        elif len(zones) == 1:
+            return zones[0]
+        elif len(zones) != 1:
+            raise ValueError(f"{obj} cannot be in multiple zones: {zones}")
+
+        return None
+
+    @staticmethod
+    def scale_margin(obj: Object, margins: np.ndarray) -> np.ndarray:
+        try:
+            bounds = TableBounds.MARGIN_SCALE[type(obj)]
+        except KeyError:
+            return margins
+        return bounds * margins
+
+
+class Aligned(Predicate):
+    """Unary predicate enforcing that the object and world coordinate frames align."""
+
+    ANGLE_EPS: float = 0.002
+    ANGLE_STD: float = 0.05
+    ANGLE_ABS: float = 0.1
+    ZONE_ANGLES: Dict[Tuple[Type[Object], Optional[str]], float] = {
+        (Rack, "inworkspace"): 0.5 * np.pi,
+        (Rack, "beyondworkspace"): 0.0,
+    }
+
+    # def value(
+    #     self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    # ) -> bool:
+    #     obj = self.get_arg_objects(objects)[0]
+    #     if obj.isinstance(Null):
+    #         return True
+
+    #     try:
+    #         zone = TableBounds.get_zone(obj=obj, state=state)
+    #         angle_mean = Aligned.ZONE_ANGLES[(obj.type(), type(zone).__name__.lower())]
+    #         if (
+    #             angle_mean - Aligned.ANGLE_ABS < -np.pi
+    #             or angle_mean + Aligned.ANGLE_ABS > np.pi
+    #         ):
+    #             raise ValueError("Cannot recover wrapped angle.")
+    #     except KeyError:
+    #         angle_mean = 0.0
+
+    #     angle = eigen.AngleAxisd(eigen.Quaterniond(obj.pose().quat)).angle - angle_mean
+    #     if not (
+    #         Aligned.ANGLE_EPS <= abs(angle) <= Aligned.ANGLE_ABS
+    #         and utils.is_upright(obj)
+    #     ):
+    #         dbprint(f"{self}.value():", False)
+    #         return False
+
+    #     return True
+
+    @staticmethod
+    def sample_angle(obj: Object, zone: Optional[str] = None) -> float:
+        angle = 0.0
+        while abs(angle) < Aligned.ANGLE_EPS:
+            angle = np.random.randn() * Aligned.ANGLE_STD
+
+        try:
+            angle_mu = Aligned.ZONE_ANGLES[(obj.type(), zone)]
+        except KeyError:
+            angle_mu = 0.0
+
+        angle = np.clip(
+            angle + angle_mu,
+            angle_mu - Aligned.ANGLE_ABS,
+            angle_mu + Aligned.ANGLE_ABS,
+        )
+        angle = (angle + np.pi) % (2 * np.pi) - np.pi
+
+        return angle
 
 
 class PosLimit(Predicate):
     """Unary predicate limiting the placement positions of particular object types."""
 
     POS_EPS: Dict[Type[Object], float] = {Rack: 0.01}
-    POS_SPEC: Dict[Type[Object], List[np.ndarray]] = {
-        Rack: [np.array([0.50, -0.25]), np.array([0.82, 0.00])],
+    POS_SPEC: Dict[Type[Object], Dict[str, np.ndarray]] = {
+        Rack: {
+            "inworkspace": np.array([0.50, -0.33]),
+            "beyondworkspace": np.array([0.82, 0.00]),
+        }
     }
 
-    def bounds(self, child_obj: Object) -> List[np.ndarray]:
+    def bounds(self, child_obj: Object) -> Dict[str, np.ndarray]:
         assert child_obj.name == self.args[0]
 
         if child_obj.type() not in PosLimit.POS_SPEC:
@@ -180,8 +255,7 @@ class PosLimit(Predicate):
 
         eps = PosLimit.POS_EPS[child_obj.type()]
         xys = PosLimit.POS_SPEC[child_obj.type()]
-        bounds = [np.array([xy - eps, xy + eps]) for xy in xys]
-
+        bounds = {k: np.array([xy - eps, xy + eps]) for k, xy in xys.items()}
         return bounds
 
 
@@ -199,30 +273,31 @@ class InWorkspace(Predicate, TableBounds):
         distance = float(np.linalg.norm(obj_pos))
         if not utils.is_inworkspace(obj_pos=obj_pos, distance=distance):
             dbprint(
-                f"{self}.value():",
-                False,
-                "- pos:",
-                obj_pos[:2],
-                "distance:",
-                distance,
+                f"{self}.value():", False, "- pos:", obj_pos[:2], "distance:", distance
             )
             return False
 
         return True
 
-    def bounds(
+    def get_bounds_and_margin(
         self,
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
         margin: np.ndarray = np.zeros(2),
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the minimum and maximum x-y bounds inside the workspace."""
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
 
+        zone = type(self).__name__.lower()
+        if f"aligned({child_obj})" in state:
+            theta = Aligned.sample_angle(obj=child_obj, zone=zone)
+            child_obj.set_pose(utils.compute_object_pose(child_obj, theta))
+            margin = utils.compute_margins(child_obj)
+
         poslimit = TableBounds.get_poslimit(child_obj, state)
         if poslimit is not None:
-            return poslimit.bounds(child_obj)[0]
+            return poslimit.bounds(child_obj)[zone], margin
 
         bounds = parent_obj.aabb()[:, :2]
         xy_min, xy_max = bounds
@@ -231,7 +306,7 @@ class InWorkspace(Predicate, TableBounds):
         xy_min += margin
         xy_max -= margin
 
-        return bounds
+        return bounds, margin
 
 
 class InCollisionZone(Predicate, TableBounds):
@@ -257,15 +332,16 @@ class InCollisionZone(Predicate, TableBounds):
 
         return True
 
-    def bounds(
+    def get_bounds_and_margin(
         self,
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
         margin: np.ndarray = np.zeros(2),
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
 
+        margin = TableBounds.scale_margin(child_obj, margin)
         bounds = parent_obj.aabb()[:, :2]
         xy_min, xy_max = bounds
         xy_min[0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
@@ -273,7 +349,7 @@ class InCollisionZone(Predicate, TableBounds):
         xy_min += margin
         xy_max -= margin
 
-        return bounds
+        return bounds, margin
 
 
 class InOperationalZone(Predicate, TableBounds):
@@ -299,15 +375,16 @@ class InOperationalZone(Predicate, TableBounds):
 
         return True
 
-    def bounds(
+    def get_bounds_and_margin(
         self,
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
         margin: np.ndarray = np.zeros(2),
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
 
+        margin = TableBounds.scale_margin(child_obj, margin)
         bounds = parent_obj.aabb()[:, :2]
         xy_min, xy_max = bounds
         xy_min[0] = utils.TABLE_CONSTRAINTS["operational_x_min"]
@@ -315,7 +392,7 @@ class InOperationalZone(Predicate, TableBounds):
         xy_min += margin
         xy_max -= margin
 
-        return bounds
+        return bounds, margin
 
 
 class InObstructionZone(Predicate, TableBounds):
@@ -339,15 +416,16 @@ class InObstructionZone(Predicate, TableBounds):
 
         return True
 
-    def bounds(
+    def get_bounds_and_margin(
         self,
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
         margin: np.ndarray = np.zeros(2),
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
 
+        margin = TableBounds.scale_margin(child_obj, margin)
         bounds = parent_obj.aabb()[:, :2]
         xy_min, xy_max = bounds
         xy_min[0] = utils.TABLE_CONSTRAINTS["obstruction_x_min"]
@@ -355,7 +433,7 @@ class InObstructionZone(Predicate, TableBounds):
         xy_min += margin
         xy_max -= margin
 
-        return bounds
+        return bounds, margin
 
 
 class BeyondWorkspace(Predicate, TableBounds):
@@ -375,19 +453,25 @@ class BeyondWorkspace(Predicate, TableBounds):
 
         return True
 
-    def bounds(
+    def get_bounds_and_margin(
         self,
         child_obj: Object,
         parent_obj: Object,
         state: Sequence[Predicate],
         margin: np.ndarray = np.zeros(2),
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Returns the minimum and maximum x-y bounds outside the workspace."""
         assert child_obj.name == self.args[0] and parent_obj.name == "table"
 
+        zone = type(self).__name__.lower()
+        if f"aligned({child_obj})" in state:
+            theta = Aligned.sample_angle(obj=child_obj, zone=zone)
+            child_obj.set_pose(utils.compute_object_pose(child_obj, theta))
+            margin = utils.compute_margins(child_obj)
+
         poslimit = TableBounds.get_poslimit(child_obj, state)
         if poslimit is not None:
-            return poslimit.bounds(child_obj)[1]
+            return poslimit.bounds(child_obj)[zone], margin
 
         bounds = parent_obj.aabb()[:, :2]
         xy_min, xy_max = bounds
@@ -396,7 +480,7 @@ class BeyondWorkspace(Predicate, TableBounds):
         xy_min += margin
         xy_max -= margin
 
-        return bounds
+        return bounds, margin
 
 
 class Inhand(Predicate):
@@ -587,6 +671,11 @@ class NonBlocking(Predicate):
     """Binary predicate ensuring that one object is not occupying a straightline
     path from the robot base to another object."""
 
+    PULL_MARGIN: Dict[Tuple[Type[Object], str], float] = {
+        (Box, "inworkspace"): 3.0,
+        (Box, "beyondworkspace"): 1.5,
+    }
+
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -595,21 +684,32 @@ class NonBlocking(Predicate):
             return True
 
         target_line = LineString([[0, 0], target_obj.pose().pos[:2].tolist()])
-        vertices = np.concatenate(
-            intersect_obj.convex_hulls(world_frame=True, project_2d=True), axis=0
-        )
+        convex_hulls = intersect_obj.convex_hulls(world_frame=True, project_2d=True)
+        if len(convex_hulls) > 1:
+            raise NotImplementedError("Compound shapes not yet supported")
+        vertices = convex_hulls[0]
 
         if (
             intersect_obj.isinstance(Rack)
             and f"poslimit({intersect_obj})" in state
             and f"aligned({intersect_obj})" in state
         ):
-            # Add additional x-margin buffer for occluding Rack
-            target_margin = 3 * target_obj.size[:2].max()
-            vertices[[1, 2], 1] += target_margin
-            vertices[[0, 3], 1] -= target_margin
+            # Add additional xy-margin buffer to occluding Rack
+            zone = (
+                "inworkspace"
+                if utils.is_inworkspace(obj=intersect_obj)
+                else "beyondworkspace"
+            )
+            try:
+                margin_scale = NonBlocking.PULL_MARGIN[(type(target_obj), zone)]
+            except KeyError:
+                margin_scale = 1.0
+            target_margin = margin_scale * target_obj.size[:2].max()
+            # Expand the vertices by the margin.
+            center = vertices.mean(axis=0)
+            vertices += np.sign(vertices - center) * target_margin
 
-        intersect_poly = Polygon(vertices.tolist())
+        intersect_poly = Polygon(vertices)
         if intersect_poly.intersects(target_line):
             dbprint(f"{self}.value():", False)
             return False
@@ -637,21 +737,14 @@ class On(Predicate):
         parent_z = parent_obj.aabb()[1, 2] + utils.EPSILONS["aabb"]
 
         # Generate theta in the world coordinate frame
-        theta = (
-            Aligned.sample_angle()
-            if f"aligned({child_obj})" in state
-            else np.random.uniform(-np.pi, np.pi)
-        )
-        aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
-        quat = eigen.Quaterniond(aa)
+        if f"aligned({child_obj})" in state:
+            theta = Aligned.sample_angle(obj=child_obj)
+        else:
+            theta = np.random.uniform(-np.pi, np.pi)
+        child_obj.set_pose(utils.compute_object_pose(child_obj, theta))
 
         # Determine object margins after rotating
-        pre_pose = math.Pose(pos=child_obj.pose().pos, quat=quat.coeffs)
-        child_obj.set_pose(pre_pose)
-        child_aabb = child_obj.aabb()[:, :2]
-        margin_world_frame = 0.5 * np.array(
-            [child_aabb[1, 0] - child_aabb[0, 0], child_aabb[1, 1] - child_aabb[0, 1]]
-        )
+        margin_world_frame = utils.compute_margins(child_obj)
 
         try:
             rack_obj = next(obj for obj in objects.values() if obj.isinstance(Rack))
@@ -668,31 +761,15 @@ class On(Predicate):
 
         # Determine stable sampling regions on parent surface
         if parent_obj.name == "table":
-            zones = [
-                prop
-                for prop in state
-                if isinstance(prop, TableBounds) and prop.args[0] == child_obj
-            ]
-            if len(zones) == 0:
-                zone = TableBounds()
-            elif len(zones) != 1:
-                raise ValueError(f"{child_obj} cannot be in multiple zones: {zones}")
-            else:
-                zone = zones[0]
-
-            if child_obj.isinstance(Hook) and isinstance(
-                zone, (InCollisionZone, InOperationalZone, InObstructionZone)
-            ):
-                # Scale down margins in tight spaces
-                margin_world_frame *= 0.25
-
-            bounds = zone.bounds(
-                child_obj=child_obj,
-                parent_obj=parent_obj,
-                state=state,
-                margin=margin_world_frame,
-            )
-            xy_min, xy_max = bounds
+            zone = TableBounds.get_zone(obj=child_obj, state=state)
+            if zone is not None:
+                bounds, margin_world_frame = zone.get_bounds_and_margin(
+                    child_obj=child_obj,
+                    parent_obj=parent_obj,
+                    state=state,
+                    margin=margin_world_frame,
+                )
+                xy_min, xy_max = bounds
 
             if rack_obj is not None and f"infront({child_obj}, {rack_obj})" in state:
                 infront_bounds = InFront.bounds(
@@ -725,9 +802,11 @@ class On(Predicate):
 
         samples = 0
         success = False
+        quat_np = child_obj.pose().quat
         T_parent_obj_to_world = parent_obj.pose().to_eigen()
         while not success and samples < len(range(On.MAX_SAMPLE_ATTEMPTS)):
             # Generate pose and convert to world frame (assumes parent in upright)
+            quat = eigen.Quaterniond(quat_np)
             xyz_parent_frame = np.zeros(3)
             xyz_parent_frame[:2] = np.random.uniform(xy_min, xy_max)
             xyz_world_frame = T_parent_obj_to_world * xyz_parent_frame
