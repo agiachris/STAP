@@ -2,7 +2,7 @@ planner: CEMPlanner
 planner_kwargs:
   num_samples: 200
   num_iterations: 5
-  num_elites: 20
+  num_elites: 10
   standard_deviation: 0.3
 
 agent_configs:
