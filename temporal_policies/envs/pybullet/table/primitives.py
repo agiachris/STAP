@@ -657,19 +657,19 @@ class Push(Primitive):
             # Target must be pushed a minimum distance.
             new_target_distance = np.linalg.norm(target.pose().pos[:2])
             if new_target_distance <= target_distance + MIN_PUSH_DISTANCE:
-                return ExecutionResult(success=False, truncated=False)
+                return ExecutionResult(success=False, truncated=True)
 
             # Target must be pushed underneath rack if it exists.
             if len(self.arg_objects) == 3:
                 obj = self.arg_objects[2]
                 if obj.isinstance(Rack) and not utils.is_under(target, obj):
-                    return ExecutionResult(success=False, truncated=False)
+                    return ExecutionResult(success=False, truncated=True)
 
             robot.goto_pose(command_pose_reach.pos, command_pose_reach.quat)
 
             # Target must be upright.
             if not utils.is_upright(target):
-                return ExecutionResult(success=False, truncated=False)
+                return ExecutionResult(success=False, truncated=True)
 
             robot.goto_pose(pre_pos, command_pose_reach.quat)
         except ControlException as e:
