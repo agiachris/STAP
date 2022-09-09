@@ -24,6 +24,13 @@ TABLE_CONSTRAINTS = {
 EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 0.1}
 
 
+def compute_margins(obj: Object) -> np.ndarray:
+    """Compute the x-y margins of the object in the world frame."""
+    aabb = obj.aabb()[:, :2]
+    margin = 0.5 * np.array([aabb[1, 0] - aabb[0, 0], aabb[1, 1] - aabb[0, 1]])
+    return margin
+
+
 def is_above(obj_a: Object, obj_b: Object) -> bool:
     """Returns True if the object a is above the object b."""
     min_child_z = obj_a.aabb()[0, 2]
