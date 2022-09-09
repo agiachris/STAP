@@ -8,7 +8,7 @@ env_kwargs:
 
   tasks:
     - action_skeleton:
-        - push(table_box_1, hook)
+        - push(table_box_1, hook, rack)
       initial_state:
         - aligned(rack)
         - poslimit(rack)
@@ -25,7 +25,7 @@ env_kwargs:
         - on(rack_box_4, rack)
         - inhand(hook)
     - action_skeleton:
-        - push(table_box_1, hook)
+        - push(table_box_1, hook, rack)
       initial_state:
         - upperhandlegrasp(hook)
         - aligned(rack)

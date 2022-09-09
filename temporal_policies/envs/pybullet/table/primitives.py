@@ -686,11 +686,10 @@ class Push(Primitive):
             return ExecutionResult(success=False, truncated=False)
 
         # Target must be pushed underneath rack if it exists
-        for obj in self.get_non_arg_objects(objects):
-            if obj.isinstance(Rack):
-                if not utils.is_under(target, obj):
-                    return ExecutionResult(success=False, truncated=False)
-                break
+        if len(self.arg_objects) == 3:
+            obj = self.arg_objects[2]
+            if obj.isinstance(Rack) and not utils.is_under(target, obj):
+                return ExecutionResult(success=False, truncated=False)
 
         return ExecutionResult(success=True, truncated=False)
 

@@ -17,7 +17,7 @@ env_kwargs:
         - pick(cyan_box, table)
         - place(cyan_box, table)
         - pick(hook, table)
-        - push(red_box, hook)
+        - push(red_box, hook, rack)
       initial_state:
         - free(hook)
         - free(blue_box)
