@@ -75,7 +75,7 @@ def rearrangement_push_task(
         if arg_idx == 0:
             plan_skeleton.append(f"pick(hook, table)")
         arg_object = objects[num_non_arg_objects + arg_idx]
-        plan_skeleton.append(f"push({arg_object}, hook)")
+        plan_skeleton.append(f"push({arg_object}, hook, rack)")
         predicates.extend(
             [
                 f"free({arg_object})",
