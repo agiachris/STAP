@@ -40,8 +40,7 @@ function train_scod {
 DEBUG=0
 output_path="models"
 
-# Experiments.
-
+# PyBox2d Experiments.
 # exp_name="20220727/decoupled_state"
 # TRAINER_CONFIG="configs/pybox2d/trainers/scod.yaml"
 # SCOD_CONFIG="configs/pybox2d/scod/scod.yaml"
@@ -54,7 +53,8 @@ output_path="models"
 #     "ckpt_model_100000"
 # )
 
-exp_name="20220905/official"
+# Pybullet Experiments.
+exp_name="20220908/official"
 TRAINER_CONFIG="configs/pybullet/trainers/scod.yaml"
 SCOD_CONFIG="configs/pybullet/scod/scod.yaml"
 MODEL_NETWORK="critic"

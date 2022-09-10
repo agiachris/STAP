@@ -185,7 +185,7 @@ class Primitive(envs.Primitive, abc.ABC):
             "observation_indices": observation_indices,
             "shuffle_range": [idx_shuffle_start, idx_shuffle_end],
         }
-        return self.env.get_policy_args(self)
+        # return self.env.get_policy_args(self)
 
     def get_non_arg_objects(self, objects: Dict[str, Object]) -> List[Object]:
         """Gets the non-primitive argument objects."""

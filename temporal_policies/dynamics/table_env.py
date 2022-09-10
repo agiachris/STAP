@@ -105,12 +105,12 @@ class TableEnvDynamics(LatentDynamics):
         return self
 
     def train_mode(self) -> None:
-        "Switches to train mode."""
+        """Switches to train mode."""
         super().train_mode()
         self._plan_mode = False
 
     def eval_mode(self) -> None:
-        "Switches to eval mode."""
+        """Switches to eval mode."""
         super().eval_mode()
         self._plan_mode = False
 

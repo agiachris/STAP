@@ -197,8 +197,8 @@ class CEMPlanner(planners.Planner):
                 )
 
                 # Evaluate trajectories.
-                p_success, t_values = utils.evaluate_trajectory(
-                    value_fns, decode_fns, t_states, t_actions, p_transitions
+                p_success, t_values, _ = utils.evaluate_trajectory(
+                    value_fns, decode_fns, p_transitions, t_states, actions=t_actions
                 )
 
                 # Convert to numpy.
