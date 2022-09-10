@@ -3,13 +3,15 @@ import pathlib
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import numpy as np
+import torch
 import tqdm
 
 from temporal_policies import datasets, dynamics as dynamics_module, envs, planners
 from temporal_policies.trainers.agents import AgentTrainer
+from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.unified import UnifiedTrainer
-from temporal_policies.utils import metrics
-from temporal_policies.utils.typing import Scalar
+from temporal_policies.utils import metrics, spaces, tensors
+from temporal_policies.utils.typing import Batch, Scalar, WrappedBatch
 
 
 class DafTrainer(UnifiedTrainer):
@@ -102,7 +104,7 @@ class DafTrainer(UnifiedTrainer):
     def collect_agent_step(
         self,
         agent_trainer: AgentTrainer,
-        primitive: envs.Primitive,
+        action_skeleton: Sequence[envs.Primitive],
         action: np.ndarray,
         dataset: datasets.ReplayBuffer,
         t: int,
@@ -115,6 +117,7 @@ class DafTrainer(UnifiedTrainer):
         Returns:
             Collect metrics.
         """
+        primitive = action_skeleton[0]
         self.env.set_primitive(primitive)
         observation = self.env.get_observation()
         dataset.add(observation=observation)
@@ -162,7 +165,7 @@ class DafTrainer(UnifiedTrainer):
         return step_metrics
 
     def plan_step(
-        self, action_skeleton: Sequence[envs.Primitive], random: bool
+        self, action_skeleton: Sequence[envs.Primitive], random: bool, mode: str
     ) -> np.ndarray:
         if random:
             return action_skeleton[0].sample()
@@ -198,15 +201,19 @@ class DafTrainer(UnifiedTrainer):
             agent_trainer = self.agent_trainers[primitive.idx_policy]
             with agent_trainer.profiler.profile(mode):
                 if failure:
-                    collect_metrics[agent_trainer.name].update({
-                        f"reward_{t}": 0.0,
-                        # f"length_{t}": 0,
-                        # f"episode_{t}": agent_trainer.epoch,
-                    })
+                    collect_metrics[agent_trainer.name].update(
+                        {
+                            f"reward_{t}": 0.0,
+                            # f"length_{t}": 0,
+                            # f"episode_{t}": agent_trainer.epoch,
+                        }
+                    )
                     continue
 
                 # Plan.
-                action = self.plan_step(self.env.action_skeleton[t:], random=random)
+                action = self.plan_step(
+                    self.env.action_skeleton[t:], random=random, mode=mode
+                )
 
                 # Execute first step.
                 dataset = (
@@ -214,9 +221,15 @@ class DafTrainer(UnifiedTrainer):
                     if mode == "evaluate"
                     else agent_trainer.dataset
                 )
-                collect_metrics[agent_trainer.name].update(self.collect_agent_step(
-                    agent_trainer, primitive, action, dataset, t
-                ))
+                collect_metrics[agent_trainer.name].update(
+                    self.collect_agent_step(
+                        agent_trainer,
+                        self.env.action_skeleton[t:],
+                        action,
+                        dataset,
+                        t,
+                    )
+                )
                 if collect_metrics[agent_trainer.name][f"reward_{t}"] == 0.0:
                     failure = True
 
@@ -278,3 +291,46 @@ class DafTrainer(UnifiedTrainer):
         self.train_mode()
 
         return eval_metrics_list
+
+    def train_step(  # type: ignore
+        self, step: int, batch: WrappedBatch
+    ) -> Dict[str, Mapping[str, float]]:
+        """Performs a single training step.
+
+        Args:
+            step: Training step.
+            batch: Training batch.
+
+        Returns:
+            Dict of training metrics for each trainer for logging.
+        """
+        # Collect experience.
+        collect_metrics = self.collect_step(random=False)
+
+        # Train step.
+        train_metrics = {}
+        for idx_policy, agent_trainer in enumerate(self.agent_trainers):
+            idx_batch = batch["idx_replay_buffer"] == idx_policy
+            agent_batch: Batch = tensors.map_structure(  # type: ignore
+                lambda x: x[idx_batch],
+                {key: val for key, val in batch.items() if key != "idx_replay_buffer"},
+            )
+
+            # Torch dataloader makes it a tensor?
+            assert isinstance(agent_batch["action"], torch.Tensor)
+            agent_batch["action"] = spaces.subspace(
+                agent_batch["action"].numpy(), agent_trainer.agent.action_space
+            )
+            # Do not collect data during agent train step.
+            agent_train_metrics = Trainer.train_step(agent_trainer, step, agent_batch)
+            train_metrics[agent_trainer.name] = agent_train_metrics
+
+        dynamics_train_metrics = self.dynamics_trainer.train_step(step, batch)
+        train_metrics[self.dynamics_trainer.name] = dynamics_train_metrics
+
+        for key in train_metrics:
+            if key not in collect_metrics:
+                collect_metrics[key] = {}
+        return {
+            key: {**collect_metrics[key], **train_metrics[key]} for key in train_metrics
+        }
