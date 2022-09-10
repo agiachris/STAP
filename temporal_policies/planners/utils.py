@@ -5,9 +5,9 @@ import numpy as np
 import torch
 import yaml
 
-from temporal_policies import agents, envs, networks, planners
+from temporal_policies import agents, dynamics, envs, networks, planners
 from temporal_policies.dynamics import Dynamics, LatentDynamics, load as load_dynamics
-from temporal_policies.utils import configs, tensors
+from temporal_policies.utils import configs, spaces, tensors, timing
 
 
 class PlannerFactory(configs.Factory):
@@ -242,35 +242,34 @@ def evaluate_trajectory(
 def evaluate_plan(
     env: envs.Env,
     action_skeleton: Sequence[envs.Primitive],
-    state: np.ndarray,
     actions: np.ndarray,
     gif_path: Optional[Union[str, pathlib.Path]] = None,
 ) -> np.ndarray:
-    """Evaluates the given plan.
+    """Evaluates the given open-loop plan.
 
     Args:
         env: Sequential env.
         action_skeleton: List of primitives.
-        state: Initial state.
         actions: Planned actions [T, A].
         gif_path: Optional path to save a rendered gif.
 
     Returns:
         Rewards received at each timestep.
     """
-    env.set_state(state)
-
     if gif_path is not None:
         env.record_start()
 
-    reward = float("nan")
+    # Iterate over plan.
     rewards = np.zeros(len(action_skeleton), dtype=np.float32)
     for t, primitive in enumerate(action_skeleton):
+        # Execute action.
         env.set_primitive(primitive)
-        if reward != 0.0:
-            action = actions[t, : env.action_space.shape[0]]
-            _, reward, _, _, _ = env.step(action)
+        action = actions[t, : env.action_space.shape[0]]
+        _, reward, _, _, _ = env.step(action)
         rewards[t] = reward
+
+        if reward == 0.0:
+            break
 
     if gif_path is not None:
         env.record_stop()
@@ -280,3 +279,129 @@ def evaluate_plan(
         env.record_save(gif_path, reset=True)
 
     return rewards
+
+
+def run_open_loop_planning(
+    env: envs.Env,
+    action_skeleton: Sequence[envs.Primitive],
+    planner: planners.Planner,
+    timer: Optional[timing.Timer] = None,
+    gif_path: Optional[Union[str, pathlib.Path]] = None,
+    record_timelapse: bool = False,
+) -> Tuple[np.ndarray, planners.PlanningResult, Optional[float]]:
+    if isinstance(planner.dynamics, dynamics.OracleDynamics):
+        state = env.get_state()
+
+    if record_timelapse and gif_path is not None:
+        env.record_start("timelapse", mode="timelapse")
+
+    # Plan.
+    if timer is not None:
+        timer.tic("planner")
+    plan = planner.plan(env.get_observation(), env.action_skeleton)
+    t_planner = None if timer is None else timer.toc("planner")
+
+    if record_timelapse and gif_path is not None:
+        env.record_stop("timelapse", mode="timelapse")
+        env.record_save(gif_path, reset=True)
+
+    if isinstance(planner.dynamics, dynamics.OracleDynamics):
+        env.set_state(state)
+
+    # Execute plan.
+    rewards = evaluate_plan(env, env.action_skeleton, plan.actions, gif_path=gif_path)
+
+    if isinstance(planner.dynamics, dynamics.OracleDynamics):
+        env.set_state(state)
+
+    return rewards, plan, t_planner
+
+
+def run_closed_loop_planning(
+    env: envs.Env,
+    action_skeleton: Sequence[envs.Primitive],
+    planner: planners.Planner,
+    timer: Optional[timing.Timer] = None,
+    gif_path: Optional[Union[str, pathlib.Path]] = None,
+) -> Tuple[np.ndarray, planners.PlanningResult, Optional[List[float]]]:
+    """Runs closed-loop planning.
+
+    Args:
+        env: Sequential env.
+        action_skeleton: List of primitives.
+        actions: Planned actions [T, A].
+        gif_path: Optional path to save a rendered gif.
+
+    Returns:
+        Rewards received at each timestep.
+    """
+    if isinstance(planner.dynamics, dynamics.OracleDynamics):
+        raise ValueError(
+            "Do not run closed-loop planning with OracleDynamics! Open-loop gets the same results."
+        )
+
+    if gif_path is not None:
+        env.record_start()
+
+    T = len(action_skeleton)
+    rewards = np.zeros(T, dtype=np.float32)
+    actions = spaces.null(planner.dynamics.action_space, batch_shape=T)
+    states = spaces.null(planner.dynamics.state_space, batch_shape=T + 1)
+    values = np.full(T, float("nan"), dtype=np.float32)
+    visited_actions = spaces.null(planner.dynamics.action_space, batch_shape=(T, T))
+    visited_states = spaces.null(planner.dynamics.state_space, batch_shape=(T, T + 1))
+    p_visited_success = np.full(T, float("nan"), dtype=np.float32)
+    visited_values = np.full((T, T), float("nan"), dtype=np.float32)
+
+    observation = env.get_observation()
+    t_planner: Optional[List[float]] = None if timer is None else []
+    for t, primitive in enumerate(action_skeleton):
+        env.set_primitive(primitive)
+
+        # Plan.
+        if timer is not None:
+            timer.tic("planner")
+        plan = planner.plan(observation, action_skeleton[t:])
+        if t_planner is not None and timer is not None:
+            t_planner.append(timer.toc("planner"))
+
+        # Execute first action.
+        observation, reward, _, _, _ = env.step(plan.actions[0])
+
+        rewards[t] = reward
+        visited_actions[t, t:] = plan.actions
+        visited_states[t, t:] = plan.states
+        p_visited_success[t] = plan.p_success
+        visited_values[t, t:] = plan.values
+
+        if reward == 0.0:
+            actions[t:] = plan.actions
+            states[t:] = plan.states
+            values[t:] = plan.values
+            break
+
+        actions[t] = plan.actions[0]
+        states[t : t + 1] = plan.states[:1]
+        values[t] = plan.values[0]
+
+    p_success = np.exp(np.log(values).sum())
+
+    if gif_path is not None:
+        env.record_stop()
+        gif_path = pathlib.Path(gif_path)
+        if (rewards == 0.0).any():
+            gif_path = gif_path.parent / f"{gif_path.name}_fail{gif_path.suffix}"
+        env.record_save(gif_path, reset=True)
+
+    plan = planners.PlanningResult(
+        actions=actions,
+        states=states,
+        p_success=p_success,
+        values=values,
+        visited_actions=visited_actions,
+        visited_states=visited_states,
+        p_visited_success=p_visited_success,
+        visited_values=visited_values,
+    )
+
+    return rewards, plan, t_planner

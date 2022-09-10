@@ -36,6 +36,7 @@ def evaluate_planners(
     device: str,
     num_eval: int,
     path: Union[str, pathlib.Path],
+    closed_loop: int,
     grid_resolution: int,
     verbose: bool,
     seed: Optional[int] = None,
@@ -75,19 +76,24 @@ def evaluate_planners(
         if verbose:
             env.record_start("timelapse", mode="timelapse")
 
-        timer.tic("planner")
-        plan = planner.plan(observation, env.action_skeleton)
-        t_planner = timer.toc("planner")
+        if closed_loop:
+            rewards, plan, t_planner = planners.run_closed_loop_planning(
+                env,
+                env.action_skeleton,
+                planner,
+                timer=timer,
+                gif_path=path / f"planning_{i}.gif",
+            )
+        else:
+            rewards, plan, t_planner = planners.run_open_loop_planning(
+                env,
+                env.action_skeleton,
+                planner,
+                timer=timer,
+                gif_path=path / f"planning_{i}.gif",
+                record_timelapse=verbose,
+            )
 
-        env.record_save(path / f"planning_{i}.gif")
-
-        rewards = planners.evaluate_plan(
-            env,
-            env.action_skeleton,
-            state,
-            plan.actions,
-            gif_path=path / f"exec_{i}.gif",
-        )
         if rewards.prod() > 0:
             num_success += 1
         pbar.set_postfix(
@@ -97,6 +103,12 @@ def evaluate_planners(
         if verbose:
             print("success:", rewards.prod(), rewards)
             print("predicted success:", plan.p_success, plan.values)
+            if closed_loop:
+                print(
+                    "visited predicted success:",
+                    plan.p_visited_success,
+                    plan.visited_values,
+                )
             for primitive, action in zip(env.action_skeleton, plan.actions):
                 if isinstance(primitive, table_primitives.Primitive):
                     primitive_action = str(primitive.Action(action))
@@ -125,7 +137,7 @@ def evaluate_planners(
                 title=f"{pathlib.Path(config).stem}: {t_planner:0.2f}s",
             )
         elif isinstance(env, envs.pybullet.TableEnv):
-            if not isinstance(planner.dynamics, dynamics.OracleDynamics):
+            if not closed_loop and not isinstance(planner.dynamics, dynamics.OracleDynamics):
                 recorder = recording.Recorder()
                 recorder.start()
                 env.set_state(state)
@@ -208,6 +220,9 @@ if __name__ == "__main__":
         "--num-eval", "-n", type=int, default=1, help="Number of eval iterations"
     )
     parser.add_argument("--path", default="plots", help="Path for output plots")
+    parser.add_argument(
+        "--closed-loop", default=1, type=int, help="Run closed-loop planning"
+    )
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument(
