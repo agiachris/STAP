@@ -1,6 +1,6 @@
 import collections
 import pathlib
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import numpy as np
 import tqdm
@@ -105,6 +105,7 @@ class DafTrainer(UnifiedTrainer):
         primitive: envs.Primitive,
         action: np.ndarray,
         dataset: datasets.ReplayBuffer,
+        t: int,
     ) -> Dict[str, Any]:
         """Collects data for the replay buffer.
 
@@ -146,19 +147,35 @@ class DafTrainer(UnifiedTrainer):
         self.increment_epoch()
 
         step_metrics = {
-            metric: value
+            f"{metric}_{t}": value
             for metric, value in info.items()
             if metric in metrics.METRIC_AGGREGATION_FNS
         }
-        step_metrics["reward"] = agent_trainer._episode_reward
-        step_metrics["length"] = agent_trainer._episode_length
-        step_metrics["episode"] = agent_trainer.epoch
+        step_metrics[f"reward_{t}"] = agent_trainer._episode_reward
+        # step_metrics[f"length_{t}"] = agent_trainer._episode_length
+        # step_metrics[f"episode_{t}"] = agent_trainer.epoch
 
         # Reset the environment
         self._episode_length = 0
         self._episode_reward = 0.0
 
         return step_metrics
+
+    def plan_step(
+        self, action_skeleton: Sequence[envs.Primitive], random: bool
+    ) -> np.ndarray:
+        if random:
+            return action_skeleton[0].sample()
+
+        with self.dynamics_trainer.profiler.profile("plan"):
+            # Plan.
+            self.env.set_primitive(action_skeleton[0])
+            observation = self.env.get_observation()
+            actions = self.planner.plan(
+                observation=observation, action_skeleton=self.env.action_skeleton
+            ).actions
+
+        return actions[0]
 
     def collect_step(
         self, random: bool = False, mode: str = "collect"
@@ -175,48 +192,50 @@ class DafTrainer(UnifiedTrainer):
         self.dynamics_trainer.dynamics.plan_mode()
         self.env.reset()
 
-        if random:
-            actions = np.array(
-                [primitive.sample() for primitive in self.env.action_skeleton]
-            )
-        else:
-            with self.dynamics_trainer.profiler.profile("plan"):
-                # Plan.
-                self.env.set_primitive(self.env.action_skeleton[0])
-                observation = self.env.get_observation()
-                actions = self.planner.plan(
-                    observation=observation, action_skeleton=self.env.action_skeleton
-                ).actions
-
         failure = False
-        collect_metrics: Dict[str, Mapping[str, float]] = {}
-        for primitive, action in zip(self.env.action_skeleton, actions):
+        collect_metrics: Dict[str, Dict[str, float]] = collections.defaultdict(dict)
+        for t, primitive in enumerate(self.env.action_skeleton):
             agent_trainer = self.agent_trainers[primitive.idx_policy]
             with agent_trainer.profiler.profile(mode):
                 if failure:
-                    collect_metrics[agent_trainer.name] = {
-                        "reward": 0.0,
-                        "length": 0,
-                        "episode": agent_trainer.epoch,
-                    }
+                    collect_metrics[agent_trainer.name].update({
+                        f"reward_{t}": 0.0,
+                        # f"length_{t}": 0,
+                        # f"episode_{t}": agent_trainer.epoch,
+                    })
                     continue
 
+                # Plan.
+                action = self.plan_step(self.env.action_skeleton[t:], random=random)
+
+                # Execute first step.
                 dataset = (
                     agent_trainer.eval_dataset
                     if mode == "evaluate"
                     else agent_trainer.dataset
                 )
-                collect_metrics[agent_trainer.name] = self.collect_agent_step(
-                    agent_trainer, primitive, action, dataset
-                )
-                if collect_metrics[agent_trainer.name]["reward"] == 0.0:
+                collect_metrics[agent_trainer.name].update(self.collect_agent_step(
+                    agent_trainer, primitive, action, dataset, t
+                ))
+                if collect_metrics[agent_trainer.name][f"reward_{t}"] == 0.0:
                     failure = True
 
+        for trainer in self.agent_trainers:
+            if trainer.name not in collect_metrics:
+                collect_metrics[trainer.name] = {agent_trainer.eval_metric: 0.0}
+                continue
+
+            reward = sum(
+                reward
+                for key, reward in collect_metrics[trainer.name].items()
+                if agent_trainer.eval_metric in key
+            )
+            collect_metrics[trainer.name][agent_trainer.eval_metric] = reward
         collect_metrics[self.dynamics_trainer.name] = {}
 
         self.train_mode()
 
-        return collect_metrics
+        return collect_metrics  # type: ignore
 
     def evaluate_step(self) -> Dict[str, Mapping[str, float]]:
         return self.collect_step(random=False, mode="evaluate")

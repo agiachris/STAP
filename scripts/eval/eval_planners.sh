@@ -165,6 +165,7 @@ checkpoints=(
     # "best_model"
     "ckpt_model_50000"
 )
+ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
