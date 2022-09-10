@@ -1,6 +1,6 @@
 import collections
 import pathlib
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import numpy as np
 import tqdm
@@ -160,6 +160,20 @@ class DafTrainer(UnifiedTrainer):
 
         return step_metrics
 
+    def plan_step(self, action_skeleton: Sequence[envs.Primitive], random: bool) -> np.ndarray:
+        if random:
+            return action_skeleton[0].sample()
+
+        with self.dynamics_trainer.profiler.profile("plan"):
+            # Plan.
+            self.env.set_primitive(action_skeleton[0])
+            observation = self.env.get_observation()
+            actions = self.planner.plan(
+                observation=observation, action_skeleton=self.env.action_skeleton
+            ).actions
+
+        return actions[0]
+
     def collect_step(
         self, random: bool = False, mode: str = "collect"
     ) -> Dict[str, Mapping[str, float]]:
@@ -175,22 +189,9 @@ class DafTrainer(UnifiedTrainer):
         self.dynamics_trainer.dynamics.plan_mode()
         self.env.reset()
 
-        if random:
-            actions = np.array(
-                [primitive.sample() for primitive in self.env.action_skeleton]
-            )
-        else:
-            with self.dynamics_trainer.profiler.profile("plan"):
-                # Plan.
-                self.env.set_primitive(self.env.action_skeleton[0])
-                observation = self.env.get_observation()
-                actions = self.planner.plan(
-                    observation=observation, action_skeleton=self.env.action_skeleton
-                ).actions
-
         failure = False
         collect_metrics: Dict[str, Mapping[str, float]] = {}
-        for primitive, action in zip(self.env.action_skeleton, actions):
+        for t, primitive in enumerate(self.env.action_skeleton):
             agent_trainer = self.agent_trainers[primitive.idx_policy]
             with agent_trainer.profiler.profile(mode):
                 if failure:
@@ -201,6 +202,10 @@ class DafTrainer(UnifiedTrainer):
                     }
                     continue
 
+                # Plan.
+                action = self.plan_step(self.env.action_skeleton[t:], random=random)
+
+                # Execute first step.
                 dataset = (
                     agent_trainer.eval_dataset
                     if mode == "evaluate"

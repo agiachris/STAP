@@ -97,7 +97,11 @@ def evaluate_planners(
         if rewards.prod() > 0:
             num_success += 1
         pbar.set_postfix(
-            dict(success=rewards.prod(), **{f"r{t}": r for t, r in enumerate(rewards)})
+            dict(
+                success=rewards.prod(),
+                **{f"r{t}": r for t, r in enumerate(rewards)},
+                num_successes=f"{num_success} / {num_eval}",
+            )
         )
 
         if verbose:
@@ -137,7 +141,9 @@ def evaluate_planners(
                 title=f"{pathlib.Path(config).stem}: {t_planner:0.2f}s",
             )
         elif isinstance(env, envs.pybullet.TableEnv):
-            if not closed_loop and not isinstance(planner.dynamics, dynamics.OracleDynamics):
+            if not closed_loop and not isinstance(
+                planner.dynamics, dynamics.OracleDynamics
+            ):
                 recorder = recording.Recorder()
                 recorder.start()
                 env.set_state(state)
