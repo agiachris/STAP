@@ -39,12 +39,14 @@ class ShootingPlanner(planners.Planner):
         self,
         observation: np.ndarray,
         action_skeleton: Sequence[envs.Primitive],
+        return_visited_samples: bool = False,
     ) -> planners.PlanningResult:
         """Generates `num_samples` trajectories and picks the best one.
 
         Args:
             observation: Environment observation.
             action_skeleton: List of primitives.
+            return_visited_samples: Whether to return the samples visited during planning.
 
         Returns:
             Planning result.
@@ -58,7 +60,7 @@ class ShootingPlanner(planners.Planner):
                 t_observation,
                 action_skeleton,
                 self.policies,
-                batch_size=self.num_samples,
+                batch_size=self.num_samples * len(action_skeleton),
             )
 
             # Evaluate trajectories.
@@ -74,22 +76,32 @@ class ShootingPlanner(planners.Planner):
                 value_fns, decode_fns, t_states, t_actions, p_transitions
             )
 
-        # Convert to numpy.
-        actions = t_actions.cpu().numpy()
-        states = t_states.cpu().numpy()
-        p_success = p_success.cpu().numpy()
-        values = t_values.cpu().numpy()
-
         # Select best trajectory.
         idx_best = p_success.argmax()
 
+        # Convert to numpy.
+        actions = t_actions[idx_best].cpu().numpy()
+        states = t_states[idx_best].cpu().numpy()
+        p_success = p_success[idx_best].cpu().numpy()
+        values = t_values[idx_best].cpu().numpy()
+        if return_visited_samples:
+            visited_actions = t_actions.cpu().numpy()
+            visited_states = t_states.cpu().numpy()
+            visited_p_success = p_success.cpu().numpy()
+            visited_values = t_values.cpu().numpy()
+        else:
+            visited_actions = None
+            visited_states = None
+            visited_p_success = None
+            visited_values = None
+
         return planners.PlanningResult(
-            actions=actions[idx_best],
-            states=states[idx_best],
-            p_success=p_success[idx_best],
-            values=values[idx_best],
-            visited_actions=actions,
-            visited_states=states,
-            p_visited_success=p_success,
-            visited_values=values,
+            actions=actions,
+            states=states,
+            p_success=p_success,
+            values=values,
+            visited_actions=visited_actions,
+            visited_states=visited_states,
+            p_visited_success=visited_p_success,
+            visited_values=visited_values,
         )

@@ -139,7 +139,7 @@ class StratifiedReplayBuffer(ReplayBuffer):
             if batch is None:
                 print(
                     "[temporal_policies.datasets.StratifiedReplayBuffer.sample]: "
-                    f"WARNING: Batch {idx_replay_buffer} is empty."
+                    f"WARNING: Batch {idx_replay_buffer}/{len(self.replay_buffers)} is empty."
                 )
                 continue
             assert isinstance(batch["action"], np.ndarray)

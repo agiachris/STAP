@@ -51,7 +51,7 @@ plots_path="plots"
 
 # Experiments.
 
-exp_name="20220818/workspace_sample"
+exp_name="20220907/official"
 
 planners=(
     # "daf_policy_cem"

@@ -95,8 +95,11 @@ class ObjectState:
 
     def pose(self) -> math.Pose:
         angle = np.linalg.norm(self.aa)
-        axis = self.aa / angle
-        quat = eigen.Quaterniond(eigen.AngleAxisd(angle, axis))
+        if angle == 0:
+            quat = eigen.Quaterniond.identity()
+        else:
+            axis = self.aa / angle
+            quat = eigen.Quaterniond(eigen.AngleAxisd(angle, axis))
         return math.Pose(pos=self.pos, quat=quat.coeffs)
 
     def set_pose(self, pose: math.Pose) -> None:
