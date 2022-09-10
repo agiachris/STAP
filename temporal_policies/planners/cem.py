@@ -242,6 +242,7 @@ class CEMPlanner(planners.Planner):
                 # Update distribution.
                 mean = self.momentum * mean + (1 - self.momentum) * elites.mean(dim=0)
                 std = self.momentum * std + (1 - self.momentum) * elites.std(dim=0)
+                std = torch.clip(std, 1e-4)
 
                 # Decay population size.
                 num_samples = int(self.population_decay * num_samples + 0.5)
