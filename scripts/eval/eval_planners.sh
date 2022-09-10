@@ -139,14 +139,24 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220905/official"
+exp_name="20220907/official_collision_penalty"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
-env_configs=(
-    "configs/pybullet/envs/official/domains/hook_reach/task0.yaml"
-    # "configs/pybullet/envs/official/domains/hook_reach/task1.yaml"
-    # "configs/pybullet/envs/official/domains/hook_reach/task2.yaml"
-    # "configs/pybullet/envs/official/domains/hook_reach/task3.yaml"
-    # "configs/pybullet/envs/official/domains/hook_reach/task4.yaml"
+envs=(
+    "hook_reach/task0"
+    "hook_reach/task1"
+    "hook_reach/task2"
+    "hook_reach/task3"
+    "hook_reach/task4"
+    "constrained_packing/task0"
+    "constrained_packing/task1"
+    "constrained_packing/task2"
+    "constrained_packing/task3"
+    "constrained_packing/task4"
+    "rearrangement_push/task0"
+    "rearrangement_push/task1"
+    "rearrangement_push/task2"
+    "rearrangement_push/task3"
+    "rearrangement_push/task4"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(
@@ -154,6 +164,7 @@ checkpoints=(
     # "best_model"
     "ckpt_model_50000"
 )
+ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
@@ -163,12 +174,9 @@ POLICY_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_INPUT_PATH="${input_path}/${exp_name}"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for CKPT in "${checkpoints[@]}"; do
-    for ENV_CONFIG in "${env_configs[@]}"; do
-        env_name=${ENV_CONFIG//.yaml/}  # Cut off .yaml.
-        env_name=(${env_name//\// })  # Tokenize by '/'.
-        env_name=${env_name[@]: -2}  # Extract last two tokens.
-        env_name="${env_name// /\/}"  # Add back '/'.
-        PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env_name}"
+    for env in "${envs[@]}"; do
+        ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
+        PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
         run_planners
     done
 done

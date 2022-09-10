@@ -301,9 +301,6 @@ class TableEnv(PybulletEnv):
             pass
         super().close()
 
-    def __del__(self) -> None:
-        self.close()
-
     @property
     def tasks(self) -> TaskDistribution:
         return self._tasks
@@ -690,11 +687,16 @@ class TableEnv(PybulletEnv):
     def wait_until_stable(
         self, min_iters: int = 0, max_iters: int = 3 * math.PYBULLET_STEPS_PER_SEC
     ) -> int:
+        IS_MOVING_KEY = "TableEnv.wait_until_stable"
+
         def is_any_object_moving() -> bool:
             return any(
-                not obj.is_static and utils.is_moving(obj)
+                not obj.is_static and utils.is_moving(obj, use_history=IS_MOVING_KEY)
                 for obj in self.real_objects()
             )
+
+        # Reset history for `utils.is_moving()`.
+        utils.TWIST_HISTORY[IS_MOVING_KEY].clear()
 
         num_iters = 0
         while (

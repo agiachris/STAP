@@ -1,4 +1,5 @@
-from typing import Optional, Tuple
+import collections
+from typing import Dict, Optional
 
 import itertools
 import numpy as np
@@ -6,8 +7,8 @@ from ctrlutils import eigen
 import pybullet as p
 from shapely.geometry import Polygon
 
+from temporal_policies.envs.pybullet.sim import body, math
 from temporal_policies.envs.pybullet.table.objects import Object
-from temporal_policies.envs.pybullet.sim import body
 
 
 TABLE_CONSTRAINTS = {
@@ -22,6 +23,21 @@ TABLE_CONSTRAINTS = {
 
 
 EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 0.1}
+
+
+def compute_margins(obj: Object) -> np.ndarray:
+    """Compute the x-y margins of the object in the world frame."""
+    aabb = obj.aabb()[:, :2]
+    margin = 0.5 * (aabb[1] - aabb[0])
+    return margin
+
+
+def compute_object_pose(obj: Object, theta: float) -> math.Pose:
+    """Computes a new pose for the object with the given theta."""
+    aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
+    quat = eigen.Quaterniond(aa)
+    pose = math.Pose(pos=obj.pose().pos, quat=quat.coeffs)
+    return pose
 
 
 def is_above(obj_a: Object, obj_b: Object) -> bool:
@@ -48,9 +64,34 @@ def is_within_distance(
     )
 
 
-def is_moving(obj: Object) -> bool:
-    """Returns True if the object is moving."""
-    return bool((np.abs(obj.twist()) >= EPSILONS["twist"]).any())
+TWIST_HISTORY: Dict[str, Dict[Object, np.ndarray]] = collections.defaultdict(dict)
+
+
+def is_moving(obj: Object, use_history: Optional[str] = None) -> bool:
+    """Returns True if the object is moving.
+
+    Args:
+        obj: Object.
+        use_history: A unique user-provided key that if set, will average the
+            current velocity with the previous velocity from when this function
+            was last called with the same key to decide whether the object is
+            moving. This helps avoid reporting the object as moving when it is
+            simply vibrating due to Pybullet instability. The unique key helps
+            avoid interference between different functions calling
+            `is_moving()`.
+    """
+    global TWIST_HISTORY
+    twist = obj.twist()
+    if use_history is not None:
+        try:
+            old_twist = TWIST_HISTORY[use_history][obj]
+        except KeyError:
+            old_twist = twist
+
+        TWIST_HISTORY[use_history][obj] = twist
+        twist = 0.5 * (twist + old_twist)
+
+    return bool((np.abs(twist) >= EPSILONS["twist"]).any())
 
 
 def is_below_table(obj: Object) -> bool:
@@ -105,7 +146,7 @@ def is_under(obj_a: Object, obj_b: Object) -> bool:
 def is_inworkspace(
     obj: Optional[Object] = None,
     obj_pos: Optional[np.ndarray] = None,
-    distance: Optional[np.ndarray] = None,
+    distance: Optional[float] = None,
 ) -> bool:
     """Returns True if the objects is in the workspace."""
     if obj_pos is None or distance is None:
