@@ -1,4 +1,3 @@
-import collections
 import pathlib
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
@@ -85,6 +84,10 @@ class DafTrainer(UnifiedTrainer):
         self._planner = planner
 
         self.closed_loop_planning = closed_loop_planning
+        assert isinstance(self.env, envs.pybullet.TableEnv)
+        self._max_num_actions = max(
+            len(task.action_skeleton) for task in self.env.tasks.tasks
+        )
 
     @property
     def env(self) -> envs.Env:
@@ -199,7 +202,10 @@ class DafTrainer(UnifiedTrainer):
                 ).actions
 
         failure = False
-        collect_metrics: Dict[str, Dict[str, float]] = collections.defaultdict(dict)
+        collect_metrics: Dict[str, Dict[str, float]] = {
+            trainer.name: {f"reward_{t}": 0.0 for t in range(self._max_num_actions)}
+            for trainer in self.agent_trainers
+        }
         for t, primitive in enumerate(self.env.action_skeleton):
             agent_trainer = self.agent_trainers[primitive.idx_policy]
             with agent_trainer.profiler.profile(mode):
@@ -263,9 +269,9 @@ class DafTrainer(UnifiedTrainer):
         """
         self.eval_mode()
 
-        eval_metrics_list: Dict[
-            str, List[Mapping[str, Union[Scalar, np.ndarray]]]
-        ] = collections.defaultdict(list)
+        eval_metrics_list: Dict[str, List[Mapping[str, Union[Scalar, np.ndarray]]]] = {
+            trainer.name: [] for trainer in self.trainers
+        }
         pbar = tqdm.tqdm(
             range(self.num_eval_steps),
             desc=f"Eval {self.name}",

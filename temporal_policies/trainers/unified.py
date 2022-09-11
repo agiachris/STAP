@@ -1,4 +1,3 @@
-import collections
 import pathlib
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
@@ -372,9 +371,9 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
         # Train.
         self.train_mode()
-        metrics_list: Dict[str, List[Mapping[str, float]]] = collections.defaultdict(
-            list
-        )
+        metrics_list: Dict[str, List[Mapping[str, float]]] = {
+            trainer.name: [] for trainer in self.trainers
+        }
         batches = iter(dataloader)
         pbar = tqdm.tqdm(
             range(self.step - self.num_pretrain_steps, self.num_train_steps),
@@ -407,7 +406,7 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
             # Log.
             for key, train_metric in train_metrics.items():
                 metrics_list[key].append(train_metric)
-            metrics_list = collections.defaultdict(list, self.log_step(metrics_list))
+            metrics_list = self.log_step(metrics_list)
 
             self.increment_step()
             eval_step = train_step + 1
