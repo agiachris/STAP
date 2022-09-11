@@ -198,11 +198,13 @@ class DafTrainer(UnifiedTrainer):
             agent_trainer = self.agent_trainers[primitive.idx_policy]
             with agent_trainer.profiler.profile(mode):
                 if failure:
-                    collect_metrics[agent_trainer.name].update({
-                        f"reward_{t}": 0.0,
-                        # f"length_{t}": 0,
-                        # f"episode_{t}": agent_trainer.epoch,
-                    })
+                    collect_metrics[agent_trainer.name].update(
+                        {
+                            f"reward_{t}": 0.0,
+                            # f"length_{t}": 0,
+                            # f"episode_{t}": agent_trainer.epoch,
+                        }
+                    )
                     continue
 
                 # Plan.
@@ -214,9 +216,11 @@ class DafTrainer(UnifiedTrainer):
                     if mode == "evaluate"
                     else agent_trainer.dataset
                 )
-                collect_metrics[agent_trainer.name].update(self.collect_agent_step(
-                    agent_trainer, primitive, action, dataset, t
-                ))
+                collect_metrics[agent_trainer.name].update(
+                    self.collect_agent_step(
+                        agent_trainer, primitive, action, dataset, t
+                    )
+                )
                 if collect_metrics[agent_trainer.name][f"reward_{t}"] == 0.0:
                     failure = True
 

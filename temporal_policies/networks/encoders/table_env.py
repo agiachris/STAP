@@ -14,7 +14,7 @@ class TableEnvEncoder(Encoder):
 
     Converts the 2D low-dimensional state returned by TableEnv into a 1D vector
     for the primitive policies. The objects are re-ordered such that the first
-    corresponds to the gripper, the second/third correspond to the primitive
+    corresponds to the gripper, the second/third/.../m-th correspond to the primitive
     argument objects, and the remaining are a random permutation of objects.
 
     The observation values are also normalized to the range (-0.5, 0.5).
@@ -113,7 +113,7 @@ class TableEnvEncoder(Encoder):
 
         Converts the 2D low-dimensional state returned by TableEnv into a 1D
         vector for the primitive policies. The objects are re-ordered such that
-        the first corresponds to the gripper, the second/third correspond to the
+        the first corresponds to the gripper, the second/third/.../m-th correspond to the
         primitive argument objects, and the remaining are a random permutation
         of objects.
 

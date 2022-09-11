@@ -28,6 +28,7 @@ function eval_policies {
     else
         args="${args} --path plots/${EXP_NAME}"
         args="${args} --verbose 0"
+        args="${args} --num-episodes ${NUM_EPISODES}"
     fi
     if [[ -n "${DEBUG_RESULTS}" ]]; then
         args="${args} --debug-results ${DEBUG_RESULTS}"
@@ -42,6 +43,7 @@ function eval_policies {
 # Setup.
 
 DEBUG=0
+NUM_EPISODES=20
 
 # Evaluate policies.
 
@@ -52,11 +54,15 @@ policy_envs=(
     "push"
 )
 experiments=(
-    "20220905/official"
+    "20220908/official"
 )
 ckpts=(
+    # "best_model"
     # "final_model"
-    "ckpt_model_50000"
+    # "ckpt_model_50000"
+    # "ckpt_model_100000"
+    # "ckpt_model_150000"
+    # "ckpt_model_200000"
 )
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="${ENV_KWARGS} --gui 0"
@@ -66,8 +72,6 @@ for EXP_NAME in "${experiments[@]}"; do
     for ckpt in "${ckpts[@]}"; do
         for policy_env in "${policy_envs[@]}"; do
             POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/${ckpt}.pt"
-            # ENV_CONFIG="configs/pybullet/envs/examples/primitives/${policy_env}_single_rack.yaml"
-            # DEBUG_RESULTS="plots/${EXP_NAME}/${policy_env}/results_12.npz"
             eval_policies
         done
     done

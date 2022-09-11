@@ -80,7 +80,9 @@ class AgentFactory(configs.Factory):
             del self.kwargs["agent_config"]
 
             # Optionally get SCOD wrapper
-            if issubclass(self.cls, agents.SCODCriticAgent):
+            if issubclass(
+                self.cls, (agents.SCODCriticAgent, agents.SCODProbabilisticCriticAgent)
+            ):
                 if "scod_config" not in self.kwargs:
                     raise ValueError(
                         f'AgentFactory requires agent kwarg "scod_config"'

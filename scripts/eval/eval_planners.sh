@@ -58,7 +58,7 @@ function run_planners {
         done
 
         SCOD_CHECKPOINTS=()
-        if [[ "${planner}" == *scod_value* ]]; then
+        if [[ "${planner}" == *scod* ]]; then
             for policy_env in "${POLICY_ENVS[@]}"; do
                 SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${CKPT}/${policy_env}/scod/final_scod.pt")
             done
@@ -92,37 +92,44 @@ output_path="plots"
 # Evaluate planners.
 PLANNERS=(
 # Q-value / Latent dynamics.
-    "policy_cem"
-    "random_cem"
-    "policy_shooting"
-    "random_shooting"
+    # "policy_cem"
+    # "random_cem"
+    # "policy_shooting"
+    # "random_shooting"
 # SCOD value / Latent dynamics.
-    "policy_cem_var_scod_value"
-    "policy_cem_cvar_scod_value"
-    "policy_shooting_var_scod_value"
-    "policy_shooting_cvar_scod_value"
+    # "policy_cem_var_scod_value"
+    # "policy_cem_cvar_scod_value"
+    # "policy_shooting_var_scod_value"
+    # "policy_shooting_cvar_scod_value"
 # Q-value / Oracle dynamics.
-    "policy_cem_oracle_dynamics"
-    "random_cem_oracle_dynamics"
-    "policy_shooting_oracle_dynamics"
-    "random_shooting_oracle_dynamics"
-    "policy_cem_var_scod_value_oracle_dynamics"
-    "policy_shooting_var_scod_value_oracle_dynamics"
-    "policy_cem_cvar_scod_value_oracle_dynamics"
-    "policy_shooting_cvar_scod_value_oracle_dynamics"
+    # "policy_cem_oracle_dynamics"
+    # "random_cem_oracle_dynamics"
+    # "policy_shooting_oracle_dynamics"
+    # "random_shooting_oracle_dynamics"
+# SCOD value / Oracle dynamics
+    # "policy_cem_var_scod_value_oracle_dynamics"
+    # "policy_shooting_var_scod_value_oracle_dynamics"
+    # "policy_cem_cvar_scod_value_oracle_dynamics"
+    # "policy_shooting_cvar_scod_value_oracle_dynamics"
+# SCOD thresholding / Latent Dynamics.
+    # "scod_policy_shooting"
+    # "scod_policy_cem"
+# SCOD thresholding / Oracle Dynamics.
+    # "scod_policy_shooting_oracle_dynamics"
+    # "scod_policy_cem_oracle_dynamics"
 # Oracle value / Oracle dynamics.
-    "policy_cem_oracle_value_dynamics"
-    "random_cem_oracle_value_dynamics"
-    "policy_shooting_oracle_value_dynamics"
-    "random_shooting_oracle_value_dynamics"
+    # "policy_cem_oracle_value_dynamics"
+    # "random_cem_oracle_value_dynamics"
+    # "policy_shooting_oracle_value_dynamics"
+    # "random_shooting_oracle_value_dynamics"
 # DAF.
-    "daf_policy_cem"
-    "daf_policy_shooting"
-    "daf_random_cem"
-    "daf_random_shooting"
+    # "daf_policy_cem"
+    # "daf_policy_shooting"
+    # "daf_random_cem"
+    # "daf_random_shooting"
 # Greedy.
-    "greedy_oracle_dynamics"
-    "greedy"
+    # "greedy_oracle_dynamics"
+    # "greedy"
 )
 
 # Experiments.
@@ -138,31 +145,33 @@ PLANNERS=(
 #     "ckpt_model_50000"
 # )
 
-# Pybullet.
-exp_name="20220907/official_collision_penalty"
+exp_name="20220908/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 envs=(
-    "hook_reach/task0"
-    "hook_reach/task1"
-    "hook_reach/task2"
-    "hook_reach/task3"
-    "hook_reach/task4"
-    "constrained_packing/task0"
-    "constrained_packing/task1"
-    "constrained_packing/task2"
-    "constrained_packing/task3"
-    "constrained_packing/task4"
-    "rearrangement_push/task0"
-    "rearrangement_push/task1"
-    "rearrangement_push/task2"
-    "rearrangement_push/task3"
-    "rearrangement_push/task4"
+    # "hook_reach/task0"
+    # "hook_reach/task1"
+    # "hook_reach/task2"
+    # "hook_reach/task3"
+    # "hook_reach/task4"
+    # "constrained_packing/task0"
+    # "constrained_packing/task1"
+    # "constrained_packing/task2"
+    # "constrained_packing/task3"
+    # "constrained_packing/task4"
+    # "rearrangement_push/task0"
+    # "rearrangement_push/task1"
+    # "rearrangement_push/task2"
+    # "rearrangement_push/task3"
+    # "rearrangement_push/task4"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
-    "ckpt_model_50000"
+    # "ckpt_model_50000"
+    # "ckpt_model_100000"
+    # "ckpt_model_150000"
+    # "ckpt_model_200000"
 )
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then

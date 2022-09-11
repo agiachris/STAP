@@ -10,7 +10,7 @@ from temporal_policies.planners import utils
 from temporal_policies.utils import spaces
 
 
-class ShootingPlanner(planners.Planner):
+class SCODShootingPlanner(planners.Planner):
     """A shooting planner that generates many trajectories and picks the best one."""
 
     def __init__(
@@ -18,6 +18,7 @@ class ShootingPlanner(planners.Planner):
         policies: Sequence[agents.Agent],
         dynamics: dynamics.Dynamics,
         num_samples: int = 1024,
+        num_filter_per_step: int = 512,
         device: str = "auto",
     ):
         """Constructs the shooting planner.
@@ -26,15 +27,22 @@ class ShootingPlanner(planners.Planner):
             policies: Policies used to generate trajectories.
             dynamics: Dynamics model.
             num_samples: Number of shooting samples.
+            num_filter_per_step: Per-step highest uncertainty trajectories to filter.
             device: Torch device.
         """
         super().__init__(policies=policies, dynamics=dynamics, device=device)
         self._num_samples = num_samples
+        self._num_filter_per_step = num_filter_per_step
 
     @property
     def num_samples(self) -> int:
         """Number of shooting samples."""
         return self._num_samples
+
+    @property
+    def num_filter_per_step(self) -> int:
+        """Per-step highest uncertainty trajectories to filter."""
+        return self._num_filter_per_step
 
     def plan(
         self,
@@ -64,6 +72,7 @@ class ShootingPlanner(planners.Planner):
 
         # Scale number of samples and SCOD filter scale to task size
         num_samples = self.num_samples * task_dimensionality
+        num_filter_per_timestep = self.num_filter_per_step * task_dimensionality
 
         with torch.no_grad():
             # Get initial state.
@@ -86,15 +95,21 @@ class ShootingPlanner(planners.Planner):
                 functools.partial(self.dynamics.decode, primitive=primitive)
                 for primitive in action_skeleton
             ]
-            p_success, t_values, _ = utils.evaluate_trajectory(
+            p_success, t_values, t_values_unc = utils.evaluate_trajectory(
                 value_fns,
                 decode_fns,
                 p_transitions,
                 t_states,
                 actions=t_actions,
+                probabilistic_metric="stddev",
             )
 
+        # Filter out trajectories with the highest uncertainty.
+        unc_primitive_idx = t_values_unc.argsort(dim=0, descending=True)
+        unc_trajectory_idx = unc_primitive_idx[:num_filter_per_timestep]
+
         # Select best trajectory.
+        p_success[unc_trajectory_idx.flatten().unique()] = float("-Inf")
         idx_best = p_success.argmax()
 
         # Convert to numpy.
