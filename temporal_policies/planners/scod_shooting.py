@@ -7,6 +7,7 @@ import torch
 from temporal_policies import agents, dynamics, envs
 from temporal_policies.planners import base as planners
 from temporal_policies.planners import utils
+from temporal_policies.utils import spaces
 
 
 class SCODShootingPlanner(planners.Planner):
@@ -59,6 +60,20 @@ class SCODShootingPlanner(planners.Planner):
         Returns:
             Planning result.
         """
+        # Prepare action spaces.
+        T = len(action_skeleton)
+        task_space = spaces.null_tensor(self.dynamics.action_space, (T,))
+        for t, primitive in enumerate(action_skeleton):
+            action_space = self.policies[primitive.idx_policy].action_space
+            action_shape = action_space.shape[0]
+            task_space[t, :action_shape] = torch.zeros(action_shape)
+        task_space = task_space.to(self.device)
+        task_dimensionality = int((~torch.isnan(task_space)).sum())
+
+        # Scale number of samples and SCOD filter scale to task size
+        num_samples = self.num_samples * task_dimensionality
+        num_filter_per_timestep = self.num_filter_per_step * task_dimensionality
+
         with torch.no_grad():
             # Get initial state.
             t_observation = torch.from_numpy(observation).to(self.dynamics.device)
@@ -68,7 +83,7 @@ class SCODShootingPlanner(planners.Planner):
                 t_observation,
                 action_skeleton,
                 self.policies,
-                batch_size=self.num_samples * len(action_skeleton),
+                batch_size=num_samples,
             )
 
             # Evaluate trajectories.
@@ -91,9 +106,7 @@ class SCODShootingPlanner(planners.Planner):
 
         # Filter out trajectories with the highest uncertainty.
         unc_primitive_idx = t_values_unc.argsort(dim=0, descending=True)
-        unc_trajectory_idx = unc_primitive_idx[
-            : self.num_filter_per_step * len(action_skeleton)
-        ]
+        unc_trajectory_idx = unc_primitive_idx[:num_filter_per_timestep]
 
         # Select best trajectory.
         p_success[unc_trajectory_idx.flatten().unique()] = float("-Inf")
