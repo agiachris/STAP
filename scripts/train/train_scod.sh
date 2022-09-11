@@ -40,20 +40,9 @@ function train_scod {
 DEBUG=0
 output_path="models"
 
-# PyBox2d Experiments.
-# exp_name="20220727/decoupled_state"
-# TRAINER_CONFIG="configs/pybox2d/trainers/scod.yaml"
-# SCOD_CONFIG="configs/pybox2d/scod/scod.yaml"
-# MODEL_NETWORK="critic"
-# policy_envs=("pick" "place" "pull")
-# checkpoints=(
-#     "final_model"
-#     "best_model"
-#     "ckpt_model_50000"
-#     "ckpt_model_100000"
-# )
 
-# Pybullet Experiments.
+# Experiments.
+
 exp_name="20220908/official"
 TRAINER_CONFIG="configs/pybullet/trainers/scod.yaml"
 SCOD_CONFIG="configs/pybullet/scod/scod.yaml"
@@ -62,8 +51,10 @@ policy_envs=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
-    "ckpt_model_50000"
+    # "ckpt_model_50000"
     # "ckpt_model_100000"
+    # "ckpt_model_150000"
+    # "ckpt_model_200000"
 )
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"

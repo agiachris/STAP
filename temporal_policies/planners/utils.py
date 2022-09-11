@@ -205,6 +205,7 @@ def evaluate_trajectory(
     actions: Optional[torch.Tensor] = None,
     q_value: bool = True,
     clip_success: bool = True,
+    probabilistic_metric: Optional[str] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Evaluates probability of success for the given trajectory.
 
@@ -218,11 +219,11 @@ def evaluate_trajectory(
 
     Returns:
         (Trajectory success probabilities [batch_size],
-         values [batch_size, T], value uncertainties [batch_size, T]) 2-tuple.
+         values [batch_size, T], value uncertainty metric [batch_size, T]) 2-tuple.
     """
     # Compute step success probabilities.
     p_successes = torch.zeros_like(p_transitions)
-    p_successes_var = torch.zeros_like(p_transitions)
+    p_successes_unc = torch.zeros_like(p_transitions)
     if q_value:
         for t, (value_fn, decode_fn) in enumerate(zip(value_fns, decode_fns)):
             policy_state = decode_fn(states[:, t])
@@ -231,10 +232,9 @@ def evaluate_trajectory(
             if isinstance(value_fn, networks.critics.Critic):
                 p_successes[:, t] = value_fn.predict(policy_state, action)
             elif isinstance(value_fn, networks.critics.ProbabilisticCritic):
-                breakpoint()
                 p_distribution = value_fn.forward(policy_state, action)
                 p_successes[:, t] = p_distribution.mean
-                p_successes_var[:, t] = p_distribution.stddev
+                p_successes_unc[:, t] = getattr(p_distribution, probabilistic_metric)
     else:
         raise NotImplementedError
 
@@ -247,7 +247,7 @@ def evaluate_trajectory(
     # Combine probabilities.
     p_success = logsum_exp(p_successes, p_transitions)
 
-    return p_success, p_successes, p_successes_var
+    return p_success, p_successes, p_successes_unc
 
 
 @tensors.batch(dims=1)
