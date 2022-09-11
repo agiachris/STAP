@@ -1,3 +1,4 @@
+import enum
 import pathlib
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
@@ -16,9 +17,14 @@ from temporal_policies.utils.typing import Batch, Scalar, WrappedBatch
 class DafTrainer(UnifiedTrainer):
     """DAF-style unified trainer."""
 
+    class Mode(enum.Enum):
+        COLLECT = 0
+        EVALUATE = 1
+
     def __init__(
         self,
         env: envs.Env,
+        eval_env: Optional[envs.Env],
         path: Union[str, pathlib.Path],
         dynamics: dynamics_module.LatentDynamics,
         planner: planners.Planner,
@@ -81,6 +87,7 @@ class DafTrainer(UnifiedTrainer):
         )
 
         self._env = env
+        self._eval_env = env if eval_env is None else eval_env
         self._planner = planner
 
         self.closed_loop_planning = closed_loop_planning
@@ -94,6 +101,10 @@ class DafTrainer(UnifiedTrainer):
         return self._env
 
     @property
+    def eval_env(self) -> envs.Env:
+        return self._eval_env
+
+    @property
     def planner(self) -> planners.Planner:
         """Planner used during collect step."""
         return self._planner
@@ -101,6 +112,7 @@ class DafTrainer(UnifiedTrainer):
     def collect_agent_step(
         self,
         agent_trainer: AgentTrainer,
+        env: envs.Env,
         action_skeleton: Sequence[envs.Primitive],
         action: np.ndarray,
         dataset: datasets.ReplayBuffer,
@@ -114,14 +126,14 @@ class DafTrainer(UnifiedTrainer):
         Returns:
             Collect metrics.
         """
-        primitive = action_skeleton[0]
-        self.env.set_primitive(primitive)
-        observation = self.env.get_observation()
+        primitive = env.action_skeleton[0]
+        env.set_primitive(primitive)
+        observation = env.get_observation()
         dataset.add(observation=observation)
         agent_trainer._episode_length = 0
         agent_trainer._episode_reward = 0.0
 
-        next_observation, reward, terminated, truncated, info = self.env.step(action)
+        next_observation, reward, terminated, truncated, info = env.step(action)
         done = terminated or truncated
         discount = 1.0 - float(done)
         try:
@@ -162,23 +174,27 @@ class DafTrainer(UnifiedTrainer):
         return step_metrics
 
     def plan_step(
-        self, action_skeleton: Sequence[envs.Primitive], random: bool, mode: str
+        self,
+        env: envs.Env,
+        action_skeleton: Sequence[envs.Primitive],
+        random: bool,
+        mode: Mode,
     ) -> np.ndarray:
         if random:
             return action_skeleton[0].sample()
 
         with self.dynamics_trainer.profiler.profile("plan"):
             # Plan.
-            self.env.set_primitive(action_skeleton[0])
-            observation = self.env.get_observation()
+            env.set_primitive(action_skeleton[0])
+            observation = env.get_observation()
             actions = self.planner.plan(
-                observation=observation, action_skeleton=self.env.action_skeleton
+                observation=observation, action_skeleton=action_skeleton
             ).actions
 
         return actions[0]
 
     def collect_step(
-        self, random: bool = False, mode: str = "collect"
+        self, random: bool = False, mode: Mode = Mode.COLLECT
     ) -> Dict[str, Mapping[str, float]]:
         """Collects data for the replay buffer.
 
@@ -188,17 +204,18 @@ class DafTrainer(UnifiedTrainer):
         Returns:
             Collect metrics for each trainer.
         """
+        env = self.eval_env if mode == DafTrainer.Mode.EVALUATE else self.env
         self.eval_mode()
         self.dynamics_trainer.dynamics.plan_mode()
-        self.env.reset()
+        env.reset()
 
         if not self.closed_loop_planning:
             with self.dynamics_trainer.profiler.profile("plan"):
                 # Plan.
-                self.env.set_primitive(self.env.action_skeleton[0])
-                observation = self.env.get_observation()
+                env.set_primitive(env.action_skeleton[0])
+                observation = env.get_observation()
                 actions = self.planner.plan(
-                    observation=observation, action_skeleton=self.env.action_skeleton
+                    observation=observation, action_skeleton=env.action_skeleton
                 ).actions
 
         failure = False
@@ -206,9 +223,9 @@ class DafTrainer(UnifiedTrainer):
             trainer.name: {f"reward_{t}": 0.0 for t in range(self._max_num_actions)}
             for trainer in self.agent_trainers
         }
-        for t, primitive in enumerate(self.env.action_skeleton):
+        for t, primitive in enumerate(env.action_skeleton):
             agent_trainer = self.agent_trainers[primitive.idx_policy]
-            with agent_trainer.profiler.profile(mode):
+            with agent_trainer.profiler.profile(mode.name.lower()):
                 if failure:
                     collect_metrics[agent_trainer.name].update(
                         {
@@ -222,7 +239,7 @@ class DafTrainer(UnifiedTrainer):
                 # Plan.
                 if self.closed_loop_planning:
                     action = self.plan_step(
-                        self.env.action_skeleton[t:], random=random, mode=mode
+                        env, env.action_skeleton[t:], random=random, mode=mode
                     )
                 else:
                     action = actions[t]
@@ -235,7 +252,7 @@ class DafTrainer(UnifiedTrainer):
                 )
                 collect_metrics[agent_trainer.name].update(
                     self.collect_agent_step(
-                        agent_trainer, self.env.action_skeleton[t:], action, dataset, t
+                        agent_trainer, env, env.action_skeleton[t:], action, dataset, t
                     )
                 )
                 if collect_metrics[agent_trainer.name][f"reward_{t}"] == 0.0:
@@ -259,7 +276,7 @@ class DafTrainer(UnifiedTrainer):
         return collect_metrics  # type: ignore
 
     def evaluate_step(self) -> Dict[str, Mapping[str, float]]:
-        return self.collect_step(random=False, mode="evaluate")
+        return self.collect_step(random=False, mode=DafTrainer.Mode.EVALUATE)
 
     def evaluate(self) -> Dict[str, List[Mapping[str, Union[Scalar, np.ndarray]]]]:  # type: ignore
         """Evaluates the policies and dynamics model.

@@ -17,6 +17,7 @@ def train(
     dynamics_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     agent_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
+    eval_env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     planner_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     eval_recording_path: Optional[Union[str, pathlib.Path]] = None,
     resume: bool = False,
@@ -28,6 +29,7 @@ def train(
     num_train_steps: Optional[int] = None,
     num_eval_steps: Optional[int] = None,
     num_env_processes: Optional[int] = None,
+    num_eval_env_processes: Optional[int] = None,
     closed_loop_planning: int = 1,
 ) -> None:
     if resume:
@@ -45,16 +47,23 @@ def train(
             raise ValueError("agent_config must be specified")
         if env_config is None:
             raise ValueError("env_config must be specified")
+        if eval_env_config is None:
+            raise ValueError("eval_env_config must be specified")
         if planner_config is None:
             raise ValueError("planner_config must be specified")
 
         env_factory = envs.EnvFactory(config=env_config)
+        eval_env_factory = envs.EnvFactory(config=eval_env_config)
         env_kwargs: Dict[str, Any] = {}
+        eval_env_kwargs: Dict[str, Any] = {}
         if gui is not None:
             env_kwargs["gui"] = bool(gui)
+            eval_env_kwargs["gui"] = bool(gui)
         if num_env_processes is not None:
             env_kwargs["num_processes"] = num_env_processes
+            eval_env_kwargs["num_processes"] = num_eval_env_processes
         env = env_factory(**env_kwargs)
+        eval_env = eval_env_factory(**eval_env_kwargs)
 
         agent_factories = [
             agents.AgentFactory(config=agent_config, env=env, device=device)
@@ -84,6 +93,7 @@ def train(
             path=path,
             config=trainer_config,
             dynamics=dynamics_model,
+            eval_env=eval_env,
             device=device,
         )
 
@@ -108,6 +118,8 @@ def train(
             pprint(agent_factory.config)
         print("\n[scripts.train.train_baseline] Env config:")
         pprint(env_factory.config)
+        print("\n[scripts.train.train_baseline] Eval env config:")
+        pprint(eval_env_factory.config)
         print("\n[scripts.train.train_baseline] Planner config:")
         pprint(planner_factory.config)
         print("")
@@ -166,6 +178,7 @@ if __name__ == "__main__":
     parser.add_argument("--dynamics-config", "-d", help="Path to dynamics config")
     parser.add_argument("--agent-config", "-a", help="Paths to agent config")
     parser.add_argument("--env-config", "-e", help="Path to env config")
+    parser.add_argument("--eval-env-config", help="Path to eval env config")
     parser.add_argument("--planner-config", help="Path to planner config")
     parser.add_argument("--path", "-p", required=True)
     parser.add_argument("--eval-recording-path")
@@ -182,6 +195,9 @@ if __name__ == "__main__":
         "--num-eval-steps", type=int, help="Number of steps per evaluation"
     )
     parser.add_argument("--num-env-processes", type=int, help="Number of env processes")
+    parser.add_argument(
+        "--num-eval-env-processes", type=int, help="Number of eval env processes"
+    )
     parser.add_argument(
         "--closed-loop-planning", type=int, default=1, help="Use closed-loop planning"
     )
