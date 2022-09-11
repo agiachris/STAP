@@ -1,7 +1,7 @@
-trainer: DafTrainer
+trainer: DreamerTrainer
 trainer_kwargs:
-  dynamics_trainer_config: configs/pybullet/trainers/dynamics.yaml
-  agent_trainer_config: configs/pybullet/trainers/agent.yaml
+  dynamics_trainer_config: configs/pybox2d/trainers/dynamics.yaml
+  agent_trainer_config: configs/pybox2d/trainers/agent.yaml
 
   sample_primitive_actions: false
 

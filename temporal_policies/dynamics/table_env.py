@@ -159,7 +159,10 @@ class TableEnvDynamics(LatentDynamics):
         state = (state - self._observation_mid) / self._observation_range
 
         # Flatten state.
-        state = state.reshape(-1, *self.flat_state_space.shape)
+        if state.ndim > len(self.state_space.shape):
+            state = state.reshape(-1, *self.flat_state_space.shape)
+        else:
+            state = state.reshape(*self.flat_state_space.shape)
 
         return state
 

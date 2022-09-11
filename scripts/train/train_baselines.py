@@ -97,16 +97,16 @@ def train(
         if num_eval_steps is not None:
             trainer_kwargs["num_eval_steps"] = num_eval_steps
 
-        print("[scripts.train.train_daf] Trainer config:")
+        print("[scripts.train.train_baseline] Trainer config:")
         pprint(trainer_factory.config)
-        print("\n[scripts.train.train_daf] Dynamics config:")
+        print("\n[scripts.train.train_baseline] Dynamics config:")
         pprint(dynamics_factory.config)
         for agent_factory in agent_factories:
-            print("\n[scripts.train.train_daf] Agent config:")
+            print("\n[scripts.train.train_baseline] Agent config:")
             pprint(agent_factory.config)
-        print("\n[scripts.train.train_daf] Env config:")
+        print("\n[scripts.train.train_baseline] Env config:")
         pprint(env_factory.config)
-        print("\n[scripts.train.train_daf] Planner config:")
+        print("\n[scripts.train.train_baseline] Planner config:")
         pprint(planner_factory.config)
         print("")
 

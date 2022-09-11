@@ -86,6 +86,8 @@ class Dynamics(abc.ABC):
         policies: Optional[Sequence[agents.Agent]] = None,
         batch_size: Optional[int] = None,
         time_index: bool = False,
+        state_requires_grad: bool = False,
+        action_requires_grad: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Rolls out trajectories according to the action skeleton.
 
@@ -112,18 +114,21 @@ class Dynamics(abc.ABC):
             action_skeleton[0].idx_policy,
             action_skeleton[0].get_policy_args(),
         )
-        _batch_size = 1 if batch_size is None else batch_size
-        state = state.unsqueeze(0).repeat(_batch_size, *([1] * len(state.shape)))
+        if state.ndim == len(self.state_space.shape) + 1:
+            _batch_size = state.shape[0]
+        else:
+            _batch_size = 1 if batch_size is None else batch_size
+            state = state.unsqueeze(0).repeat(_batch_size, *([1] * len(state.shape)))
 
         # Initialize variables.
         T = len(action_skeleton)
         states = spaces.null_tensor(
             self.state_space, (_batch_size, T + 1), device=self.device
-        )
+        ).requires_grad_(state_requires_grad)
         states[:, 0] = state
         actions = spaces.null_tensor(
             self.action_space, (_batch_size, T), device=self.device
-        )
+        ).requires_grad_(action_requires_grad)
         p_transitions = torch.ones(
             (_batch_size, T), dtype=torch.float32, device=self.device
         )

@@ -16,7 +16,7 @@ function run_cmd {
     fi
 }
 
-function train_daf {
+function train_baseline {
     args=""
     args="${args} --trainer-config ${TRAINER_CONFIG}"
     args="${args} --dynamics-config ${DYNAMICS_CONFIG}"
@@ -34,30 +34,31 @@ function train_daf {
         args="${args} --overwrite"
         args="${args} --num-pretrain-steps 10"
         args="${args} --num-train-steps 10"
-        args="${args} --num-eval-steps 10"
+        args="${args} --num-eval-steps 1"
     else
         args="${args} --path ${OUTPUT_PATH}"
         args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
     fi
 
-    CMD="python scripts/train/train_daf.py ${args}"
+    CMD="python scripts/train/train_baselines.py ${args}"
     run_cmd
 }
 
 # Setup.
-DEBUG=0
+DEBUG=1
 output_path="models"
 plots_path="plots"
 
 # Experiments.
 
-exp_name="20220907/official"
+exp_name="20220908/official"
 
 planners=(
     # "daf_policy_cem"
-    "daf_random_cem"
+    # "daf_random_cem"
     # "daf_policy_shooting"
     # "daf_random_shooting"
+    "dreamer_greedy"
 )
 envs=(
     "hook_reach/task0"
@@ -77,7 +78,9 @@ envs=(
     "rearrangement_push/task4"
 )
 
-TRAINER_CONFIG="configs/pybullet/trainers/daf.yaml"
+# TRAINER_CONFIG="configs/pybullet/trainers/daf.yaml"
+TRAINER_CONFIG="configs/pybullet/trainers/dreamer.yaml"
+
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 ENV_KWARGS="--num-env-processes 6"
@@ -92,6 +95,6 @@ for env in "${envs[@]}"; do
         OUTPUT_PATH="${output_path}/${exp_name}/${env}/${planner}"
         EVAL_RECORDING_PATH="${plots_path}/${exp_name}/${planner}"
 
-        train_daf
+        train_baseline
     done
 done
