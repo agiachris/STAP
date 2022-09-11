@@ -301,7 +301,7 @@ class DafTrainer(UnifiedTrainer):
             Dict of training metrics for each trainer for logging.
         """
         # Collect experience.
-        collect_metrics = self.collect_step(random=False)
+        collect_metrics = self.collect_step(random=np.random.random() < 0.2)
 
         # Train step.
         train_metrics = {}
