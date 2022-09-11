@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Iterable, List, Sequence, Tuple, Union
+from typing import Any, Dict, Optional, Iterable, List, Sequence, Tuple, Union, Callable
 
 import numpy as np
 import torch
@@ -194,49 +194,68 @@ def load(
 
 @tensors.batch(dims=1)
 def evaluate_trajectory(
-    value_fns: Iterable[networks.critics.Critic],
-    decode_fns: Iterable[networks.critics.Critic],
-    states: torch.Tensor,
-    actions: torch.Tensor,
+    value_fns: Iterable[
+        Union[networks.critics.Critic, networks.critics.ProbabilisticCritic]
+    ],
+    decode_fns: Iterable[
+        Callable[[Union[torch.Tensor, envs.Primitive], torch.Tensor], torch.Tensor]
+    ],
     p_transitions: torch.Tensor,
+    states: torch.Tensor,
+    actions: Optional[torch.Tensor] = None,
     q_value: bool = True,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    clip_success: bool = True,
+    probabilistic_metric: Optional[str] = None,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Evaluates probability of success for the given trajectory.
 
     Args:
         value_fns: List of T value functions.
         decoders: List of T decoders.
         states: [batch_dims, T + 1, state_dims] trajectory states.
-        actions: [batch_dims, T, state_dims] trajectory actions.
         p_transitions: [batch_dims, T] transition probabilities.
+        actions: [batch_dims, T, state_dims] trajectory actions.
         q_value: Whether to use state-action values (True) or state values (False).
 
     Returns:
-        (Trajectory success probabilities [batch_size], values [batch_size, T]) 2-tuple.
+        (Trajectory success probabilities [batch_size],
+         values [batch_size, T], value uncertainty metric [batch_size, T]) 2-tuple.
     """
     # Compute step success probabilities.
     p_successes = torch.zeros_like(p_transitions)
+    p_successes_unc = torch.zeros_like(p_transitions)
     if q_value:
         for t, (value_fn, decode_fn) in enumerate(zip(value_fns, decode_fns)):
             policy_state = decode_fn(states[:, t])
             dim_action = int(torch.sum(~torch.isnan(actions[0, t])).cpu().item())
             action = actions[:, t, :dim_action]
-            p_successes[:, t] = value_fn.predict(policy_state, action)
+            if isinstance(value_fn, networks.critics.Critic):
+                p_successes[:, t] = value_fn.predict(policy_state, action)
+            elif isinstance(value_fn, networks.critics.ProbabilisticCritic):
+                p_distribution = value_fn.forward(policy_state, action)
+                p_successes[:, t] = p_distribution.mean
+                p_successes_unc[:, t] = getattr(p_distribution, probabilistic_metric)
     else:
         raise NotImplementedError
-        # for t, value_fn in enumerate(value_fns):
-        #     policy_state = decode_fn(states[:, t])
-        #     p_successes[:, t] = value_fn.predict(policy_state)
-    p_successes = torch.clip(p_successes, min=0, max=1)
+
+    if clip_success:
+        p_successes = torch.clip(p_successes, min=0, max=1)
 
     # Discard last transition from T-1 to T, since s_T isn't used.
     p_transitions = p_transitions[:, :-1]
 
     # Combine probabilities.
-    log_p_success = torch.log(p_successes).sum(dim=-1)
-    log_p_success += torch.log(p_transitions).sum(dim=-1)
+    p_success = logsum_exp(p_successes, p_transitions)
 
-    return torch.exp(log_p_success), p_successes
+    return p_success, p_successes, p_successes_unc
+
+
+@tensors.batch(dims=1)
+def logsum_exp(*input_tensors: torch.Tensor) -> torch.Tensor:
+    logsum = torch.log(input_tensors[0]).sum(dim=-1)
+    for i in range(1, len(input_tensors)):
+        logsum += torch.log(input_tensors[i]).sum(dim=-1)
+    return torch.exp(logsum)
 
 
 def evaluate_plan(

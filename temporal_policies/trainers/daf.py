@@ -223,11 +223,7 @@ class DafTrainer(UnifiedTrainer):
                 )
                 collect_metrics[agent_trainer.name].update(
                     self.collect_agent_step(
-                        agent_trainer,
-                        self.env.action_skeleton[t:],
-                        action,
-                        dataset,
-                        t,
+                        agent_trainer, self.env.action_skeleton[t:], action, dataset, t
                     )
                 )
                 if collect_metrics[agent_trainer.name][f"reward_{t}"] == 0.0:

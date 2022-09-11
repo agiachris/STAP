@@ -12,3 +12,4 @@ from .sac import SAC
 from .utils import *
 from .wrapper import WrapperAgent
 from .scod_critic import SCODCriticAgent
+from .scod_critic import SCODProbabilisticCriticAgent

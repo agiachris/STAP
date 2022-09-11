@@ -1,0 +1,52 @@
+planner: SCODShootingPlanner
+planner_kwargs:
+  num_samples: 100000
+  num_filter_per_step: 1000
+
+agent_configs:
+  - agent: GaussianAgent
+    agent_kwargs:
+      std: 0.3
+      agent_config:
+        agent: SCODProbabilisticCriticAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          scod_config:
+            scod: IdentitySCOD
+            scod_kwargs:
+              scod_config: "{SCOD_CONFIG}"
+  - agent: GaussianAgent
+    agent_kwargs:
+      std: 0.3
+      agent_config:
+        agent: SCODProbabilisticCriticAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          scod_config:
+            scod: IdentitySCOD
+            scod_kwargs:
+              scod_config: "{SCOD_CONFIG}"
+  - agent: GaussianAgent
+    agent_kwargs:
+      std: 0.3
+      agent_config:
+        agent: SCODProbabilisticCriticAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          scod_config:
+            scod: IdentitySCOD
+            scod_kwargs:
+              scod_config: "{SCOD_CONFIG}"
+  - agent: GaussianAgent
+    agent_kwargs:
+      std: 0.3
+      agent_config:
+        agent: SCODProbabilisticCriticAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          scod_config:
+            scod: IdentitySCOD
+            scod_kwargs:
+              scod_config: "{SCOD_CONFIG}"
+
+dynamics_config: "{DYNAMICS_CONFIG}"

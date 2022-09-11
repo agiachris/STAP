@@ -88,7 +88,7 @@ class WrapperSCOD(scod.SCOD, abc.ABC):
             num_batches = int(math.ceil(batch_size / max_minibatch_size) + 0.5)
             minibatch_size = int(math.ceil(batch_size / num_batches) + 0.5)
         else:
-            # If on CPU, keep the minibatch size at a reasonablee size.
+            # If on CPU, keep the minibatch size at a reasonable size.
             minibatch_size = min(batch_size, 10000)
 
         # Query SCOD in minibatches.

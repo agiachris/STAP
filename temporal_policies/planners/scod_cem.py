@@ -10,7 +10,7 @@ from temporal_policies.planners import utils
 from temporal_policies.utils import spaces
 
 
-class CEMPlanner(planners.Planner):
+class SCODCEMPlanner(planners.Planner):
     """Planner using the Improved Cross Entropy Method."""
 
     def __init__(
@@ -20,6 +20,7 @@ class CEMPlanner(planners.Planner):
         num_iterations: int = 8,
         num_samples: int = 128,
         num_elites: int = 16,
+        num_filter_per_step: int = 16,
         standard_deviation: float = 1.0,
         keep_elites_fraction: float = 0.0,
         population_decay: float = 1.0,
@@ -34,6 +35,7 @@ class CEMPlanner(planners.Planner):
             num_iterations: Number of CEM iterations.
             num_samples: Number of samples to generate per CEM iteration.
             num_elites: Number of elites to select from population.
+            num_filter_per_step: Per-step highest uncertainty trajectories to filter.
             standard_deviation: Used to sample random actions for the initial
                 population. Will be scaled by the action space.
             keep_elites_fraction: Fraction of elites to keep between iterations.
@@ -45,6 +47,7 @@ class CEMPlanner(planners.Planner):
         self._num_iterations = num_iterations
         self._num_samples = num_samples
         self._num_elites = max(2, min(num_elites, self.num_samples // 2))
+        self._num_filter_per_step = num_filter_per_step
         self._standard_deviation = standard_deviation
 
         # Improved CEM parameters.
@@ -66,6 +69,11 @@ class CEMPlanner(planners.Planner):
     def num_elites(self) -> int:
         """Number of elites to select from population."""
         return self._num_elites
+
+    @property
+    def num_filter_per_step(self) -> int:
+        """Per-step highest uncertainty trajectories to filter."""
+        return self._num_filter_per_step
 
     @property
     def standard_deviation(self) -> float:
@@ -176,6 +184,7 @@ class CEMPlanner(planners.Planner):
             )
             task_dimensionality = int((~torch.isnan(actions_low)).sum())
             num_samples = self.num_samples * task_dimensionality
+
             elites = torch.empty(
                 (0, *mean.shape), dtype=torch.float32, device=self.device
             )
@@ -221,9 +230,21 @@ class CEMPlanner(planners.Planner):
                 )
 
                 # Evaluate trajectories.
-                p_success, values, _ = utils.evaluate_trajectory(
-                    value_fns, decode_fns, p_transitions, states, actions=actions
+                p_success, values, values_unc = utils.evaluate_trajectory(
+                    value_fns,
+                    decode_fns,
+                    p_transitions,
+                    states,
+                    actions=actions,
+                    probabilistic_metric="stddev",
                 )
+
+                # Filter out trajectories with the highest uncertainty.
+                unc_primitive_idx = values_unc.argsort(dim=0, descending=True)
+                unc_trajectory_idx = unc_primitive_idx[
+                    : self.num_filter_per_step * task_dimensionality
+                ]
+                p_success[unc_trajectory_idx.flatten().unique()] = float("-Inf")
 
                 # Select the top trajectories.
                 p_success = p_success.cpu().numpy()

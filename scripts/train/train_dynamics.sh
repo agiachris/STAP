@@ -55,15 +55,17 @@ output_path="models"
 #     # "ckpt_model_100000"
 # )
 
-exp_name="20220905/official"
+exp_name="20220908/official"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 policy_envs=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
-    "ckpt_model_50000"
+    # "ckpt_model_50000"
     # "ckpt_model_100000"
+    # "ckpt_model_150000"
+    # "ckpt_model_200000"
 )
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
