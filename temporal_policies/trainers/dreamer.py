@@ -190,12 +190,6 @@ class DreamerTrainer(DafTrainer):
     ) -> torch.Tensor:
         dynamics = self.dynamics_trainer.dynamics
 
-        # values = torch.zeros(
-        #     len(self.env.action_skeleton),
-        #     dtype=torch.float32,
-        #     device=self.device,
-        #     requires_grad=True,
-        # )
         values = []
         for t, policy_args in enumerate(plan_policy_args["remaining_plan"]):
             primitive = self.env.get_primitive_info(**policy_args)
