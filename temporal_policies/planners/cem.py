@@ -174,7 +174,8 @@ class CEMPlanner(planners.Planner):
             mean, std = self._compute_initial_distribution(
                 t_observation, action_skeleton
             )
-            num_samples = self.num_samples * int(~torch.isnan(actions_low).sum())
+            task_dimensionality = int((~torch.isnan(actions_low)).sum())
+            num_samples = self.num_samples * task_dimensionality
             elites = torch.empty(
                 (0, *mean.shape), dtype=torch.float32, device=self.device
             )
