@@ -28,6 +28,7 @@ def train(
     num_train_steps: Optional[int] = None,
     num_eval_steps: Optional[int] = None,
     num_env_processes: Optional[int] = None,
+    closed_loop_planning: int = 1,
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
@@ -89,6 +90,7 @@ def train(
         trainer_kwargs = {
             "env": env,
             "planner": planner_factory(),
+            "closed_loop_planning": bool(closed_loop_planning),
         }
         if num_pretrain_steps is not None:
             trainer_kwargs["num_pretrain_steps"] = num_pretrain_steps
@@ -180,5 +182,8 @@ if __name__ == "__main__":
         "--num-eval-steps", type=int, help="Number of steps per evaluation"
     )
     parser.add_argument("--num-env-processes", type=int, help="Number of env processes")
+    parser.add_argument(
+        "--closed-loop-planning", type=int, default=1, help="Use closed-loop planning"
+    )
 
     main(parser.parse_args())

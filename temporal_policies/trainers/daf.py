@@ -27,7 +27,7 @@ class DafTrainer(UnifiedTrainer):
         agent_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         env_kwargs: Dict[str, Any] = {},
-        sample_primitive_actions: bool = False,
+        closed_loop_planning: bool = True,
         device: str = "auto",
         num_pretrain_steps: int = 1000,
         num_train_steps: int = 100000,
@@ -47,8 +47,7 @@ class DafTrainer(UnifiedTrainer):
             agent_trainer_config: Agent trainer config.
             checkpoint: Optional path to trainer checkpoint.
             env_kwargs: Optional kwargs passed to EnvFactory.
-            sample_primitive_actions: Whether to sample actions from the
-                primitive distribution.
+            closed_loop_planning: Whether to use closed-loop planning.
             device: Torch device.
             num_pretrain_steps: Number of steps to pretrain. Overrides
                 agent trainer configs.
@@ -85,12 +84,7 @@ class DafTrainer(UnifiedTrainer):
         self._env = env
         self._planner = planner
 
-        # TODO: Doesn't work with changing action skeletons.
-        # if sample_primitive_actions:
-        #     for policy, primitive in zip(self.planner.policies, self.action_skeleton):
-        #         if isinstance(policy, agents.RandomAgent):
-        #             assert isinstance(policy.actor, networks.actors.RandomActor)
-        #             policy.actor.set_primitive(primitive)
+        self.closed_loop_planning = closed_loop_planning
 
     @property
     def env(self) -> envs.Env:
@@ -195,6 +189,15 @@ class DafTrainer(UnifiedTrainer):
         self.dynamics_trainer.dynamics.plan_mode()
         self.env.reset()
 
+        if not self.closed_loop_planning:
+            with self.dynamics_trainer.profiler.profile("plan"):
+                # Plan.
+                self.env.set_primitive(self.env.action_skeleton[0])
+                observation = self.env.get_observation()
+                actions = self.planner.plan(
+                    observation=observation, action_skeleton=self.env.action_skeleton
+                ).actions
+
         failure = False
         collect_metrics: Dict[str, Dict[str, float]] = collections.defaultdict(dict)
         for t, primitive in enumerate(self.env.action_skeleton):
@@ -211,9 +214,12 @@ class DafTrainer(UnifiedTrainer):
                     continue
 
                 # Plan.
-                action = self.plan_step(
-                    self.env.action_skeleton[t:], random=random, mode=mode
-                )
+                if self.closed_loop_planning:
+                    action = self.plan_step(
+                        self.env.action_skeleton[t:], random=random, mode=mode
+                    )
+                else:
+                    action = actions[t]
 
                 # Execute first step.
                 dataset = (
@@ -301,7 +307,7 @@ class DafTrainer(UnifiedTrainer):
             Dict of training metrics for each trainer for logging.
         """
         # Collect experience.
-        collect_metrics = self.collect_step(random=np.random.random() < 0.2)
+        collect_metrics = self.collect_step(random=False)
 
         # Train step.
         train_metrics = {}

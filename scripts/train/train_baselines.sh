@@ -30,14 +30,14 @@ function train_baseline {
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${OUTPUT_PATH}_debug"
-        args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}_debug"
+        # args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}_debug"
         args="${args} --overwrite"
-        args="${args} --num-pretrain-steps 10"
+        args="${args} --num-pretrain-steps 100"
         args="${args} --num-train-steps 10"
         args="${args} --num-eval-steps 1"
     else
         args="${args} --path ${OUTPUT_PATH}"
-        args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
+        # args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
     fi
 
     CMD="python scripts/train/train_baselines.py ${args}"
@@ -55,35 +55,35 @@ exp_name="20220908/official"
 
 planners=(
     # "daf_policy_cem"
-    # "daf_random_cem"
+    "daf_random_cem"
     # "daf_policy_shooting"
     # "daf_random_shooting"
-    "dreamer_greedy"
+    # "dreamer_greedy"
 )
 envs=(
-    "hook_reach/task0"
-    "hook_reach/task1"
-    "hook_reach/task2"
-    "hook_reach/task3"
-    "hook_reach/task4"
-    "constrained_packing/task0"
-    "constrained_packing/task1"
-    "constrained_packing/task2"
-    "constrained_packing/task3"
-    "constrained_packing/task4"
-    "rearrangement_push/task0"
-    "rearrangement_push/task1"
-    "rearrangement_push/task2"
-    "rearrangement_push/task3"
-    "rearrangement_push/task4"
+    "hook_reach/baselines/task0"
+    # "hook_reach/task1"
+    # "hook_reach/task2"
+    # "hook_reach/task3"
+    # "hook_reach/task4"
+    # "constrained_packing/task0"
+    # "constrained_packing/task1"
+    # "constrained_packing/task2"
+    # "constrained_packing/task3"
+    # "constrained_packing/task4"
+    # "rearrangement_push/task0"
+    # "rearrangement_push/task1"
+    # "rearrangement_push/task2"
+    # "rearrangement_push/task3"
+    # "rearrangement_push/task4"
 )
 
-# TRAINER_CONFIG="configs/pybullet/trainers/daf.yaml"
-TRAINER_CONFIG="configs/pybullet/trainers/dreamer.yaml"
+TRAINER_CONFIG="configs/pybullet/trainers/daf.yaml"
+# TRAINER_CONFIG="configs/pybullet/trainers/dreamer.yaml"
 
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
-ENV_KWARGS="--num-env-processes 6"
+ENV_KWARGS="--num-env-processes 6 --closed-loop-planning 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
@@ -93,7 +93,7 @@ for env in "${envs[@]}"; do
     for planner in "${planners[@]}"; do
         PLANNER_CONFIG="configs/pybullet/planners/${planner}.yaml"
         OUTPUT_PATH="${output_path}/${exp_name}/${env}/${planner}"
-        EVAL_RECORDING_PATH="${plots_path}/${exp_name}/${planner}"
+        # EVAL_RECORDING_PATH="${plots_path}/${exp_name}/${planner}"
 
         train_baseline
     done
