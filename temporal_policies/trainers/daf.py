@@ -126,7 +126,7 @@ class DafTrainer(UnifiedTrainer):
         Returns:
             Collect metrics.
         """
-        primitive = env.action_skeleton[0]
+        primitive = action_skeleton[0]
         env.set_primitive(primitive)
         observation = env.get_observation()
         dataset.add(observation=observation)
@@ -163,7 +163,7 @@ class DafTrainer(UnifiedTrainer):
             for metric, value in info.items()
             if metric in metrics.METRIC_AGGREGATION_FNS
         }
-        step_metrics[f"reward_{t}"] = agent_trainer._episode_reward
+        step_metrics[f"reward_{t}"] = reward
         # step_metrics[f"length_{t}"] = agent_trainer._episode_length
         # step_metrics[f"episode_{t}"] = agent_trainer.epoch
 
@@ -183,7 +183,7 @@ class DafTrainer(UnifiedTrainer):
     ) -> np.ndarray:
         if random:
             if return_full:
-                return np.array([primitive.sample() for primitive in action_skeleton])
+                raise NotImplementedError("Primitive sampling is state-dependent")
             return action_skeleton[0].sample()
 
         with self.dynamics_trainer.profiler.profile("plan"):
@@ -212,7 +212,7 @@ class DafTrainer(UnifiedTrainer):
         self.dynamics_trainer.dynamics.plan_mode()
         env.reset()
 
-        if not self.closed_loop_planning:
+        if not self.closed_loop_planning and not random:
             actions = self.plan_step(
                 env, env.action_skeleton, random=random, mode=mode, return_full=True
             )
@@ -236,7 +236,7 @@ class DafTrainer(UnifiedTrainer):
                     continue
 
                 # Plan.
-                if self.closed_loop_planning:
+                if self.closed_loop_planning or random:
                     action = self.plan_step(
                         env, env.action_skeleton[t:], random=random, mode=mode
                     )
