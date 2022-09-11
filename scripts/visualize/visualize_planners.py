@@ -14,40 +14,44 @@ import tqdm
 
 def load_results(
     path: Union[str, pathlib.Path],
+    envs: Optional[Sequence[Optional[str]]],
     methods: Sequence[str],
     plot_action_statistics: int = 0,
-) -> Generator[Tuple[str, List[Dict[str, Any]]], None, None]:
+) -> Generator[Tuple[Optional[str], str, List[Dict[str, Any]]], None, None]:
+    if envs is None:
+        envs = [None]
     path = pathlib.Path(path)
 
-    for method_name in methods:
-        print(method_name)
-        method_results = []
-        for npz_file in tqdm.tqdm(
-            sorted(
-                (path / method_name).glob("results_*.npz"),
-                key=lambda x: int(x.stem.split("_")[-1]),
-            )
-        ):
-            with open(npz_file, "rb") as f:
-                npz = np.load(f, allow_pickle=True)
-                d = {
-                    "scaled_actions": npz["scaled_actions"],
-                    "p_success": npz["p_success"],
-                    "values": npz["values"],
-                    "rewards": npz["rewards"],
-                    "p_visited_success": npz["p_visited_success"],
-                    "t_planner": npz["t_planner"],
-                }
-                if plot_action_statistics:
-                    d["scaled_visited_actions"] = npz["scaled_visited_actions"]
-                method_results.append(d)
+    for task in envs:
+        env_path = path if task is None else path / task
+        for method_name in methods:
+            method_results = []
+            for npz_file in tqdm.tqdm(
+                sorted(
+                    (env_path / method_name).glob("results_*.npz"),
+                    key=lambda x: int(x.stem.split("_")[-1]),
+                )
+            ):
+                with open(npz_file, "rb") as f:
+                    npz = np.load(f, allow_pickle=True)
+                    d = {
+                        "scaled_actions": npz["scaled_actions"],
+                        "p_success": npz["p_success"],
+                        "values": npz["values"],
+                        "rewards": npz["rewards"],
+                        "p_visited_success": npz["p_visited_success"],
+                        "t_planner": npz["t_planner"],
+                    }
+                    if plot_action_statistics:
+                        d["scaled_visited_actions"] = npz["scaled_visited_actions"]
+                    method_results.append(d)
 
-            # print(npz_file, results[method_name][-1]["rewards"])
-        yield method_name, method_results
+                # print(npz_file, results[method_name][-1]["rewards"])
+            yield task, method_name, method_results
 
 
 def create_dataframes(
-    results: Generator[Tuple[str, List[Dict[str, Any]]], None, None],
+    results: Generator[Tuple[Optional[str], str, List[Dict[str, Any]]], None, None],
     plot_action_statistics: int = 0,
 ) -> pd.DataFrame:
     def get_method_label(method: str) -> str:
@@ -101,6 +105,7 @@ def create_dataframes(
         return "Latent"
 
     df_plans: Dict[str, List[Any]] = {
+        "Task": [],
         "Method": [],
         "Value": [],
         "Dynamics": [],
@@ -111,6 +116,7 @@ def create_dataframes(
         "Time": [],
     }
     df_samples: Dict[str, List[Any]] = {
+        "Task": [],
         "Method": [],
         "Value": [],
         "Dynamics": [],
@@ -123,11 +129,12 @@ def create_dataframes(
         df_samples["Position"] = []
         df_samples["Angle"] = []
 
-    for method, method_results in results:
+    for task, method, method_results in results:
         method_label = get_method_label(method)
         value_label = get_value_label(method)
         dynamics_label = get_dynamics_label(method)
         for result in method_results:
+            df_plans["Task"].append(task)
             df_plans["Method"].append(method_label)
             df_plans["Value"].append(value_label)
             df_plans["Dynamics"].append(dynamics_label)
@@ -135,9 +142,10 @@ def create_dataframes(
             df_plans["Predicted success"].append(result["p_success"].item())
             df_plans["Ground truth success"].append(result["rewards"].prod())
             df_plans["Num sampled"].append(result["p_visited_success"].shape[0])
-            df_plans["Time"].append(result["t_planner"].item())
+            df_plans["Time"].append(result["t_planner"][0])
 
             num_samples = result["p_visited_success"].shape[0]
+            df_samples["Task"] += [task] * num_samples
             df_samples["Method"] += [method_label] * num_samples
             df_samples["Value"] += [value_label] * num_samples
             df_samples["Dynamics"] += [dynamics_label] * num_samples
@@ -163,11 +171,13 @@ def plot_planning_results(
     df_samples: pd.DataFrame,
     path: Union[str, pathlib.Path],
     plot_action_statistics: int = 0,
+    classes: str = "Method",
 ) -> None:
     def barplot(
         ax: plt.Axes,
         df_plans: pd.DataFrame,
         ylim: Optional[Tuple[float, float]] = None,
+        classes: str = "Method",
         **kwargs,
     ) -> plt.Axes:
         sns.barplot(ax=ax, data=df_plans, **kwargs)
@@ -182,7 +192,7 @@ def plot_planning_results(
             ax.set_ylim(*ylim)
 
         # Change colors and shift bars.
-        num_methods = len(df_plans["Method"].unique())
+        num_classes = len(df_plans[classes].unique())
         unique_value_dynamics = df_plans["Value / Dynamics"].unique()
         num_value_dynamics = len(unique_value_dynamics)
         try:
@@ -190,8 +200,8 @@ def plot_planning_results(
         except IndexError:
             idx_na_value_dynamics = None
         for idx_bar, (bar, line) in enumerate(zip(ax.patches, ax.lines)):
-            idx_method = idx_bar % num_methods
-            idx_value_dynamics = idx_bar // num_methods
+            idx_class = idx_bar % num_classes
+            idx_value_dynamics = idx_bar // num_classes
 
             # Compute color.
             # Colors should increase in lightness with idx_value_dynamics,
@@ -202,7 +212,7 @@ def plot_planning_results(
                 a = idx_value_dynamics * 0.8 / (num_value_dynamics - 1)
             else:
                 a = idx_value_dynamics * 0.8 / (num_value_dynamics - 2)
-            color = 0.8 * np.array(sns.color_palette()[idx_method])
+            color = 0.8 * np.array(sns.color_palette()[idx_class])
             color = (1 - a) * color + a * np.ones(3)
 
             # Compute position.
@@ -253,7 +263,7 @@ def plot_planning_results(
     barplot(
         ax,
         df_plans,
-        x="Method",
+        x=classes,
         y="Ground truth success",
         hue="Value / Dynamics",
         ylim=(0.0, 1.0),
@@ -264,7 +274,7 @@ def plot_planning_results(
     barplot(
         ax,
         df_plans,
-        x="Method",
+        x=classes,
         y="Predicted success",
         hue="Value / Dynamics",
         ylim=(0.0, 1.0),
@@ -275,7 +285,7 @@ def plot_planning_results(
     barplot(
         ax,
         df_plans,
-        x="Method",
+        x=classes,
         y="Predicted success error",
         hue="Value / Dynamics",
         # ylim=(-0.8, 0.5),
@@ -283,13 +293,13 @@ def plot_planning_results(
     ax.set_title("Predicted success error")
 
     ax = axes[1, 0]
-    barplot(ax, df_plans, x="Method", y="Time", hue="Value / Dynamics")
+    barplot(ax, df_plans, x=classes, y="Time", hue="Value / Dynamics")
     ax.set_title("Planning time")
     ax.set_ylabel("Time [s]")
     ax.set_yscale("log")
 
     ax = axes[1, 1]
-    barplot(ax, df_plans, x="Method", y="Num sampled", hue="Value / Dynamics")
+    barplot(ax, df_plans, x=classes, y="Num sampled", hue="Value / Dynamics")
     ax.set_title("Sample quantity")
     ax.set_ylabel("# samples")
     ax.set_yscale("log")
@@ -299,7 +309,7 @@ def plot_planning_results(
         barplot(
             ax,
             df_samples,
-            x="Method",
+            x=classes,
             y="Predicted success > 0.5",
             hue="Value / Dynamics",
             # ylim=(0, 0.4),
@@ -386,7 +396,9 @@ def plot_action_statistics(
 
 
 def main(args: argparse.Namespace) -> None:
-    results = load_results(args.path, args.methods, args.plot_action_statistics)
+    results = load_results(
+        args.path, args.envs, args.methods, args.plot_action_statistics
+    )
 
     df_plans, df_samples = create_dataframes(results, args.plot_action_statistics)
     print(df_plans, "\n")
@@ -407,7 +419,7 @@ def main(args: argparse.Namespace) -> None:
     # print(methods)
     # print(rewards)
 
-    plot_planning_results(df_plans, df_samples, args.path)
+    plot_planning_results(df_plans, df_samples, args.path, classes="Task")
     if args.plot_action_statistics:
         plot_action_statistics(df_plans, df_samples, args.path)
 
@@ -415,6 +427,7 @@ def main(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", help="Path for output plots")
+    parser.add_argument("--envs", nargs="+", help="Planning domain subdirectories")
     parser.add_argument("--methods", nargs="+", help="Method subdirectories")
     parser.add_argument(
         "--plot-action-statistics", type=int, default=0, help="Plot action statistics"

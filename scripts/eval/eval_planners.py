@@ -1,6 +1,6 @@
 import argparse
 import pathlib
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import tqdm
@@ -10,6 +10,43 @@ from temporal_policies.envs.pybullet.table import primitives as table_primitives
 from temporal_policies.utils import recording, timing
 
 import eval_pybox2d_planners as pybox2d
+
+
+def seed_generator(
+    num_eval: int,
+    path_results: Optional[Union[str, pathlib.Path]] = None,
+) -> Generator[
+    Tuple[
+        Optional[int],
+        Optional[Tuple[np.ndarray, planners.PlanningResult, Optional[List[float]]]],
+    ],
+    None,
+    None,
+]:
+    if path_results is not None:
+        npz_files = sorted(
+            pathlib.Path(path_results).glob("results_*.npz"),
+            key=lambda x: int(x.stem.split("_")[-1]),
+        )
+        for npz_file in npz_files:
+            with open(npz_file, "rb") as f:
+                npz = np.load(f, allow_pickle=True)
+                seed: int = npz["seed"].item()
+                rewards = np.array(npz["rewards"])
+                plan = planners.PlanningResult(
+                    actions=np.array(npz["actions"]),
+                    states=np.array(npz["states"]),
+                    p_success=npz["p_success"].item(),
+                    values=np.array(npz["values"]),
+                )
+                t_planner: List[float] = npz["t_planner"].item()
+
+            yield seed, (rewards, plan, t_planner)
+
+    if num_eval is not None:
+        yield 0, None
+        for _ in range(num_eval - 1):
+            yield None, None
 
 
 def scale_actions(
@@ -27,6 +64,57 @@ def scale_actions(
     return scaled_actions
 
 
+def evaluate_plan(
+    idx_iter: int,
+    env: envs.Env,
+    planner: planners.Planner,
+    plan: planners.PlanningResult,
+    rewards: np.ndarray,
+    path: pathlib.Path,
+    grid_resolution: Optional[int] = None,
+) -> Dict[str, Any]:
+    if isinstance(env, envs.pybox2d.Sequential2D):
+        if grid_resolution is None:
+            raise ValueError("Specify grid_resolution for Pybox2D eval plot")
+        (grid_q_values, grid_actions) = pybox2d.evaluate_critic_functions(
+            planner, env.action_skeleton, env, grid_resolution
+        )
+        pybox2d.plot_critic_functions(
+            env=env,
+            action_skeleton=env.action_skeleton,
+            actions=plan.visited_actions,
+            p_success=plan.p_visited_success,
+            rewards=rewards,
+            grid_q_values=grid_q_values,
+            grid_actions=grid_actions,
+            path=path / f"values_{idx_iter}.png",
+            title=env.name,
+        )
+
+        return {"grid_q_values": grid_q_values, "grid_actions": grid_actions}
+
+    elif isinstance(env, envs.pybullet.TableEnv):
+        recorder = recording.Recorder()
+        recorder.start()
+        for primitive, predicted_state, action in zip(
+            env.action_skeleton, plan.states[1:], plan.actions
+        ):
+            env.set_primitive(primitive)
+            env._recording_text = (
+                "Action: ["
+                + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+                + "]"
+            )
+
+            recorder.add_frame(frame=env.render())
+            env.set_observation(predicted_state)
+            recorder.add_frame(frame=env.render())
+        recorder.stop()
+        recorder.save(path / f"predicted_trajectory_{idx_iter}.gif")
+
+    return {}
+
+
 def evaluate_planners(
     config: Union[str, pathlib.Path],
     env_config: Union[str, pathlib.Path, Dict[str, Any]],
@@ -37,8 +125,9 @@ def evaluate_planners(
     num_eval: int,
     path: Union[str, pathlib.Path],
     closed_loop: int,
-    grid_resolution: int,
     verbose: bool,
+    load_path: Optional[Union[str, pathlib.Path]] = None,
+    grid_resolution: Optional[int] = None,
     seed: Optional[int] = None,
     gui: Optional[int] = None,
 ) -> None:
@@ -62,37 +151,40 @@ def evaluate_planners(
     path.mkdir(parents=True, exist_ok=True)
 
     num_success = 0
-    pbar = tqdm.tqdm(range(num_eval), f"Evaluate {path.name}", dynamic_ncols=True)
-    for i in pbar:
+    pbar = tqdm.tqdm(
+        seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
+    )
+    for idx_iter, (seed, loaded_plan) in enumerate(pbar):
         if isinstance(planner.dynamics, dynamics.OracleDynamics):
             planner.dynamics.reset_cache()
         for policy in planner.policies:
             if isinstance(policy, agents.OracleAgent):
                 policy.reset_cache()
-        observation, info = env.reset(seed=seed if i == 0 else None)
+
+        observation, info = env.reset(seed=seed)
         seed = info["seed"]
         state = env.get_state()
 
         if verbose:
             env.record_start("timelapse", mode="timelapse")
 
-        if closed_loop:
-            rewards, plan, t_planner = planners.run_closed_loop_planning(
-                env,
-                env.action_skeleton,
-                planner,
-                timer=timer,
-                gif_path=path / f"planning_{i}.gif",
-            )
+        if loaded_plan is not None:
+            rewards, plan, t_planner = loaded_plan
         else:
-            rewards, plan, t_planner = planners.run_open_loop_planning(
+            if closed_loop:
+                planning_fn = planners.run_closed_loop_planning
+            else:
+                planning_fn = planners.run_open_loop_planning
+            rewards, plan, t_planner = planning_fn(
                 env,
                 env.action_skeleton,
                 planner,
                 timer=timer,
-                gif_path=path / f"planning_{i}.gif",
+                gif_path=path / f"planning_{idx_iter}.gif",
                 record_timelapse=verbose,
             )
+
+        env.set_state(state)
 
         if rewards.prod() > 0:
             num_success += 1
@@ -124,48 +216,19 @@ def evaluate_planners(
                     print("-", primitive, action)
             print("time:", t_planner)
 
-        if isinstance(env, envs.pybox2d.Sequential2D):
-            env.set_state(state)
-            (grid_q_values, grid_actions) = pybox2d.evaluate_critic_functions(
-                planner, env.action_skeleton, env, grid_resolution
+        if not closed_loop and not isinstance(
+            planner.dynamics, dynamics.OracleDynamics
+        ):
+            eval_results = evaluate_plan(
+                idx_iter, env, planner, plan, rewards, path, grid_resolution
             )
-            pybox2d.plot_critic_functions(
-                env=env,
-                action_skeleton=env.action_skeleton,
-                actions=plan.visited_actions,
-                p_success=plan.p_visited_success,
-                rewards=rewards,
-                grid_q_values=grid_q_values,
-                grid_actions=grid_actions,
-                path=path / f"values_{i}.png",
-                title=f"{pathlib.Path(config).stem}: {t_planner:0.2f}s",
-            )
-        elif isinstance(env, envs.pybullet.TableEnv):
-            if not closed_loop and not isinstance(
-                planner.dynamics, dynamics.OracleDynamics
-            ):
-                recorder = recording.Recorder()
-                recorder.start()
-                env.set_state(state)
-                for primitive, predicted_state, action in zip(
-                    env.action_skeleton, plan.states[1:], plan.actions
-                ):
-                    env.set_primitive(primitive)
-                    env._recording_text = (
-                        "Action: ["
-                        + ", ".join(
-                            [f"{a:.2f}" for a in primitive.scale_action(action)]
-                        )
-                        + "]"
-                    )
+        else:
+            eval_results = {}
 
-                    recorder.add_frame(frame=env.render())
-                    env.set_observation(predicted_state)
-                    recorder.add_frame(frame=env.render())
-                recorder.stop()
-                recorder.save(path / f"predicted_trajectory_{i}.gif")
+        if load_path is not None:
+            continue
 
-        with open(path / f"results_{i}.npz", "wb") as f:
+        with open(path / f"results_{idx_iter}.npz", "wb") as f:
             save_dict = {
                 "args": {
                     "config": config,
@@ -198,9 +261,7 @@ def evaluate_planners(
                 "action_skeleton": list(map(str, env.action_skeleton)),
                 "seed": seed,
             }
-            if isinstance(env, envs.pybox2d.Sequential2D):
-                save_dict["grid_q_values"] = grid_q_values
-                save_dict["grid_actions"] = grid_actions
+            save_dict.update(eval_results)
             np.savez_compressed(f, **save_dict)  # type: ignore
 
     print("Successes:", num_success, "/", num_eval)
@@ -226,6 +287,7 @@ if __name__ == "__main__":
         "--num-eval", "-n", type=int, default=1, help="Number of eval iterations"
     )
     parser.add_argument("--path", default="plots", help="Path for output plots")
+    parser.add_argument("--load-path", help="Load already generated planning results")
     parser.add_argument(
         "--closed-loop", default=1, type=int, help="Run closed-loop planning"
     )

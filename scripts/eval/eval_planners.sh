@@ -29,6 +29,9 @@ function eval_planner {
     if [ ! -z "${DYNAMICS_CHECKPOINT}" ]; then
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
+    if [[ ! -z "${LOAD_PATH}" ]]; then
+        args="${args} --load-path ${LOAD_PATH}"
+    fi
     args="${args} --seed 0"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
@@ -79,6 +82,7 @@ function run_planners {
 function visualize_results {
     args=""
     args="${args} --path ${PLANNER_OUTPUT_PATH}"
+    args="${args} --envs ${ENVS[@]}"
     args="${args} --methods ${PLANNERS[@]}"
     CMD="python scripts/visualize/visualize_planners.py ${args}"
     run_cmd
@@ -139,9 +143,9 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220907/official_collision_penalty"
+exp_name="20220908/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
-envs=(
+ENVS=(
     "hook_reach/task0"
     "hook_reach/task1"
     "hook_reach/task2"
@@ -174,9 +178,10 @@ POLICY_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_INPUT_PATH="${input_path}/${exp_name}"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for CKPT in "${checkpoints[@]}"; do
-    for env in "${envs[@]}"; do
+    for env in "${ENVS[@]}"; do
         ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
         PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
+        LOAD_PATH="${PLANNER_OUTPUT_PATH}"
         run_planners
     done
 done

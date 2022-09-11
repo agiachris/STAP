@@ -288,7 +288,7 @@ def run_open_loop_planning(
     timer: Optional[timing.Timer] = None,
     gif_path: Optional[Union[str, pathlib.Path]] = None,
     record_timelapse: bool = False,
-) -> Tuple[np.ndarray, planners.PlanningResult, Optional[float]]:
+) -> Tuple[np.ndarray, planners.PlanningResult, Optional[List[float]]]:
     if isinstance(planner.dynamics, dynamics.OracleDynamics):
         state = env.get_state()
 
@@ -314,7 +314,7 @@ def run_open_loop_planning(
     if isinstance(planner.dynamics, dynamics.OracleDynamics):
         env.set_state(state)
 
-    return rewards, plan, t_planner
+    return rewards, plan, [t_planner]
 
 
 def run_closed_loop_planning(
@@ -323,6 +323,7 @@ def run_closed_loop_planning(
     planner: planners.Planner,
     timer: Optional[timing.Timer] = None,
     gif_path: Optional[Union[str, pathlib.Path]] = None,
+    record_timelapse: bool = False,
 ) -> Tuple[np.ndarray, planners.PlanningResult, Optional[List[float]]]:
     """Runs closed-loop planning.
 
