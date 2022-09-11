@@ -179,8 +179,11 @@ class DafTrainer(UnifiedTrainer):
         action_skeleton: Sequence[envs.Primitive],
         random: bool,
         mode: Mode,
+        return_full: bool = False,
     ) -> np.ndarray:
         if random:
+            if return_full:
+                return np.array([primitive.sample() for primitive in action_skeleton])
             return action_skeleton[0].sample()
 
         with self.dynamics_trainer.profiler.profile("plan"):
@@ -191,7 +194,7 @@ class DafTrainer(UnifiedTrainer):
                 observation=observation, action_skeleton=action_skeleton
             ).actions
 
-        return actions[0]
+        return actions if return_full else actions[0]
 
     def collect_step(
         self, random: bool = False, mode: Mode = Mode.COLLECT
@@ -210,13 +213,9 @@ class DafTrainer(UnifiedTrainer):
         env.reset()
 
         if not self.closed_loop_planning:
-            with self.dynamics_trainer.profiler.profile("plan"):
-                # Plan.
-                env.set_primitive(env.action_skeleton[0])
-                observation = env.get_observation()
-                actions = self.planner.plan(
-                    observation=observation, action_skeleton=env.action_skeleton
-                ).actions
+            actions = self.plan_step(
+                env, env.action_skeleton, random=random, mode=mode, return_full=True
+            )
 
         failure = False
         collect_metrics: Dict[str, Dict[str, float]] = {
