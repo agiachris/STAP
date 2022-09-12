@@ -192,28 +192,25 @@ def load(
     return planner_factory(**kwargs)
 
 
-@tensors.batch(dims=1)
+# TODO: states.ndim isn't necessarily 2.
+@tensors.batch(dims=2)
 def evaluate_trajectory(
     value_fns: Iterable[
         Union[networks.critics.Critic, networks.critics.ProbabilisticCritic]
     ],
-    decode_fns: Iterable[
-        Callable[[Union[torch.Tensor, envs.Primitive], torch.Tensor], torch.Tensor]
-    ],
-    p_transitions: torch.Tensor,
+    decode_fns: Iterable[Callable[[torch.Tensor], torch.Tensor]],
     states: torch.Tensor,
     actions: Optional[torch.Tensor] = None,
     q_value: bool = True,
     clip_success: bool = True,
     probabilistic_metric: Optional[str] = None,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
     """Evaluates probability of success for the given trajectory.
 
     Args:
         value_fns: List of T value functions.
         decoders: List of T decoders.
         states: [batch_dims, T + 1, state_dims] trajectory states.
-        p_transitions: [batch_dims, T] transition probabilities.
         actions: [batch_dims, T, state_dims] trajectory actions.
         q_value: Whether to use state-action values (True) or state values (False).
 
@@ -222,9 +219,16 @@ def evaluate_trajectory(
          values [batch_size, T], value uncertainty metric [batch_size, T]) 2-tuple.
     """
     # Compute step success probabilities.
-    p_successes = torch.zeros_like(p_transitions)
-    p_successes_unc = torch.zeros_like(p_transitions)
+    p_successes = torch.zeros(
+        (states.shape[0], states.shape[1] - 1),
+        dtype=torch.float32,
+        device=states.device,
+    )
+    p_successes_unc = (
+        None if probabilistic_metric is None else torch.zeros_like(p_successes)
+    )
     if q_value:
+        assert actions is not None
         for t, (value_fn, decode_fn) in enumerate(zip(value_fns, decode_fns)):
             policy_state = decode_fn(states[:, t])
             dim_action = int(torch.sum(~torch.isnan(actions[0, t])).cpu().item())
@@ -232,6 +236,7 @@ def evaluate_trajectory(
             if isinstance(value_fn, networks.critics.Critic):
                 p_successes[:, t] = value_fn.predict(policy_state, action)
             elif isinstance(value_fn, networks.critics.ProbabilisticCritic):
+                assert probabilistic_metric is not None and p_successes_unc is not None
                 p_distribution = value_fn.forward(policy_state, action)
                 p_successes[:, t] = p_distribution.mean
                 p_successes_unc[:, t] = getattr(p_distribution, probabilistic_metric)
@@ -241,11 +246,9 @@ def evaluate_trajectory(
     if clip_success:
         p_successes = torch.clip(p_successes, min=0, max=1)
 
-    # Discard last transition from T-1 to T, since s_T isn't used.
-    p_transitions = p_transitions[:, :-1]
-
     # Combine probabilities.
-    p_success = logsum_exp(p_successes, p_transitions)
+    # p_success = logsum_exp(p_successes)
+    p_success = torch.exp(torch.log(p_successes).sum(dim=-1))
 
     return p_success, p_successes, p_successes_unc
 
@@ -333,7 +336,7 @@ def run_open_loop_planning(
     if isinstance(planner.dynamics, dynamics.OracleDynamics):
         env.set_state(state)
 
-    return rewards, plan, [t_planner]
+    return rewards, plan, None if t_planner is None else [t_planner]
 
 
 def run_closed_loop_planning(

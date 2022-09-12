@@ -114,9 +114,7 @@ class SCODCEMPlanner(planners.Planner):
         T = len(action_skeleton)
 
         # Roll out a trajectory.
-        _, actions, _ = self.dynamics.rollout(
-            observation, action_skeleton, self.policies
-        )
+        _, actions = self.dynamics.rollout(observation, action_skeleton, self.policies)
         mean = actions
 
         # Scale the standard deviations by the action spaces.
@@ -162,29 +160,32 @@ class SCODCEMPlanner(planners.Planner):
             for primitive in action_skeleton
         ]
 
-        # Get initial state.
         with torch.no_grad():
-            t_observation = torch.from_numpy(observation).to(self.dynamics.device)
-
             # Prepare action spaces.
             T = len(action_skeleton)
             actions_low = spaces.null_tensor(self.dynamics.action_space, (T,))
             actions_high = actions_low.clone()
+            task_dimensionality = 0
             for t, primitive in enumerate(action_skeleton):
                 action_space = self.policies[primitive.idx_policy].action_space
                 action_shape = action_space.shape[0]
                 actions_low[t, :action_shape] = torch.from_numpy(action_space.low)
                 actions_high[t, :action_shape] = torch.from_numpy(action_space.high)
+                task_dimensionality += action_shape
             actions_low = actions_low.to(self.device)
             actions_high = actions_high.to(self.device)
+
+            # Scale number of samples and SCOD filter scale to task size
+            num_samples = self.num_samples * task_dimensionality
+            num_filter_per_timestep = self.num_filter_per_step * task_dimensionality
+
+            # Get initial state.
+            t_observation = torch.from_numpy(observation).to(self.dynamics.device)
 
             # Initialize distribution.
             mean, std = self._compute_initial_distribution(
                 t_observation, action_skeleton
             )
-            task_dimensionality = int((~torch.isnan(actions_low)).sum())
-            num_samples = self.num_samples * task_dimensionality
-
             elites = torch.empty(
                 (0, *mean.shape), dtype=torch.float32, device=self.device
             )
@@ -221,7 +222,7 @@ class SCODCEMPlanner(planners.Planner):
                     network = policy.actor.network
                     assert isinstance(network, networks.Constant)
                     network.constant = samples[:, t, : policy.action_space.shape[0]]
-                states, actions, p_transitions = self.dynamics.rollout(
+                states, _ = self.dynamics.rollout(
                     t_observation,
                     action_skeleton,
                     policies,
@@ -233,31 +234,27 @@ class SCODCEMPlanner(planners.Planner):
                 p_success, values, values_unc = utils.evaluate_trajectory(
                     value_fns,
                     decode_fns,
-                    p_transitions,
                     states,
-                    actions=actions,
+                    actions=samples,
                     probabilistic_metric="stddev",
                 )
 
                 # Filter out trajectories with the highest uncertainty.
-                unc_primitive_idx = values_unc.argsort(dim=0, descending=True)
-                unc_trajectory_idx = unc_primitive_idx[
-                    : self.num_filter_per_step * task_dimensionality
-                ]
+                unc_trajectory_idx = values_unc.topk(
+                    num_filter_per_timestep, dim=0
+                ).indices
                 p_success[unc_trajectory_idx.flatten().unique()] = float("-Inf")
 
                 # Select the top trajectories.
-                p_success = p_success.cpu().numpy()
-                idx_elites = np.argpartition(p_success, -self.num_elites)[
-                    -self.num_elites :
-                ]
+                idx_elites = p_success.topk(self.num_elites).indices
                 elites = samples[idx_elites]
-                idx_best = idx_elites[np.argmax(p_success[idx_elites])]
+                idx_best = idx_elites[0]
 
                 # Track best action.
-                if p_success[idx_best] > p_best_success:
-                    p_best_success = p_success[idx_best]
-                    best_actions = actions[idx_best].cpu().numpy()
+                _p_best_success = p_success[idx_best].cpu().numpy()
+                if _p_best_success > p_best_success:
+                    p_best_success = _p_best_success
+                    best_actions = samples[idx_best].cpu().numpy()
                     best_states = states[idx_best].cpu().numpy()
                     best_values = values[idx_best].cpu().numpy()
 
@@ -272,10 +269,19 @@ class SCODCEMPlanner(planners.Planner):
 
                 # Convert to numpy.
                 if return_visited_samples:
-                    visited_actions_list.append(actions.cpu().numpy())
+                    visited_actions_list.append(samples.cpu().numpy())
                     visited_states_list.append(states.cpu().numpy())
                     p_visited_success_list.append(p_success.cpu().numpy())
                     visited_values_list.append(values.cpu().numpy())
+                del (
+                    samples,
+                    states,
+                    p_success,
+                    values,
+                    values_unc,
+                    unc_trajectory_idx,
+                    idx_elites,
+                )
 
         assert (
             best_actions is not None

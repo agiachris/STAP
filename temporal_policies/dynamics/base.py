@@ -88,7 +88,7 @@ class Dynamics(abc.ABC):
         time_index: bool = False,
         state_requires_grad: bool = False,
         action_requires_grad: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Rolls out trajectories according to the action skeleton.
 
         Args:
@@ -99,10 +99,9 @@ class Dynamics(abc.ABC):
             time_index: True if policies are indexed by time instead of idx_policy.
 
         Returns:
-            3-tuple (
+            2-tuple (
                 states [batch_size, T + 1],
                 actions [batch_size, T],
-                p_transitions [batch_size, T],
             ).
         """
         if policies is None:
@@ -129,9 +128,6 @@ class Dynamics(abc.ABC):
         actions = spaces.null_tensor(
             self.action_space, (_batch_size, T), device=self.device
         ).requires_grad_(action_requires_grad)
-        p_transitions = torch.ones(
-            (_batch_size, T), dtype=torch.float32, device=self.device
-        )
 
         # Rollout.
         for t, primitive in enumerate(action_skeleton):
@@ -146,9 +142,9 @@ class Dynamics(abc.ABC):
             states[:, t + 1] = state
 
         if batch_size is None:
-            return states[0], actions[0], p_transitions[0]
+            return states[0], actions[0]
 
-        return states, actions, p_transitions
+        return states, actions
 
     @abc.abstractmethod
     def forward(
