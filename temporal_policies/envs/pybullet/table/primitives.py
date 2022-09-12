@@ -59,7 +59,7 @@ def did_object_move(
 
 def initialize_robot_pose(robot: Robot) -> bool:
     x_min, x_max = (
-        utils.TABLE_CONSTRAINTS["workspace_x_min"],
+        utils.TABLE_CONSTRAINTS["table_x_min"],
         ACTION_CONSTRAINTS["max_lift_radius"],
     )
     y_min = utils.TABLE_CONSTRAINTS["table_y_min"]
@@ -358,7 +358,7 @@ class Place(Primitive):
         xy_target_range = np.array(target.bbox[:, :2])
         print(xy_target_range)
         if target.name == "table":
-            xy_target_range[0, 0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
+            xy_target_range[0, 0] = utils.TABLE_CONSTRAINTS["table_x_min"]
             xy_target_range[1, 0] = ACTION_CONSTRAINTS["max_lift_radius"]
         xy_target = (
             xy_target_range[1] - xy_target_range[0]

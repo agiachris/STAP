@@ -242,7 +242,7 @@ class PosLimit(Predicate):
     POS_EPS: Dict[Type[Object], float] = {Rack: 0.01}
     POS_SPEC: Dict[Type[Object], Dict[str, np.ndarray]] = {
         Rack: {
-            "inworkspace": np.array([0.4, -0.33]),
+            "inworkspace": np.array([0.44, -0.33]),
             "beyondworkspace": np.array([0.82, 0.00]),
         }
     }
@@ -266,7 +266,7 @@ class InWorkspace(Predicate, TableBounds):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         obj = self.get_arg_objects(objects)[0]
-        if obj.isinstance(Null):
+        if obj.isinstance((Null, Rack)):  # Rack is in workspace by construction.
             return True
 
         obj_pos = obj.pose().pos[:2]
