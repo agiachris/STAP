@@ -356,7 +356,6 @@ class Place(Primitive):
             xy_action_range[1] - xy_action_range[0]
         )
         xy_target_range = np.array(target.bbox[:, :2])
-        print(xy_target_range)
         if target.name == "table":
             xy_target_range[0, 0] = utils.TABLE_CONSTRAINTS["table_x_min"]
             xy_target_range[1, 0] = ACTION_CONSTRAINTS["max_lift_radius"]

@@ -12,22 +12,22 @@ env_kwargs:
   tasks:
     - action_skeleton:
         - pick(hook, table)
-        - pull(cyan_box, hook)
+        - pull(red_box, hook)
         - place(hook, table)
-        - pick(cyan_box, table)
+        - pick(red_box, table)
       initial_state:
         - free(hook)
+        - free(red_box)
         - free(cyan_box)
+        - free(yellow_box)
         - inworkspace(hook)
-        - beyondworkspace(cyan_box)
-        - nonblocking(cyan_box, yellow_box)
-        - nonblocking(cyan_box, red_box)
-        - nonblocking(cyan_box, blue_box)
+        - beyondworkspace(red_box)
+        - nonblocking(red_box, cyan_box)
+        - nonblocking(red_box, yellow_box)
         - on(hook, table)
+        - on(red_box, table)
         - on(cyan_box, table)
         - on(yellow_box, table)
-        - on(red_box, table)
-        - on(blue_box, table)
           
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -44,15 +44,9 @@ env_kwargs:
         handle_length: 0.38
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
-    - configs/pybullet/envs/assets/salt.yaml
     - configs/pybullet/envs/assets/yogurt.yaml
     - configs/pybullet/envs/assets/milk.yaml
     - configs/pybullet/envs/assets/icecream.yaml
-    # - object_type: Box
-    #   object_kwargs:
-    #     name: blue_box
-    #     size: [0.08, 0.05, 0.07]
-    #     color: [0.0, 0.0, 1.0, 1.0]
     # - object_type: Box
     #   object_kwargs:
     #     name: yellow_box

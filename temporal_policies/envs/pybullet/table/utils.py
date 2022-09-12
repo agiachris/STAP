@@ -151,7 +151,7 @@ def is_inworkspace(
     obj_pos: Optional[np.ndarray] = None,
     distance: Optional[float] = None,
 ) -> bool:
-    """Returns True if the objects is in the workspace."""
+    """Returns True if the object is in the workspace."""
     if obj_pos is None or distance is None:
         if obj is None:
             raise ValueError("Must specify obj or obj_pos and distance")
@@ -161,6 +161,23 @@ def is_inworkspace(
         TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
         and distance < TABLE_CONSTRAINTS["workspace_radius"]
     ):
+        return False
+
+    return True
+
+
+def is_beyondworkspace(
+    obj: Optional[Object] = None,
+    obj_pos: Optional[np.ndarray] = None,
+    distance: Optional[float] = None,
+) -> bool:
+    """Returns True if the object is beyond the workspace."""
+    if obj_pos is None or distance is None:
+        if obj is None:
+            raise ValueError("Must specify obj or obj_pos and distance")
+        obj_pos = obj.pose().pos[:2]
+        distance = float(np.linalg.norm(obj_pos))
+    if distance < TABLE_CONSTRAINTS["workspace_radius"]:
         return False
 
     return True

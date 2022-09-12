@@ -71,6 +71,13 @@ class UpperHandleGrasp(Predicate):
 class Free(Predicate):
     """Unary predicate enforcing that no top-down occlusions exist on the object."""
 
+    DISTANCE_MIN: Dict[Tuple[Type[Object], Type[Object]], float] = {
+        (Box, Box): 0.05,
+        (Box, Hook): 0.05,
+        (Box, Rack): 0.1,
+        (Hook, Rack): 0.05,
+    }
+
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
@@ -84,6 +91,22 @@ class Free(Predicate):
             if utils.is_under(child_obj, obj):
                 dbprint(f"{self}.value():", False, f"{child_obj} under {obj}")
                 return False
+            obj_pair = (type(child_obj), type(obj))
+            for x in [obj_pair, obj_pair[::-1]]:
+                try:
+                    min_distance = Free.DISTANCE_MIN[x]
+                except KeyError:
+                    continue
+                if utils.is_within_distance(
+                    child_obj, obj, min_distance, obj.physics_id
+                ) and not utils.is_above(child_obj, obj):
+                    dbprint(
+                        f"{self}.value():",
+                        False,
+                        f"{child_obj} and {obj} are within min distance",
+                    )
+                    return False
+
         return True
 
 
@@ -447,9 +470,9 @@ class BeyondWorkspace(Predicate, TableBounds):
             return True
 
         distance = float(np.linalg.norm(obj.pose().pos[:2]))
-        if distance < utils.TABLE_CONSTRAINTS["workspace_radius"]:
-            dbprint(f"{self}.value():", False, "- distance:", distance)
+        if not utils.is_beyondworkspace(obj=obj, distance=distance):
             return False
+            dbprint(f"{self}.value():", False, "- distance:", distance)
 
         return True
 
@@ -671,9 +694,9 @@ class NonBlocking(Predicate):
     """Binary predicate ensuring that one object is not occupying a straightline
     path from the robot base to another object."""
 
-    PULL_MARGIN: Dict[Tuple[Type[Object], str], float] = {
-        (Box, "inworkspace"): 3.0,
-        (Box, "beyondworkspace"): 1.5,
+    PULL_MARGIN: Dict[Tuple[Type[Object], Type[Object]], Dict[Optional[str], float]] = {
+        (Box, Rack): {"inworkspace": 3.0, "beyondworkspace": 1.5},
+        (Box, Box): {"inworkspace": 3.0, "beyondworkspace": 3.0},
     }
 
     def value(
@@ -689,21 +712,24 @@ class NonBlocking(Predicate):
             raise NotImplementedError("Compound shapes not yet supported")
         vertices = convex_hulls[0]
 
-        if (
-            intersect_obj.isinstance(Rack)
-            and f"poslimit({intersect_obj})" in state
-            and f"aligned({intersect_obj})" in state
-        ):
-            # Add additional xy-margin buffer to occluding Rack
-            zone = (
-                "inworkspace"
-                if utils.is_inworkspace(obj=intersect_obj)
-                else "beyondworkspace"
-            )
+        try:
+            pull_margins = NonBlocking.PULL_MARGIN[
+                (type(target_obj), type(intersect_obj))
+            ]
+        except KeyError:
+            pull_margins = None
+
+        if pull_margins is not None:
+            if utils.is_inworkspace(obj=intersect_obj):
+                zone = "inworkspace"
+            elif utils.is_beyondworkspace(obj=intersect_obj):
+                zone = "beyondworkspace"
+            else:
+                zone = None
             try:
-                margin_scale = NonBlocking.PULL_MARGIN[(type(target_obj), zone)]
+                margin_scale = pull_margins[zone]
             except KeyError:
-                margin_scale = 1.0
+                margin_scale = 1
             target_margin = margin_scale * target_obj.size[:2].max()
             # Expand the vertices by the margin.
             center = vertices.mean(axis=0)
