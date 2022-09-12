@@ -99,7 +99,7 @@ class Free(Predicate):
                     continue
                 if utils.is_within_distance(
                     child_obj, obj, min_distance, obj.physics_id
-                ):
+                ) and not utils.is_above(child_obj, obj):
                     dbprint(
                         f"{self}.value():",
                         False,
