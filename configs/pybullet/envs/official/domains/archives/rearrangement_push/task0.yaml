@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: hook_reach_2
+  name: rearrangement_push_0
   gui: true
 
   primitives:
@@ -11,24 +11,27 @@ env_kwargs:
 
   tasks:
     - action_skeleton:
+        - pick(blue_box, table)
+        - place(blue_box, table)
         - pick(hook, table)
-        - pull(red_box, hook)
-        - place(hook, table)
-        - pick(red_box, table)
+        - push(cyan_box, hook, rack)
       initial_state:
         - free(hook)
-        - free(red_box)
+        - free(blue_box)
         - free(cyan_box)
-        - free(yellow_box)
+        - aligned(rack)
+        - poslimit(rack)
         - inworkspace(hook)
-        - beyondworkspace(red_box)
-        - nonblocking(red_box, cyan_box)
-        - nonblocking(red_box, yellow_box)
+        - inoperationalzone(cyan_box)
+        - inobstructionzone(blue_box)
+        - beyondworkspace(rack)
+        - infront(blue_box, rack)
+        - infront(cyan_box, rack)
+        - on(rack, table)
         - on(hook, table)
-        - on(red_box, table)
+        - on(blue_box, table)
         - on(cyan_box, table)
-        - on(yellow_box, table)
-          
+        
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   objects:
@@ -37,6 +40,11 @@ env_kwargs:
         name: table
         path: configs/pybullet/envs/assets/iprl_table.urdf
         is_static: true
+    - object_type: Rack
+      object_kwargs:
+        name: rack
+        size: [0.22, 0.32, 0.16]
+        color: [0.4, 0.2, 0.0, 1.0]
     - object_type: Hook
       object_kwargs:
         name: hook
@@ -46,14 +54,9 @@ env_kwargs:
         color: [0.6, 0.6, 0.6, 1.0]
     - object_type: Box
       object_kwargs:
-        name: yellow_box
-        size: [0.07, 0.06, 0.1]
-        color: [1.0, 1.0, 0.0, 1.0]
-    - object_type: Box
-      object_kwargs:
-        name: red_box
-        size: [0.05, 0.05, 0.07]
-        color: [1.0, 0.0, 0.0, 1.0]
+        name: blue_box
+        size: [0.08, 0.05, 0.07]
+        color: [0.0, 0.0, 1.0, 1.0]
     - object_type: Box
       object_kwargs:
         name: cyan_box

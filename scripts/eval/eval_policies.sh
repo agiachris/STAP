@@ -43,7 +43,7 @@ function eval_policies {
 # Setup.
 
 DEBUG=0
-NUM_EPISODES=20
+NUM_EPISODES=100
 
 # Evaluate policies.
 
@@ -68,10 +68,11 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; 
     ENV_KWARGS="${ENV_KWARGS} --gui 0"
 fi
 
-for EXP_NAME in "${experiments[@]}"; do
+for exp_name in "${experiments[@]}"; do
     for ckpt in "${ckpts[@]}"; do
         for policy_env in "${policy_envs[@]}"; do
-            POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/${ckpt}.pt"
+            EXP_NAME="${exp_name}/${ckpt}"
+            POLICY_CHECKPOINT="models/${exp_name}/${policy_env}/${ckpt}.pt"
             eval_policies
         done
     done
