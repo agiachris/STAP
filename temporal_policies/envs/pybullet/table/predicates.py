@@ -75,7 +75,7 @@ class Free(Predicate):
         (Box, Box): 0.05,
         (Box, Hook): 0.05,
         (Box, Rack): 0.1,
-        (Hook, Rack): 0.05,
+        (Hook, Rack): 0.1,
     }
 
     def value(
