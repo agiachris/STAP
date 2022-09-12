@@ -1,11 +1,12 @@
 import collections
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Union
 
+from ctrlutils import eigen
 import itertools
 import numpy as np
-from ctrlutils import eigen
 import pybullet as p
 from shapely.geometry import Polygon
+import yaml
 
 from temporal_policies.envs.pybullet.sim import body, math
 from temporal_policies.envs.pybullet.table.objects import Object
@@ -163,3 +164,10 @@ def is_inworkspace(
         return False
 
     return True
+
+
+def load_config(config: Union[str, Any]) -> Any:
+    if isinstance(config, str):
+        with open(config, "r") as f:
+            config = yaml.safe_load(f)
+    return config

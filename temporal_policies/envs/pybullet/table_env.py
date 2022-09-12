@@ -9,7 +9,6 @@ from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 import gym
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-import yaml
 
 from temporal_policies.envs import base as envs
 from temporal_policies.envs.pybullet import real
@@ -87,13 +86,6 @@ class TaskDistribution:
     def sample(self) -> Task:
         idx_task = np.random.choice(len(self.tasks), p=self._probabilities)
         return self.tasks[idx_task]
-
-
-def load_config(config: Union[str, Any]) -> Any:
-    if isinstance(config, str):
-        with open(config, "r") as f:
-            config = yaml.safe_load(f)
-    return config
 
 
 class TableEnv(PybulletEnv):
@@ -196,8 +188,8 @@ class TableEnv(PybulletEnv):
         self._process_id: Optional[Tuple[int, int]] = None
 
         # Load configs.
-        object_kwargs: List[Dict[str, Any]] = load_config(objects)
-        robot_kwargs: Dict[str, Any] = load_config(robot_config)
+        object_kwargs: List[Dict[str, Any]] = utils.load_config(objects)
+        robot_kwargs: Dict[str, Any] = utils.load_config(robot_config)
 
         # Set primitive names.
         self._primitives = primitives
@@ -224,7 +216,7 @@ class TableEnv(PybulletEnv):
             Object.create(
                 physics_id=self.physics_id,
                 object_groups=self.object_groups,
-                **obj_config,
+                **utils.load_config(obj_config),
             )
             for obj_config in object_kwargs
         ]
@@ -234,7 +226,9 @@ class TableEnv(PybulletEnv):
 
         # Load optional object tracker.
         if object_tracker_config is not None:
-            object_tracker_kwargs: Dict[str, Any] = load_config(object_tracker_config)
+            object_tracker_kwargs: Dict[str, Any] = utils.load_config(
+                object_tracker_config
+            )
             self._object_tracker: Optional[
                 object_tracker.ObjectTracker
             ] = object_tracker.ObjectTracker(
