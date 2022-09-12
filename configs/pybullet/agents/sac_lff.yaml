@@ -8,12 +8,14 @@ agent_kwargs:
 
   actor_class: actors.DiagonalGaussianMLPActor
   actor_kwargs:
+    fourier_features: 40
     hidden_layers: [256, 256]
     log_std_bounds: [-5, 2]
     ortho_init: true
 
   critic_class: critics.ContinuousMLPCritic
   critic_kwargs:
+    fourier_features: 40
     hidden_layers: [256, 256]
     num_q_fns: 2
     ortho_init: true
