@@ -91,21 +91,29 @@ class Free(Predicate):
             if utils.is_under(child_obj, obj):
                 dbprint(f"{self}.value():", False, f"{child_obj} under {obj}")
                 return False
-            obj_pair = (type(child_obj), type(obj))
-            for x in [obj_pair, obj_pair[::-1]]:
-                try:
-                    min_distance = Free.DISTANCE_MIN[x]
-                except KeyError:
-                    continue
-                if utils.is_within_distance(
-                    child_obj, obj, min_distance, obj.physics_id
-                ) and not utils.is_above(child_obj, obj):
-                    dbprint(
-                        f"{self}.value():",
-                        False,
-                        f"{child_obj} and {obj} are within min distance",
-                    )
-                    return False
+
+            obj_a, obj_b = sorted(
+                (child_obj.type(), obj.type()), key=lambda x: x.__name__
+            )
+            try:
+                min_distance = Free.DISTANCE_MIN[(obj_a, obj_b)]
+            except KeyError:
+                continue
+            if (
+                (obj.isinstance(Rack) and f"beyondworkspace({obj})" in state)
+                or f"infront({child_obj}, rack)" in state
+                or f"infront({obj}, rack)" in state
+            ):
+                min_distance = 0.02
+            if utils.is_within_distance(
+                child_obj, obj, min_distance, obj.physics_id
+            ) and not utils.is_above(child_obj, obj):
+                dbprint(
+                    f"{self}.value():",
+                    False,
+                    f"{child_obj} and {obj} are within min distance",
+                )
+                return False
 
         return True
 
@@ -193,7 +201,7 @@ class TableBounds:
     @staticmethod
     def scale_margin(obj: Object, margins: np.ndarray) -> np.ndarray:
         try:
-            bounds = TableBounds.MARGIN_SCALE[type(obj)]
+            bounds = TableBounds.MARGIN_SCALE[obj.type()]
         except KeyError:
             return margins
         return bounds * margins
@@ -676,7 +684,11 @@ class InFront(Predicate):
         return True
 
     @staticmethod
-    def bounds(parent_obj: Object, margin: np.ndarray = np.zeros(2)) -> np.ndarray:
+    def bounds(
+        child_obj: Object,
+        parent_obj: Object,
+        margin: np.ndarray = np.zeros(2),
+    ) -> np.ndarray:
         """Returns the minimum and maximum x-y bounds in front of the parent object."""
         assert parent_obj.isinstance(Rack)
 
@@ -714,7 +726,7 @@ class NonBlocking(Predicate):
 
         try:
             pull_margins = NonBlocking.PULL_MARGIN[
-                (type(target_obj), type(intersect_obj))
+                (target_obj.type(), intersect_obj.type())
             ]
         except KeyError:
             pull_margins = None
@@ -799,7 +811,7 @@ class On(Predicate):
 
             if rack_obj is not None and f"infront({child_obj}, {rack_obj})" in state:
                 infront_bounds = InFront.bounds(
-                    parent_obj=rack_obj, margin=margin_world_frame
+                    child_obj=child_obj, parent_obj=rack_obj, margin=margin_world_frame
                 )
                 intersection = self.compute_bound_intersection(bounds, infront_bounds)
                 if intersection is None:
