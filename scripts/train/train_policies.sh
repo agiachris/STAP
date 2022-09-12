@@ -67,7 +67,7 @@ plots_path="plots"
 # train_policy
 
 # Pybullet.
-exp_name="20220908/official"
+exp_name="20220912/official"
 TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
 AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
