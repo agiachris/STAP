@@ -1,44 +1,9 @@
 from typing import List, Optional
 
 import torch
-import numpy as np
 
 from temporal_policies.networks.critics.base import Critic
-from temporal_policies.networks.mlp import MLP, weight_init
-
-
-class LFF(torch.nn.Module):
-    """
-    get torch.std_mean(self.B)
-    """
-
-    def __init__(self, in_features, out_features, scale=1.0, init="iso", sincos=False):
-        super().__init__()
-        self.in_features = in_features
-        self.sincos = sincos
-        self.out_features = out_features
-        self.scale = scale
-        if self.sincos:
-            self.linear = torch.nn.Linear(in_features, self.out_features // 2)
-        else:
-            self.linear = torch.nn.Linear(in_features, self.out_features)
-        if init == "iso":
-            torch.nn.init.normal_(self.linear.weight, 0, scale / self.in_features)
-            torch.nn.init.normal_(self.linear.bias, 0, 1)
-        else:
-            torch.nn.init.uniform_(
-                self.linear.weight, -scale / self.in_features, scale / self.in_features
-            )
-            torch.nn.init.uniform_(self.linear.bias, -1, 1)
-        if self.sincos:
-            torch.nn.init.zeros_(self.linear.bias)
-
-    def forward(self, x, **_):
-        x = np.pi * self.linear(x)
-        if self.sincos:
-            return torch.cat([torch.sin(x), torch.cos(x)], dim=-1)
-        else:
-            return torch.sin(x)
+from temporal_policies.networks.mlp import LFF, MLP, weight_init
 
 
 def create_q_network(

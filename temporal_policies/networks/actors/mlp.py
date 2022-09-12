@@ -1,9 +1,9 @@
-from typing import Sequence, Type
+from typing import Optional, Sequence, Type
 
 import gym
 import torch
 
-from temporal_policies.networks.mlp import MLP, weight_init
+from temporal_policies.networks.mlp import LFF, MLP, weight_init
 from temporal_policies.networks.actors import base
 from temporal_policies.networks.utils import SquashedNormal
 
@@ -45,18 +45,30 @@ class DiagonalGaussianMLPActor(base.Actor):
         act: Type[torch.nn.Module] = torch.nn.ReLU,
         ortho_init: bool = False,
         log_std_bounds: Sequence[int] = [-5, 2],
+        fourier_features: Optional[int] = None,
     ):
         super().__init__()
         self.log_std_bounds = log_std_bounds
         if log_std_bounds is not None:
             assert log_std_bounds[0] < log_std_bounds[1]
-        self.mlp = MLP(
-            state_space.shape[0],
-            2 * action_space.shape[0],
-            hidden_layers=hidden_layers,
-            act=act,
-            output_act=None,
-        )
+        if fourier_features is not None:
+            lff = LFF(state_space.shape[0], fourier_features)
+            mlp = MLP(
+                fourier_features,
+                2 * action_space.shape[0],
+                hidden_layers=hidden_layers,
+                act=act,
+                output_act=None,
+            )
+            self.mlp: torch.nn.Module = torch.nn.Sequential(lff, mlp)
+        else:
+            self.mlp = MLP(
+                state_space.shape[0],
+                2 * action_space.shape[0],
+                hidden_layers=hidden_layers,
+                act=act,
+                output_act=None,
+            )
         if ortho_init:
             self.apply(weight_init)
         self.action_range = [
