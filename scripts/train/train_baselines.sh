@@ -53,6 +53,10 @@ plots_path="plots"
 # Experiments.
 
 exp_name="20220912/official"
+AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
+
+# exp_name="20220912/official_lff"
+# AGENT_CONFIG="configs/pybullet/agents/sac_lff.yaml"
 
 planners=(
     # "daf_policy_cem"
@@ -77,7 +81,6 @@ TRAINER_CONFIG="configs/pybullet/trainers/daf.yaml"
 # TRAINER_CONFIG="configs/pybullet/trainers/dreamer.yaml"
 
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
-AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 ENV_KWARGS="--num-env-processes 4 --num-eval-env-processes 2 --closed-loop-planning 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
