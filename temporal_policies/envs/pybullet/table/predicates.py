@@ -242,7 +242,7 @@ class PosLimit(Predicate):
     POS_EPS: Dict[Type[Object], float] = {Rack: 0.01}
     POS_SPEC: Dict[Type[Object], Dict[str, np.ndarray]] = {
         Rack: {
-            "inworkspace": np.array([0.50, -0.33]),
+            "inworkspace": np.array([0.4, -0.33]),
             "beyondworkspace": np.array([0.82, 0.00]),
         }
     }
