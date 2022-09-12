@@ -74,7 +74,7 @@ class Free(Predicate):
     DISTANCE_MIN: Dict[Tuple[Type[Object], Type[Object]], float] = {
         (Box, Box): 0.05,
         (Box, Hook): 0.05,
-        (Box, Rack): 0.06,
+        (Box, Rack): 0.1,
         (Hook, Rack): 0.05,
     }
 
