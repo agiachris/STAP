@@ -14,6 +14,8 @@ from temporal_policies.envs.pybullet.table.objects import Object
 TABLE_CONSTRAINTS = {
     "table_z_max": 0.00,
     "table_x_min": 0.30,
+    "table_y_min": -0.45,
+    "table_y_max": 0.45,
     "workspace_x_min": 0.40,
     "operational_x_min": 0.50,
     "operational_x_max": 0.60,

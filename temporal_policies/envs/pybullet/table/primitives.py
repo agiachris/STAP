@@ -62,7 +62,8 @@ def initialize_robot_pose(robot: Robot) -> bool:
         utils.TABLE_CONSTRAINTS["workspace_x_min"],
         ACTION_CONSTRAINTS["max_lift_radius"],
     )
-    y_min, y_max = primitive_actions.PlaceAction.RANGES["y"]
+    y_min = utils.TABLE_CONSTRAINTS["table_y_min"]
+    y_max = utils.TABLE_CONSTRAINTS["table_y_max"]
     xy_min = np.array([x_min, y_min])
     xy_max = np.array([x_max, y_max])
 
@@ -349,8 +350,23 @@ class Place(Primitive):
         target_pose = target.pose()
         target_quat = eigen.Quaterniond(target_pose.quat)
 
+        # Scale action to target bbox.
+        xy_action_range = primitive_actions.PlaceAction.range()[:, :2]
+        xy_normalized = (a.pos[:2] - xy_action_range[0]) / (
+            xy_action_range[1] - xy_action_range[0]
+        )
+        xy_target_range = np.array(target.bbox[:, :2])
+        print(xy_target_range)
+        if target.name == "table":
+            xy_target_range[0, 0] = utils.TABLE_CONSTRAINTS["workspace_x_min"]
+            xy_target_range[1, 0] = ACTION_CONSTRAINTS["max_lift_radius"]
+        xy_target = (
+            xy_target_range[1] - xy_target_range[0]
+        ) * xy_normalized + xy_target_range[0]
+        pos = np.append(xy_target, a.pos[2])
+
         # Compute position.
-        command_pos = target_pose.pos + target_quat * a.pos
+        command_pos = target_pose.pos + target_quat * pos
 
         # Compute orientation.
         command_quat = compute_top_down_orientation(a.theta.item(), target_quat)
@@ -409,12 +425,6 @@ class Place(Primitive):
     def sample_action(self) -> primitive_actions.PrimitiveAction:
         action = self.Action.random()
         action_range = action.range()
-
-        # Generate a random xy in the aabb of the parent.
-        parent = self.arg_objects[1]
-        xy_min = np.maximum(action_range[0, :2], parent.bbox[0, :2])
-        xy_max = np.minimum(action_range[1, :2], parent.bbox[1, :2])
-        action.pos[:2] = np.random.uniform(xy_min, xy_max)
 
         # Compute an appropriate place height given the grasped object's height.
         obj = self.arg_objects[0]
