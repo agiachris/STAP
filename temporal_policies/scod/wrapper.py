@@ -1,6 +1,6 @@
 import abc
 import math
-from typing import Optional, Union, Tuple, Callable
+from typing import Optional, Union, Tuple, Callable, Type
 
 import torch
 from torch import nn
@@ -15,6 +15,7 @@ class WrapperSCOD(scod.SCOD, abc.ABC):
         self,
         model: nn.Module,
         output_agg_func: Optional[Union[str, Callable]] = None,
+        sketch_cls: Type[scod.SinglePassPCA] = scod.SinglePassPCA,
         num_eigs: int = 10,
         device: Optional[Union[str, torch.device]] = None,
         checkpoint: Optional[str] = None,
@@ -23,6 +24,7 @@ class WrapperSCOD(scod.SCOD, abc.ABC):
         super().__init__(
             model,
             output_agg_func=output_agg_func,
+            sketch_cls=sketch_cls,
             num_eigs=num_eigs,
             device=device,
             checkpoint=checkpoint,
@@ -65,11 +67,11 @@ class WrapperSCOD(scod.SCOD, abc.ABC):
         outputs = torch.zeros(
             batch_size, OUTPUT_SIZE, dtype=OUTPUT_DTYPE, device=self.device
         )
-        if mode == 2:
+        if mode == 2 or mode == 3:
             variances = None
         else:
             variances = torch.zeros(batch_size, OUTPUT_SIZE, device=self.device)
-        if mode == 1:
+        if mode == 1 or mode == 3:
             uncertainties = None
         else:
             uncertainties = torch.zeros(batch_size, 1, device=self.device)
