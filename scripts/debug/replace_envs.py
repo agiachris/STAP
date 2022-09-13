@@ -18,15 +18,20 @@ ENVS = {
 
 def replace_envs(dry_run: bool = False) -> None:
     if dry_run:
-        cp: Callable = functools.partial(print, "cp")
+        cp: Callable = functools.partial(print, "  - cp")
+        mv: Callable = functools.partial(print, "  - mv")
     else:
         cp = shutil.copyfile
+        mv = shutil.move
 
     env_configs_path = pathlib.Path(ENV_CONFIGS_PATH)
     for policy, (env_config, eval_env_config) in ENVS.items():
         path = pathlib.Path(PATH) / EXP_NAME / policy
-        cp(env_configs_path / env_config, path / "env_config.config")
-        cp(env_configs_path / eval_env_config, path / "eval/env_config.config")
+        print(policy)
+        mv(path / "env_config.yaml", path / "env_config.yaml.bak")
+        mv(path / "eval/env_config.yaml", path / "eval/env_config.yaml.bak")
+        cp(env_configs_path / env_config, path / "env_config.yaml")
+        cp(env_configs_path / eval_env_config, path / "eval/env_config.yaml")
 
 
 if __name__ == "__main__":

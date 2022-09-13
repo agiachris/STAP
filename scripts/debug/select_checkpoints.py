@@ -23,6 +23,7 @@ def select_checkpoints(dry_run: bool = False) -> None:
 
     for policy, ckpt in CHECKPOINTS.items():
         path = pathlib.Path(PATH) / EXP_NAME / policy
+        print(policy)
         cp(path / f"ckpt_model_{ckpt}.pt", path / "select_model.pt")
         cp(path / f"ckpt_trainer_{ckpt}.pt", path / "select_trainer.pt")
 
