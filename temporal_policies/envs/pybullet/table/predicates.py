@@ -709,6 +709,7 @@ class NonBlocking(Predicate):
     PULL_MARGIN: Dict[Tuple[Type[Object], Type[Object]], Dict[Optional[str], float]] = {
         (Box, Rack): {"inworkspace": 3.0, "beyondworkspace": 1.5},
         (Box, Box): {"inworkspace": 3.0, "beyondworkspace": 3.0},
+        (Rack, Hook): {"inworkspace": 0.25, "beyondworkspace": 0.25},
     }
 
     def value(
@@ -719,9 +720,13 @@ class NonBlocking(Predicate):
             return True
 
         target_line = LineString([[0, 0], target_obj.pose().pos[:2].tolist()])
-        convex_hulls = intersect_obj.convex_hulls(world_frame=True, project_2d=True)
+        if intersect_obj.isinstance(Hook):
+            convex_hulls = Object.convex_hulls(intersect_obj, project_2d=True)
+        else:
+            convex_hulls = intersect_obj.convex_hulls(world_frame=True, project_2d=True)
+
         if len(convex_hulls) > 1:
-            raise NotImplementedError("Compound shapes not yet supported")
+            raise NotImplementedError(f"Compound shapes are not yet supported")
         vertices = convex_hulls[0]
 
         try:
