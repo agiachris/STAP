@@ -65,7 +65,6 @@ class LFF(torch.nn.Module):
 
     def forward(self, x, **_):
         x = np.pi * self.linear(x)
-        print(x)
         if self.sincos:
             return torch.cat([torch.sin(x), torch.cos(x)], dim=-1)
         else:

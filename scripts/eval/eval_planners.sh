@@ -63,7 +63,7 @@ function run_planners {
         SCOD_CHECKPOINTS=()
         if [[ "${planner}" == *scod* ]]; then
             for policy_env in "${POLICY_ENVS[@]}"; do
-                SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${CKPT}/${policy_env}/scod/final_scod.pt")
+                SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${CKPT}/${policy_env}/${SCOD_CONFIG}/final_scod.pt")
             done
         fi
 
@@ -186,6 +186,7 @@ fi
 # Run planners.
 POLICY_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_INPUT_PATH="${input_path}/${exp_name}"
+SCOD_CONFIG="scod_freeze"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for CKPT in "${checkpoints[@]}"; do
     for env in "${ENVS[@]}"; do

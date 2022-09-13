@@ -100,7 +100,7 @@ class SCODTrainer:
         )
         assert isinstance(agent_trainer, trainers.AgentTrainer)
 
-        self._path = pathlib.Path(path) / "scod"
+        self._path = pathlib.Path(path)
         self._scod = scod
         self._agent_trainer = agent_trainer
 
