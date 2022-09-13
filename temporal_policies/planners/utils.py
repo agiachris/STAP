@@ -385,7 +385,9 @@ def run_closed_loop_planning(
             t_planner.append(timer.toc("planner"))
 
         # Execute first action.
-        observation, reward, _, _, _ = env.step(plan.actions[0])
+        observation, reward, _, _, _ = env.step(
+            plan.actions[0, : env.action_space.shape[0]]
+        )
 
         rewards[t] = reward
         visited_actions[t, t:] = plan.actions

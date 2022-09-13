@@ -14,7 +14,6 @@ def train(
     trainer_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     scod_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     model_checkpoint: Optional[Union[str, pathlib.Path]] = None,
-    model_network: Optional[str] = None,
     resume: bool = False,
     overwrite: bool = False,
     device: str = "auto",
@@ -41,7 +40,6 @@ def train(
             config=scod_config,
             model=agent,
             model_checkpoint=model_checkpoint,
-            model_network=model_network,
             env_kwargs=env_kwargs,
             device=device,
         )
@@ -91,12 +89,6 @@ if __name__ == "__main__":
         "--model-checkpoint",
         type=str,
         help="Path to model (agents.Agent) checkpoint",
-    )
-    parser.add_argument(
-        "--model-network",
-        type=str,
-        required=True,
-        help="Attribute name of the agent's nn.Module (e.g., critic)",
     )
     parser.add_argument("--path", "-p", required=True)
     parser.add_argument("--resume", action="store_true", default=False)

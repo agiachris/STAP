@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: rearrangement_push_0
+  name: constrained_packing_1
   gui: true
 
   primitives:
@@ -11,26 +11,23 @@ env_kwargs:
 
   tasks:
     - action_skeleton:
+        - pick(cyan_box, table)
+        - place(cyan_box, rack)
         - pick(blue_box, table)
-        - place(blue_box, table)
-        - pick(hook, table)
-        - push(red_box, hook, rack)
+        - place(blue_box, rack)
       initial_state:
-        - free(hook)
+        - free(cyan_box)
         - free(blue_box)
-        - free(red_box)
         - aligned(rack)
         - poslimit(rack)
-        - inworkspace(hook)
-        - inoperationalzone(red_box)
-        - inobstructionzone(blue_box)
-        - beyondworkspace(rack)
-        - infront(blue_box, rack)
-        - infront(red_box, rack)
+        - inworkspace(rack)
+        - inworkspace(cyan_box)
+        - inworkspace(blue_box)
         - on(rack, table)
-        - on(hook, table)
+        - on(yellow_box, rack)
+        - on(red_box, rack)
+        - on(cyan_box, table)
         - on(blue_box, table)
-        - on(red_box, table)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -45,13 +42,6 @@ env_kwargs:
         name: rack
         size: [0.22, 0.32, 0.16]
         color: [0.4, 0.2, 0.0, 1.0]
-    - object_type: Hook
-      object_kwargs:
-        name: hook
-        head_length: 0.2
-        handle_length: 0.38
-        handle_y: -1.0
-        color: [0.6, 0.6, 0.6, 1.0]
     - object_type: Box
       object_kwargs:
         name: blue_box
@@ -59,6 +49,16 @@ env_kwargs:
         color: [0.0, 0.0, 1.0, 1.0]
     - object_type: Box
       object_kwargs:
+        name: yellow_box
+        size: [0.07, 0.06, 0.1]
+        color: [1.0, 1.0, 0.0, 1.0]
+    - object_type: Box
+      object_kwargs:
         name: red_box
         size: [0.05, 0.05, 0.07]
         color: [1.0, 0.0, 0.0, 1.0]
+    - object_type: Box
+      object_kwargs:
+        name: cyan_box
+        size: [0.06, 0.03, 0.06]
+        color: [0.0, 1.0, 1.0, 1.0]
