@@ -1,4 +1,8 @@
-from scod_regression import SCOD
+from scod_regression import (
+    SCOD,
+    SinglePassPCA,
+    SRFTSinglePassPCA,
+)
 from .utils import *
 from .wrapper import WrapperSCOD
 from .identity import IdentitySCOD

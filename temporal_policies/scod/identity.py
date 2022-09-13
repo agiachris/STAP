@@ -20,12 +20,7 @@ class IdentitySCOD(scod.WrapperSCOD):
         """Compute model output without application of the SCOD produced
         variance or uncertainty metrics.
         """
-        output: torch.Tensor = self._format_output(self._model(*input))
-        if detach:
-            output = output.detach()
-        if output.size(0) == 1:
-            output = output.squeeze(0)
+        output, _, _ = self.forward(*input, detach=detach, mode=3)
         if output.size(-1) == 1:
             output = output.squeeze(-1)
-
         return output

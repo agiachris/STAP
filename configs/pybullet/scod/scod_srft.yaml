@@ -2,7 +2,7 @@ scod: SCOD
 scod_kwargs:
   num_eigs: 50
   output_agg_func: min
-  sketch_cls: SinglePassPCA
+  sketch_cls: SRFTSinglePassPCA
 
 model_settings:
   network_name: critic

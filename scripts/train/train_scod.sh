@@ -21,7 +21,6 @@ function train_scod {
     args="${args} --trainer-config ${TRAINER_CONFIG}"
     args="${args} --scod-config ${SCOD_CONFIG}"
     args="${args} --model-checkpoint ${MODEL_CHECKPOINT}"
-    args="${args} --model-network ${MODEL_NETWORK}"
     args="${args} --seed 0"
     args="${args} ${ENV_KWARGS}"
 
@@ -40,13 +39,16 @@ function train_scod {
 DEBUG=0
 output_path="models"
 
-
 # Experiments.
 
 exp_name="20220908/official"
 TRAINER_CONFIG="configs/pybullet/trainers/scod.yaml"
-SCOD_CONFIG="configs/pybullet/scod/scod.yaml"
-MODEL_NETWORK="critic"
+scod_configs=(
+    # "scod"
+    # "scod_freeze"
+    # "scod_srft"
+    # "scod_srft_freeze"
+)
 policy_envs=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
@@ -56,6 +58,7 @@ checkpoints=(
     # "ckpt_model_150000"
     # "ckpt_model_200000"
 )
+
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
@@ -63,8 +66,11 @@ fi
 for ckpt in "${checkpoints[@]}"; do
     for policy_env in "${policy_envs[@]}"; do
         MODEL_CHECKPOINT="${output_path}/${exp_name}/${policy_env}/${ckpt}.pt"
-        SCOD_OUTPUT_PATH="${output_path}/${exp_name}/${ckpt}/${policy_env}"
-        train_scod
+        for scod_config in "${scod_configs[@]}"; do
+            SCOD_CONFIG="configs/pybullet/scod/${scod_config}.yaml"
+            SCOD_OUTPUT_PATH="${output_path}/${exp_name}/${ckpt}/${policy_env}/${scod_config}"
+            train_scod
+        done
     done
 done
 
