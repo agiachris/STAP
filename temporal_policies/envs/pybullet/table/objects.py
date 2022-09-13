@@ -144,6 +144,7 @@ class Object(body.Body):
         object_class = Null if object_type is None else globals()[object_type]
         if issubclass(object_class, Variant):
             kwargs["object_groups"] = object_groups
+        object_kwargs = object_kwargs.copy()
         object_kwargs.update(kwargs)
         return object_class(physics_id=physics_id, **object_kwargs)
 
