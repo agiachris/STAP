@@ -1,0 +1,17 @@
+planner: CEMPlanner
+planner_kwargs:
+  num_samples: 10
+  num_iterations: 10
+  num_elites: 10
+  standard_deviation: 0.3
+
+agent_configs:
+  - "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
+
+dynamics_config:
+  dynamics: OracleDynamics
+  dynamics_kwargs:
+    debug: false

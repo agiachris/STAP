@@ -92,6 +92,7 @@ PLANNERS=(
 # Oracles.
     "policy_shooting_oracle_value_dynamics"
     "scod_policy_cem_oracle_dynamics"
+    "policy_cem_oracle_dynamics"
 # Planning w/ SCOD.
     "scod_policy_cem"
 # Planning w/o SCOD.
@@ -105,7 +106,7 @@ PLANNERS=(
 # Experiments.
 
 # Pybullet.
-exp_name="20220912/official"
+exp_name="20220914/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners/ablation"
 ENVS=(
     "hook_reach/task0"
