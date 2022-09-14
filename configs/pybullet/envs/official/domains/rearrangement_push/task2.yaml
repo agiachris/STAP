@@ -31,6 +31,7 @@ env_kwargs:
         - infront(red_box, rack)
         - infront(cyan_box, rack)
         - infront(yellow_box, rack)
+        - nonblocking(rack, hook)
         - on(rack, table)
         - on(hook, table)
         - on(cyan_box, table)
