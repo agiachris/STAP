@@ -96,7 +96,7 @@ output_path="plots"
 # Evaluate planners.
 PLANNERS=(
 # Q-value / Latent dynamics.
-    # "policy_cem"
+    "policy_cem"
     # "random_cem"
     # "policy_shooting"
     # "random_shooting"
@@ -150,29 +150,24 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220908/official"
+exp_name="20220912/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     "hook_reach/task0"
     "hook_reach/task1"
     "hook_reach/task2"
-    "hook_reach/task3"
-    "hook_reach/task4"
     "constrained_packing/task0"
     "constrained_packing/task1"
     "constrained_packing/task2"
-    "constrained_packing/task3"
-    "constrained_packing/task4"
     "rearrangement_push/task0"
     "rearrangement_push/task1"
     "rearrangement_push/task2"
-    "rearrangement_push/task3"
-    "rearrangement_push/task4"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
+    "select_model"
     # "ckpt_model_50000"
     # "ckpt_model_100000"
     # "ckpt_model_150000"
@@ -192,7 +187,7 @@ for CKPT in "${checkpoints[@]}"; do
     for env in "${ENVS[@]}"; do
         ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
         PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
-        LOAD_PATH="${PLANNER_OUTPUT_PATH}"
+        # LOAD_PATH="${PLANNER_OUTPUT_PATH}"
         run_planners
     done
 done

@@ -16,7 +16,7 @@ function run_cmd {
     fi
 }
 
-function eval_tamp {
+function eval_planner {
     args=""
     args="${args} --planner-config ${PLANNER_CONFIG}"
     args="${args} --env-config ${ENV_CONFIG}"
@@ -29,14 +29,13 @@ function eval_tamp {
     if [ ! -z "${DYNAMICS_CHECKPOINT}" ]; then
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
+    if [[ ! -z "${LOAD_PATH}" ]]; then
+        args="${args} --load-path ${LOAD_PATH}"
+    fi
     args="${args} --seed 0"
-    args="${args} --pddl-domain ${PDDL_DOMAIN}"
-    args="${args} --pddl-problem ${PDDL_PROBLEM}"
-    args="${args} --max-depth 4"
-    args="${args} --timeout 10"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
-        args="${args} --num-eval 10"
+        args="${args} --num-eval 1"
         args="${args} --path ${PLANNER_OUTPUT_PATH}_debug"
         args="${args} --verbose 1"
     else
@@ -44,7 +43,7 @@ function eval_tamp {
         args="${args} --path ${PLANNER_OUTPUT_PATH}"
         args="${args} --verbose 0"
     fi
-    CMD="python scripts/eval/eval_tamp.py ${args}"
+    CMD="python scripts/eval/eval_planners.py ${args}"
     run_cmd
 }
 
@@ -76,13 +75,14 @@ function run_planners {
             DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CKPT}/dynamics/final_model.pt"
         fi
 
-        eval_tamp
+        eval_planner
     done
 }
 
-function visualize_tamp {
+function visualize_planners {
     args=""
     args="${args} --path ${PLANNER_OUTPUT_PATH}"
+    args="${args} --envs ${ENVS[@]}"
     args="${args} --methods ${PLANNERS[@]}"
     CMD="python scripts/visualize/visualize_planners.py ${args}"
     run_cmd
@@ -95,8 +95,16 @@ output_path="plots"
 
 # Evaluate planners.
 PLANNERS=(
+# Oracles.
+    "policy_cem_oracle_dynamics"
+    "policy_cem_oracle_value_dynamics"
+# Planning w/ SCOD.
     "scod_policy_cem"
-    "daf_random_shooting"
+# Planning w/o SCOD.
+    "policy_cem"
+    "random_cem"
+    "policy_shooting"
+    "random_shooting"
     "greedy"
 )
 
@@ -106,9 +114,9 @@ PLANNERS=(
 exp_name="20220912/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
-    "hook_reach/tamp0"
-    "constrained_packing/tamp0"
-    "rearrangement_push/tamp0"
+    "hook_reach/task0"
+    "constrained_packing/task0"
+    "rearrangement_push/task0"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 CKPT="select_model"
@@ -124,9 +132,7 @@ SCOD_INPUT_PATH="${input_path}/${exp_name}"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for env in "${ENVS[@]}"; do
     ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
-    PDDL_DOMAIN="configs/pybullet/envs/official/domains/${env}_domain.pddl"
-    PDDL_PROBLEM="configs/pybullet/envs/official/domains/${env}_problem.pddl"
-    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/tamp_experiment/${env}"
+    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/ablation_experiment/${env}"
     run_planners
 done
 
@@ -135,5 +141,5 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] |
     exit
 fi
 
-PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/tamp_experiment"
-visualize_tamp
+PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/ablation_experiment"
+visualize_planners
