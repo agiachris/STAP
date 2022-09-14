@@ -154,20 +154,17 @@ exp_name="20220912/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     ## Domain 1: Hook Reach
-    "hook_reach/task0"
+    # "hook_reach/task0"
     # "hook_reach/task1"
-    # "hook_reach/task2" -- deprecated
-    # "archives/hook_reach/task3"
+    # "hook_reach/task2"
     ## Domain 2: Constrained Packing
-    "constrained_packing/task0"
+    # "constrained_packing/task0"
     # "constrained_packing/task1"
-    # "constrained_packing/task2" -- deprecated
-    # "archives/contrained_packing/task4"
+    # "constrained_packing/task2"
     ## Domain 3: Rearrangement Push
-    # "rearrangement_push/task0" -- deprecated
-    "rearrangement_push/task1"
+    # "rearrangement_push/task0"
+    # "rearrangement_push/task1"
     # "rearrangement_push/task2"
-    # "archives/rearrangement_push/task4"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(

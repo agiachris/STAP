@@ -90,16 +90,18 @@ output_path="plots"
 # Evaluate planners.
 PLANNERS=(
 # Oracles.
-    "policy_shooting_oracle_value_dynamics"
-    "scod_policy_cem_oracle_dynamics"
+    # "policy_shooting_oracle_value_dynamics"
+    # "scod_policy_cem_oracle_dynamics"
 # Planning w/ SCOD.
-    "scod_policy_cem"
+    # "scod_policy_cem"
+    # "scod_cem_var_scod_value"
+    # "scod_cem_cvar_scod_value"
 # Planning w/o SCOD.
     "policy_cem"
-    "random_cem"
-    "policy_shooting"
-    "random_shooting"
-    "greedy"
+    # "random_cem"
+    # "policy_shooting"
+    # "random_shooting"
+    # "greedy"
 )
 
 # Experiments.
@@ -114,7 +116,16 @@ ENVS=(
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 CKPT="select_model"
-SCOD_CONFIG="scod_freeze"
+SCOD_CONFIG="scod"
+# CKPT="selectscod_model"
+# SCOD_CONFIG="scod"
+# CKPT="selectscodfreeze_model"
+# SCOD_CONFIG="scod_freeze"
+# CKPT="selectscodsrft_model"
+# SCOD_CONFIG="scod_srft"
+# CKPT="selectscodsrftfreeze_model"
+# SCOD_CONFIG="scod_srft_freeze"
+
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"

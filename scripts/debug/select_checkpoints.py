@@ -42,7 +42,7 @@ def select_checkpoints(clone_name: str, dry_run: bool = False, clone_dynamics: b
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--clone-name", "-n", type=str, required=True)
+    parser.add_argument("--clone-name", "-n", type=str, default="")
     parser.add_argument("--clone-dynamics", "-d", type=bool, default=False)
     args = parser.parse_args()
 
