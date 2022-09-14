@@ -114,9 +114,9 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; 
 fi
 
 # Run planners.
-POLICY_INPUT_PATH="${input_path}/${exp_name}"
-DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for env in "${ENVS[@]}"; do
+    POLICY_INPUT_PATH="${input_path}/${exp_name}/${env}"
+    DYNAMICS_INPUT_PATH="${input_path}/${exp_name}/${env}"
     ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
     PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
     run_planners
