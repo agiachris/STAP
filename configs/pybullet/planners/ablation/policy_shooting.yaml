@@ -1,6 +1,6 @@
 planner: ShootingPlanner
 planner_kwargs:
-  num_samples: 64
+  num_samples: 100
 
 agent_configs:
   - agent: GaussianAgent
