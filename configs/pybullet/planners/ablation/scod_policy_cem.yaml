@@ -1,7 +1,7 @@
 planner: SCODCEMPlanner
 planner_kwargs:
-  num_samples: 16
-  num_iterations: 4
+  num_samples: 10
+  num_iterations: 10
   num_elites: 10
   num_filter_per_step: 100
   keep_elites_fraction: 1.0
