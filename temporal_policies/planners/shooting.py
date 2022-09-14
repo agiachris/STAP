@@ -7,7 +7,7 @@ import torch
 from temporal_policies import agents, dynamics, envs
 from temporal_policies.planners import base as planners
 from temporal_policies.planners import utils
-from temporal_policies.utils import spaces
+from temporal_policies.utils import spaces, tensors
 
 
 class ShootingPlanner(planners.Planner):
@@ -52,66 +52,89 @@ class ShootingPlanner(planners.Planner):
         Returns:
             Planning result.
         """
-        # Prepare action spaces.
-        T = len(action_skeleton)
-        task_space = spaces.null_tensor(self.dynamics.action_space, (T,))
-        for t, primitive in enumerate(action_skeleton):
-            action_space = self.policies[primitive.idx_policy].action_space
-            action_shape = action_space.shape[0]
-            task_space[t, :action_shape] = torch.zeros(action_shape)
-        task_space = task_space.to(self.device)
-        task_dimensionality = int((~torch.isnan(task_space)).sum())
-
-        # Scale number of samples and SCOD filter scale to task size
-        num_samples = self.num_samples * task_dimensionality
-
         with torch.no_grad():
+            # Prepare action spaces.
+            T = len(action_skeleton)
+            task_space = spaces.null_tensor(self.dynamics.action_space, (T,))
+            task_dimensionality = 0
+            for t, primitive in enumerate(action_skeleton):
+                action_space = self.policies[primitive.idx_policy].action_space
+                action_shape = action_space.shape[0]
+                task_space[t, :action_shape] = torch.zeros(action_shape)
+                task_dimensionality += action_shape
+            task_space = task_space.to(self.device)
+
+            # Scale number of samples to task size
+            num_samples = self.num_samples * task_dimensionality
+
             # Get initial state.
             t_observation = torch.from_numpy(observation).to(self.dynamics.device)
 
-            # Roll out trajectories.
-            t_states, t_actions, p_transitions = self.dynamics.rollout(
-                t_observation,
-                action_skeleton,
-                self.policies,
-                batch_size=num_samples,
+            # Prepare minibatches.
+            element_size = (2 * T) * int(
+                np.prod(self.dynamics.state_space.shape)
+                + np.prod(self.dynamics.action_space.shape)
+            )
+            minibatch_size, num_minibatches = tensors.compute_minibatch(
+                num_samples, 4 * element_size
             )
 
-            # Evaluate trajectories.
-            value_fns = [
-                self.policies[primitive.idx_policy].critic
-                for primitive in action_skeleton
-            ]
-            decode_fns = [
-                functools.partial(self.dynamics.decode, primitive=primitive)
-                for primitive in action_skeleton
-            ]
-            p_success, t_values, _ = utils.evaluate_trajectory(
-                value_fns,
-                decode_fns,
-                p_transitions,
-                t_states,
-                actions=t_actions,
-            )
+            best_actions = spaces.null(self.dynamics.action_space, (num_minibatches, T))
+            best_states = spaces.null(self.dynamics.state_space, (num_minibatches, T + 1))
+            best_p_success = np.full(num_minibatches, float("nan"))
+            best_values = np.full((num_minibatches, T), float("nan"))
+            for idx_minibatch in range(num_minibatches):
+                # Roll out trajectories.
+                t_states, t_actions = self.dynamics.rollout(
+                    t_observation,
+                    action_skeleton,
+                    self.policies,
+                    batch_size=minibatch_size,
+                )
 
-        # Select best trajectory.
-        idx_best = p_success.argmax()
+                # Evaluate trajectories.
+                value_fns = [
+                    self.policies[primitive.idx_policy].critic
+                    for primitive in action_skeleton
+                ]
+                decode_fns = [
+                    functools.partial(self.dynamics.decode, primitive=primitive)
+                    for primitive in action_skeleton
+                ]
+                p_success, t_values, _ = utils.evaluate_trajectory(
+                    value_fns,
+                    decode_fns,
+                    t_states,
+                    actions=t_actions,
+                )
 
-        # Convert to numpy.
-        actions = t_actions[idx_best].cpu().numpy()
-        states = t_states[idx_best].cpu().numpy()
-        p_success = p_success[idx_best].cpu().numpy()
-        values = t_values[idx_best].cpu().numpy()
-        if return_visited_samples:
-            visited_actions = t_actions.cpu().numpy()
-            visited_states = t_states.cpu().numpy()
-            visited_p_success = p_success.cpu().numpy()
-            visited_values = t_values.cpu().numpy()
-        else:
-            visited_actions = None
-            visited_states = None
-            visited_p_success = None
-            visited_values = None
+            # Select best trajectory.
+            idx_best = p_success.argmax()
+
+            # Convert to numpy.
+            best_actions[idx_minibatch] = t_actions[idx_best].cpu().numpy()
+            best_states[idx_minibatch] = t_states[idx_best].cpu().numpy()
+            best_p_success[idx_minibatch] = p_success[idx_best].cpu().numpy()
+            best_values[idx_minibatch] = t_values[idx_best].cpu().numpy()
+            del t_states, t_actions, p_success, t_values
+
+            if return_visited_samples:
+                raise NotImplementedError
+                # visited_actions = t_actions.cpu().numpy()
+                # visited_states = t_states.cpu().numpy()
+                # visited_p_success = p_success.cpu().numpy()
+                # visited_values = t_values.cpu().numpy()
+            else:
+                visited_actions = None
+                visited_states = None
+                visited_p_success = None
+                visited_values = None
+
+        idx_best = best_p_success.argmax()
+        actions = best_actions[idx_best]
+        states = best_states[idx_best]
+        p_success = best_p_success[idx_best]
+        values = best_values[idx_best]
 
         return planners.PlanningResult(
             actions=actions,
