@@ -13,6 +13,8 @@ env_kwargs:
     - action_skeleton:
         - pick(blue_box, table)
         - place(blue_box, table)
+        - pick(red_box, table)
+        - place(red_box, table)
         - pick(hook, table)
         - push(red_box, hook, rack)
       initial_state:
@@ -22,11 +24,10 @@ env_kwargs:
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(hook)
-        - inoperationalzone(red_box)
+        - inworkspace(red_box)
         - inobstructionzone(blue_box)
         - beyondworkspace(rack)
         - infront(blue_box, rack)
-        - infront(red_box, rack)
         - on(rack, table)
         - on(hook, table)
         - on(blue_box, table)
