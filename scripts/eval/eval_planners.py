@@ -171,10 +171,12 @@ def evaluate_planners(
         if loaded_plan is not None:
             rewards, plan, t_planner = loaded_plan
         else:
-            if closed_loop:
+            if closed_loop and not isinstance(planner.dynamics, dynamics.OracleDynamics):
                 planning_fn = planners.run_closed_loop_planning
+                print("Planning closed loop")
             else:
                 planning_fn = planners.run_open_loop_planning
+                print("Planning open loop")
             rewards, plan, t_planner = planning_fn(
                 env,
                 env.action_skeleton,

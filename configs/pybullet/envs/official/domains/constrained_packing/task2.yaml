@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: constrained_packing_2
+  name: constrained_packing_4
   gui: true
 
   primitives:
@@ -11,21 +11,29 @@ env_kwargs:
 
   tasks:
     - action_skeleton:
+        - pick(red_box, table)
+        - place(red_box, rack)
+        - pick(yellow_box, table)
+        - place(yellow_box, rack)
         - pick(cyan_box, table)
         - place(cyan_box, rack)
         - pick(blue_box, table)
         - place(blue_box, rack)
       initial_state:
+        - free(red_box)
+        - free(yellow_box)
         - free(cyan_box)
         - free(blue_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
+        - inworkspace(red_box)
+        - inworkspace(yellow_box)
         - inworkspace(cyan_box)
         - inworkspace(blue_box)
         - on(rack, table)
-        - on(yellow_box, rack)
-        - on(red_box, rack)
+        - on(red_box, table)
+        - on(yellow_box, table)
         - on(cyan_box, table)
         - on(blue_box, table)
         

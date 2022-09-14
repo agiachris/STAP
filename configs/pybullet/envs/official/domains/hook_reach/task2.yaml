@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: hook_reach_2
+  name: hook_reach_3
   gui: true
 
   primitives:
@@ -15,19 +15,23 @@ env_kwargs:
         - pull(red_box, hook)
         - place(hook, table)
         - pick(red_box, table)
+        - place(red_box, rack)
       initial_state:
         - free(hook)
         - free(red_box)
-        - free(cyan_box)
-        - free(yellow_box)
+        - aligned(rack)
+        - poslimit(rack)
+        - inworkspace(rack)
         - inworkspace(hook)
         - beyondworkspace(red_box)
+        - nonblocking(red_box, rack)
         - nonblocking(red_box, cyan_box)
-        - nonblocking(red_box, yellow_box)
+        - on(rack, table)
         - on(hook, table)
+        - on(yellow_box, rack)
+        - on(blue_box, rack)
         - on(red_box, table)
         - on(cyan_box, table)
-        - on(yellow_box, table)
           
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -37,6 +41,11 @@ env_kwargs:
         name: table
         path: configs/pybullet/envs/assets/iprl_table.urdf
         is_static: true
+    - object_type: Rack
+      object_kwargs:
+        name: rack
+        size: [0.22, 0.32, 0.16]
+        color: [0.4, 0.2, 0.0, 1.0]
     - object_type: Hook
       object_kwargs:
         name: hook
@@ -44,9 +53,15 @@ env_kwargs:
         handle_length: 0.38
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
+    - configs/pybullet/envs/assets/salt.yaml
     - configs/pybullet/envs/assets/yogurt.yaml
     - configs/pybullet/envs/assets/milk.yaml
     - configs/pybullet/envs/assets/icecream.yaml
+    # - object_type: Box
+    #   object_kwargs:
+    #     name: blue_box
+    #     size: [0.08, 0.05, 0.07]
+    #     color: [0.0, 0.0, 1.0, 1.0]
     # - object_type: Box
     #   object_kwargs:
     #     name: yellow_box
