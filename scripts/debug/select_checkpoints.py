@@ -7,12 +7,12 @@ from typing import Callable
 import argparse
 
 PATH = "models"
-EXP_NAME = "20220912/official"
+EXP_NAME = "20220914/official"
 CHECKPOINTS = {
     "pick": "100000",
     "place": "200000",
     "pull": "150000",
-    "push": "200000",
+    "push": "150000",
 }
 DYNAMICS_CHECKPOINT = "200000"
 
