@@ -104,7 +104,7 @@ class Free(Predicate):
                 or f"infront({child_obj}, rack)" in state
                 or f"infront({obj}, rack)" in state
             ):
-                min_distance = 0.02
+                min_distance = 0.04
             if utils.is_within_distance(
                 child_obj, obj, min_distance, obj.physics_id
             ) and not utils.is_above(child_obj, obj):
