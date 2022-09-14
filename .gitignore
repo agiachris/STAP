@@ -4,6 +4,8 @@ models/
 juno
 plots/
 plots_debug/
+scripts/train/train_juno.sh
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

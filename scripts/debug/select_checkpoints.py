@@ -12,7 +12,7 @@ CHECKPOINTS = {
     "pick": "100000",
     "place": "200000",
     "pull": "150000",
-    "push": "200000",
+    "push": "150000",
 }
 DYNAMICS_CHECKPOINT = "200000"
 

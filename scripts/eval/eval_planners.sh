@@ -96,7 +96,7 @@ output_path="plots"
 # Evaluate planners.
 PLANNERS=(
 # Q-value / Latent dynamics.
-    "policy_cem"
+    # "policy_cem"
     # "random_cem"
     # "policy_shooting"
     # "random_shooting"
@@ -153,25 +153,39 @@ PLANNERS=(
 exp_name="20220912/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
+    ## Domain 1: Hook Reach
     "hook_reach/task0"
-    "hook_reach/task1"
-    "hook_reach/task2"
+    # "hook_reach/task1"
+    # "hook_reach/task2" -- deprecated
+    # "archives/hook_reach/task3"
+    ## Domain 2: Constrained Packing
     "constrained_packing/task0"
-    "constrained_packing/task1"
-    "constrained_packing/task2"
-    "rearrangement_push/task0"
+    # "constrained_packing/task1"
+    # "constrained_packing/task2" -- deprecated
+    # "archives/contrained_packing/task4"
+    ## Domain 3: Rearrangement Push
+    # "rearrangement_push/task0" -- deprecated
     "rearrangement_push/task1"
-    "rearrangement_push/task2"
+    # "rearrangement_push/task2"
+    # "archives/rearrangement_push/task4"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
-    "select_model"
     # "ckpt_model_50000"
     # "ckpt_model_100000"
     # "ckpt_model_150000"
     # "ckpt_model_200000"
+    # "select0_model"
+    # "select1_model"
+    # "select2_model"
+    # "select3_model"
+    # "select4_model"
+    # "selectscod_model"
+    # "selectscodfreeze_model"
+    # "selectscodsrft_model"
+    # "selectscodsrftfreeze_model"
 )
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
@@ -181,7 +195,7 @@ fi
 # Run planners.
 POLICY_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_INPUT_PATH="${input_path}/${exp_name}"
-SCOD_CONFIG="scod_freeze"
+SCOD_CONFIG="scod"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for CKPT in "${checkpoints[@]}"; do
     for env in "${ENVS[@]}"; do

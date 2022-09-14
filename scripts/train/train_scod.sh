@@ -41,7 +41,7 @@ output_path="models"
 
 # Experiments.
 
-exp_name="20220908/official"
+exp_name="20220912/official"
 TRAINER_CONFIG="configs/pybullet/trainers/scod.yaml"
 scod_configs=(
     # "scod"
@@ -57,6 +57,11 @@ checkpoints=(
     # "ckpt_model_100000"
     # "ckpt_model_150000"
     # "ckpt_model_200000"
+    # "select4_model"
+    # "selectscod_model"
+    # "selectscodfreeze_model"
+    # "selectscodsrft_model"
+    # "selectscodsrftfreeze_model"
 )
 
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then

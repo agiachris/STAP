@@ -743,7 +743,8 @@ class TableEnv(PybulletEnv):
 
         img = Image.fromarray(img_rgb, "RGB")
         draw = ImageDraw.Draw(img)
-        FONT = ImageFont.truetype("arial.ttf", 15)
+        # FONT = ImageFont.truetype("arial.ttf", 15)
+        FONT = ImageFont.load_default()
         draw.multiline_text(
             (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", font=FONT
         )

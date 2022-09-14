@@ -25,6 +25,8 @@ class SCODCEMPlanner(planners.Planner):
         keep_elites_fraction: float = 0.0,
         population_decay: float = 1.0,
         momentum: float = 0.0,
+        filter_decay: Optional[str] = None,
+        filter_decay_rate: Optional[float] = 0.9,
         device: str = "auto",
     ):
         """Constructs the iCEM planner.
@@ -41,6 +43,8 @@ class SCODCEMPlanner(planners.Planner):
             keep_elites_fraction: Fraction of elites to keep between iterations.
             population_decay: Population decay applied after each iteration.
             momentum: Momentum of distribution updates.
+            filter_decay: Filter decay type, either "linear" or "geometric".
+            filter_decay_rate: Geometric filter decay rate applied at each iteration.
             device: Torch device.
         """
         super().__init__(policies=policies, dynamics=dynamics, device=device)
@@ -54,6 +58,8 @@ class SCODCEMPlanner(planners.Planner):
         self._num_elites_to_keep = int(keep_elites_fraction * self.num_elites + 0.5)
         self._population_decay = population_decay
         self._momentum = momentum
+        self._filter_decay = filter_decay
+        self._filter_decay_rate = filter_decay_rate
 
     @property
     def num_iterations(self) -> int:
@@ -94,6 +100,16 @@ class SCODCEMPlanner(planners.Planner):
     def momentum(self) -> float:
         """Momentum of distribution updates."""
         return self._momentum
+    
+    @property
+    def filter_decay(self) -> Optional[str]:
+        """Filter decay type, either "linear" or "geometric"."""
+        return self._filter_decay
+
+    @property
+    def filter_decay_rate(self) -> Optional[float]:
+        """Geometric filter decay rate applied at each iteration."""
+        return self._filter_decay_rate
 
     def _compute_initial_distribution(
         self, observation: torch.Tensor, action_skeleton: Sequence[envs.Primitive]
@@ -240,9 +256,17 @@ class SCODCEMPlanner(planners.Planner):
                 )
 
                 # Filter out trajectories with the highest uncertainty.
+                num_filter_per_step = self.num_filter_per_step * task_dimensionality
+                if self.filter_decay == "linear":
+                    decay_ratio = (idx_iter / self.num_iterations)
+                    num_filter_per_step = int(num_filter_per_step  * (1-decay_ratio))
+                elif self.filter_decay == "geometric": 
+                    decay_ratio = self.filter_decay_rate ** idx_iter
+                    num_filter_per_step = int(num_filter_per_step * decay_ratio)
+                
                 unc_primitive_idx = values_unc.argsort(dim=0, descending=True)
                 unc_trajectory_idx = unc_primitive_idx[
-                    : self.num_filter_per_step * task_dimensionality
+                    : num_filter_per_step
                 ]
                 p_success[unc_trajectory_idx.flatten().unique()] = float("-Inf")
 
