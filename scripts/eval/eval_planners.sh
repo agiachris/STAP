@@ -174,15 +174,8 @@ checkpoints=(
     # "ckpt_model_100000"
     # "ckpt_model_150000"
     # "ckpt_model_200000"
-    # "select0_model"
-    # "select1_model"
-    # "select2_model"
-    # "select3_model"
-    # "select4_model"
-    # "selectscod_model"
-    # "selectscodfreeze_model"
-    # "selectscodsrft_model"
-    # "selectscodsrftfreeze_model"
+    # "select_model"
+    "selectscod_model"
 )
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then

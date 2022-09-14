@@ -86,6 +86,13 @@ def create_dataframes(
                 return "VaR SCOD"
             elif "cvar" in tokens:
                 return "CVaR SCOD"
+            elif "cem" in tokens:
+                if "linear" in tokens:
+                    return "Tresh Linear"
+                elif "geometric" in tokens:
+                    return "Tresh Geometric"
+                else:
+                    return "Tresh SCOD"
             else:
                 raise ValueError(f"Unrecognized SCOD variant {tokens}")
 
@@ -419,7 +426,7 @@ def main(args: argparse.Namespace) -> None:
     # print(methods)
     # print(rewards)
 
-    plot_planning_results(df_plans, df_samples, args.path, classes="Task")
+    plot_planning_results(df_plans, df_samples, args.path, classes="Method")
     if args.plot_action_statistics:
         plot_action_statistics(df_plans, df_samples, args.path)
 
