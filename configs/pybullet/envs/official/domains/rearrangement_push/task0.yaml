@@ -28,6 +28,7 @@ env_kwargs:
         - inobstructionzone(blue_box)
         - beyondworkspace(rack)
         - infront(blue_box, rack)
+        - nonblocking(rack, hook)
         - on(rack, table)
         - on(hook, table)
         - on(blue_box, table)
