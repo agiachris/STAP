@@ -53,11 +53,7 @@ function run_planners {
 
         POLICY_CHECKPOINTS=()
         for policy_env in "${POLICY_ENVS[@]}"; do
-            if [[ "${planner}" == daf_* ]]; then
-                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${planner}/${policy_env}/${CKPT}.pt")
-            else
-                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${CKPT}.pt")
-            fi
+            POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${CKPT}.pt")
         done
 
         SCOD_CHECKPOINTS=()
@@ -69,8 +65,6 @@ function run_planners {
 
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
-        elif [[ "${planner}" == daf_* ]]; then
-            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${planner}/dynamics/final_model.pt"
         else
             DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CKPT}/dynamics/final_model.pt"
         fi
@@ -96,8 +90,8 @@ output_path="plots"
 # Evaluate planners.
 PLANNERS=(
 # Oracles.
-    "policy_cem_oracle_dynamics"
-    "policy_cem_oracle_value_dynamics"
+    "policy_shooting_oracle_value_dynamics"
+    "scod_policy_cem_oracle_dynamics"
 # Planning w/ SCOD.
     "scod_policy_cem"
 # Planning w/o SCOD.
@@ -112,7 +106,7 @@ PLANNERS=(
 
 # Pybullet.
 exp_name="20220912/official"
-PLANNER_CONFIG_PATH="configs/pybullet/planners"
+PLANNER_CONFIG_PATH="configs/pybullet/planners/ablation"
 ENVS=(
     "hook_reach/task0"
     "constrained_packing/task0"
