@@ -6,6 +6,7 @@ import torch
 from torch import nn
 
 from temporal_policies import scod
+from temporal_policies.utils import tensors
 
 
 class WrapperSCOD(scod.SCOD, abc.ABC):
@@ -76,19 +77,8 @@ class WrapperSCOD(scod.SCOD, abc.ABC):
         else:
             uncertainties = torch.zeros(batch_size, 1, device=self.device)
 
-        if torch.device.type == "cuda":
-            # Estimate the maximum minibatch size given the remaining memory.
-            num_unreserved_bytes: int = torch.cuda.mem_get_info(self.device)[0]  # type: ignore
-            num_reserved_bytes = torch.cuda.memory_reserved(self.device)
-            num_allocated_bytes = torch.cuda.memory_allocated(self.device)
-            num_free_bytes = (
-                num_unreserved_bytes + num_reserved_bytes - num_allocated_bytes
-            )
-            max_minibatch_size = int(num_free_bytes / (2 * element_size))
-
-            # Redistribute batch size equally across all iterations.
-            num_batches = int(math.ceil(batch_size / max_minibatch_size) + 0.5)
-            minibatch_size = int(math.ceil(batch_size / num_batches) + 0.5)
+        if self.device.type == "cuda":
+            minibatch_size, num_minibatches = tensors.compute_minibatch(batch_size, element_size)
         else:
             # If on CPU, keep the minibatch size at a reasonable size.
             minibatch_size = min(batch_size, 10000)

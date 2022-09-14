@@ -23,9 +23,6 @@ function eval_planner {
     if [ ${#POLICY_CHECKPOINTS[@]} -gt 0 ]; then
         args="${args} --policy-checkpoints ${POLICY_CHECKPOINTS[@]}"
     fi
-    if [ ${#SCOD_CHECKPOINTS[@]} -gt 0 ]; then
-        args="${args} --scod-checkpoints ${SCOD_CHECKPOINTS[@]}"
-    fi
     if [ ! -z "${DYNAMICS_CHECKPOINT}" ]; then
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
@@ -53,18 +50,15 @@ function run_planners {
 
         POLICY_CHECKPOINTS=()
         for policy_env in "${POLICY_ENVS[@]}"; do
-            POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${CKPT}.pt")
+            if [[ "${planner}" == daf_* ]]; then
+                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${planner}/${policy_env}/${CKPT}.pt")
+            else
+                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${CKPT}.pt")
+            fi
         done
 
-        SCOD_CHECKPOINTS=()
-        if [[ "${planner}" == *scod* ]]; then
-            for policy_env in "${POLICY_ENVS[@]}"; do
-                SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${CKPT}/${policy_env}/${SCOD_CONFIG}/final_scod.pt")
-            done
-        fi
-
-        if [[ "${planner}" == *_oracle_*dynamics ]]; then
-            DYNAMICS_CHECKPOINT=""
+        if [[ "${planner}" == daf_* ]]; then
+            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${planner}/dynamics/final_model.pt"
         else
             DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CKPT}/dynamics/final_model.pt"
         fi
@@ -73,7 +67,7 @@ function run_planners {
     done
 }
 
-function visualize_planners {
+function visualize_results {
     args=""
     args="${args} --path ${PLANNER_OUTPUT_PATH}"
     args="${args} --envs ${ENVS[@]}"
@@ -89,55 +83,42 @@ output_path="plots"
 
 # Evaluate planners.
 PLANNERS=(
-# Oracles.
-    # "policy_shooting_oracle_value_dynamics"
-    # "scod_policy_cem_oracle_dynamics"
-    # "policy_cem_oracle_dynamics"
-# Planning w/ SCOD.
-    "scod_policy_cem"
-    "scod_policy_cem_linear"
-    "scod_policy_cem_geometric"
-    "policy_cem_var_scod_value"
-    # "policy_cem_cvar_scod_value"
-# Planning w/o SCOD.
-    "policy_cem"
-    # "random_cem"
-    # "policy_shooting"
-    # "random_shooting"
-    # "greedy"
+# DAF.
+    # "daf_policy_cem"
+    # "daf_policy_shooting"
+    "daf_random_cem"
+    # "daf_random_shooting"
 )
 
 # Experiments.
 
 # Pybullet.
-exp_name="20220912/official"
-PLANNER_CONFIG_PATH="configs/pybullet/planners/"
+exp_name="20220914/official"
+PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
-    # "hook_reach/task0"
+    "hook_reach/task0"
     "hook_reach/task1"
     "hook_reach/task2"
-    # "constrained_packing/task0"
+    "constrained_packing/task0"
     "constrained_packing/task1"
     "constrained_packing/task2"
-    # "rearrangement_push/task0"
+    "rearrangement_push/task0"
     "rearrangement_push/task1"
     "rearrangement_push/task2"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
-CKPT="selectscod_model"
-SCOD_CONFIG="scod"
+CKPT="final_model"
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
 # Run planners.
-POLICY_INPUT_PATH="${input_path}/${exp_name}"
-SCOD_INPUT_PATH="${input_path}/${exp_name}"
-DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for env in "${ENVS[@]}"; do
+    POLICY_INPUT_PATH="${input_path}/${exp_name}/${env}"
+    DYNAMICS_INPUT_PATH="${input_path}/${exp_name}/${env}"
     ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
-    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/ablation_experiment_${SCOD_CONFIG}/${env}"
+    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
     run_planners
 done
 
@@ -146,6 +127,5 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] |
     exit
 fi
 
-
-PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/ablation_experiment_${SCOD_CONFIG}"
-visualize_planners
+PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/daf"
+visualize_results
