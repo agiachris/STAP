@@ -234,5 +234,5 @@ def setup_model(
             for p in params:
                 p.requires_grad = False
             num_layers += 1
-            
+
     return network
