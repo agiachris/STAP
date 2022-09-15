@@ -97,7 +97,7 @@ output_path="plots"
 PLANNERS=(
     "policy_cem"
     "policy_shooting"
-    "daf_random_shooting"
+    # "daf_random_shooting"
     "random_cem"
     "random_shooting"
     "greedy"
@@ -106,7 +106,7 @@ PLANNERS=(
 # Experiments.
 
 # Pybullet.
-exp_name="20220912/official"
+exp_name="20220914/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     "hook_reach/tamp0"

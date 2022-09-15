@@ -177,7 +177,7 @@ def eval_tamp(
         for action_skeleton in action_skeleton_generator:
             timer.tic("motion_planner")
             plan = planner.plan(env.get_observation(), env.action_skeleton)
-            t_motion_planner = timer.toc("planner")
+            t_motion_planner = timer.toc("motion_planner")
 
             task_plans.append(action_skeleton)
             motion_plans.append(plan)
@@ -379,6 +379,9 @@ if __name__ == "__main__":
         "--num-eval", "-n", type=int, default=1, help="Number of eval iterations"
     )
     parser.add_argument("--path", default="plots", help="Path for output plots")
+    parser.add_argument(
+        "--closed-loop", default=1, type=int, help="Run closed-loop planning"
+    )
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument("--verbose", type=int, default=1, help="Print debug messages")
