@@ -277,8 +277,28 @@ class TableEnv(PybulletEnv):
                 ),
                 projection_matrix=PROJECTION_MATRIX,
             ),
+            "front_right": CameraView(
+                width=WIDTH,
+                height=HEIGHT,
+                view_matrix=p.computeViewMatrix(
+                    cameraEyePosition=[0.8, 1.2, 0.9],
+                    cameraTargetPosition=[0.4, 0.2, 0.25],
+                    cameraUpVector=[0.0, 0.0, 1.0],
+                ),
+                projection_matrix=PROJECTION_MATRIX,
+            ),
+            "profile": CameraView(
+                width=WIDTH,
+                height=HEIGHT,
+                view_matrix=p.computeViewMatrix(
+                    cameraEyePosition=[0.30, 1.60, 0.5],
+                    cameraTargetPosition=[0.30, 0.1, 0.28],
+                    cameraUpVector=[0.0, 0.0, 1.0],
+                ),
+                projection_matrix=PROJECTION_MATRIX,
+            ),
         }
-        self.render_mode = "default"
+        self.render_mode = "profile"
 
         self._timelapse = recording.Recorder()
         self._recorder = recording.Recorder(recording_freq)
@@ -720,11 +740,10 @@ class TableEnv(PybulletEnv):
             self.object_tracker.send_poses(self.real_objects())
 
     def render(self) -> np.ndarray:  # type: ignore
-        if "top" in self.render_mode:
-            view = "top"
-        else:
-            view = "front"
-        camera_view = self._camera_views[view]
+        try:
+            camera_view = self._camera_views[self.render_mode]
+        except KeyError:
+            camera_view = self._camera_views["front"]
 
         if "high_res" in self.render_mode:
             width, height = (1620, 1080)
@@ -744,9 +763,9 @@ class TableEnv(PybulletEnv):
         img = Image.fromarray(img_rgb, "RGB")
         draw = ImageDraw.Draw(img)
         FONT = ImageFont.truetype("arial.ttf", 15)
-        draw.multiline_text(
-            (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", font=FONT
-        )
+        # draw.multiline_text(
+        #     (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", font=FONT
+        # )
 
         return np.array(img)
 
