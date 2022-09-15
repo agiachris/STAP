@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: hook_reach_tamp_0
+  name: hook_reach_0
   gui: true
 
   primitives:
@@ -19,10 +19,9 @@ env_kwargs:
         - free(hook)
         - free(red_box)
         - inworkspace(hook)
-        - beyondworkspace(red_box)
         - on(hook, table)
         - on(red_box, table)
-
+        
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   objects:
@@ -37,5 +36,5 @@ env_kwargs:
         head_length: 0.2
         handle_length: 0.38
         handle_y: -1.0
-        color: [0.4, 0.2, 0.0, 1.0]
+        color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/milk.yaml

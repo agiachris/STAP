@@ -85,6 +85,7 @@ def evaluate_plan(
     idx_iter: int,
     env: envs.Env,
     planner: planners.Planner,
+    action_skeleton: Sequence[envs.Primitive],
     plan: planners.PlanningResult,
     rewards: np.ndarray,
     path: pathlib.Path,
@@ -94,7 +95,7 @@ def evaluate_plan(
     recorder = recording.Recorder()
     recorder.start()
     for primitive, predicted_state, action in zip(
-        env.action_skeleton, plan.states[1:], plan.actions
+        action_skeleton, plan.states[1:], plan.actions
     ):
         env.set_primitive(primitive)
         env._recording_text = (
@@ -176,7 +177,8 @@ def eval_tamp(
         )
         for action_skeleton in action_skeleton_generator:
             timer.tic("motion_planner")
-            plan = planner.plan(env.get_observation(), env.action_skeleton)
+            env.set_primitive(action_skeleton[0])
+            plan = planner.plan(env.get_observation(), action_skeleton)
             t_motion_planner = timer.toc("motion_planner")
 
             task_plans.append(action_skeleton)
@@ -186,6 +188,9 @@ def eval_tamp(
             # Reset env for oracle value/dynamics.
             if isinstance(planner.dynamics, dynamics.OracleDynamics):
                 env.set_state(state)
+
+            if "greedy" in str(planner_config):
+                break
 
         # Get best TAMP plan.
         idx_best = np.argmax([plan.p_success for plan in motion_plans])
@@ -314,7 +319,7 @@ def eval_tamp(
                 },
                 "observation": observation,
                 "state": state,
-                "action_skeleton": task_plans[idx_best],
+                "action_skeleton": list(map(str, task_plans[idx_best])),
                 "actions": motion_plans[idx_best].actions,
                 "states": motion_plans[idx_best].states,
                 "scaled_actions": scale_actions(
@@ -336,7 +341,7 @@ def eval_tamp(
                 "seed": seed,
                 "discarded": [
                     {
-                        "action_skeleton": task_plans[i],
+                        "action_skeleton": list(map(str, task_plans[i])),
                         # "actions": motion_plans[i].actions,
                         # "states": motion_plans[i].states,
                         # "scaled_actions": scale_actions(
