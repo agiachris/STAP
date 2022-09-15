@@ -120,21 +120,21 @@ class SCODShootingPlanner(planners.Planner):
                     probabilistic_metric="stddev",
                 )
 
-            # Filter out trajectories with the highest uncertainty.
-            unc_trajectory_idx = t_values_unc.topk(
-                num_filter_per_timestep // num_minibatches, dim=0
-            ).indices
-            p_success[unc_trajectory_idx.flatten().unique()] = float("-Inf")
+                # Filter out trajectories with the highest uncertainty.
+                unc_trajectory_idx = t_values_unc.topk(
+                    num_filter_per_timestep // num_minibatches, dim=0
+                ).indices
+                p_success[unc_trajectory_idx.flatten().unique()] = float("-Inf")
 
-            # Select best trajectory.
-            idx_best = p_success.argmax()
+                # Select best trajectory.
+                idx_best = p_success.argmax()
 
-            # Convert to numpy.
-            best_actions[idx_minibatch] = t_actions[idx_best].cpu().numpy()
-            best_states[idx_minibatch] = t_states[idx_best].cpu().numpy()
-            best_p_success[idx_minibatch] = p_success[idx_best].cpu().numpy()
-            best_values[idx_minibatch] = t_values[idx_best].cpu().numpy()
-            del t_states, t_actions, p_success, t_values
+                # Convert to numpy.
+                best_actions[idx_minibatch] = t_actions[idx_best].cpu().numpy()
+                best_states[idx_minibatch] = t_states[idx_best].cpu().numpy()
+                best_p_success[idx_minibatch] = p_success[idx_best].cpu().numpy()
+                best_values[idx_minibatch] = t_values[idx_best].cpu().numpy()
+                del t_states, t_actions, p_success, t_values
 
             if return_visited_samples:
                 raise NotImplementedError
