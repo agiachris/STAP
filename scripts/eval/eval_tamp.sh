@@ -95,8 +95,11 @@ output_path="plots"
 
 # Evaluate planners.
 PLANNERS=(
-    "scod_policy_cem"
+    "policy_cem"
+    "policy_shooting"
     "daf_random_shooting"
+    "random_cem"
+    "random_shooting"
     "greedy"
 )
 
@@ -107,8 +110,8 @@ exp_name="20220912/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     "hook_reach/tamp0"
-    "constrained_packing/tamp0"
-    "rearrangement_push/tamp0"
+    # "constrained_packing/tamp0"
+    # "rearrangement_push/tamp0"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 CKPT="select_model"
