@@ -57,6 +57,7 @@ class TableEnvEncoder(Encoder):
         if randomize:
             shuffle_range = policy_args["shuffle_range"]
             np.random.shuffle(observation_indices[shuffle_range[0] : shuffle_range[1]])
+        observation_indices[shuffle_range[0] : shuffle_range[1]] = 1
 
         return observation_indices
 

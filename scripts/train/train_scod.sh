@@ -41,11 +41,11 @@ output_path="models"
 
 # Experiments.
 
-exp_name="20220908/official"
+exp_name="20220914/official"
 TRAINER_CONFIG="configs/pybullet/trainers/scod.yaml"
 scod_configs=(
     # "scod"
-    # "scod_freeze"
+    "scod_freeze"
     # "scod_srft"
     # "scod_srft_freeze"
 )
@@ -53,6 +53,7 @@ policy_envs=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
+    "select_model"
     # "ckpt_model_50000"
     # "ckpt_model_100000"
     # "ckpt_model_150000"

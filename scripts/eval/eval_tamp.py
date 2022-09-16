@@ -193,7 +193,12 @@ def eval_tamp(
                 break
 
         # Get best TAMP plan.
-        idx_best = np.argmax([plan.p_success for plan in motion_plans])
+        if motion_plans[0].visited_values is not None:
+            values = [(plan.p_success, -plan.visited_values[0]) for plan in motion_plans]
+            best = max(values)
+            idx_best = values.index(best)
+        else:
+            idx_best = np.argmax([plan.p_success for plan in motion_plans])
         best_task_plan = task_plans[idx_best]
         best_motion_plan = motion_plans[idx_best]
 
@@ -246,7 +251,7 @@ def eval_tamp(
             dict(
                 success=rewards.prod(),
                 **{f"r{t}": r for t, r in enumerate(rewards)},
-                num_successes=f"{num_success} / {num_eval}",
+                num_successes=f"{num_success} / {idx_iter + 1}",
             )
         )
 

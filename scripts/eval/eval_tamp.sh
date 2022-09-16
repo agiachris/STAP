@@ -32,7 +32,7 @@ function eval_tamp {
     args="${args} --seed 0"
     args="${args} --pddl-domain ${PDDL_DOMAIN}"
     args="${args} --pddl-problem ${PDDL_PROBLEM}"
-    args="${args} --max-depth 4"
+    args="${args} --max-depth 2"
     args="${args} --timeout 10"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
@@ -95,12 +95,13 @@ output_path="plots"
 
 # Evaluate planners.
 PLANNERS=(
-    "policy_cem"
-    "policy_shooting"
+    # "policy_cem"
+    "ablation/scod_policy_cem"
+    # "policy_shooting"
     # "daf_random_shooting"
-    "random_cem"
-    "random_shooting"
-    "greedy"
+    # "random_cem"
+    # "random_shooting"
+    # "greedy"
 )
 
 # Experiments.
@@ -109,13 +110,13 @@ PLANNERS=(
 exp_name="20220914/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
-    "hook_reach/tamp0"
-    # "constrained_packing/tamp0"
+    # "hook_reach/tamp0"
+    "constrained_packing/tamp0"
     # "rearrangement_push/tamp0"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 CKPT="select_model"
-SCOD_CONFIG="scod_freeze"
+SCOD_CONFIG="scod"
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"

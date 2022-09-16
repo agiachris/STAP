@@ -16,17 +16,20 @@ env_kwargs:
         - pick(yellow_box, table)
         - place(yellow_box, rack)
       initial_state:
-        - free(yellow_box)
-        - free(red_box)
+        - free(blue_box)
+        # - tippable(blue_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
-        - inworkspace(yellow_box)
-        - inworkspace(red_box)
+        - inoodzone(yellow_box)
+        - inworkspace(blue_box)
+        - inoodzone(cyan_box)
+        - inoodzone(red_box)
         - on(rack, table)
-        - on(cyan_box, rack)
         - on(yellow_box, table)
         - on(red_box, table)
+        - on(cyan_box, table)
+        - on(blue_box, table)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -44,6 +47,7 @@ env_kwargs:
     - configs/pybullet/envs/assets/yogurt.yaml
     - configs/pybullet/envs/assets/milk.yaml
     - configs/pybullet/envs/assets/icecream.yaml
+    - configs/pybullet/envs/assets/salt.yaml
     # - object_type: Box
     #   object_kwargs:
     #     name: yellow_box

@@ -10,17 +10,17 @@
 	(:constants table - unmovable)
 	(:predicates
 		(inhand ?a - movable)
-		(on ?a - movable ?b - unmovable)
+		(on ?a - movable ?b - physobj)
 		(inworkspace ?a - movable)
 	)
 	(:action pick
-		:parameters (?a - movable ?b - unmovable)
+		:parameters (?a - movable ?b - physobj)
 		:precondition (and
-			(on ?a ?b)  ; TODO: Remove
-			(forall (?b - movable)
+			(on ?a ?b)
+			(forall (?c - movable)
 				(and
-					(not (inhand ?b))
-					(not (on ?b ?a))
+					(not (inhand ?c))
+					; (not (on ?c ?a))
 				)
 			)
 		)
