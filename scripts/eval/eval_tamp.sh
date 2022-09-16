@@ -95,13 +95,13 @@ output_path="plots"
 
 # Evaluate planners.
 PLANNERS=(
-    # "policy_cem"
+    "ablation/policy_cem"
     "ablation/scod_policy_cem"
-    # "policy_shooting"
+    "ablation/policy_shooting"
     # "daf_random_shooting"
-    # "random_cem"
-    # "random_shooting"
-    # "greedy"
+    "ablation/random_cem"
+    "ablation/random_shooting"
+    "greedy"
 )
 
 # Experiments.
