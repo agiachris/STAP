@@ -32,7 +32,7 @@ function eval_tamp {
     args="${args} --seed 0"
     args="${args} --pddl-domain ${PDDL_DOMAIN}"
     args="${args} --pddl-problem ${PDDL_PROBLEM}"
-    args="${args} --max-depth 2"
+    args="${args} --max-depth 4"
     args="${args} --timeout 10"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
@@ -110,8 +110,8 @@ PLANNERS=(
 exp_name="20220914/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
-    # "hook_reach/tamp0"
-    "constrained_packing/tamp0"
+    "hook_reach/tamp0"
+    # "constrained_packing/tamp0"
     # "rearrangement_push/tamp0"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
