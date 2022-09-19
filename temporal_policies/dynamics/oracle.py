@@ -64,7 +64,9 @@ class OracleDynamics(dynamics.Dynamics):
         policies: Optional[Sequence[agents.Agent]] = None,
         batch_size: Optional[int] = None,
         time_index: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        state_requires_grad: bool = False,
+        action_requires_grad: bool = False,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Rolls out trajectories according to the action skeleton.
 
         Args:
@@ -84,19 +86,21 @@ class OracleDynamics(dynamics.Dynamics):
         prev_state = self.env.get_state()
         prev_primitive = self.env.get_primitive()
 
-        states, actions, p_transitions = super().rollout(
+        states, actions = super().rollout(
             observation=observation,
             action_skeleton=action_skeleton,
             policies=policies,
             batch_size=batch_size,
             time_index=time_index,
+            state_requires_grad=state_requires_grad,
+            action_requires_grad=action_requires_grad,
         )
 
         # Restore env to the way it was before.
         self.env.set_state(prev_state)
         self.env.set_primitive(prev_primitive)
 
-        return states, actions, p_transitions
+        return states, actions
 
     @tensors.torch_wrap
     @tensors.vmap(dims=1)
