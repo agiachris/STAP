@@ -18,6 +18,9 @@ from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates, utils
 from temporal_policies.envs.pybullet.table.primitives import (
     Primitive,
+    Pick,
+    Pull,
+    Push,
     initialize_robot_pose,
 )
 from temporal_policies.envs.pybullet.table.objects import Null, Object, ObjectGroup
@@ -488,7 +491,7 @@ class TableEnv(PybulletEnv):
         self, seed: Optional[int]
     ) -> Generator[Tuple[int, Optional[dict]], None, None]:
         """Gets the next seed from the multiprocess queue or an incremented seed."""
-        MAX_SIMPLE_INT = 2**30  # Largest simple int in Python.
+        MAX_SIMPLE_INT = 2 ** 30  # Largest simple int in Python.
         if self._seed_queue is None:
             # Child process or single process.
             if seed is None:
@@ -637,9 +640,26 @@ class TableEnv(PybulletEnv):
                 + "]"
             )
 
+        if isinstance(self.robot.arm, real.arm.Arm):
+            input("Continue?")
+
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
-        result = primitive.execute(action)
+        result = primitive.execute(
+            action, real_world=isinstance(self.robot.arm, real.arm.Arm)
+        )
+
+        if (
+            self.object_tracker is not None
+            and isinstance(self.robot.arm, real.arm.Arm)
+            and not isinstance(primitive, Pick)
+        ):
+            if isinstance(primitive, (Pull, Push)):
+                self.object_tracker.update_poses(exclude=[primitive.arg_objects[1]])
+            else:
+                # Track objects from the real world.
+                self.object_tracker.update_poses()
+
         obs = self.get_observation()
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
