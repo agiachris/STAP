@@ -2,7 +2,8 @@
 
 set -e
 
-GCP_LOGIN="juno-login-lclbjqwy-001"
+# GCP_LOGIN="juno-login-lclbjqwy-001"
+GCP_LOGIN="gcp-login-yq0fvtuw-001"
 
 function run_cmd {
     echo ""
