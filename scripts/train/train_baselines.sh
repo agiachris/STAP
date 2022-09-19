@@ -52,11 +52,11 @@ plots_path="plots"
 
 # Experiments.
 
-exp_name="20220912/official"
-AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
+# exp_name="20220915/official"
+# AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 
-# exp_name="20220912/official_lff"
-# AGENT_CONFIG="configs/pybullet/agents/sac_lff.yaml"
+exp_name="20220915/official_lff"
+AGENT_CONFIG="configs/pybullet/agents/sac_lff.yaml"
 
 planners=(
     # "daf_policy_cem"
@@ -66,14 +66,14 @@ planners=(
     # "dreamer_greedy"
 )
 envs=(
-    "hook_reach/task0"
-    "hook_reach/task1"
+    # "hook_reach/task0"
+    # "hook_reach/task1"
     "hook_reach/task2"
-    "constrained_packing/task0"
-    "constrained_packing/task1"
+    # "constrained_packing/task0"
+    # "constrained_packing/task1"
     "constrained_packing/task2"
-    "rearrangement_push/task0"
-    "rearrangement_push/task1"
+    # "rearrangement_push/task0"
+    # "rearrangement_push/task1"
     "rearrangement_push/task2"
 )
 
@@ -95,7 +95,6 @@ for (( i=0; i<${num_envs}; i++ )); do
     for planner in "${planners[@]}"; do
         PLANNER_CONFIG="configs/pybullet/planners/${planner}.yaml"
         OUTPUT_PATH="${output_path}/${exp_name}/${env}/${planner}"
-        # EVAL_RECORDING_PATH="${plots_path}/${exp_name}/${planner}"
 
         train_baseline
     done
