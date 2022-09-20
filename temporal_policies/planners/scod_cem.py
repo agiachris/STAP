@@ -302,6 +302,8 @@ class SCODCEMPlanner(planners.Planner):
             visited_states = None
             p_visited_success = None
             visited_values = None
+
+        # TODO: Make a dedicated field if best_values_unc is necessary for TAMP.
         visited_values = best_values_unc
 
         return planners.PlanningResult(

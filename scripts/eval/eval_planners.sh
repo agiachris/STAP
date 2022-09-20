@@ -191,7 +191,7 @@ for CKPT in "${checkpoints[@]}"; do
     for env in "${ENVS[@]}"; do
         ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
         PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
-        # LOAD_PATH="${PLANNER_OUTPUT_PATH}"
+        # LOAD_PATH="${PLANNER_OUTPUT_PATH}/policy_cem"
         run_planners
     done
 done
