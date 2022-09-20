@@ -365,12 +365,12 @@ class Place(Primitive):
         ) * xy_normalized + xy_target_range[0]
         pos = np.append(xy_target, a.pos[2])
         if real_world:
-            pos[2] = min(0.05, pos[2])
-            # constrained_packing/task1 greedy.
-            # if pos[0] > 0.05:
-            #     pos[0] -= 0.02
-            # else:
-            #     pos[0] += 0.02
+            pos[2] = min(
+                self.env.robot.arm.ee_pose().pos[2]
+                - obj.pose().pos[2]
+                + 0.5 * obj.size[2],
+                pos[2],
+            )
 
         # Compute position.
         command_pos = target_pose.pos + target_quat * pos
@@ -532,7 +532,7 @@ class Pull(Primitive):
                     if obj.name != "table"
                 ],
             )
-            if not utils.is_upright(target):
+            if not real_world and not utils.is_upright(target):
                 raise ControlException("Target is not upright", target.pose().quat)
 
             robot.goto_pose(
@@ -559,11 +559,11 @@ class Pull(Primitive):
 
         self.env.wait_until_stable()
 
-        if not utils.is_upright(target):
+        if not real_world and not utils.is_upright(target):
             dbprint("Pull.execute(): not upright")
             return ExecutionResult(success=False, truncated=False)
 
-        if not utils.is_inworkspace(obj=target):
+        if not real_world and not utils.is_inworkspace(obj=target):
             dbprint("Pull.execute(): not in workspace")
             return ExecutionResult(success=False, truncated=False)
 

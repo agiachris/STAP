@@ -80,7 +80,7 @@ POLICY_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_INPUT_PATH="${input_path}/${exp_name}"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 
-ENV_CONFIG="configs/pybullet/envs/official/domains/${ENV}.yaml"
+ENV_CONFIG="configs/pybullet/envs/real_world/domains/${ENV}.yaml"
 PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${ENV}"
 LOAD_PATH="${PLANNER_OUTPUT_PATH}"
 run_planners
