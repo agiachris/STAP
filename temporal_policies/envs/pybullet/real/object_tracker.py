@@ -2,10 +2,25 @@ import pathlib
 from typing import Dict, Iterable, List, Optional, Sequence, Union
 
 import ctrlutils
+from ctrlutils import eigen
+import numpy as np
 
 from temporal_policies.envs.pybullet.real import redisgl
 from temporal_policies.envs.pybullet.sim import math, shapes
 from temporal_policies.envs.pybullet.table.objects import Object, Variant
+
+
+def create_pose(shape: shapes.Shape) -> redisgl.Pose:
+    if shape.pose is None:
+        return redisgl.Pose()
+    elif isinstance(shape, shapes.Cylinder):
+        quat_pybullet_to_redisgl = eigen.Quaterniond(
+            eigen.AngleAxisd(np.pi / 2, np.array([1.0, 0.0, 0.0]))
+        )
+        quat = eigen.Quaterniond(shape.pose.quat) * quat_pybullet_to_redisgl
+        return redisgl.Pose(shape.pose.pos, quat.coeffs)
+    else:
+        return redisgl.Pose(shape.pose.pos, shape.pose.quat)
 
 
 def create_geometry(shape: shapes.Shape) -> redisgl.Geometry:
@@ -27,9 +42,7 @@ def create_graphics(object: Object) -> Sequence[redisgl.Graphics]:
         redisgl.Graphics(
             name=object.name,
             geometry=create_geometry(shape),
-            T_to_parent=redisgl.Pose()
-            if shape.pose is None
-            else redisgl.Pose(shape.pose.pos, shape.pose.quat),
+            T_to_parent=create_pose(shape),
         )
         for shape in object.shapes
     ]
@@ -96,7 +109,11 @@ class ObjectTracker:
             if object_model is not None
         ]
 
-    def update_poses(self, objects: Optional[Iterable[Object]] = None) -> List[Object]:
+    def update_poses(
+        self,
+        objects: Optional[Iterable[Object]] = None,
+        exclude: Optional[Sequence[Object]] = None,
+    ) -> List[Object]:
         if objects is None:
             objects = self._tracked_objects
 
@@ -109,6 +126,8 @@ class ObjectTracker:
         # Set returned poses.
         updated_objects = []
         for i, object in enumerate(objects):
+            if exclude is not None and object in exclude:
+                continue
             b_object_pos = b_object_poses[2 * i]
             b_object_quat = b_object_poses[2 * i + 1]
             if b_object_pos is None or b_object_quat is None:

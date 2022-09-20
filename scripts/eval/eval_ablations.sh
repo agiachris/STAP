@@ -2,7 +2,8 @@
 
 set -e
 
-GCP_LOGIN="juno-login-lclbjqwy-001"
+# GCP_LOGIN="juno-login-lclbjqwy-001"
+GCP_LOGIN="gcp-login-yq0fvtuw-001"
 
 function run_cmd {
     echo ""
@@ -137,7 +138,7 @@ SCOD_INPUT_PATH="${input_path}/${exp_name}"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for env in "${ENVS[@]}"; do
     ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
-    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/ablation_experiment_${SCOD_CONFIG}/${env}"
+    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/ablation_experiment/${env}"
     run_planners
 done
 
@@ -147,5 +148,5 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] |
 fi
 
 
-PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/ablation_experiment_${SCOD_CONFIG}"
+PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/ablation_experiment"
 visualize_planners

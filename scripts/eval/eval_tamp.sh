@@ -95,24 +95,28 @@ output_path="plots"
 
 # Evaluate planners.
 PLANNERS=(
-    "scod_policy_cem"
-    "daf_random_shooting"
+    "ablation/policy_cem"
+    "ablation/scod_policy_cem"
+    "ablation/policy_shooting"
+    # "daf_random_shooting"
+    "ablation/random_cem"
+    "ablation/random_shooting"
     "greedy"
 )
 
 # Experiments.
 
 # Pybullet.
-exp_name="20220912/official"
+exp_name="20220914/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     "hook_reach/tamp0"
-    "constrained_packing/tamp0"
-    "rearrangement_push/tamp0"
+    # "constrained_packing/tamp0"
+    # "rearrangement_push/tamp0"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 CKPT="select_model"
-SCOD_CONFIG="scod_freeze"
+SCOD_CONFIG="scod"
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"

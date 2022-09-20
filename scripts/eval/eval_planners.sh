@@ -2,7 +2,8 @@
 
 set -e
 
-GCP_LOGIN="juno-login-lclbjqwy-001"
+# GCP_LOGIN="juno-login-lclbjqwy-001"
+GCP_LOGIN="gcp-login-yq0fvtuw-001"
 
 function run_cmd {
     echo ""
@@ -150,7 +151,7 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220912/official"
+exp_name="20220914/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     ## Domain 1: Hook Reach
@@ -170,12 +171,13 @@ POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
+    "select_model"
     # "ckpt_model_50000"
     # "ckpt_model_100000"
     # "ckpt_model_150000"
     # "ckpt_model_200000"
     # "select_model"
-    "selectscod_model"
+    # "selectscod_model"
 )
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
@@ -191,7 +193,7 @@ for CKPT in "${checkpoints[@]}"; do
     for env in "${ENVS[@]}"; do
         ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
         PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
-        # LOAD_PATH="${PLANNER_OUTPUT_PATH}"
+        # LOAD_PATH="${PLANNER_OUTPUT_PATH}/policy_cem"
         run_planners
     done
 done

@@ -85,6 +85,7 @@ def evaluate_plan(
     idx_iter: int,
     env: envs.Env,
     planner: planners.Planner,
+    action_skeleton: Sequence[envs.Primitive],
     plan: planners.PlanningResult,
     rewards: np.ndarray,
     path: pathlib.Path,
@@ -94,7 +95,7 @@ def evaluate_plan(
     recorder = recording.Recorder()
     recorder.start()
     for primitive, predicted_state, action in zip(
-        env.action_skeleton, plan.states[1:], plan.actions
+        action_skeleton, plan.states[1:], plan.actions
     ):
         env.set_primitive(primitive)
         env._recording_text = (
@@ -176,8 +177,9 @@ def eval_tamp(
         )
         for action_skeleton in action_skeleton_generator:
             timer.tic("motion_planner")
-            plan = planner.plan(env.get_observation(), env.action_skeleton)
-            t_motion_planner = timer.toc("planner")
+            env.set_primitive(action_skeleton[0])
+            plan = planner.plan(env.get_observation(), action_skeleton)
+            t_motion_planner = timer.toc("motion_planner")
 
             task_plans.append(action_skeleton)
             motion_plans.append(plan)
@@ -187,8 +189,16 @@ def eval_tamp(
             if isinstance(planner.dynamics, dynamics.OracleDynamics):
                 env.set_state(state)
 
+            if "greedy" in str(planner_config):
+                break
+
         # Get best TAMP plan.
-        idx_best = np.argmax([plan.p_success for plan in motion_plans])
+        if motion_plans[0].visited_values is not None:
+            values = [(plan.p_success, -plan.visited_values[0]) for plan in motion_plans]
+            best = max(values)
+            idx_best = values.index(best)
+        else:
+            idx_best = np.argmax([plan.p_success for plan in motion_plans])
         best_task_plan = task_plans[idx_best]
         best_motion_plan = motion_plans[idx_best]
 
@@ -241,7 +251,7 @@ def eval_tamp(
             dict(
                 success=rewards.prod(),
                 **{f"r{t}": r for t, r in enumerate(rewards)},
-                num_successes=f"{num_success} / {num_eval}",
+                num_successes=f"{num_success} / {idx_iter + 1}",
             )
         )
 
@@ -314,7 +324,7 @@ def eval_tamp(
                 },
                 "observation": observation,
                 "state": state,
-                "action_skeleton": task_plans[idx_best],
+                "action_skeleton": list(map(str, task_plans[idx_best])),
                 "actions": motion_plans[idx_best].actions,
                 "states": motion_plans[idx_best].states,
                 "scaled_actions": scale_actions(
@@ -336,7 +346,7 @@ def eval_tamp(
                 "seed": seed,
                 "discarded": [
                     {
-                        "action_skeleton": task_plans[i],
+                        "action_skeleton": list(map(str, task_plans[i])),
                         # "actions": motion_plans[i].actions,
                         # "states": motion_plans[i].states,
                         # "scaled_actions": scale_actions(
@@ -379,6 +389,9 @@ if __name__ == "__main__":
         "--num-eval", "-n", type=int, default=1, help="Number of eval iterations"
     )
     parser.add_argument("--path", default="plots", help="Path for output plots")
+    parser.add_argument(
+        "--closed-loop", default=1, type=int, help="Run closed-loop planning"
+    )
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument("--verbose", type=int, default=1, help="Print debug messages")

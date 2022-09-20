@@ -250,10 +250,11 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         path = pathlib.Path(checkpoint).parent
         self.dataset.path = path / "train_data"
         self.eval_dataset.path = path / "eval_data"
-        if dataset_size is None:
-            dataset_size = state_dict["dataset_size"]
-        if eval_dataset_size is None:
-            eval_dataset_size = state_dict["eval_dataset_size"]
+        # TODO: Uncomment this to load the replay_buffer at the time of saving.
+        # if dataset_size is None:
+        #     dataset_size = state_dict["dataset_size"]
+        # if eval_dataset_size is None:
+        #     eval_dataset_size = state_dict["eval_dataset_size"]
         self.dataset.load(max_entries=dataset_size)
         self.eval_dataset.load(max_entries=eval_dataset_size)
 
