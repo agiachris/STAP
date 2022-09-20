@@ -2,7 +2,8 @@
 
 set -e
 
-GCP_LOGIN="juno-login-lclbjqwy-001"
+# GCP_LOGIN="juno-login-lclbjqwy-001"
+GCP_LOGIN="gcp-login-yq0fvtuw-001"
 
 function run_cmd {
     echo ""
@@ -150,7 +151,7 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220912/official"
+exp_name="20220914/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     "hook_reach/task0"
@@ -168,6 +169,9 @@ checkpoints=(
     # "final_model"
     # "best_model"
     "select_model"
+    # "select0_model"
+    # "select2_model"
+    # "select3_model"
     # "ckpt_model_50000"
     # "ckpt_model_100000"
     # "ckpt_model_150000"

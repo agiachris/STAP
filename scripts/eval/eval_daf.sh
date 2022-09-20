@@ -107,19 +107,32 @@ ENVS=(
     "rearrangement_push/task2"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
-CKPT="final_model"
+CKPT="best_model"
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
 # Run planners.
+# for env in "${ENVS[@]}"; do
+#     POLICY_INPUT_PATH="${input_path}/${exp_name}/${env}"
+#     DYNAMICS_INPUT_PATH="${input_path}/${exp_name}/${env}"
+#     ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
+#     PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
+#     run_planners
+# done
 for env in "${ENVS[@]}"; do
-    POLICY_INPUT_PATH="${input_path}/${exp_name}/${env}"
-    DYNAMICS_INPUT_PATH="${input_path}/${exp_name}/${env}"
-    ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
-    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
-    run_planners
+    for idx_task in 0 1 2; do
+        if [[ "${idx_task}" -eq "${env: -1}" ]]; then
+            continue
+        fi
+        eval_env="${env::-1}${idx_task}"
+        POLICY_INPUT_PATH="${input_path}/${exp_name}/${env}"
+        DYNAMICS_INPUT_PATH="${input_path}/${exp_name}/${env}"
+        ENV_CONFIG="configs/pybullet/envs/official/domains/${eval_env}.yaml"
+        PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/select_model/${eval_env}/train${env: -1}"
+        run_planners
+    done
 done
 
 # Visualize results.
