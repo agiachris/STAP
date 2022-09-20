@@ -253,9 +253,19 @@ class SAC(rl.RLAgent):
         assert isinstance(batch["observation"], torch.Tensor)
         assert isinstance(batch["next_observation"], torch.Tensor)
 
-        updating_critic = step % self.critic_update_freq == 0
-        updating_actor = step % self.actor_update_freq == 0
-        updating_target = step % self.target_update_freq == 0
+        updating_critic = (
+            False
+            if self.critic_update_freq == 0
+            else step % self.critic_update_freq == 0
+        )
+        updating_actor = (
+            False if self.actor_update_freq == 0 else step % self.actor_update_freq == 0
+        )
+        updating_target = (
+            False
+            if self.target_update_freq == 0
+            else step % self.target_update_freq == 0
+        )
 
         if updating_actor or updating_critic:
             with torch.no_grad():

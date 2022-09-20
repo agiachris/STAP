@@ -1,6 +1,7 @@
 from .base import Trainer
 from .agents import AgentTrainer
 from .daf import DafTrainer
+from .dreamer import DreamerTrainer
 from .dynamics import DynamicsTrainer
 from .autoencoders import AutoencoderTrainer
 from .unified import UnifiedTrainer

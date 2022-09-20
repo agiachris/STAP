@@ -94,6 +94,8 @@ class TrainerFactory(configs.Factory):
 
                 self.kwargs["policy_checkpoints"] = policy_checkpoints
                 self.kwargs["policies"] = policies
+            elif issubclass(self.cls, trainers.UnifiedTrainer):
+                self.kwargs["eval_env"] = eval_env
         elif issubclass(self.cls, trainers.AutoencoderTrainer):
             if encoder is None:
                 if checkpoint is None:

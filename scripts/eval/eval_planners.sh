@@ -29,6 +29,9 @@ function eval_planner {
     if [ ! -z "${DYNAMICS_CHECKPOINT}" ]; then
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
+    if [[ ! -z "${LOAD_PATH}" ]]; then
+        args="${args} --load-path ${LOAD_PATH}"
+    fi
     args="${args} --seed 0"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
@@ -79,6 +82,7 @@ function run_planners {
 function visualize_results {
     args=""
     args="${args} --path ${PLANNER_OUTPUT_PATH}"
+    args="${args} --envs ${ENVS[@]}"
     args="${args} --methods ${PLANNERS[@]}"
     CMD="python scripts/visualize/visualize_planners.py ${args}"
     run_cmd
@@ -145,24 +149,25 @@ PLANNERS=(
 #     "ckpt_model_50000"
 # )
 
+# Pybullet.
 exp_name="20220908/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
-envs=(
-    # "hook_reach/task0"
-    # "hook_reach/task1"
-    # "hook_reach/task2"
-    # "hook_reach/task3"
-    # "hook_reach/task4"
-    # "constrained_packing/task0"
-    # "constrained_packing/task1"
-    # "constrained_packing/task2"
-    # "constrained_packing/task3"
-    # "constrained_packing/task4"
-    # "rearrangement_push/task0"
-    # "rearrangement_push/task1"
-    # "rearrangement_push/task2"
-    # "rearrangement_push/task3"
-    # "rearrangement_push/task4"
+ENVS=(
+    "hook_reach/task0"
+    "hook_reach/task1"
+    "hook_reach/task2"
+    "hook_reach/task3"
+    "hook_reach/task4"
+    "constrained_packing/task0"
+    "constrained_packing/task1"
+    "constrained_packing/task2"
+    "constrained_packing/task3"
+    "constrained_packing/task4"
+    "rearrangement_push/task0"
+    "rearrangement_push/task1"
+    "rearrangement_push/task2"
+    "rearrangement_push/task3"
+    "rearrangement_push/task4"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(
@@ -184,9 +189,10 @@ SCOD_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_CONFIG="scod_freeze"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for CKPT in "${checkpoints[@]}"; do
-    for env in "${envs[@]}"; do
+    for env in "${ENVS[@]}"; do
         ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
         PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
+        LOAD_PATH="${PLANNER_OUTPUT_PATH}"
         run_planners
     done
 done

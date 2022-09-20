@@ -1,3 +1,4 @@
+import math
 from typing import Any, Callable, Iterator, List, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
@@ -349,3 +350,24 @@ def cnn_to_rgb(img_cnn: torch.Tensor, contiguous: bool = False) -> torch.Tensor:
         return img_rgb.contiguous()
     else:
         return img_rgb
+
+
+def get_num_free_bytes() -> int:
+    cuda_device = torch.cuda.current_device()
+    num_unreserved_bytes: int = torch.cuda.mem_get_info(cuda_device)[0]  # type: ignore
+    num_reserved_bytes = torch.cuda.memory_reserved(cuda_device)
+    num_allocated_bytes = torch.cuda.memory_allocated(cuda_device)
+    num_free_bytes = num_unreserved_bytes + num_reserved_bytes - num_allocated_bytes
+
+    return num_free_bytes
+
+
+def compute_minibatch(batch_size: int, element_size: int) -> Tuple[int, int]:
+    num_free_bytes = get_num_free_bytes()
+    max_minibatch_size = int(num_free_bytes / (2 * element_size))
+
+    # Redistribute batch size equally across all iterations.
+    num_batches = int(math.ceil(batch_size / max_minibatch_size) + 0.5)
+    minibatch_size = int(math.ceil(batch_size / num_batches) + 0.5)
+
+    return minibatch_size, num_batches

@@ -126,6 +126,8 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
         self._step = 0
         self._epoch = 0
 
+        self.to(device)
+
     @property
     def agent_trainers(self) -> List[AgentTrainer]:
         """Agent trainers."""
@@ -205,9 +207,9 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
 
     def to(self, device: Union[str, torch.device]) -> Trainer:
         """Transfer networks to a device."""
-        """Transfer networks to a device."""
+        self._device = tensors.device(device)
         for trainer in self.trainers:
-            trainer.to(device)
+            trainer.to(self.device)
         return self
 
     def train_mode(self) -> None:
@@ -239,8 +241,9 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
     def pretrain(self) -> None:
         """Runs the pretrain phase for each agent."""
         self.dynamics_trainer.dataset.initialize()
-        log_freq = self.log_freq
-        self.log_freq = min(log_freq, self.num_pretrain_steps // 10)
+        log_freqs = [trainer.log_freq for trainer in self.trainers]
+        for trainer in self.trainers:
+            trainer.log_freq = min(trainer.log_freq, self.num_pretrain_steps // 10)
 
         pbar = tqdm.tqdm(
             range(self.step, self.num_pretrain_steps),
@@ -267,7 +270,8 @@ class UnifiedTrainer(Trainer[None, WrappedBatch, None]):  # type: ignore
             metrics_list = self.log_step(metrics_list, stage="pretrain")
 
             self.increment_step()
-        self.log_freq = log_freq
+        for log_freq, trainer in zip(log_freqs, self.trainers):
+            trainer.log_freq = log_freq
 
     def profile_step(self) -> None:
         """Enables or disables profiling for the current step."""

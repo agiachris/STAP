@@ -1,23 +1,30 @@
-import collections
+import enum
 import pathlib
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 import numpy as np
+import torch
 import tqdm
 
 from temporal_policies import datasets, dynamics as dynamics_module, envs, planners
 from temporal_policies.trainers.agents import AgentTrainer
+from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.unified import UnifiedTrainer
-from temporal_policies.utils import metrics
-from temporal_policies.utils.typing import Scalar
+from temporal_policies.utils import metrics, spaces, tensors
+from temporal_policies.utils.typing import Batch, Scalar, WrappedBatch
 
 
 class DafTrainer(UnifiedTrainer):
     """DAF-style unified trainer."""
 
+    class Mode(enum.Enum):
+        COLLECT = 0
+        EVALUATE = 1
+
     def __init__(
         self,
         env: envs.Env,
+        eval_env: Optional[envs.Env],
         path: Union[str, pathlib.Path],
         dynamics: dynamics_module.LatentDynamics,
         planner: planners.Planner,
@@ -25,7 +32,7 @@ class DafTrainer(UnifiedTrainer):
         agent_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         env_kwargs: Dict[str, Any] = {},
-        sample_primitive_actions: bool = False,
+        closed_loop_planning: bool = True,
         device: str = "auto",
         num_pretrain_steps: int = 1000,
         num_train_steps: int = 100000,
@@ -45,8 +52,7 @@ class DafTrainer(UnifiedTrainer):
             agent_trainer_config: Agent trainer config.
             checkpoint: Optional path to trainer checkpoint.
             env_kwargs: Optional kwargs passed to EnvFactory.
-            sample_primitive_actions: Whether to sample actions from the
-                primitive distribution.
+            closed_loop_planning: Whether to use closed-loop planning.
             device: Torch device.
             num_pretrain_steps: Number of steps to pretrain. Overrides
                 agent trainer configs.
@@ -81,18 +87,22 @@ class DafTrainer(UnifiedTrainer):
         )
 
         self._env = env
+        self._eval_env = env if eval_env is None else eval_env
         self._planner = planner
 
-        # TODO: Doesn't work with changing action skeletons.
-        # if sample_primitive_actions:
-        #     for policy, primitive in zip(self.planner.policies, self.action_skeleton):
-        #         if isinstance(policy, agents.RandomAgent):
-        #             assert isinstance(policy.actor, networks.actors.RandomActor)
-        #             policy.actor.set_primitive(primitive)
+        self.closed_loop_planning = closed_loop_planning
+        assert isinstance(self.env, envs.pybullet.TableEnv)
+        self._max_num_actions = max(
+            len(task.action_skeleton) for task in self.env.tasks.tasks
+        )
 
     @property
     def env(self) -> envs.Env:
         return self._env
+
+    @property
+    def eval_env(self) -> envs.Env:
+        return self._eval_env
 
     @property
     def planner(self) -> planners.Planner:
@@ -102,7 +112,8 @@ class DafTrainer(UnifiedTrainer):
     def collect_agent_step(
         self,
         agent_trainer: AgentTrainer,
-        primitive: envs.Primitive,
+        env: envs.Env,
+        action_skeleton: Sequence[envs.Primitive],
         action: np.ndarray,
         dataset: datasets.ReplayBuffer,
         t: int,
@@ -115,13 +126,14 @@ class DafTrainer(UnifiedTrainer):
         Returns:
             Collect metrics.
         """
-        self.env.set_primitive(primitive)
-        observation = self.env.get_observation()
+        primitive = action_skeleton[0]
+        env.set_primitive(primitive)
+        observation = env.get_observation()
         dataset.add(observation=observation)
         agent_trainer._episode_length = 0
         agent_trainer._episode_reward = 0.0
 
-        next_observation, reward, terminated, truncated, info = self.env.step(action)
+        next_observation, reward, terminated, truncated, info = env.step(action)
         done = terminated or truncated
         discount = 1.0 - float(done)
         try:
@@ -151,7 +163,7 @@ class DafTrainer(UnifiedTrainer):
             for metric, value in info.items()
             if metric in metrics.METRIC_AGGREGATION_FNS
         }
-        step_metrics[f"reward_{t}"] = agent_trainer._episode_reward
+        step_metrics[f"reward_{t}"] = reward
         # step_metrics[f"length_{t}"] = agent_trainer._episode_length
         # step_metrics[f"episode_{t}"] = agent_trainer.epoch
 
@@ -162,23 +174,30 @@ class DafTrainer(UnifiedTrainer):
         return step_metrics
 
     def plan_step(
-        self, action_skeleton: Sequence[envs.Primitive], random: bool
+        self,
+        env: envs.Env,
+        action_skeleton: Sequence[envs.Primitive],
+        random: bool,
+        mode: Mode,
+        return_full: bool = False,
     ) -> np.ndarray:
         if random:
+            if return_full:
+                raise NotImplementedError("Primitive sampling is state-dependent")
             return action_skeleton[0].sample()
 
         with self.dynamics_trainer.profiler.profile("plan"):
             # Plan.
-            self.env.set_primitive(action_skeleton[0])
-            observation = self.env.get_observation()
+            env.set_primitive(action_skeleton[0])
+            observation = env.get_observation()
             actions = self.planner.plan(
-                observation=observation, action_skeleton=self.env.action_skeleton
+                observation=observation, action_skeleton=action_skeleton
             ).actions
 
-        return actions[0]
+        return actions if return_full else actions[0]
 
     def collect_step(
-        self, random: bool = False, mode: str = "collect"
+        self, random: bool = False, mode: Mode = Mode.COLLECT
     ) -> Dict[str, Mapping[str, float]]:
         """Collects data for the replay buffer.
 
@@ -188,15 +207,24 @@ class DafTrainer(UnifiedTrainer):
         Returns:
             Collect metrics for each trainer.
         """
+        env = self.eval_env if mode == DafTrainer.Mode.EVALUATE else self.env
         self.eval_mode()
         self.dynamics_trainer.dynamics.plan_mode()
-        self.env.reset()
+        env.reset()
+
+        if not self.closed_loop_planning and not random:
+            actions = self.plan_step(
+                env, env.action_skeleton, random=random, mode=mode, return_full=True
+            )
 
         failure = False
-        collect_metrics: Dict[str, Dict[str, float]] = collections.defaultdict(dict)
-        for t, primitive in enumerate(self.env.action_skeleton):
+        collect_metrics: Dict[str, Dict[str, float]] = {
+            trainer.name: {f"reward_{t}": 0.0 for t in range(self._max_num_actions)}
+            for trainer in self.agent_trainers
+        }
+        for t, primitive in enumerate(env.action_skeleton):
             agent_trainer = self.agent_trainers[primitive.idx_policy]
-            with agent_trainer.profiler.profile(mode):
+            with agent_trainer.profiler.profile(mode.name.lower()):
                 if failure:
                     collect_metrics[agent_trainer.name].update(
                         {
@@ -208,7 +236,12 @@ class DafTrainer(UnifiedTrainer):
                     continue
 
                 # Plan.
-                action = self.plan_step(self.env.action_skeleton[t:], random=random)
+                if self.closed_loop_planning or random:
+                    action = self.plan_step(
+                        env, env.action_skeleton[t:], random=random, mode=mode
+                    )
+                else:
+                    action = actions[t]
 
                 # Execute first step.
                 dataset = (
@@ -218,7 +251,7 @@ class DafTrainer(UnifiedTrainer):
                 )
                 collect_metrics[agent_trainer.name].update(
                     self.collect_agent_step(
-                        agent_trainer, primitive, action, dataset, t
+                        agent_trainer, env, env.action_skeleton[t:], action, dataset, t
                     )
                 )
                 if collect_metrics[agent_trainer.name][f"reward_{t}"] == 0.0:
@@ -242,7 +275,7 @@ class DafTrainer(UnifiedTrainer):
         return collect_metrics  # type: ignore
 
     def evaluate_step(self) -> Dict[str, Mapping[str, float]]:
-        return self.collect_step(random=False, mode="evaluate")
+        return self.collect_step(random=False, mode=DafTrainer.Mode.EVALUATE)
 
     def evaluate(self) -> Dict[str, List[Mapping[str, Union[Scalar, np.ndarray]]]]:  # type: ignore
         """Evaluates the policies and dynamics model.
@@ -252,9 +285,9 @@ class DafTrainer(UnifiedTrainer):
         """
         self.eval_mode()
 
-        eval_metrics_list: Dict[
-            str, List[Mapping[str, Union[Scalar, np.ndarray]]]
-        ] = collections.defaultdict(list)
+        eval_metrics_list: Dict[str, List[Mapping[str, Union[Scalar, np.ndarray]]]] = {
+            trainer.name: [] for trainer in self.trainers
+        }
         pbar = tqdm.tqdm(
             range(self.num_eval_steps),
             desc=f"Eval {self.name}",
@@ -282,3 +315,46 @@ class DafTrainer(UnifiedTrainer):
         self.train_mode()
 
         return eval_metrics_list
+
+    def train_step(  # type: ignore
+        self, step: int, batch: WrappedBatch
+    ) -> Dict[str, Mapping[str, float]]:
+        """Performs a single training step.
+
+        Args:
+            step: Training step.
+            batch: Training batch.
+
+        Returns:
+            Dict of training metrics for each trainer for logging.
+        """
+        # Collect experience.
+        collect_metrics = self.collect_step(random=False)
+
+        # Train step.
+        train_metrics = {}
+        for idx_policy, agent_trainer in enumerate(self.agent_trainers):
+            idx_batch = batch["idx_replay_buffer"] == idx_policy
+            agent_batch: Batch = tensors.map_structure(  # type: ignore
+                lambda x: x[idx_batch],
+                {key: val for key, val in batch.items() if key != "idx_replay_buffer"},
+            )
+
+            # Torch dataloader makes it a tensor?
+            assert isinstance(agent_batch["action"], torch.Tensor)
+            agent_batch["action"] = spaces.subspace(
+                agent_batch["action"].numpy(), agent_trainer.agent.action_space
+            )
+            # Do not collect data during agent train step.
+            agent_train_metrics = Trainer.train_step(agent_trainer, step, agent_batch)
+            train_metrics[agent_trainer.name] = agent_train_metrics
+
+        dynamics_train_metrics = self.dynamics_trainer.train_step(step, batch)
+        train_metrics[self.dynamics_trainer.name] = dynamics_train_metrics
+
+        for key in train_metrics:
+            if key not in collect_metrics:
+                collect_metrics[key] = {}
+        return {
+            key: {**collect_metrics[key], **train_metrics[key]} for key in train_metrics
+        }
