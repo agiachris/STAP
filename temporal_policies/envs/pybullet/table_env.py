@@ -108,7 +108,19 @@ class TableEnv(PybulletEnv):
         high=np.tile(object_state.ObjectState.range()[1], (MAX_NUM_OBJECTS, 1)),
     )
 
-    metadata = {"render_modes": ["default", "front_high_res", "top_high_res"]}
+    metadata = {
+        "render_modes": [
+            "default",
+            "front",
+            "front_high_res",
+            "top",
+            "top_high_res",
+            "front_right",
+            "front_right_high_res",
+            "profile",
+            "profile_high_res",
+        ]
+    }
 
     def __init__(
         self,
@@ -277,6 +289,26 @@ class TableEnv(PybulletEnv):
                     cameraEyePosition=[0.3, 0.0, 1.4],
                     cameraTargetPosition=[0.3, 0.0, 0.0],
                     cameraUpVector=[0.0, 1.0, 0.0],
+                ),
+                projection_matrix=PROJECTION_MATRIX,
+            ),
+            "front_right": CameraView(
+                width=WIDTH,
+                height=HEIGHT,
+                view_matrix=p.computeViewMatrix(
+                    cameraEyePosition=[0.8, 1.2, 0.9],
+                    cameraTargetPosition=[0.4, 0.2, 0.25],
+                    cameraUpVector=[0.0, 0.0, 1.0],
+                ),
+                projection_matrix=PROJECTION_MATRIX,
+            ),
+            "profile": CameraView(
+                width=WIDTH,
+                height=HEIGHT,
+                view_matrix=p.computeViewMatrix(
+                    cameraEyePosition=[0.30, 1.60, 0.5],
+                    cameraTargetPosition=[0.30, 0.1, 0.28],
+                    cameraUpVector=[0.0, 0.0, 1.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
             ),
@@ -491,7 +523,7 @@ class TableEnv(PybulletEnv):
         self, seed: Optional[int]
     ) -> Generator[Tuple[int, Optional[dict]], None, None]:
         """Gets the next seed from the multiprocess queue or an incremented seed."""
-        MAX_SIMPLE_INT = 2 ** 30  # Largest simple int in Python.
+        MAX_SIMPLE_INT = 2**30  # Largest simple int in Python.
         if self._seed_queue is None:
             # Child process or single process.
             if seed is None:
@@ -740,11 +772,10 @@ class TableEnv(PybulletEnv):
             self.object_tracker.send_poses(self.real_objects())
 
     def render(self) -> np.ndarray:  # type: ignore
-        if "top" in self.render_mode:
-            view = "top"
-        else:
-            view = "front"
-        camera_view = self._camera_views[view]
+        try:
+            camera_view = self._camera_views[self.render_mode.replace("_high_res", "")]
+        except KeyError:
+            camera_view = self._camera_views["front"]
 
         if "high_res" in self.render_mode:
             width, height = (1620, 1080)
@@ -765,7 +796,9 @@ class TableEnv(PybulletEnv):
         draw = ImageDraw.Draw(img)
         try:
             FONT = ImageFont.truetype("arial.ttf", 15)
-            print("Could not find arial.ttf (run `apt install msttcorefonts`?). Using default font.")
+            print(
+                "Could not find arial.ttf (run `apt install msttcorefonts`?). Using default font."
+            )
         except OSError:
             FONT = ImageFont.load_default()
         draw.multiline_text(
