@@ -95,11 +95,12 @@ output_path="plots"
 
 # Evaluate planners.
 PLANNERS=(
-    "policy_cem"
-    "policy_shooting"
+    "ablation/policy_cem"
+    "ablation/scod_policy_cem"
+    "ablation/policy_shooting"
     # "daf_random_shooting"
-    "random_cem"
-    "random_shooting"
+    "ablation/random_cem"
+    "ablation/random_shooting"
     "greedy"
 )
 
@@ -115,7 +116,7 @@ ENVS=(
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 CKPT="select_model"
-SCOD_CONFIG="scod_freeze"
+SCOD_CONFIG="scod"
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"

@@ -514,6 +514,38 @@ class BeyondWorkspace(Predicate, TableBounds):
         return bounds, margin
 
 
+class InOodZone(Predicate, TableBounds):
+    """Unary predicate ensuring than an object is in beyond the robot workspace."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        obj = self.get_arg_objects(objects)[0]
+        if obj.isinstance(Null):
+            return True
+
+        return True
+
+    def get_bounds_and_margin(
+        self,
+        child_obj: Object,
+        parent_obj: Object,
+        state: Sequence[Predicate],
+        margin: np.ndarray,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the minimum and maximum x-y bounds outside the workspace."""
+        assert child_obj.name == self.args[0] and parent_obj.name == "table"
+
+        bounds = parent_obj.aabb()[:, :2]
+        xy_min, xy_max = bounds
+        xy_min[0] = bounds[0, 0]
+        xy_max[0] = utils.TABLE_CONSTRAINTS["table_x_min"]
+        xy_min += margin
+        xy_max -= margin
+
+        return bounds, margin
+
+
 class Inhand(Predicate):
     MAX_GRASP_ATTEMPTS = 1
 
@@ -956,6 +988,7 @@ UNARY_PREDICATES = {
     "inoperationalzone": InOperationalZone,
     "inobstructionzone": InObstructionZone,
     "beyondworkspace": BeyondWorkspace,
+    "inoodzone": InOodZone,
     "inhand": Inhand,
 }
 
@@ -980,6 +1013,7 @@ PREDICATE_HIERARCHY = [
     "inoperationalzone",
     "inobstructionzone",
     "beyondworkspace",
+    "inoodzone",
     "under",
     "infront",
     "nonblocking",

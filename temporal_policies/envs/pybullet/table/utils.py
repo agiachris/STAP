@@ -25,7 +25,7 @@ TABLE_CONSTRAINTS = {
 }
 
 
-EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 0.1}
+EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 1.0}
 
 
 def compute_margins(obj: Object) -> np.ndarray:

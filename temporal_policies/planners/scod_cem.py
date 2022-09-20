@@ -146,6 +146,7 @@ class SCODCEMPlanner(planners.Planner):
         best_states: Optional[np.ndarray] = None
         p_best_success: float = -float("inf")
         best_values: Optional[np.ndarray] = None
+        best_values_unc: Optional[np.ndarray] = None
         if return_visited_samples:
             visited_actions_list = []
             visited_states_list = []
@@ -257,6 +258,7 @@ class SCODCEMPlanner(planners.Planner):
                     best_actions = samples[idx_best].cpu().numpy()
                     best_states = states[idx_best].cpu().numpy()
                     best_values = values[idx_best].cpu().numpy()
+                    best_values_unc = values_unc[idx_best].cpu().numpy()
 
                 # Update distribution.
                 mean = self.momentum * mean + (1 - self.momentum) * elites.mean(dim=0)
@@ -287,6 +289,7 @@ class SCODCEMPlanner(planners.Planner):
             best_actions is not None
             and best_states is not None
             and best_values is not None
+            and best_values_unc is not None
         )
 
         if return_visited_samples:
@@ -299,6 +302,7 @@ class SCODCEMPlanner(planners.Planner):
             visited_states = None
             p_visited_success = None
             visited_values = None
+        visited_values = best_values_unc
 
         return planners.PlanningResult(
             actions=best_actions,
