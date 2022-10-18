@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: rearrangement_push_1
+  name: rearrangement_push_0
   gui: true
 
   primitives:
