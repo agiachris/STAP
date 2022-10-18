@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: hook_reach_2
+  name: hook_reach_3
   gui: true
 
   primitives:
