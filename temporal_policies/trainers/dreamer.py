@@ -23,6 +23,7 @@ class DreamerTrainer(DafTrainer):
     def __init__(
         self,
         env: envs.Env,
+        eval_env: Optional[envs.Env],
         path: Union[str, pathlib.Path],
         dynamics: dynamics_module.LatentDynamics,
         planner: planners.Planner,
@@ -30,7 +31,7 @@ class DreamerTrainer(DafTrainer):
         agent_trainer_config: Union[str, pathlib.Path, Dict[str, Any]],
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         env_kwargs: Dict[str, Any] = {},
-        sample_primitive_actions: bool = False,
+        closed_loop_planning: bool = True,
         device: str = "auto",
         num_pretrain_steps: int = 1000,
         num_train_steps: int = 100000,
@@ -70,6 +71,7 @@ class DreamerTrainer(DafTrainer):
         """
         super().__init__(
             env=env,
+            eval_env=eval_env,
             path=path,
             dynamics=dynamics,
             planner=planner,
@@ -77,6 +79,7 @@ class DreamerTrainer(DafTrainer):
             agent_trainer_config=agent_trainer_config,
             checkpoint=checkpoint,
             env_kwargs=env_kwargs,
+            closed_loop_planning=closed_loop_planning,
             device=device,
             num_pretrain_steps=num_pretrain_steps,
             num_train_steps=num_train_steps,
@@ -96,6 +99,7 @@ class DreamerTrainer(DafTrainer):
     def collect_agent_step(
         self,
         agent_trainer: AgentTrainer,
+        env: envs.Env,
         action_skeleton: Sequence[envs.Primitive],
         action: np.ndarray,
         dataset: datasets.ReplayBuffer,
@@ -110,13 +114,13 @@ class DreamerTrainer(DafTrainer):
             Collect metrics.
         """
         primitive = action_skeleton[0]
-        self.env.set_primitive(primitive)
-        observation = self.env.get_observation()
+        env.set_primitive(primitive)
+        observation = env.get_observation()
         dataset.add(observation=observation)
         agent_trainer._episode_length = 0
         agent_trainer._episode_reward = 0.0
 
-        next_observation, reward, terminated, truncated, info = self.env.step(action)
+        next_observation, reward, terminated, truncated, info = env.step(action)
         done = terminated or truncated
         discount = 1.0 - float(done)
         policy_args: Dict[str, Any] = {
@@ -155,7 +159,7 @@ class DreamerTrainer(DafTrainer):
             for metric, value in info.items()
             if metric in metrics.METRIC_AGGREGATION_FNS
         }
-        step_metrics[f"reward_{t}"] = agent_trainer._episode_reward
+        step_metrics[f"reward_{t}"] = reward
 
         # Reset the environment
         self._episode_length = 0
@@ -164,8 +168,16 @@ class DreamerTrainer(DafTrainer):
         return step_metrics
 
     def plan_step(
-        self, action_skeleton: Sequence[envs.Primitive], random: bool, mode: str
+        self,
+        env: envs.Env,
+        action_skeleton: Sequence[envs.Primitive],
+        random: bool,
+        mode: DafTrainer.Mode,
+        return_full: bool = False,
     ) -> np.ndarray:
+        if return_full:
+            raise NotImplementedError("Dreamer is greedy")
+
         primitive = action_skeleton[0]
         if random:
             return primitive.sample()
@@ -174,9 +186,11 @@ class DreamerTrainer(DafTrainer):
         self.env.set_primitive(primitive)
         agent = self.agent_trainers[primitive.idx_policy].agent
         policy_args = primitive.get_policy_args()
-        t_observation = tensors.from_numpy(self.env.get_observation(), self.device)
+        t_observation = tensors.from_numpy(env.get_observation(), self.device)
         t_observation = agent.encoder.encode(t_observation, policy_args)
-        t_action = agent.actor.predict(t_observation, sample=mode == "collect")
+        t_action = agent.actor.predict(
+            t_observation, sample=mode == DafTrainer.Mode.COLLECT
+        )
         action = t_action.detach().cpu().numpy()
 
         return action
@@ -184,6 +198,7 @@ class DreamerTrainer(DafTrainer):
     @tensors.vmap(dims=0)
     def rollout(
         self,
+        env: envs.Env,
         plan_policy_args: Dict[str, List[Dict[str, Any]]],
         observation: torch.Tensor,
         dynamics_state: torch.Tensor,
@@ -192,7 +207,7 @@ class DreamerTrainer(DafTrainer):
 
         values = []
         for t, policy_args in enumerate(plan_policy_args["remaining_plan"]):
-            primitive = self.env.get_primitive_info(**policy_args)
+            primitive = env.get_primitive_info(**policy_args)
 
             policy = self.agent_trainers[primitive.idx_policy].agent
             policy_state = dynamics.decode(dynamics_state, primitive)
@@ -209,7 +224,7 @@ class DreamerTrainer(DafTrainer):
 
         values.append(
             torch.zeros(
-                len(self.env.action_skeleton) - len(plan_policy_args["remaining_plan"]),
+                self._max_num_actions - len(plan_policy_args["remaining_plan"]),
                 dtype=torch.float32,
                 device=self.device,
                 requires_grad=True,
@@ -234,10 +249,12 @@ class DreamerTrainer(DafTrainer):
         dynamics_state = dynamics.encode(observation, idx_policy, policy_args)
 
         # Get imagined trajectory rewards.
-        values = self.rollout(policy_args, observation, dynamics_state)
+        values = self.rollout(self.env, policy_args, observation, dynamics_state)
 
         # Maximize the imagined rewards.
         actors_loss = -values.min(dim=-1).values.sum()
+
+        dynamics.train_mode()
 
         return actors_loss
 
@@ -254,7 +271,7 @@ class DreamerTrainer(DafTrainer):
             policy_args=batch["policy_args"],
         )
         metrics: Dict[str, Mapping[str, float]] = {
-            "dreamer": {"reward": -actors_loss.detach().item()}
+            self.dynamics_trainer.name: {"reward": -actors_loss.detach().item()}
         }
 
         # Update actor with Dreamer loss.
@@ -275,8 +292,10 @@ class DreamerTrainer(DafTrainer):
             _, alpha_loss, agent_metrics = policy.compute_actor_and_alpha_loss(
                 policy.encoder.encode(observation[ii], policy_args[ii.cpu()])
             )
-            agent_trainer.optimizers["log_alpha"].zero_grad(set_to_none=True)
             metrics[agent_trainer.name] = agent_metrics
+
+            agent_trainer.optimizers["log_alpha"].zero_grad(set_to_none=True)
+            alpha_loss.backward()
             agent_trainer.optimizers["log_alpha"].step()
             agent_trainer.schedulers["log_alpha"].step()
 
@@ -303,7 +322,7 @@ class DreamerTrainer(DafTrainer):
         actors_metrics = self.actors_train_step(batch)
 
         train_metrics = actors_metrics
-        train_metrics[self.dynamics_trainer.name] = dynamics_metrics
+        train_metrics[self.dynamics_trainer.name].update(dynamics_metrics)  # type: ignore
         for key in train_metrics:
             if key not in collect_metrics:
                 collect_metrics[key] = {}

@@ -47,13 +47,9 @@ def train(
             raise ValueError("agent_config must be specified")
         if env_config is None:
             raise ValueError("env_config must be specified")
-        if eval_env_config is None:
-            raise ValueError("eval_env_config must be specified")
         if planner_config is None:
             raise ValueError("planner_config must be specified")
 
-        env_factory = envs.EnvFactory(config=env_config)
-        eval_env_factory = envs.EnvFactory(config=eval_env_config)
         env_kwargs: Dict[str, Any] = {}
         eval_env_kwargs: Dict[str, Any] = {}
         if gui is not None:
@@ -62,8 +58,11 @@ def train(
         if num_env_processes is not None:
             env_kwargs["num_processes"] = num_env_processes
             eval_env_kwargs["num_processes"] = num_eval_env_processes
+        env_factory = envs.EnvFactory(config=env_config)
         env = env_factory(**env_kwargs)
-        eval_env = eval_env_factory(**eval_env_kwargs)
+        if eval_env_config is not None:
+            eval_env_factory = envs.EnvFactory(config=eval_env_config)
+            eval_env = eval_env_factory(**eval_env_kwargs)
 
         agent_factories = [
             agents.AgentFactory(config=agent_config, env=env, device=device)
@@ -93,7 +92,7 @@ def train(
             path=path,
             config=trainer_config,
             dynamics=dynamics_model,
-            eval_env=eval_env,
+            eval_env=None if eval_env_config is None else eval_env,
             device=device,
         )
 
@@ -118,8 +117,9 @@ def train(
             pprint(agent_factory.config)
         print("\n[scripts.train.train_baseline] Env config:")
         pprint(env_factory.config)
-        print("\n[scripts.train.train_baseline] Eval env config:")
-        pprint(eval_env_factory.config)
+        if eval_env_config is not None:
+            print("\n[scripts.train.train_baseline] Eval env config:")
+            pprint(eval_env_factory.config)
         print("\n[scripts.train.train_baseline] Planner config:")
         pprint(planner_factory.config)
         print("")
