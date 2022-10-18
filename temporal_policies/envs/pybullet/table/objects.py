@@ -144,7 +144,9 @@ class Object(body.Body):
         object_class = Null if object_type is None else globals()[object_type]
         if issubclass(object_class, Variant):
             kwargs["object_groups"] = object_groups
-        return object_class(physics_id=physics_id, **object_kwargs, **kwargs)
+        object_kwargs = object_kwargs.copy()
+        object_kwargs.update(kwargs)
+        return object_class(physics_id=physics_id, **object_kwargs)
 
     def isinstance(self, class_or_tuple: Union[type, Tuple[type, ...]]) -> bool:
         return isinstance(self, class_or_tuple)
@@ -629,9 +631,11 @@ class WrapperObject(Object):
 
 class ObjectGroup:
     def __init__(self, physics_id: int, name: str, objects: List[Dict[str, Any]]):
+        from temporal_policies.envs.pybullet.table.utils import load_config
+
         self._name = name
         self._objects = [
-            Object.create(physics_id=physics_id, name=name, **obj_config)
+            Object.create(physics_id=physics_id, name=name, **load_config(obj_config))
             for obj_config in objects
         ]
 
@@ -787,6 +791,8 @@ class Variant(WrapperObject):
         group: Optional[str] = None,
         object_groups: Dict[str, ObjectGroup] = {},
     ):
+        from temporal_policies.envs.pybullet.table.utils import load_config
+
         self.physics_id = physics_id
         self.name = name
 
@@ -797,7 +803,11 @@ class Variant(WrapperObject):
 
         if variants is not None:
             self._variants: Union[List[Object], ObjectGroup] = [
-                Object.create(physics_id=self.physics_id, name=self.name, **obj_config)
+                Object.create(
+                    physics_id=self.physics_id,
+                    name=self.name,
+                    **load_config(obj_config),
+                )
                 for obj_config in variants
             ]
             self._real_indices = [

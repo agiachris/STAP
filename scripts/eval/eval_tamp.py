@@ -1,6 +1,6 @@
 import argparse
 import pathlib
-from typing import Any, Dict, Generator, List, Optional, Sequence, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import symbolic
@@ -9,6 +9,43 @@ import tqdm
 from temporal_policies import dynamics, envs, planners
 from temporal_policies.envs.pybullet.table import primitives as table_primitives
 from temporal_policies.utils import recording, timing
+
+
+def seed_generator(
+    num_eval: int,
+    path_results: Optional[Union[str, pathlib.Path]] = None,
+) -> Generator[
+    Tuple[
+        Optional[int],
+        Optional[Tuple[np.ndarray, planners.PlanningResult, Optional[List[float]]]],
+    ],
+    None,
+    None,
+]:
+    if path_results is not None:
+        npz_files = sorted(
+            pathlib.Path(path_results).glob("results_*.npz"),
+            key=lambda x: int(x.stem.split("_")[-1]),
+        )
+        for npz_file in npz_files:
+            with open(npz_file, "rb") as f:
+                npz = np.load(f, allow_pickle=True)
+                seed: int = npz["seed"].item()
+                rewards = np.array(npz["rewards"])
+                plan = planners.PlanningResult(
+                    actions=np.array(npz["actions"]),
+                    states=np.array(npz["states"]),
+                    p_success=npz["p_success"].item(),
+                    values=np.array(npz["values"]),
+                )
+                t_planner: List[float] = npz["t_planner"].item()
+
+            yield seed, (rewards, plan, t_planner)
+
+    if num_eval is not None:
+        yield 0, None
+        for _ in range(num_eval - 1):
+            yield None, None
 
 
 def scale_actions(
@@ -44,6 +81,38 @@ def task_plan(
         yield action_skeleton
 
 
+def evaluate_plan(
+    idx_iter: int,
+    env: envs.Env,
+    planner: planners.Planner,
+    action_skeleton: Sequence[envs.Primitive],
+    plan: planners.PlanningResult,
+    rewards: np.ndarray,
+    path: pathlib.Path,
+    grid_resolution: Optional[int] = None,
+) -> Dict[str, Any]:
+    assert isinstance(env, envs.pybullet.TableEnv)
+    recorder = recording.Recorder()
+    recorder.start()
+    for primitive, predicted_state, action in zip(
+        action_skeleton, plan.states[1:], plan.actions
+    ):
+        env.set_primitive(primitive)
+        env._recording_text = (
+            "Action: ["
+            + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+            + "]"
+        )
+
+        recorder.add_frame(frame=env.render())
+        env.set_observation(predicted_state)
+        recorder.add_frame(frame=env.render())
+    recorder.stop()
+    recorder.save(path / f"predicted_trajectory_{idx_iter}.gif")
+
+    return {}
+
+
 def eval_tamp(
     planner_config: Union[str, pathlib.Path],
     env_config: Union[str, pathlib.Path, Dict[str, Any]],
@@ -53,14 +122,18 @@ def eval_tamp(
     device: str,
     num_eval: int,
     path: Union[str, pathlib.Path],
+    closed_loop: int,
     pddl_domain: str,
     pddl_problem: str,
     max_depth: int = 5,
     timeout: float = 10.0,
     verbose: bool = False,
+    load_path: Optional[Union[str, pathlib.Path]] = None,
     seed: Optional[int] = None,
     gui: Optional[int] = None,
 ) -> None:
+    timer = timing.Timer()
+
     # Load environment.
     env_kwargs = {}
     if gui is not None:
@@ -84,62 +157,103 @@ def eval_tamp(
     pddl = symbolic.Pddl(pddl_domain, pddl_problem)
 
     # Run TAMP.
-    for i in tqdm.tqdm(range(num_eval)):
-        timer = timing.Profiler()
-
+    num_success = 0
+    pbar = tqdm.tqdm(
+        seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
+    )
+    for idx_iter, (seed, loaded_plan) in enumerate(pbar):
         # Initialize environment.
-        observation, info = env.reset(seed=seed if i == 0 else None)
+        observation, info = env.reset(seed=seed)
         seed = info["seed"]
         state = env.get_state()
 
         task_plans = []
         motion_plans = []
+        motion_planner_times = []
 
         # Task planning outer loop.
         action_skeleton_generator = task_plan(
             pddl=pddl, env=env, max_depth=max_depth, timeout=timeout, verbose=verbose
         )
-        timer.tic("task_planner")
         for action_skeleton in action_skeleton_generator:
-            timer.toc("task_planner")
-
-            # Motion planning inner loop.
             timer.tic("motion_planner")
-            motion_plan = planner.plan(observation, action_skeleton)
-            timer.toc("motion_planner")
-
-            # Reset env for oracle value/dynamics.
-            env.set_state(state)
+            env.set_primitive(action_skeleton[0])
+            plan = planner.plan(env.get_observation(), action_skeleton)
+            t_motion_planner = timer.toc("motion_planner")
 
             task_plans.append(action_skeleton)
-            motion_plans.append(motion_plan)
+            motion_plans.append(plan)
+            motion_planner_times.append(t_motion_planner)
 
-            timer.tic("task_planner")
-        timer.toc("task_planner")
+            # Reset env for oracle value/dynamics.
+            if isinstance(planner.dynamics, dynamics.OracleDynamics):
+                env.set_state(state)
+
+            if "greedy" in str(planner_config):
+                break
 
         # Get best TAMP plan.
-        idx_best = np.argmax([plan.p_success for plan in motion_plans])
+        if motion_plans[0].visited_values is not None:
+            values = [(plan.p_success, -plan.visited_values[0]) for plan in motion_plans]
+            best = max(values)
+            idx_best = values.index(best)
+        else:
+            idx_best = np.argmax([plan.p_success for plan in motion_plans])
+        best_task_plan = task_plans[idx_best]
+        best_motion_plan = motion_plans[idx_best]
 
-        rewards = planners.evaluate_plan(
-            env=env,
-            action_skeleton=task_plans[idx_best],
-            state=state,
-            actions=motion_plans[idx_best].actions,
-            gif_path=path / f"exec_{i}.gif",
+        if closed_loop:
+            env.record_start()
+
+            # Execute one step.
+            action = best_motion_plan.actions[0]
+            assert isinstance(action, np.ndarray)
+            state = best_motion_plan.states[0]
+            assert isinstance(state, np.ndarray)
+            p_success = best_motion_plan.p_success
+            value = best_motion_plan.values[0]
+            env.set_primitive(best_task_plan[0])
+            _, reward, _, _, _ = env.step(action)
+
+            # Run closed-loop planning on the rest.
+            rewards, plan, t_planner = planners.run_closed_loop_planning(
+                env, best_task_plan[1:], planner, timer
+            )
+            rewards = np.append(reward, rewards)
+            plan = planners.PlanningResult(
+                actions=np.concatenate((action[None, ...], plan.actions), axis=0),
+                states=np.concatenate((state[None, ...], plan.states), axis=0),
+                p_success=p_success * plan.p_success,
+                values=np.append(value, plan.values),
+            )
+            env.record_stop()
+
+            # Save recording.
+            gif_path = path / f"planning_{idx_iter}.gif"
+            if (rewards == 0.0).any():
+                gif_path = gif_path.parent / f"{gif_path.name}_fail{gif_path.suffix}"
+            env.record_save(gif_path, reset=True)
+
+            if t_planner is not None:
+                motion_planner_times += t_planner
+        else:
+            # Execute plan.
+            rewards = planners.evaluate_plan(
+                env,
+                task_plans[idx_best],
+                motion_plans[idx_best].actions,
+                gif_path=path / f"planning_{idx_iter}.gif",
+            )
+
+        if rewards.prod() > 0:
+            num_success += 1
+        pbar.set_postfix(
+            dict(
+                success=rewards.prod(),
+                **{f"r{t}": r for t, r in enumerate(rewards)},
+                num_successes=f"{num_success} / {idx_iter + 1}",
+            )
         )
-        # for idx_plan in range(len(task_plans)):
-        #     if idx_plan == idx_best:
-        #         continue
-        #     planners.evaluate_plan(
-        #         env=env,
-        #         action_skeleton=task_plans[idx_plan],
-        #         state=state,
-        #         actions=motion_plans[idx_plan].actions,
-        #         gif_path=path / f"exec_{i}-{idx_plan}.gif",
-        #     )
-
-        t_task_planner = timer.compute_sum("task_planner")
-        t_motion_planner = timer.compute_sum("motion_planner")
 
         # Print planning results.
         if verbose:
@@ -149,6 +263,12 @@ def eval_tamp(
                 motion_plans[idx_best].p_success,
                 motion_plans[idx_best].values,
             )
+            if closed_loop:
+                print(
+                    "visited predicted success:",
+                    motion_plans[idx_best].p_visited_success,
+                    motion_plans[idx_best].visited_values,
+                )
             for primitive, action in zip(
                 task_plans[idx_best], motion_plans[idx_best].actions
             ):
@@ -182,38 +302,10 @@ def eval_tamp(
                         )
                     else:
                         print("    -", primitive, action)
-            print("task planning time:", t_task_planner)
-            print("motion planning time:", t_motion_planner)
             continue
 
-        # Record imagined trajectory.
-        if isinstance(env, envs.pybullet.TableEnv):
-            if not isinstance(planner.dynamics, dynamics.OracleDynamics):
-                recorder = recording.Recorder()
-                recorder.start()
-                env.set_state(state)
-                for primitive, predicted_state, action in zip(
-                    task_plans[idx_best],
-                    motion_plans[idx_best].states[1:],
-                    motion_plans[idx_best].actions,
-                ):
-                    env.set_primitive(primitive)
-                    env._recording_text = (
-                        "Action: ["
-                        + ", ".join(
-                            [f"{a:.2f}" for a in primitive.scale_action(action)]
-                        )
-                        + "]"
-                    )
-
-                    recorder.add_frame(frame=env.render())
-                    env.set_observation(predicted_state)
-                    recorder.add_frame(frame=env.render())
-                recorder.stop()
-                recorder.save(path / "predicted_trajectory_{i}.gif")
-
         # Save planning results.
-        with open(path / f"results_{i}.npz", "wb") as f:
+        with open(path / f"results_{idx_iter}.npz", "wb") as f:
             save_dict = {
                 "args": {
                     "planner_config": planner_config,
@@ -232,7 +324,7 @@ def eval_tamp(
                 },
                 "observation": observation,
                 "state": state,
-                "action_skeleton": task_plans[idx_best],
+                "action_skeleton": list(map(str, task_plans[idx_best])),
                 "actions": motion_plans[idx_best].actions,
                 "states": motion_plans[idx_best].states,
                 "scaled_actions": scale_actions(
@@ -241,33 +333,34 @@ def eval_tamp(
                 "p_success": motion_plans[idx_best].p_success,
                 "values": motion_plans[idx_best].values,
                 "rewards": rewards,
-                "visited_actions": motion_plans[idx_best].visited_actions,
-                "scaled_visited_actions": scale_actions(
-                    motion_plans[idx_best].visited_actions, env, action_skeleton
-                ),
-                "visited_states": motion_plans[idx_best].visited_states,
+                # "visited_actions": motion_plans[idx_best].visited_actions,
+                # "scaled_visited_actions": scale_actions(
+                #     motion_plans[idx_best].visited_actions, env, action_skeleton
+                # ),
+                # "visited_states": motion_plans[idx_best].visited_states,
                 "p_visited_success": motion_plans[idx_best].p_visited_success,
-                "visited_values": motion_plans[idx_best].visited_values,
-                "t_task_planner": t_task_planner,
-                "t_motion_planner": t_motion_planner,
+                # "visited_values": motion_plans[idx_best].visited_values,
+                # "t_task_planner": t_task_planner,
+                # "t_motion_planner": t_motion_planner,
+                "t_planner": motion_planner_times,
                 "seed": seed,
                 "discarded": [
                     {
-                        "action_skeleton": task_plans[i],
-                        "actions": motion_plans[i].actions,
-                        "states": motion_plans[i].states,
-                        "scaled_actions": scale_actions(
-                            motion_plans[i].actions, env, task_plans[i]
-                        ),
+                        "action_skeleton": list(map(str, task_plans[i])),
+                        # "actions": motion_plans[i].actions,
+                        # "states": motion_plans[i].states,
+                        # "scaled_actions": scale_actions(
+                        #     motion_plans[i].actions, env, task_plans[i]
+                        # ),
                         "p_success": motion_plans[i].p_success,
-                        "values": motion_plans[i].values,
-                        "visited_actions": motion_plans[i].visited_actions,
-                        "scaled_visited_actions": scale_actions(
-                            motion_plans[i].visited_actions, env, action_skeleton
-                        ),
-                        "visited_states": motion_plans[i].visited_states,
+                        # "values": motion_plans[i].values,
+                        # "visited_actions": motion_plans[i].visited_actions,
+                        # "scaled_visited_actions": scale_actions(
+                        #     motion_plans[i].visited_actions, env, action_skeleton
+                        # ),
+                        # "visited_states": motion_plans[i].visited_states,
                         "p_visited_success": motion_plans[i].p_visited_success,
-                        "visited_values": motion_plans[i].visited_values,
+                        # "visited_values": motion_plans[i].visited_values,
                     }
                     for i in range(len(task_plans))
                     if i != idx_best
@@ -296,6 +389,9 @@ if __name__ == "__main__":
         "--num-eval", "-n", type=int, default=1, help="Number of eval iterations"
     )
     parser.add_argument("--path", default="plots", help="Path for output plots")
+    parser.add_argument(
+        "--closed-loop", default=1, type=int, help="Run closed-loop planning"
+    )
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument("--verbose", type=int, default=1, help="Print debug messages")

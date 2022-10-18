@@ -91,21 +91,29 @@ class Free(Predicate):
             if utils.is_under(child_obj, obj):
                 dbprint(f"{self}.value():", False, f"{child_obj} under {obj}")
                 return False
-            obj_pair = (type(child_obj), type(obj))
-            for x in [obj_pair, obj_pair[::-1]]:
-                try:
-                    min_distance = Free.DISTANCE_MIN[x]
-                except KeyError:
-                    continue
-                if utils.is_within_distance(
-                    child_obj, obj, min_distance, obj.physics_id
-                ) and not utils.is_above(child_obj, obj):
-                    dbprint(
-                        f"{self}.value():",
-                        False,
-                        f"{child_obj} and {obj} are within min distance",
-                    )
-                    return False
+
+            obj_a, obj_b = sorted(
+                (child_obj.type(), obj.type()), key=lambda x: x.__name__
+            )
+            try:
+                min_distance = Free.DISTANCE_MIN[(obj_a, obj_b)]
+            except KeyError:
+                continue
+            if (
+                (obj.isinstance(Rack) and f"beyondworkspace({obj})" in state)
+                or f"infront({child_obj}, rack)" in state
+                or f"infront({obj}, rack)" in state
+            ):
+                min_distance = 0.04
+            if utils.is_within_distance(
+                child_obj, obj, min_distance, obj.physics_id
+            ) and not utils.is_above(child_obj, obj):
+                dbprint(
+                    f"{self}.value():",
+                    False,
+                    f"{child_obj} and {obj} are within min distance",
+                )
+                return False
 
         return True
 
@@ -193,7 +201,7 @@ class TableBounds:
     @staticmethod
     def scale_margin(obj: Object, margins: np.ndarray) -> np.ndarray:
         try:
-            bounds = TableBounds.MARGIN_SCALE[type(obj)]
+            bounds = TableBounds.MARGIN_SCALE[obj.type()]
         except KeyError:
             return margins
         return bounds * margins
@@ -265,7 +273,7 @@ class PosLimit(Predicate):
     POS_EPS: Dict[Type[Object], float] = {Rack: 0.01}
     POS_SPEC: Dict[Type[Object], Dict[str, np.ndarray]] = {
         Rack: {
-            "inworkspace": np.array([0.50, -0.33]),
+            "inworkspace": np.array([0.44, -0.33]),
             "beyondworkspace": np.array([0.82, 0.00]),
         }
     }
@@ -289,7 +297,7 @@ class InWorkspace(Predicate, TableBounds):
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
         obj = self.get_arg_objects(objects)[0]
-        if obj.isinstance(Null):
+        if obj.isinstance((Null, Rack)):  # Rack is in workspace by construction.
             return True
 
         obj_pos = obj.pose().pos[:2]
@@ -506,6 +514,38 @@ class BeyondWorkspace(Predicate, TableBounds):
         return bounds, margin
 
 
+class InOodZone(Predicate, TableBounds):
+    """Unary predicate ensuring than an object is in beyond the robot workspace."""
+
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        obj = self.get_arg_objects(objects)[0]
+        if obj.isinstance(Null):
+            return True
+
+        return True
+
+    def get_bounds_and_margin(
+        self,
+        child_obj: Object,
+        parent_obj: Object,
+        state: Sequence[Predicate],
+        margin: np.ndarray,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the minimum and maximum x-y bounds outside the workspace."""
+        assert child_obj.name == self.args[0] and parent_obj.name == "table"
+
+        bounds = parent_obj.aabb()[:, :2]
+        xy_min, xy_max = bounds
+        xy_min[0] = bounds[0, 0]
+        xy_max[0] = utils.TABLE_CONSTRAINTS["table_x_min"]
+        xy_min += margin
+        xy_max -= margin
+
+        return bounds, margin
+
+
 class Inhand(Predicate):
     MAX_GRASP_ATTEMPTS = 1
 
@@ -676,7 +716,11 @@ class InFront(Predicate):
         return True
 
     @staticmethod
-    def bounds(parent_obj: Object, margin: np.ndarray = np.zeros(2)) -> np.ndarray:
+    def bounds(
+        child_obj: Object,
+        parent_obj: Object,
+        margin: np.ndarray = np.zeros(2),
+    ) -> np.ndarray:
         """Returns the minimum and maximum x-y bounds in front of the parent object."""
         assert parent_obj.isinstance(Rack)
 
@@ -697,6 +741,7 @@ class NonBlocking(Predicate):
     PULL_MARGIN: Dict[Tuple[Type[Object], Type[Object]], Dict[Optional[str], float]] = {
         (Box, Rack): {"inworkspace": 3.0, "beyondworkspace": 1.5},
         (Box, Box): {"inworkspace": 3.0, "beyondworkspace": 3.0},
+        (Rack, Hook): {"inworkspace": 0.25, "beyondworkspace": 0.25},
     }
 
     def value(
@@ -707,14 +752,18 @@ class NonBlocking(Predicate):
             return True
 
         target_line = LineString([[0, 0], target_obj.pose().pos[:2].tolist()])
-        convex_hulls = intersect_obj.convex_hulls(world_frame=True, project_2d=True)
+        if intersect_obj.isinstance(Hook):
+            convex_hulls = Object.convex_hulls(intersect_obj, project_2d=True)
+        else:
+            convex_hulls = intersect_obj.convex_hulls(world_frame=True, project_2d=True)
+
         if len(convex_hulls) > 1:
-            raise NotImplementedError("Compound shapes not yet supported")
+            raise NotImplementedError(f"Compound shapes are not yet supported")
         vertices = convex_hulls[0]
 
         try:
             pull_margins = NonBlocking.PULL_MARGIN[
-                (type(target_obj), type(intersect_obj))
+                (target_obj.type(), intersect_obj.type())
             ]
         except KeyError:
             pull_margins = None
@@ -799,7 +848,7 @@ class On(Predicate):
 
             if rack_obj is not None and f"infront({child_obj}, {rack_obj})" in state:
                 infront_bounds = InFront.bounds(
-                    parent_obj=rack_obj, margin=margin_world_frame
+                    child_obj=child_obj, parent_obj=rack_obj, margin=margin_world_frame
                 )
                 intersection = self.compute_bound_intersection(bounds, infront_bounds)
                 if intersection is None:
@@ -939,6 +988,7 @@ UNARY_PREDICATES = {
     "inoperationalzone": InOperationalZone,
     "inobstructionzone": InObstructionZone,
     "beyondworkspace": BeyondWorkspace,
+    "inoodzone": InOodZone,
     "inhand": Inhand,
 }
 
@@ -963,6 +1013,7 @@ PREDICATE_HIERARCHY = [
     "inoperationalzone",
     "inobstructionzone",
     "beyondworkspace",
+    "inoodzone",
     "under",
     "infront",
     "nonblocking",

@@ -55,13 +55,14 @@ output_path="models"
 #     # "ckpt_model_100000"
 # )
 
-exp_name="20220908/official"
+exp_name="20220912/official"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 policy_envs=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
+    "select_model"
     # "ckpt_model_50000"
     # "ckpt_model_100000"
     # "ckpt_model_150000"

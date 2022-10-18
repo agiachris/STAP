@@ -18,6 +18,7 @@ class RedisKeys:
     driver_status: str
     sensor_q: str
     sensor_dq: str
+    sensor_ori: str
 
 
 class Arm(sim_arm.Arm):
@@ -150,7 +151,12 @@ class Arm(sim_arm.Arm):
         if self._arm_state.pos_des is not None:
             pub_command["pos"] = self._arm_state.pos_des.tolist()
         if self._arm_state.quat_des is not None:
-            pub_command["quat"] = self._arm_state.quat_des.tolist()
+            quat_des = eigen.Quaterniond(self._arm_state.quat_des)
+            quat_curr = eigen.Quaterniond(
+                self._redis.get_matrix(self._redis_keys.sensor_ori)
+            )
+            quat_des = ctrlutils.near_quaternion(quat_des, quat_curr)
+            pub_command["quat"] = quat_des.coeffs.tolist()
 
         self._redis_sub.subscribe(self._redis_keys.control_pub_status)
         self._redis.publish(

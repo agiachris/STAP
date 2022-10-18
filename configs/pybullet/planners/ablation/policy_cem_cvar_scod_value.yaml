@@ -1,0 +1,43 @@
+planner: CEMPlanner
+planner_kwargs:
+  num_samples: 10
+  num_iterations: 10
+  num_elites: 10
+  keep_elites_fraction: 1.0
+  standard_deviation: 0.3
+
+agent_configs:
+  - agent: SCODCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod_config:
+        scod: CVaRSCOD
+        scod_kwargs:
+          scod_config: "{SCOD_CONFIG}"
+          alpha: 0.9
+  - agent: SCODCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod_config:
+        scod: CVaRSCOD
+        scod_kwargs:
+          scod_config: "{SCOD_CONFIG}"
+          alpha: 0.9
+  - agent: SCODCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod_config:
+        scod: CVaRSCOD
+        scod_kwargs:
+          scod_config: "{SCOD_CONFIG}"
+          alpha: 0.9
+  - agent: SCODCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod_config:
+        scod: CVaRSCOD
+        scod_kwargs:
+          scod_config: "{SCOD_CONFIG}"
+          alpha: 0.9
+
+dynamics_config: "{DYNAMICS_CONFIG}"

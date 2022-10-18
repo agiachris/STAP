@@ -59,10 +59,11 @@ def did_object_move(
 
 def initialize_robot_pose(robot: Robot) -> bool:
     x_min, x_max = (
-        utils.TABLE_CONSTRAINTS["workspace_x_min"],
+        utils.TABLE_CONSTRAINTS["table_x_min"],
         ACTION_CONSTRAINTS["max_lift_radius"],
     )
-    y_min, y_max = primitive_actions.PlaceAction.RANGES["y"]
+    y_min = utils.TABLE_CONSTRAINTS["table_y_min"]
+    y_max = utils.TABLE_CONSTRAINTS["table_y_max"]
     xy_min = np.array([x_min, y_min])
     xy_max = np.array([x_max, y_max])
 
@@ -107,7 +108,7 @@ class Primitive(envs.Primitive, abc.ABC):
         return self._arg_objects
 
     @abc.abstractmethod
-    def execute(self, action: np.ndarray) -> ExecutionResult:
+    def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
         """Executes the primitive.
 
         Args:
@@ -242,7 +243,7 @@ class Pick(Primitive):
     Action = primitive_actions.PickAction
     ALLOW_COLLISIONS = False
 
-    def execute(self, action: np.ndarray) -> ExecutionResult:
+    def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
         from temporal_policies.envs.pybullet.table_env import TableEnv
 
         assert isinstance(self.env, TableEnv)
@@ -266,11 +267,12 @@ class Pick(Primitive):
 
         objects = self.env.objects
         robot = self.env.robot
-        if not self.ALLOW_COLLISIONS:
+        allow_collisions = self.ALLOW_COLLISIONS or real_world
+        if not allow_collisions:
             did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if not allow_collisions and did_non_args_move():
                 raise ControlException(
                     f"Robot.goto_pose({pre_pos}, {command_quat}) collided"
                 )
@@ -287,7 +289,7 @@ class Pick(Primitive):
                 raise ControlException(f"Robot.grasp_object({obj}) failed")
 
             robot.goto_pose(pre_pos, command_quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if not allow_collisions and did_non_args_move():
                 raise ControlException(
                     f"Robot.goto_pose({pre_pos}, {command_quat}) collided"
                 )
@@ -332,7 +334,7 @@ class Place(Primitive):
     Action = primitive_actions.PlaceAction
     ALLOW_COLLISIONS = False
 
-    def execute(self, action: np.ndarray) -> ExecutionResult:
+    def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
         from temporal_policies.envs.pybullet.table_env import TableEnv
 
         assert isinstance(self.env, TableEnv)
@@ -349,21 +351,46 @@ class Place(Primitive):
         target_pose = target.pose()
         target_quat = eigen.Quaterniond(target_pose.quat)
 
+        # Scale action to target bbox.
+        xy_action_range = primitive_actions.PlaceAction.range()[:, :2]
+        xy_normalized = (a.pos[:2] - xy_action_range[0]) / (
+            xy_action_range[1] - xy_action_range[0]
+        )
+        xy_target_range = np.array(target.bbox[:, :2])
+        if target.name == "table":
+            xy_target_range[0, 0] = utils.TABLE_CONSTRAINTS["table_x_min"]
+            xy_target_range[1, 0] = ACTION_CONSTRAINTS["max_lift_radius"]
+        xy_target = (
+            xy_target_range[1] - xy_target_range[0]
+        ) * xy_normalized + xy_target_range[0]
+        pos = np.append(xy_target, a.pos[2])
+        if real_world:
+            pos[2] = min(
+                self.env.robot.arm.ee_pose().pos[2]
+                - obj.pose().pos[2]
+                + 0.5 * obj.size[2],
+                pos[2],
+            )
+
         # Compute position.
-        command_pos = target_pose.pos + target_quat * a.pos
+        command_pos = target_pose.pos + target_quat * pos
 
         # Compute orientation.
-        command_quat = compute_top_down_orientation(a.theta.item(), target_quat)
+        if real_world:
+            command_quat = compute_top_down_orientation(a.theta.item())
+        else:
+            command_quat = compute_top_down_orientation(a.theta.item(), target_quat)
 
         pre_pos = np.append(command_pos[:2], ACTION_CONSTRAINTS["max_lift_height"])
 
         objects = self.env.objects
         robot = self.env.robot
-        if not self.ALLOW_COLLISIONS:
+        allow_collisions = self.ALLOW_COLLISIONS or real_world
+        if not allow_collisions:
             did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if not allow_collisions and did_non_args_move():
                 raise ControlException(
                     f"Robot.goto_pose({pre_pos}, {command_quat}) collided"
                 )
@@ -376,17 +403,17 @@ class Place(Primitive):
             )
 
             # Make sure object won't drop from too high.
-            if not utils.is_within_distance(
+            if not real_world and not utils.is_within_distance(
                 obj, target, MAX_DROP_DISTANCE, robot.physics_id
             ):
                 raise ControlException("Object dropped from too high.")
 
             robot.grasp(0)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if not allow_collisions and did_non_args_move():
                 raise ControlException("Robot.grasp(0) collided")
 
             robot.goto_pose(pre_pos, command_quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if not allow_collisions and did_non_args_move():
                 raise ControlException(
                     f"Robot.goto_pose({pre_pos}, {command_quat}) collided"
                 )
@@ -410,12 +437,6 @@ class Place(Primitive):
         action = self.Action.random()
         action_range = action.range()
 
-        # Generate a random xy in the aabb of the parent.
-        parent = self.arg_objects[1]
-        xy_min = np.maximum(action_range[0, :2], parent.bbox[0, :2])
-        xy_max = np.minimum(action_range[1, :2], parent.bbox[1, :2])
-        action.pos[:2] = np.random.uniform(xy_min, xy_max)
-
         # Compute an appropriate place height given the grasped object's height.
         obj = self.arg_objects[0]
         z_gripper = ACTION_CONSTRAINTS["max_lift_height"]
@@ -437,7 +458,7 @@ class Pull(Primitive):
     Action = primitive_actions.PullAction
     ALLOW_COLLISIONS = True
 
-    def execute(self, action: np.ndarray) -> ExecutionResult:
+    def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
         from temporal_policies.envs.pybullet.table_env import TableEnv
 
         assert isinstance(self.env, TableEnv)
@@ -492,7 +513,8 @@ class Pull(Primitive):
 
         objects = self.env.objects
         robot = self.env.robot
-        if not self.ALLOW_COLLISIONS:
+        allow_collisions = self.ALLOW_COLLISIONS or real_world
+        if not allow_collisions:
             did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
@@ -510,7 +532,7 @@ class Pull(Primitive):
                     if obj.name != "table"
                 ],
             )
-            if not utils.is_upright(target):
+            if not real_world and not utils.is_upright(target):
                 raise ControlException("Target is not upright", target.pose().quat)
 
             robot.goto_pose(
@@ -518,11 +540,11 @@ class Pull(Primitive):
                 command_pose_pull.quat,
                 pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
             )
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if not allow_collisions and did_non_args_move():
                 raise ControlException(
                     f"Robot.goto_pose({command_pose_pull.pos}, {command_pose_pull.quat}) collided"
                 )
-            if self.ALLOW_COLLISIONS:
+            if allow_collisions:
                 # No objects should move after lifting the hook.
                 did_non_args_move = self.create_non_arg_movement_check(objects)
 
@@ -537,14 +559,22 @@ class Pull(Primitive):
 
         self.env.wait_until_stable()
 
-        if not utils.is_upright(target):
+        if not real_world and not utils.is_upright(target):
+            dbprint("Pull.execute(): not upright")
+            return ExecutionResult(success=False, truncated=False)
+
+        if not real_world and not utils.is_inworkspace(obj=target):
+            dbprint("Pull.execute(): not in workspace")
             return ExecutionResult(success=False, truncated=False)
 
         new_target_distance = np.linalg.norm(target.pose().pos[:2])
         if (
-            new_target_distance >= target_distance - MIN_PULL_DISTANCE
-            or not utils.is_inworkspace(obj=target)
+            not real_world
+            and new_target_distance >= target_distance - MIN_PULL_DISTANCE
         ):
+            dbprint(
+                "Pull.execute(): not moved enough", new_target_distance, target_distance
+            )
             return ExecutionResult(success=False, truncated=False)
 
         return ExecutionResult(success=True, truncated=False)
@@ -568,7 +598,7 @@ class Push(Primitive):
     Action = primitive_actions.PushAction
     ALLOW_COLLISIONS = True
 
-    def execute(self, action: np.ndarray) -> ExecutionResult:
+    def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
         from temporal_policies.envs.pybullet.table_env import TableEnv
 
         assert isinstance(self.env, TableEnv)
@@ -619,10 +649,12 @@ class Push(Primitive):
         )
 
         objects = self.env.objects
-        did_non_args_move = self.create_non_arg_movement_check(objects)
+        allow_collisions = self.ALLOW_COLLISIONS or real_world
+        if not allow_collisions:
+            did_non_args_move = self.create_non_arg_movement_check(objects)
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if not allow_collisions and did_non_args_move():
                 raise ControlException(
                     f"Robot.goto_pose({pre_pos}, {command_pose_reach.quat}) collided"
                 )
@@ -636,7 +668,7 @@ class Push(Primitive):
             )
             if not utils.is_upright(target):
                 raise ControlException("Target is not upright", target.pose().quat)
-            if self.ALLOW_COLLISIONS:
+            if allow_collisions and not real_world:
                 # Avoid pushing off the rack.
                 did_rack_move = self.create_non_arg_movement_check(
                     {obj.name: obj for obj in objects.values() if obj.isinstance(Rack)}
@@ -647,8 +679,8 @@ class Push(Primitive):
                 command_pose_push.quat,
                 pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
             )
-            if (not self.ALLOW_COLLISIONS and did_non_args_move()) or (
-                self.ALLOW_COLLISIONS and did_rack_move()
+            if (not allow_collisions and did_non_args_move()) or (
+                self.ALLOW_COLLISIONS and not real_world and did_rack_move()
             ):
                 raise ControlException(
                     f"Robot.goto_pose({command_pose_push.pos}, {command_pose_push.quat}) collided"

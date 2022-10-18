@@ -39,7 +39,7 @@ def seed_generator(
                     p_success=npz["p_success"].item(),
                     values=np.array(npz["values"]),
                 )
-                t_planner: List[float] = npz["t_planner"].item()
+                t_planner: List[float] = npz["t_planner"].tolist()
 
             yield seed, (rewards, plan, t_planner)
 
@@ -170,11 +170,21 @@ def evaluate_planners(
 
         if loaded_plan is not None:
             rewards, plan, t_planner = loaded_plan
+            planners.evaluate_plan(
+                env,
+                env.action_skeleton,
+                plan.actions,
+                gif_path=path / f"planning_{idx_iter}.gif",
+            )
         else:
-            if closed_loop:
+            if closed_loop and not isinstance(
+                planner.dynamics, dynamics.OracleDynamics
+            ):
                 planning_fn = planners.run_closed_loop_planning
+                print("Planning closed loop")
             else:
                 planning_fn = planners.run_open_loop_planning
+                print("Planning open loop")
             rewards, plan, t_planner = planning_fn(
                 env,
                 env.action_skeleton,

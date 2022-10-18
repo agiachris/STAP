@@ -1,9 +1,31 @@
-from typing import List
+from typing import List, Optional
 
 import torch
 
 from temporal_policies.networks.critics.base import Critic
-from temporal_policies.networks.mlp import MLP, weight_init
+from temporal_policies.networks.mlp import LFF, MLP, weight_init
+
+
+def create_q_network(
+    observation_space, action_space, hidden_layers, act, fourier_features: Optional[int]
+) -> torch.nn.Module:
+    if fourier_features is not None:
+        lff = LFF(observation_space.shape[0] + action_space.shape[0], fourier_features)
+        mlp = MLP(
+            fourier_features,
+            1,
+            hidden_layers=hidden_layers,
+            act=act,
+        )
+        return torch.nn.Sequential(lff, mlp)
+    else:
+        mlp = MLP(
+            observation_space.shape[0] + action_space.shape[0],
+            1,
+            hidden_layers=hidden_layers,
+            act=act,
+        )
+        return mlp
 
 
 class ContinuousMLPCritic(Critic):
@@ -15,15 +37,18 @@ class ContinuousMLPCritic(Critic):
         act=torch.nn.ReLU,
         num_q_fns=2,
         ortho_init=False,
+        fourier_features: Optional[int] = None,
     ):
         super().__init__()
+
         self.qs = torch.nn.ModuleList(
             [
-                MLP(
-                    observation_space.shape[0] + action_space.shape[0],
-                    1,
-                    hidden_layers=hidden_layers,
-                    act=act,
+                create_q_network(
+                    observation_space,
+                    action_space,
+                    hidden_layers,
+                    act,
+                    fourier_features,
                 )
                 for _ in range(num_q_fns)
             ]

@@ -9,7 +9,6 @@ from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 import gym
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-import yaml
 
 from temporal_policies.envs import base as envs
 from temporal_policies.envs.pybullet import real
@@ -19,6 +18,9 @@ from temporal_policies.envs.pybullet.sim import math, robot
 from temporal_policies.envs.pybullet.table import object_state, predicates, utils
 from temporal_policies.envs.pybullet.table.primitives import (
     Primitive,
+    Pick,
+    Pull,
+    Push,
     initialize_robot_pose,
 )
 from temporal_policies.envs.pybullet.table.objects import Null, Object, ObjectGroup
@@ -89,13 +91,6 @@ class TaskDistribution:
         return self.tasks[idx_task]
 
 
-def load_config(config: Union[str, Any]) -> Any:
-    if isinstance(config, str):
-        with open(config, "r") as f:
-            config = yaml.safe_load(f)
-    return config
-
-
 class TableEnv(PybulletEnv):
     MAX_NUM_OBJECTS = 8  # Number of rows in the observation matrix.
     EE_OBSERVATION_IDX = 0  # Index of the end-effector in the observation matrix.
@@ -113,7 +108,19 @@ class TableEnv(PybulletEnv):
         high=np.tile(object_state.ObjectState.range()[1], (MAX_NUM_OBJECTS, 1)),
     )
 
-    metadata = {"render_modes": ["default", "front_high_res", "top_high_res"]}
+    metadata = {
+        "render_modes": [
+            "default",
+            "front",
+            "front_high_res",
+            "top",
+            "top_high_res",
+            "front_right",
+            "front_right_high_res",
+            "profile",
+            "profile_high_res",
+        ]
+    }
 
     def __init__(
         self,
@@ -196,8 +203,8 @@ class TableEnv(PybulletEnv):
         self._process_id: Optional[Tuple[int, int]] = None
 
         # Load configs.
-        object_kwargs: List[Dict[str, Any]] = load_config(objects)
-        robot_kwargs: Dict[str, Any] = load_config(robot_config)
+        object_kwargs: List[Dict[str, Any]] = utils.load_config(objects)
+        robot_kwargs: Dict[str, Any] = utils.load_config(robot_config)
 
         # Set primitive names.
         self._primitives = primitives
@@ -224,7 +231,7 @@ class TableEnv(PybulletEnv):
             Object.create(
                 physics_id=self.physics_id,
                 object_groups=self.object_groups,
-                **obj_config,
+                **utils.load_config(obj_config),
             )
             for obj_config in object_kwargs
         ]
@@ -234,7 +241,9 @@ class TableEnv(PybulletEnv):
 
         # Load optional object tracker.
         if object_tracker_config is not None:
-            object_tracker_kwargs: Dict[str, Any] = load_config(object_tracker_config)
+            object_tracker_kwargs: Dict[str, Any] = utils.load_config(
+                object_tracker_config
+            )
             self._object_tracker: Optional[
                 object_tracker.ObjectTracker
             ] = object_tracker.ObjectTracker(
@@ -280,6 +289,26 @@ class TableEnv(PybulletEnv):
                     cameraEyePosition=[0.3, 0.0, 1.4],
                     cameraTargetPosition=[0.3, 0.0, 0.0],
                     cameraUpVector=[0.0, 1.0, 0.0],
+                ),
+                projection_matrix=PROJECTION_MATRIX,
+            ),
+            "front_right": CameraView(
+                width=WIDTH,
+                height=HEIGHT,
+                view_matrix=p.computeViewMatrix(
+                    cameraEyePosition=[0.8, 1.2, 0.9],
+                    cameraTargetPosition=[0.4, 0.2, 0.25],
+                    cameraUpVector=[0.0, 0.0, 1.0],
+                ),
+                projection_matrix=PROJECTION_MATRIX,
+            ),
+            "profile": CameraView(
+                width=WIDTH,
+                height=HEIGHT,
+                view_matrix=p.computeViewMatrix(
+                    cameraEyePosition=[0.30, 1.60, 0.5],
+                    cameraTargetPosition=[0.30, 0.1, 0.28],
+                    cameraUpVector=[0.0, 0.0, 1.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
             ),
@@ -643,9 +672,26 @@ class TableEnv(PybulletEnv):
                 + "]"
             )
 
+        if isinstance(self.robot.arm, real.arm.Arm):
+            input("Continue?")
+
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
-        result = primitive.execute(action)
+        result = primitive.execute(
+            action, real_world=isinstance(self.robot.arm, real.arm.Arm)
+        )
+
+        if (
+            self.object_tracker is not None
+            and isinstance(self.robot.arm, real.arm.Arm)
+            and not isinstance(primitive, Pick)
+        ):
+            if isinstance(primitive, (Pull, Push)):
+                self.object_tracker.update_poses(exclude=[primitive.arg_objects[1]])
+            else:
+                # Track objects from the real world.
+                self.object_tracker.update_poses()
+
         obs = self.get_observation()
         self._recorder.add_frame(self.render, override_frequency=True)
         self._timelapse.add_frame(self.render)
@@ -726,11 +772,10 @@ class TableEnv(PybulletEnv):
             self.object_tracker.send_poses(self.real_objects())
 
     def render(self) -> np.ndarray:  # type: ignore
-        if "top" in self.render_mode:
-            view = "top"
-        else:
-            view = "front"
-        camera_view = self._camera_views[view]
+        try:
+            camera_view = self._camera_views[self.render_mode.replace("_high_res", "")]
+        except KeyError:
+            camera_view = self._camera_views["front"]
 
         if "high_res" in self.render_mode:
             width, height = (1620, 1080)
@@ -749,7 +794,13 @@ class TableEnv(PybulletEnv):
 
         img = Image.fromarray(img_rgb, "RGB")
         draw = ImageDraw.Draw(img)
-        FONT = ImageFont.truetype("arial.ttf", 15)
+        try:
+            FONT = ImageFont.truetype("arial.ttf", 15)
+            print(
+                "Could not find arial.ttf (run `apt install msttcorefonts`?). Using default font."
+            )
+        except OSError:
+            FONT = ImageFont.load_default()
         draw.multiline_text(
             (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", font=FONT
         )

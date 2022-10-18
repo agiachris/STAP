@@ -2,7 +2,8 @@
 
 set -e
 
-GCP_LOGIN="juno-login-lclbjqwy-001"
+# GCP_LOGIN="juno-login-lclbjqwy-001"
+GCP_LOGIN="gcp-login-yq0fvtuw-001"
 
 function run_cmd {
     echo ""
@@ -67,9 +68,16 @@ plots_path="plots"
 # train_policy
 
 # Pybullet.
-exp_name="20220908/official"
+exp_name="20220913/official_lff_1024"
+AGENT_CONFIG="configs/pybullet/agents/sac_lff_large.yaml"
+
+# exp_name="20220913/official_lff_512"
+# AGENT_CONFIG="configs/pybullet/agents/sac_lff_medium.yaml"
+
+# exp_name="20220913/official_lff_256"
+# AGENT_CONFIG="configs/pybullet/agents/sac_lff_small.yaml"
+
 TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
-AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 ENV_KWARGS="--num-env-processes 4 --num-eval-env-processes 2"

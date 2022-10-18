@@ -1,0 +1,22 @@
+planner: CEMPlanner
+planner_kwargs:
+  num_samples: 100
+  num_iterations: 10
+  num_elites: 10
+  standard_deviation: 1.0
+
+agent_configs:
+  - agent: RandomAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+  - agent: RandomAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+  - agent: RandomAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+  - agent: RandomAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+
+dynamics_config: "{DYNAMICS_CONFIG}"

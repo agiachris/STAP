@@ -25,6 +25,8 @@ class SCODCEMPlanner(planners.Planner):
         keep_elites_fraction: float = 0.0,
         population_decay: float = 1.0,
         momentum: float = 0.0,
+        filter_decay: Optional[str] = None,
+        filter_decay_rate: Optional[float] = 0.9,
         device: str = "auto",
     ):
         """Constructs the iCEM planner.
@@ -41,6 +43,8 @@ class SCODCEMPlanner(planners.Planner):
             keep_elites_fraction: Fraction of elites to keep between iterations.
             population_decay: Population decay applied after each iteration.
             momentum: Momentum of distribution updates.
+            filter_decay: Filter decay type, either "linear" or "geometric".
+            filter_decay_rate: Geometric filter decay rate applied at each iteration.
             device: Torch device.
         """
         super().__init__(policies=policies, dynamics=dynamics, device=device)
@@ -54,6 +58,8 @@ class SCODCEMPlanner(planners.Planner):
         self._num_elites_to_keep = int(keep_elites_fraction * self.num_elites + 0.5)
         self._population_decay = population_decay
         self._momentum = momentum
+        self._filter_decay = filter_decay
+        self._filter_decay_rate = filter_decay_rate
 
     @property
     def num_iterations(self) -> int:
@@ -94,6 +100,16 @@ class SCODCEMPlanner(planners.Planner):
     def momentum(self) -> float:
         """Momentum of distribution updates."""
         return self._momentum
+    
+    @property
+    def filter_decay(self) -> Optional[str]:
+        """Filter decay type, either "linear" or "geometric"."""
+        return self._filter_decay
+
+    @property
+    def filter_decay_rate(self) -> Optional[float]:
+        """Geometric filter decay rate applied at each iteration."""
+        return self._filter_decay_rate
 
     def _compute_initial_distribution(
         self, observation: torch.Tensor, action_skeleton: Sequence[envs.Primitive]
@@ -146,6 +162,7 @@ class SCODCEMPlanner(planners.Planner):
         best_states: Optional[np.ndarray] = None
         p_best_success: float = -float("inf")
         best_values: Optional[np.ndarray] = None
+        best_values_unc: Optional[np.ndarray] = None
         if return_visited_samples:
             visited_actions_list = []
             visited_states_list = []
@@ -177,7 +194,6 @@ class SCODCEMPlanner(planners.Planner):
 
             # Scale number of samples and SCOD filter scale to task size
             num_samples = self.num_samples * task_dimensionality
-            num_filter_per_timestep = self.num_filter_per_step * task_dimensionality
 
             # Get initial state.
             t_observation = torch.from_numpy(observation).to(self.dynamics.device)
@@ -240,8 +256,16 @@ class SCODCEMPlanner(planners.Planner):
                 )
 
                 # Filter out trajectories with the highest uncertainty.
+                num_filter_per_step = self.num_filter_per_step * task_dimensionality
+                if self.filter_decay == "linear":
+                    decay_ratio = (idx_iter / self.num_iterations)
+                    num_filter_per_step = int(num_filter_per_step  * (1-decay_ratio))
+                elif self.filter_decay == "geometric": 
+                    decay_ratio = self.filter_decay_rate ** idx_iter
+                    num_filter_per_step = int(num_filter_per_step * decay_ratio)
+                
                 unc_trajectory_idx = values_unc.topk(
-                    num_filter_per_timestep, dim=0
+                    num_filter_per_step, dim=0
                 ).indices
                 p_success[unc_trajectory_idx.flatten().unique()] = float("-Inf")
 
@@ -257,6 +281,7 @@ class SCODCEMPlanner(planners.Planner):
                     best_actions = samples[idx_best].cpu().numpy()
                     best_states = states[idx_best].cpu().numpy()
                     best_values = values[idx_best].cpu().numpy()
+                    best_values_unc = values_unc[idx_best].cpu().numpy()
 
                 # Update distribution.
                 mean = self.momentum * mean + (1 - self.momentum) * elites.mean(dim=0)
@@ -287,6 +312,7 @@ class SCODCEMPlanner(planners.Planner):
             best_actions is not None
             and best_states is not None
             and best_values is not None
+            and best_values_unc is not None
         )
 
         if return_visited_samples:
@@ -299,6 +325,9 @@ class SCODCEMPlanner(planners.Planner):
             visited_states = None
             p_visited_success = None
             visited_values = None
+
+        # TODO: Make a dedicated field if best_values_unc is necessary for TAMP.
+        visited_values = best_values_unc
 
         return planners.PlanningResult(
             actions=best_actions,

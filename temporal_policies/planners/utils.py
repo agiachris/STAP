@@ -331,7 +331,7 @@ def run_open_loop_planning(
         env.set_state(state)
 
     # Execute plan.
-    rewards = evaluate_plan(env, env.action_skeleton, plan.actions, gif_path=gif_path)
+    rewards = evaluate_plan(env, action_skeleton, plan.actions, gif_path=gif_path)
 
     if isinstance(planner.dynamics, dynamics.OracleDynamics):
         env.set_state(state)

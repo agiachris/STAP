@@ -1,0 +1,43 @@
+planner: SCODCEMPlanner
+planner_kwargs:
+  num_samples: 10
+  num_iterations: 10
+  num_elites: 10
+  num_filter_per_step: 100
+  keep_elites_fraction: 1.0
+  standard_deviation: 0.3
+
+agent_configs:
+  - agent: SCODProbabilisticCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod_config:
+        scod: IdentitySCOD
+        scod_kwargs:
+          scod_config: "{SCOD_CONFIG}"
+  - agent: SCODProbabilisticCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod_config:
+        scod: IdentitySCOD
+        scod_kwargs:
+          scod_config: "{SCOD_CONFIG}"
+  - agent: SCODProbabilisticCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod_config:
+        scod: IdentitySCOD
+        scod_kwargs:
+          scod_config: "{SCOD_CONFIG}"
+  - agent: SCODProbabilisticCriticAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scod_config:
+        scod: IdentitySCOD
+        scod_kwargs:
+          scod_config: "{SCOD_CONFIG}"
+
+dynamics_config:
+  dynamics: OracleDynamics
+  dynamics_kwargs:
+    debug: false

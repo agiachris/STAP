@@ -1,7 +1,7 @@
 planner: CEMPlanner
 planner_kwargs:
-  num_samples: 20000
-  num_iterations: 5
+  num_samples: 10000
+  num_iterations: 10
   num_elites: 10
   standard_deviation: 1.0
 

@@ -36,6 +36,7 @@ arm_kwargs:
     driver_status: "franka_panda::driver::status"
     sensor_q: "franka_panda::sensor::q"
     sensor_dq: "franka_panda::sensor::dq"
+    sensor_ori: "franka_panda::sensor::ori"
 
 gripper_class: real.gripper.Gripper
 gripper_kwargs:

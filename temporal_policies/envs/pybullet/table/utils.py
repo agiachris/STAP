@@ -1,11 +1,12 @@
 import collections
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Union
 
+from ctrlutils import eigen
 import itertools
 import numpy as np
-from ctrlutils import eigen
 import pybullet as p
 from shapely.geometry import Polygon
+import yaml
 
 from temporal_policies.envs.pybullet.sim import body, math
 from temporal_policies.envs.pybullet.table.objects import Object
@@ -13,7 +14,9 @@ from temporal_policies.envs.pybullet.table.objects import Object
 
 TABLE_CONSTRAINTS = {
     "table_z_max": 0.00,
-    "table_x_min": 0.30,
+    "table_x_min": 0.28,
+    "table_y_min": -0.45,
+    "table_y_max": 0.45,
     "workspace_x_min": 0.40,
     "operational_x_min": 0.50,
     "operational_x_max": 0.60,
@@ -178,3 +181,10 @@ def is_beyondworkspace(
         return False
 
     return True
+
+
+def load_config(config: Union[str, Any]) -> Any:
+    if isinstance(config, str):
+        with open(config, "r") as f:
+            config = yaml.safe_load(f)
+    return config

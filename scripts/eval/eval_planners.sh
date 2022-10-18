@@ -2,7 +2,8 @@
 
 set -e
 
-GCP_LOGIN="juno-login-lclbjqwy-001"
+# GCP_LOGIN="juno-login-lclbjqwy-001"
+GCP_LOGIN="gcp-login-yq0fvtuw-001"
 
 function run_cmd {
     echo ""
@@ -150,33 +151,33 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220908/official"
+exp_name="20220914/official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
-    "hook_reach/task0"
-    "hook_reach/task1"
-    "hook_reach/task2"
-    "hook_reach/task3"
-    "hook_reach/task4"
-    "constrained_packing/task0"
-    "constrained_packing/task1"
-    "constrained_packing/task2"
-    "constrained_packing/task3"
-    "constrained_packing/task4"
-    "rearrangement_push/task0"
-    "rearrangement_push/task1"
-    "rearrangement_push/task2"
-    "rearrangement_push/task3"
-    "rearrangement_push/task4"
+    ## Domain 1: Hook Reach
+    # "hook_reach/task0"
+    # "hook_reach/task1"
+    # "hook_reach/task2"
+    ## Domain 2: Constrained Packing
+    # "constrained_packing/task0"
+    # "constrained_packing/task1"
+    # "constrained_packing/task2"
+    ## Domain 3: Rearrangement Push
+    # "rearrangement_push/task0"
+    # "rearrangement_push/task1"
+    # "rearrangement_push/task2"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
+    "select_model"
     # "ckpt_model_50000"
     # "ckpt_model_100000"
     # "ckpt_model_150000"
     # "ckpt_model_200000"
+    # "select_model"
+    # "selectscod_model"
 )
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
@@ -186,13 +187,13 @@ fi
 # Run planners.
 POLICY_INPUT_PATH="${input_path}/${exp_name}"
 SCOD_INPUT_PATH="${input_path}/${exp_name}"
-SCOD_CONFIG="scod_freeze"
+SCOD_CONFIG="scod"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for CKPT in "${checkpoints[@]}"; do
     for env in "${ENVS[@]}"; do
         ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
         PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
-        LOAD_PATH="${PLANNER_OUTPUT_PATH}"
+        # LOAD_PATH="${PLANNER_OUTPUT_PATH}/policy_cem"
         run_planners
     done
 done

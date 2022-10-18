@@ -1,0 +1,36 @@
+planner: ShootingPlanner
+planner_kwargs:
+  num_samples: 100
+
+agent_configs:
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config:
+        agent: GaussianAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          std: 0.3
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config:
+        agent: GaussianAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          std: 0.3
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config:
+        agent: GaussianAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          std: 0.3
+  - agent: OracleAgent
+    agent_kwargs:
+      agent_config:
+        agent: GaussianAgent
+        agent_kwargs:
+          agent_config: "{AGENT_CONFIG}"
+          std: 0.3
+
+dynamics_config:
+  dynamics: OracleDynamics

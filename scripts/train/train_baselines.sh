@@ -46,13 +46,17 @@ function train_baseline {
 }
 
 # Setup.
-DEBUG=1
+DEBUG=0
 output_path="models"
 plots_path="plots"
 
 # Experiments.
 
-exp_name="20220911/official"
+# exp_name="20220915/official"
+# AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
+
+exp_name="20220915/official_lff"
+AGENT_CONFIG="configs/pybullet/agents/sac_lff.yaml"
 
 planners=(
     # "daf_policy_cem"
@@ -62,21 +66,15 @@ planners=(
     "dreamer_greedy"
 )
 envs=(
-    "hook_reach/task0"
+    # "hook_reach/task0"
     # "hook_reach/task1"
-    # "hook_reach/task2"
-    # "hook_reach/task3"
-    # "hook_reach/task4"
+    "hook_reach/task2"
     # "constrained_packing/task0"
     # "constrained_packing/task1"
-    # "constrained_packing/task2"
-    # "constrained_packing/task3"
-    # "constrained_packing/task4"
+    "constrained_packing/task2"
     # "rearrangement_push/task0"
     # "rearrangement_push/task1"
-    # "rearrangement_push/task2"
-    # "rearrangement_push/task3"
-    # "rearrangement_push/task4"
+    "rearrangement_push/task2"
 )
 # eval_envs=(
 #     "hook_reach/task0"
@@ -100,7 +98,6 @@ envs=(
 TRAINER_CONFIG="configs/pybullet/trainers/dreamer.yaml"
 
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
-AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 ENV_KWARGS="--num-env-processes 4 --num-eval-env-processes 2 --closed-loop-planning 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
@@ -115,7 +112,6 @@ for (( i=0; i<${num_envs}; i++ )); do
     for planner in "${planners[@]}"; do
         PLANNER_CONFIG="configs/pybullet/planners/${planner}.yaml"
         OUTPUT_PATH="${output_path}/${exp_name}/${env}/${planner}"
-        # EVAL_RECORDING_PATH="${plots_path}/${exp_name}/${planner}"
 
         train_baseline
     done
