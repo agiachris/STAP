@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: constrained_packing_2
+  name: constrained_packing_4
   gui: true
 
   primitives:
