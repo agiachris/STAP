@@ -1,7 +1,6 @@
-# Task-Agnostic Policy Sequencing
+# TAPS: Task-Agnostic Policy Sequencing
 
-<img src="figures/taps_system.png" alt="drawing" width="280"/>
-<img src="figures/taps_preview.png" alt="drawing" width="320"/>
+<img src="figures/taps_preview.png" alt="TAPS Preview"/>
 
 
 ## Overview
