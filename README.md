@@ -1,7 +1,7 @@
 # Task-Agnostic Policy Sequencing
 
-<img src="figures/taps_system.png" alt="drawing" width="310"/>
-<img src="figures/taps_preview.png" alt="drawing" width="350"/>
+<img src="figures/taps_system.png" alt="drawing" width="280"/>
+<img src="figures/taps_preview.png" alt="drawing" width="320"/>
 
 
 ## Overview
