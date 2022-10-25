@@ -1,4 +1,4 @@
-# TAPS: Task-Agnostic Policy Sequencing
+# Text2Motion
 
 <img src="figures/taps_preview.png" alt="TAPS Preview"/>
 
