@@ -1,89 +1,137 @@
-## Usage
-You should be able to activate the development enviornment by running `. path/to/setup_shell.sh`. This is the same environment that will be activated when running jobs on SLURM.
+# Task-Agnostic Policy Sequencing
 
-### Adding Your Own Research
-Training is managed by five types of objects: algorithms, networks, environments, datasets, and processors. Each has their own sub-package located within the `research` directory. Each `__init__.py` file in the subpackage exposes classes to the global trainer.
+<img src="figures/taps_system.png" alt="drawing" width="310"/>
+<img src="figures/taps_preview.png" alt="drawing" width="350"/>
 
-All algorithms can be implemented by extending the `Algorithm` base class found in `algs/base.py`. Algorithms take in all parameters, including the class types of other objects, and run training. Most handling is already implemented, but `setup` methods may be overridden for specific functionality.
 
-Algorithms are required to have an `environment`, which for RL algorithms can be a gym environment, or for supervised learning can simply be a object containing gym spaces that dictate the models input and output spaces like the `Empty` environment implemented in `envs/empty.py`. 
+## Overview
 
-Networks must extend `nn.Module` and contain the entirety of your model. If multiple models are required, write a wrapper `network` class that contains both of them. Examples of this can be seen in the actor critic algorithms in the `rl` branch. All networks take in an observation (input) and action (output) space.
+The code repository for [TAPS: Task-Agnostic Policy Sequencing](https://arxiv.org/abs/2210.12250), in-submission at ICRA 2023. Implementations include:
+1. **Manipulation Skills.** Reinforcement learning algorithms ([SAC](https://arxiv.org/abs/1801.01290), [TD3](https://arxiv.org/abs/1802.09477)) to learn four parameterized manipulation policies: `Pick`, `Place`, `Push`, `Pull`. 
+2. **Dynamics Models.** Trainers for learning primitive-specific dynamics models from off-policy experience.
+3. **Q-Network Uncertainty Quantification.** Sketching Curvature for Out-of-Distribution Detection ([SCOD](https://arxiv.org/abs/2102.12567)) implementation and trainers for quantifying Q-network epistemic uncertainty.
+4. **Motion Planners.** A set of sampling-based motion planners including randomized sampling, cross-entropy method, planning with risk-sensitive metrics, and combinations.
+5. **Baselines.** Implementations of Deep Affordance Foresight ([DAF](https://arxiv.org/abs/2011.08424)) and parameterized-action [Dreamer](https://arxiv.org/abs/1912.01603).
+6. **2D & 3D Environments.** PyBox2D toy environment and full-scale PyBullet tabletop manipulation environment with predicate-specified domain randomization.
 
-All data functionality is managed through pytorch's `Dataset` and `Dataloader` classes. The `dataset` submodule should contain implementations of datasets.
 
-Finally `processors` are applied to batches of data before they are fed to networks. It's often useful to have data processing outside of the Dataset object as it can be done in parallel instead of on individual samples. 
+## Setup
 
-All training is handled through `utils.trainer`, which assembles all of the specified components and calls `Algorithm.train`. Components are specified via config yaml files that are parsed before training. The config parser supports importing arbitrary python objects by specifying a list of strings starting with the "import" keyword, for example `activation: ["import", "torch.nn", "ReLU"]`.
+### System Requirements
+This repository has been primarily tested on Ubuntu 20.04 and macOS Monterey with Python 3.8.
 
-Examples of how each of these different systems can be used can be found in the `vision` and `rl` branches that contain default implementations. The recommend steps for implementing your own method are as follows:
+### Installation
+```bash
+# Install Pyenv.
+curl https://pyenv.run | bash 
+exec $SHELL         # Restart shell for path changes to take effect.
+pyenv install 3.8.8 # Install a Python version.
+pyenv global 3.8.8  # Set this Python to default.
 
-1. Implement the environment, which will determine the input/output spaces in `envs`. If its a gym environment, you can register it.
-2. Implement the dataset that is built on top of the environnment.
-3. Implement any processors your might have.
-4. Implement the network
-5. Implement the algorithm by extending the base class, filling out the `_train_step` method (and optionally others).
-6. Create a config, see `configs/example.yaml` for an idea of how it works.
+# Clone repository
+git clone git@github.com:agiachris/temporal-policies.git --recurse-submodules
+cd temporal_policies
 
-### Launching jobs
-To train a model, simply run `python scripts/train.py --config path/to/config --path path/to/save/folder`
-
-Results can be viewed on tensorboard.
-
-The `tools` folder contains simple tools for launching job sweeps locally or on a SLURM cluster. The tools work for every script, but have special features for `scripts/train.py`. 
-
-To launch any job via a script in the `tools` folder, use the `--entry-point <path to script>` argument to specify the path to the target script (`scripts/train.py`) by default and the `--arguments <arg1>=<value1>  <arg2>=<value2> ..  <argk>=<valuek>` to specify the arguments for the script. Multiple different jobs can be stacked. For example, `--arguments` can be provided more than once to specify different sets of arguments. The `--seeds-per-job` argument lets you run multiple seeds for a given entry-point, but the entry-point script will need to accept a `--seed` argument.
-
-#### Local Jobs
-Launching jobs locally can easily be done by specifying `--cpus` in the same manner you would for `taskset` and `--gpus` via nvidia devices. Note that multi-gpu training is not yet supported. The script will automatically balance jobs on the provided hardware. Here is an example:
+# Install Pipenv.
+pip install pipenv
+pipenv install --dev
 ```
-python tools/run_local.py scripts/my_custom_script.py --cpus 0-8 --gpus 0 1 --seeds-per-job 2 --arguments <arg1>=<value1>  <arg2>=<value2>
+
+To load virtual environment:
+```bash
+pipenv sync
+pipenv shell
 ```
-This will run one job on cores 0-3 with GPU 0 and one job on cpus 4-7 with GPU 1. 
 
-#### SLURM
-Launching jobs on SLURM is done via the `tools/run_slurm.py` script. In addition to the base arguments for job launching, the slurm script takes several additional arguments for slurm. Here is an example command that includes all of the required arguments and launches training jobs from `scripts/train.py`. Additional optional arguments can be found in the `tools/run_slurm.py` file.
+## Instructions
+Task-Agnostic Policy Sequencing was designed modularly to support [training manipulation primitives](#training-manipulation-primitives) and [dynamics models](#learning-dynamics-models), [precomputing SCOD parameters](#pretraining-uncertainty-quantifiers) over primitive Q-networks, and finally, composing all of these components at test-time for [motion planning](#executing-motion-planning).
+
+
+### Basics
+The majority of the project code is located in the temporal policies package `temporal_policies/`, which is pip installable. 
+The remaining code for launching experiments, debugging, plotting, and visualization is under `scripts/`.
+
+#### Configs
+Training and evaluation functionality is determined by `.yaml` configuration files located in `config/`.
+
+#### Scripts
+Scripts for launch training and evaluation can be found in `scripts/`.
+
+Generally, each component of the TAPS framework has a `.sh` and `.py` file; for instance, training policies: `scripts/train/train_policies.sh` and `scripts/train/train_policy.py`). 
+The `.sh` file specifies the configs, output paths, and potential checkpoints to be loaded, which are fed to the `.py` file to run. 
+This allows multiple instances of the same component to be launched through a single bash script.
+
+#### Factories
+The base classes and subclasses of all system components are contained to their own submodule, e.g., `temporal_policies/trainers/`. 
+Moreover, every submodule implements a [Factory](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/utils/configs.py#L143) in `temporal_policies/<submodule_name>/utils.py` which parses a configuration file and optional arguments, such as a checkpoint path, and returns the instantiated class. 
+
+This allows for easily loading subsets of TAPS components for a specific training and evaluation script. 
+As examples, [loading an AgentTrainer](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/trainers/utils.py#L60) requires [loading an Env](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/envs/utils.py#L8), and [loading a SCODTrainer](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/trainers/utils.py#L123) requires [loading an Agent](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/agents/utils.py#L18). 
+
+### Environments
+We implement two environments, [PyBox2D](https://github.com/agiachris/temporal-policies/tree/main/temporal_policies/envs/pybox2d) and [PyBullet](https://github.com/agiachris/temporal-policies/tree/main/temporal_policies/envs/pybullet), the former of which is untested for backwards compatibility after extensive changes were made to the code.
+
+The [TableEnv](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/envs/pybullet/table_env.py#L94) class is used to train all robotic manipulation primitives and evaluate long-horizon plans under domain randomization.
+The environment is instantiated according to a configuration file with several key fields.
+We will use [pick.yaml](https://github.com/agiachris/temporal-policies/blob/main/configs/pybullet/envs/official/primitives/pick.yaml) as a running example.
+
+#### Primitives
+The config first specifies a `pick` under the `primitives:` field.
+
+This field is used to indicate what primitive(s) the environment will use, which determines the action space exposed when training reinforcement learning agents and dynamics models. 
+Each primitive comes with a [`PrimitiveAction`](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/envs/pybullet/table/primitive_actions.py#L6) and [`Primitive`](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/envs/pybullet/table/primitives.py#L99) implementation. 
+- `PrimitiveAction` specifies the skill parameters, their upper and lower bounds, which are used to rescale policy predicted skill parameters from [0,1] to real-world scale;
+- `Primitive` implements functions for primitive execution (with collision checking), action sampling where sampled actions are scenario-agnostic and thus prone to failure, and obtaining the [object argument indices](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/envs/pybullet/table/primitives.py#L135) used to arrange the environment state vector such that target objects are ordered first and the remaining objects are shuffled. 
+
+For reference, see the interplay between [`PickAction`](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/envs/pybullet/table/primitive_actions.py#L32) and [`Pick`](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/envs/pybullet/table/primitives.py#L240) in the context of `pick`.
+
+#### Tasks
+The config then specifies an `action_skeleton:` and `initial_state:` under the `tasks:` field. 
+
+Tasks are sampled at uniform random, i.e, for `pick`, the environment alternates between training the agent to either pick up a randomly selected block or the hook.
+
+##### Predicates
+Initial states of the environment are sampled so as to satisfy the task's [Predicates](https://github.com/agiachris/temporal-policies/blob/main/temporal_policies/envs/pybullet/table/predicates.py#L22).
+
+As shown for `pick`, the initial state indicates that all objects must be placed `On(Predicate)` the table or rack, and that the rack is `Aligned(Predicate)`.
+Note that when `.reset()` is called on `TableEnv`, the environment state will be continually sampled until one that [satisfies all predicates](https://github.com/agiachris/temporal-policies/blob/9b6e51814715f56dc2c286eb550faec873e0cef3/temporal_policies/envs/pybullet/table_env.py#L647) is found. 
+
+#### Objects
+The configuration file lastly specifies `objects:`. 
+
+This field indicates a list of [Objects](https://github.com/agiachris/temporal-policies/blob/9b6e51814715f56dc2c286eb550faec873e0cef3/temporal_policies/envs/pybullet/table/objects.py) to be spawned during training or evaluation. 
+An important object subclass is the [`Variant(WrapperObject)`](https://github.com/agiachris/temporal-policies/blob/9b6e51814715f56dc2c286eb550faec873e0cef3/temporal_policies/envs/pybullet/table/objects.py#L785) which is applied over an [`ObjectGroup`](https://github.com/agiachris/temporal-policies/blob/9b6e51814715f56dc2c286eb550faec873e0cef3/temporal_policies/envs/pybullet/table/objects.py#L632).
+This class is used to sample *one-of-n* possible objects instead of representing a concrete one.
+The [specification](https://github.com/agiachris/temporal-policies/blob/main/configs/pybullet/envs/official/primitives/pick.yaml#L44) in `pick` indicates that a sampled environment state may contain between 0-4 blocks.
+
+
+### Training Manipulation Primitives
+To train the primitive policies:
+```bash
+bash temporal_policies/scripts/train/train_policies.sh
 ```
-python tools/run_slurm.py --partition <partition> --cpus 8 --gpus 1080ti:1 --mem 16G --job-name example --arguments config=configs/example.yaml path=../output/test
+
+### Learning Dynamics Models 
+To train the dynamics models at multiple policy checkpoints:
+```bash
+bash temporal_policies/scripts/train/train_dynamics.sh
 ```
-The `gpu` argument takes in the GRES specification of the GPU resource. One unfortunate problem with GRES it doesn't allow sharing GPUs between slurm jobs. This often means that if you want to run a small model that only consumes, say 25% of the GPUs max FLOPS, everyone else on the cluster will still be blocked from using the GPU. The `--jobs-per-instance` argument allows you to train multiple models on the same SLURM node in parallel on the same GPU! You just need to make sure to specify enough CPU and memory resources to run both at once. Doing so drastically saves GPU resources on the cluster if you are running parameter sweeps.
 
-#### Using the Sweeper
-The default training script `scripts/train.py` also supports parameter sweeps. Parameter sweeps are specified using `json` files. Any of the scripts in `tools` will automatically detect that a sweep is being run based on the `entry-point` and type of config file (json) being specified. An example sweep file is found on the `vision` branch. Keys in the json file are specified via strings, with periods to separate nested structions, and values are provided as lists. For example to specify a learning rate sweep, one would add `"optim_kwargs.lr" : [0.01, 0.001]`. 
+### Pretraining Uncertainty Quantifiers
+To train SCOD at multiple policy checkpoints:
+```bash
+bash temporal_policies/scripts/train/train_scod.sh
+```
 
-There are two special keys. The first `"base"` is required and specifies the path to the base config that will be modified by the sweep file. The second, `"paired_keys"` allows you to pair the values of differnet parameters in the sweep. 
+### Executing Motion Planning
+To evaluate the planners at specified policy checkpoints:
+```bash
+bash temporal_policies/scripts/eval/eval_planners.sh
+```
 
-## RL
 
-This repository contains high quality implementaitons of reinforcement learning algorithms in the `rl` branch. Here are some of the features currently supported:
-
-* ReplayBuffer class that elegantly handles both parallel and serial Dataloading as well as Dict observation and action spaces. From my benchmarking this is one of the fastest implementations I know. It borrows heavily from [DrQv2](https://github.com/facebookresearch/drqv2), but can sample entire batches of data at once to avoid serial collation. For TD3 this lead to around a 15% speed increase.
-* Gym wrappers for `dm_control`, matching those in [DrQv2](https://github.com/facebookresearch/drqv2) and [pytorch_sac](https://github.com/denisyarats/pytorch_sac).
-* High quality TD3 implementation
-* SAC implementation, borrowing closely from [pytorch_sac](https://github.com/denisyarats/pytorch_sac)
-
-### Benchmarks
-All benchmarks of RL algorithms were run using GTX 1080 Ti GPUs, eight CPU cores, and 16GB of memory. Hyperparameters for SAC were taken from [pytorch_sac](https://github.com/denisyarats/pytorch_sac) and hyperparameters for TD3 were left as the default as listed in [the paper](https://arxiv.org/pdf/1802.09477.pdf) except with 256 dimensional Dense layers in the actor and critic. Evaluations were run on the DM Control Cheetah Run benchmark.
-
-There is still room for improvement, but the current implementations are faster and match or exceed the performance of many popular codebases.
-
-<p align="center">
-  <img width="47%" src="https://jhejna.github.io/host/research-lightning/sac.png">
-  <img width="47%" src="https://jhejna.github.io/host/research-lightning/td3.png">
-</p>
-
-| SAC          | SB3 | pytorch\_sac | Ours |
-| ------------ | --- | ------------ | ---- |
-| Steps/Second | 60  | 50           | 76   |
-
-| TD3          | SB3 | Ours (DRQ-v2 Style Buffer) | Ours |
-| ------------ | --- | -------------------------- | ---- |
-| Steps/Second | 131 | 116                        | 134  |
-
-The performance improvement from the replay buffer will be more drastic when running vision based algorithms.
-
-## Vision
-This section contains a list of features that are included in the `vision` branch of the repo.
-
-* Generic Image Classification
-* Wrapper to use arbitrary torchvision datasets
+## Citation
+Task-Agnostic Policy Sequencing has an MIT License. 
+If you find this package helpful, please consider citing our work:
+```
+```

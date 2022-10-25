@@ -44,6 +44,9 @@ output_path="models"
 
 # Experiments.
 
+
+# Pybox2d.
+
 # exp_name="20220806/pybox2d"
 # TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
 # DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
@@ -55,18 +58,20 @@ output_path="models"
 #     # "ckpt_model_100000"
 # )
 
-exp_name="20220912/official"
+# Pybullet.
+
+exp_name="20221024/decoupled_state"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 policy_envs=("pick" "place" "pull" "push")
 checkpoints=(
     # "final_model"
     # "best_model"
-    "select_model"
-    # "ckpt_model_50000"
-    # "ckpt_model_100000"
-    # "ckpt_model_150000"
-    # "ckpt_model_200000"
+    # "select_model"
+    "ckpt_model_50000"
+    "ckpt_model_100000"
+    "ckpt_model_150000"
+    "ckpt_model_200000"
 )
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"

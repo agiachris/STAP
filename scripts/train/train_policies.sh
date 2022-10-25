@@ -68,14 +68,9 @@ plots_path="plots"
 # train_policy
 
 # Pybullet.
-exp_name="20220913/official_lff_1024"
-AGENT_CONFIG="configs/pybullet/agents/sac_lff_large.yaml"
 
-# exp_name="20220913/official_lff_512"
-# AGENT_CONFIG="configs/pybullet/agents/sac_lff_medium.yaml"
-
-# exp_name="20220913/official_lff_256"
-# AGENT_CONFIG="configs/pybullet/agents/sac_lff_small.yaml"
+exp_name="20221024/decoupled_state"
+AGENT_CONFIG="configs/pybullet/agents/sac.yaml"
 
 TRAINER_CONFIG="configs/pybullet/trainers/agent.yaml"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
