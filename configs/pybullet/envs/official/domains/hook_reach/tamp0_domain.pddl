@@ -3,6 +3,9 @@
 	(:types
 		physobj - object
 		movable - physobj
+		unmovable - physobj
+		tool - movable
+		box - movable
 	)
 	(:constants table - physobj)
 	(:predicates
