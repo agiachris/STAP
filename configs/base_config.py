@@ -22,7 +22,7 @@ class PDDLConfig:
     def pddl_problem_file(self) -> str:
         assert self._pddl_problem_file != ""
         return self._pddl_problem_file
-    
+
     @pddl_problem_file.setter
     def pddl_problem_file(self, value: str) -> None:
         self._pddl_problem_file = value
@@ -78,7 +78,10 @@ class InContextExampleConfig:
     use_goal: bool = False
     use_robot: bool = False
     custom_robot_prompt: str = ""
-    custom_robot_answer_format: Literal["python_list", "python_list_of_lists"] = "python_list"
+    custom_robot_answer_format: Literal[
+        "python_list", "python_list_of_lists"
+    ] = "python_list"
+
 
 @dataclass
 class CurrentExampleConfig(InContextExampleConfig):
@@ -96,16 +99,16 @@ class LMConfig:
     api_type: APIType = APIType.HELM
     max_tokens: int = 100
 
+
 @dataclass
 class PromptConfig:
     # tricky to define the structure of the prompt
     header_cfg: InContextExampleConfig = InContextExampleConfig()
-    single_in_context_prompt_cfg: InContextExampleConfig = (
-        InContextExampleConfig()
-    )
+    single_in_context_prompt_cfg: InContextExampleConfig = InContextExampleConfig()
     current_prompt_cfg: CurrentExampleConfig = CurrentExampleConfig()
     lm_cfg: LMConfig = LMConfig()
     n_examples: int = 1
+
 
 @dataclass
 class EvaluationConfig:
@@ -120,6 +123,10 @@ class EvaluationConfig:
 
     def __post_init__(self):
         if self.prompt_cfg.current_prompt_cfg.predict_goal:
-            assert self.prompt_cfg.current_prompt_cfg.use_goal == False, "Cannot predict goal if use_goal is True"
+            assert (
+                self.prompt_cfg.current_prompt_cfg.use_goal == False
+            ), "Cannot predict goal if use_goal is True"
         if self.prompt_cfg.current_prompt_cfg.predict_robot:
-            assert self.prompt_cfg.current_prompt_cfg.use_robot == False, "Cannot predict robot if use_robot is True"
+            assert (
+                self.prompt_cfg.current_prompt_cfg.use_robot == False
+            ), "Cannot predict robot if use_robot is True"
