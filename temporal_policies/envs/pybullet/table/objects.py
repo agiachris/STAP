@@ -62,7 +62,6 @@ class Object(body.Body):
 
         self.name = name
         self.is_static = is_static
-
         T_pybullet_to_obj = super().pose().to_eigen()
         self._modified_axes = not T_pybullet_to_obj.is_approx(
             eigen.Isometry3d.identity()
@@ -72,11 +71,25 @@ class Object(body.Body):
             self._T_obj_to_pybullet = T_pybullet_to_obj.inverse()
 
         self._state = object_state.ObjectState()
+        self._custom_pose: Optional[math.Pose] = None
+        self._use_custom_pose: bool = False
+
+    def enable_custom_pose(self) -> None:
+        self._use_custom_pose = True
+
+    def disable_custom_pose(self) -> None:
+        self._use_custom_pose = False
+        self._custom_pose = None
+
+    def set_custom_pose(self, pose: math.Pose) -> None:
+        self._custom_pose = pose
 
     def pose(self) -> math.Pose:
+        if self._use_custom_pose:
+            assert self._custom_pose is not None, "custom_pose is None"
+            return self._custom_pose
         if not self._modified_axes:
             return super().pose()
-
         return math.Pose.from_eigen(super().pose().to_eigen() * self._T_obj_to_pybullet)
 
     def set_pose(self, pose: math.Pose) -> None:
@@ -248,7 +261,6 @@ class Urdf(Object):
     @property
     def bbox(self) -> np.ndarray:
         return self._bbox
-
 
 class Box(Object):
     def __init__(
@@ -539,6 +551,67 @@ class Null(Object):
     def unfreeze(self) -> bool:
         return False
 
+class PropTestBox(Box):
+    def __init__(self, box_obj: Box):
+        for k, v in box_obj.__dict__.items():
+            self.__dict__[k] = v
+            print(k, v)
+
+        self.custom_pose: Optional[math.Pose] = None
+
+    def pose(self) -> math.Pose:
+        assert self.custom_pose is not None, "Custom pose not set"
+        return self.custom_pose
+
+    def set_custom_pose(self, pose: math.Pose) -> None:
+        self.custom_pose = pose
+
+class PropTestUrdf(Urdf):
+
+    # create a prop test urdf object using an existing urdf object
+    def __init__(self, urdf_obj: Urdf):
+        for k, v in urdf_obj.__dict__.items():
+            self.__dict__[k] = v
+            print(k, v)
+
+        self.custom_pose: Optional[math.Pose] = None
+
+    def pose(self) -> math.Pose:
+        assert self.custom_pose is not None, "Custom pose not set"
+        return self.custom_pose
+
+    def set_custom_pose(self, pose: math.Pose) -> None:
+        self.custom_pose = pose
+
+class PropTestRack(Object):
+    def __init__(self, rack_obj: Rack):
+        for k, v in rack_obj.__dict__.items():
+            self.__dict__[k] = v
+            print(k, v)
+
+        self.custom_pose: Optional[math.Pose] = None
+
+    def pose(self) -> math.Pose:
+        assert self.custom_pose is not None, "Custom pose not set"
+        return self.custom_pose
+
+    def set_custom_pose(self, pose: math.Pose) -> None:
+        self.custom_pose = pose
+
+class PropTestNull(Object):
+    def __init__(self, null_obj: Null):
+        for k, v in null_obj.__dict__.items():
+            self.__dict__[k] = v
+            print(k, v)
+
+        self.custom_pose: Optional[math.Pose] = None
+
+    def pose(self) -> math.Pose:
+        assert self.custom_pose is not None, "Custom pose not set"
+        return self.custom_pose
+
+    def set_custom_pose(self, pose: math.Pose) -> None:
+        self.custom_pose = pose
 
 class WrapperObject(Object):
     def __init__(self, body: Object):
@@ -581,6 +654,8 @@ class WrapperObject(Object):
 
     def state(self) -> object_state.ObjectState:
         return self.body.state()
+        # how do I ensure that any methods called by self.body still call the wrapper?
+        # answer: 
 
     @property
     def is_static(self) -> bool:  # type: ignore
@@ -868,3 +943,10 @@ class Variant(WrapperObject):
         self.enable_collisions()
         self.unfreeze()
         self.body.reset(action_skeleton)
+
+CLS_TO_PROP_TEST_CLS = {
+    "Box": PropTestBox,
+    "Urdf": PropTestUrdf,
+    "Rack": PropTestRack,
+    "Null": PropTestNull,
+}

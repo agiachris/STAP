@@ -8,11 +8,11 @@ placing the newest object on top of another object.
 
 Usage:
 
-python scripts/data/generate_dataset.py --config.overwrite
+PYTHONPATH=. python scripts/data/generate_lm_dataset.py --config.overwrite
 """
 
 import random
-from typing import List
+from typing import List, Union
 
 from symbolic import _and, parse_proposition
 import symbolic
@@ -28,6 +28,21 @@ from temporal_policies.task_planners.lm_utils import (
 )
 
 
+def parse_pred_arg_string(string: str) -> List[Union[str, List[str]]]:
+    """
+    Given a string of the form "(predicate arg1 arg2 arg3 ...)", return a list of the predicate and a list of the arguments.
+
+    Example input: "(on red_box table)" (from problem._initial_state)
+    """
+    # Remove the parentheses from the string
+    string = string.strip("()")
+    # Split the string into a list of words
+    words = string.split()
+    # The first word is the predicate
+    predicate = words[0]
+    # The rest of the words are the arguments
+    arguments = words[1:]
+    return [predicate], arguments
 
 def generate_instruction_for_on_proposition(object_a: str, object_b: str) -> List[str]:
     prepositions = [
@@ -81,8 +96,8 @@ def extract_propositions_from_pddl_goal(pddl_goal: str) -> List[str]:
         becomes ["inhand(red_box)", "on(cyan_box, table)", "on(blue_box, table)", "on(yellow_box, table)"]
     """
     assert (
-        "not" not in pddl_goal and "or" not in pddl_goal
-    ), "not and or not supported yet"
+        "not" not in pddl_goal and "or " not in pddl_goal
+    ), "not and or not supported yet"  # use 'or ' to distinguish with 'workspace '
 
     # remove outer parentheses
     assert (
@@ -179,7 +194,7 @@ def generate_overall_instruction_for_pddl_problem(pddl):
 
 def get_task_plan(
     pddl: symbolic.Pddl,
-    max_depth: int = 100,
+    max_depth: int = 10,
     timeout: int = 10,
 ) -> List[str]:
     """Get a plan for the given pddl problem. 
@@ -195,10 +210,9 @@ def get_task_plan(
     bfs = symbolic.BreadthFirstSearch(
         planner.root, max_depth=max_depth, timeout=timeout, verbose=False
     )
-    # take first (shorted) plan returned
+    # take first (shortest) plan returned
     plan = list(bfs)[0]
     return [str(node.action) for node in plan[1:]]
-
 
 def create_problem(
     config: ProblemGenerationConfig,
@@ -209,13 +223,11 @@ def create_problem(
 ) -> None:
     problem: symbolic.Problem = symbolic.Problem(problem_name, pddl.name)
 
-    # add rack with probability 0.75
-    if np.random.rand() < 0.75:
-        rack = objects_with_properties[0]
-        assert problem.add_object(rack[0], rack[1]), "Failed to add rack"
-        # add rack to table
-        problem.add_initial_prop(f"on({rack[0]}, table)")
-        num_objects += 1
+    rack = objects_with_properties[0]
+    assert problem.add_object(rack[0], rack[1]), "Failed to add rack"
+    # add rack to table
+    problem.add_initial_prop(f"on({rack[0]}, table)")
+    num_objects += 1
 
     # randomly add other objects
     while len(problem._objects) < num_objects:
@@ -224,12 +236,21 @@ def create_problem(
         success = problem.add_object(obj[0], obj[1])
         if not success:
             continue
+        # manually add table
+        curr_objects = list(problem._objects) + [pddl.objects[0]]  
+        # on predicate: place newly created object on another object 
+        # that's not itself or a box that already has a box on it
+        potential_on_objs = []
+        for o in curr_objects:
+            if o.name == obj[0]:
+                continue
+            for prop in problem._initial_state:
+                pred, args = parse_pred_arg_string(prop)
+                if pred == "on" and args[1] == o.name and "box" in o.name:
+                    continue
+            potential_on_objs.append(o)
 
-        # on predicate: place newly created object on another object that's not itself
-        curr_objects = list(problem._objects) + [pddl.objects[0]]  # manually add table
-        on_obj = random.choice(curr_objects)
-        while on_obj.name == obj[0]:
-            on_obj = random.choice(curr_objects)
+        on_obj = random.choice(potential_on_objs)
         problem.add_initial_prop(f"on({obj[0]}, {on_obj.name})")
 
     # create the problem pddl file and save to disk
@@ -242,10 +263,12 @@ def create_problem(
     )
 
     state = pddl.initial_state
-    for i in range(random.randint(config.min_steps, config.max_steps)):
+    steps = random.randint(config.min_steps, config.max_steps)
+    for _ in range(steps):
         valid_actions = pddl.list_valid_actions(state)
         if len(valid_actions) == 0:
             print(f"No valid actions. State: {state}")
+            import ipdb; ipdb.set_trace()
             break
 
         action = random.choice(valid_actions)
@@ -254,6 +277,8 @@ def create_problem(
     valid_syntax_state = []
     for prop in state:
         parsed_prop = parse_proposition(prop)
+        if parsed_prop[0] == "inworkspace":
+            continue
         valid_syntax_prop = f"({parsed_prop[0]} {' '.join(parsed_prop[1])})"
         valid_syntax_state.append(valid_syntax_prop)
     problem.set_goal(_and(*valid_syntax_state))
@@ -268,7 +293,7 @@ def create_problem(
 
     human_instruction = generate_overall_instruction_for_pddl_problem(pddl)
 
-    task_plan = get_task_plan(pddl, max_depth=100, timeout=10)  # assumes this succeeds?
+    task_plan = get_task_plan(pddl, max_depth=10, timeout=10)  # assumes this succeeds?
 
     example = InContextExample(
         predicates=["on(a, b)", "inhand(a)"],
@@ -281,7 +306,7 @@ def create_problem(
         pddl_domain_file=config.pddl_cfg.pddl_domain_file,
         pddl_problem_file=config.pddl_cfg.pddl_problem_file,
     )
-
+    
     example.save_to_json(
         config.pddl_cfg.get_prompt_file(problem_name), overwrite=config.overwrite
     )
@@ -298,7 +323,17 @@ def main(config: ProblemGenerationConfig):
             ("blue_box", "box"),
         ]
     elif config.pddl_cfg.pddl_domain == "hook_reach":
-        raise NotImplementedError("hook_reach not implemented yet")
+        raise NotImplementedError("hook_reach not implemented properly yet (especially for the hooking related tasks)")
+        objects_with_properties: List[str] = [
+            ("rack", "unmovable"),
+            ("red_box", "box"),
+            ("yellow_box", "box"),
+            ("cyan_box", "box"),
+            ("blue_box", "box"),
+            ("hook", "hook"),  # TODO(klin): unclear how the property field works
+        ]
+    else:
+        raise NotImplementedError(f"{config.pddl_cfg.pddl_domain} not implemented yet")
 
     for problem_idx in range(config.num_problems):
         problem_name = f"{config.pddl_cfg.pddl_problem_prefix}{problem_idx}"

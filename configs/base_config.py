@@ -3,6 +3,8 @@ import dataclasses
 from functools import cached_property
 from typing import Literal
 
+from temporal_policies.task_planners.lm_utils import APIType
+
 
 @dataclass
 class PDDLConfig:
@@ -75,6 +77,8 @@ class InContextExampleConfig:
     use_explanation: bool = False
     use_goal: bool = False
     use_robot: bool = False
+    custom_robot_prompt: str = ""
+    custom_robot_answer_format: Literal["python_list", "python_list_of_lists"] = "python_list"
 
 @dataclass
 class CurrentExampleConfig(InContextExampleConfig):
@@ -89,6 +93,8 @@ class LMConfig:
     temperature: float = 0
     logprobs: int = 1
     echo: bool = False
+    api_type: APIType = APIType.HELM
+    max_tokens: int = 100
 
 @dataclass
 class PromptConfig:
@@ -98,8 +104,8 @@ class PromptConfig:
         InContextExampleConfig()
     )
     current_prompt_cfg: CurrentExampleConfig = CurrentExampleConfig()
-    n_examples: int = 1
     lm_cfg: LMConfig = LMConfig()
+    n_examples: int = 1
 
 @dataclass
 class EvaluationConfig:
