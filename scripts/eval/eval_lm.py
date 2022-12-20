@@ -1,71 +1,73 @@
+"""
+Example usage:
+PYTHONPATH=. python scripts/eval/eval_lm.py config:goal
+"""
 import copy
 from pathlib import Path
 import random
-from typing import Any, Dict, List, Optional, Tuple, Union
 import pickle
 
-import openai
 import numpy as np
 
 import tyro
+from temporal_policies.task_planners.lm_data_structures import CurrentExample
 from temporal_policies.task_planners.lm_utils import (
-    CurrentExample,
-    InContextExample,
-    Result,
-    check_goal_predicates_equivalent,
-    check_task_plan_result,
+    APIType,
     generate_lm_response,
     get_examples_from_json_dir,
-    SCENE_OBJECT_PROMPT,
-    SCENE_OBJECT_RELATIONSHIP_PROMPT,
-    SCENE_PREDICATE_PROMPT,
-    SCENE_PRIMITIVE_PROMPT,
-    HUMAN_INSTRUCTION_PROMPT,
-    EXPLANATION_PROMPT,
-    GOAL_PROMPT,
-    ROBOT_PROMPT,
-    gpt3_call,
+    load_lm_cache,
+    register_api_key,
 )
 
-from configs.lm_eval_config import GoalEvalConfig, TaskPlanEvalConfig
+from helm.common.authentication import Authentication
+from configs.lm_eval_config import UnionEvalConfigs
 
 
-
-def main(config: Union[GoalEvalConfig, TaskPlanEvalConfig]) -> None:
+def main(config: UnionEvalConfigs) -> None:
     random.seed(config.seed)
     np.random.seed(config.seed)
 
-
-    openai.api_key = openai_api_key
-    engine_dict = {
-        "davinci": "text-davinci-002",
-        "curie": "text-curie-001",
-        "babbage": "text-babbage-001",
-        "ada": "text-ada-001",
-    }
-    ENGINE = engine_dict[config.prompt_cfg.lm_cfg.engine]
-    max_tokens = 100
-
-    lm_cache_file = Path(config.lm_cache_file)       
-    # Check if the lm_cache_file exists
-    if not lm_cache_file.exists():
-        # If it does not exist, create it
-        lm_cache_file.touch()
-        lm_cache = {}
+    if config.prompt_cfg.lm_cfg.api_type.value == APIType.OPENAI.value:
+        api_key = "***REMOVED***"
+        engine_dict = {
+            "davinci": "code-davinci-002",
+            "curie": "text-curie-001",
+            "babbage": "text-babbage-001",
+            "ada": "text-ada-001",
+        }
+    elif config.prompt_cfg.lm_cfg.api_type.value == APIType.HELM.value:
+        api_key = "***REMOVED***"
+        engine_dict = {
+            "davinci": "text-davinci-003",
+            "curie": "text-curie-001",
+            "babbage": "text-babbage-001",
+            "ada": "text-ada-001",
+        }
     else:
-        # If it does exist, load it
-        with open(lm_cache_file, 'rb') as f:
-            lm_cache = pickle.load(f)
+        raise ValueError("Invalid API type")
+    auth: Authentication = register_api_key(config.prompt_cfg.lm_cfg.api_type, api_key)
+
+    ENGINE = engine_dict[config.prompt_cfg.lm_cfg.engine]
+
+    lm_cache = load_lm_cache(Path(config.lm_cache_file))
 
     sucesses = 0
     total = 0
+
+    # robot_prediction_result_type: Literal["success: partial", "success", "failure: invalid symbolic action", "failure: misses goal"] = ""
+    success = 0
+    success_partial = 0
+    success_superset = 0
+    failure_invalid_symbolic_action = 0
+    failure_misses_goal = 0
 
     examples = get_examples_from_json_dir(
         config.pddl_cfg.pddl_root_dir + "/" + config.pddl_cfg.pddl_domain
     )
     # Don't modify examples in place
     for i in range(min(config.n_evals, len(examples) - 1)):
-        current_prompt = copy.deepcopy(examples[i])
+        current_prompt: CurrentExample = CurrentExample()
+        current_prompt.create_from_incontext_example(examples[i])
         filtered_examples = [
             example for example in examples if example != current_prompt
         ]
@@ -100,11 +102,13 @@ def main(config: Union[GoalEvalConfig, TaskPlanEvalConfig]) -> None:
             current_prompt,
             ENGINE,
             single_example_prompts,
-            max_tokens=max_tokens,
+            max_tokens=config.prompt_cfg.lm_cfg.max_tokens,
             temperature=config.prompt_cfg.lm_cfg.temperature,
             logprobs=config.prompt_cfg.lm_cfg.logprobs,
             echo=config.prompt_cfg.lm_cfg.echo,
             lm_cache=lm_cache,
+            api_type=config.prompt_cfg.lm_cfg.api_type,
+            auth=auth,
         )
         result.save_to_json(f"outputs/{ENGINE}_eval_lm_goal_results.json")
 
@@ -117,6 +121,21 @@ def main(config: Union[GoalEvalConfig, TaskPlanEvalConfig]) -> None:
                 print(f"predicted: {result.goal_predicted}\n")
 
         if current_prompt.predict_robot:
+            # start off with success, then check if success: partial, then check if failure_invalid_symbolic_action, then check if failure_misses_goal
+            print(f"robot_prediction_result_types: {result.robot_prediction_result_types}")
+            if any([robot_prediction_result_type == "success" for robot_prediction_result_type in result.robot_prediction_result_types]):
+                success += 1
+            elif any([robot_prediction_result_type == "success: partial" for robot_prediction_result_type in result.robot_prediction_result_types]):
+                success_partial += 1
+            elif any([robot_prediction_result_type == "success: superset" for robot_prediction_result_type in result.robot_prediction_result_types]):
+                success_superset += 1
+            elif any([robot_prediction_result_type == "failure: invalid symbolic action" for robot_prediction_result_type in result.robot_prediction_result_types]):
+                failure_invalid_symbolic_action += 1
+            elif any([robot_prediction_result_type == "failure: misses goal" for robot_prediction_result_type in result.robot_prediction_result_types]):
+                failure_misses_goal += 1
+            else:
+                raise ValueError("robot_prediction_result_type not recognized")
+
             if result.robot_success:
                 sucesses += 1
             else:
@@ -126,11 +145,19 @@ def main(config: Union[GoalEvalConfig, TaskPlanEvalConfig]) -> None:
         total += 1
 
         # save the lm_cache
-        with open(lm_cache_file, 'wb') as f:
+        with open(config.lm_cache_file, 'wb') as f:
             pickle.dump(lm_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
     print(f"Success rate: {sucesses}/{total} = {sucesses/total}")
+    print(f"Success: {success}")
+    print(f"Success partial: {success_partial}")
+    print(f"Success superset: {success_superset}")
+    print(f"Failure invalid symbolic action: {failure_invalid_symbolic_action}")
+    print(f"Failure misses goal: {failure_misses_goal}")
+
+    # w.r.t goals: failure case is mostly the inhand conundrum --- boosting number of examples doesn't change anything there (7/10) success rate - 
+    # failures from asking to hold something and it decides to hold and have object on some other object --- 'fixable' by prompt engineering valid predicates
 
 
 if __name__ == "__main__":
