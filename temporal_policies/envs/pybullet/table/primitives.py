@@ -215,6 +215,12 @@ class Primitive(envs.Primitive, abc.ABC):
 
     @staticmethod
     def from_action_call(action_call: str, env: envs.Env) -> "Primitive":
+        # KL: is it necessary to have to pass in the env object?
+        # since primitive is tied to env, maybe yeah
+        # how'd we implement things if the primitive were not tied to the env?
+        # ultimately, env.step only needs to take action i.e. numpy arrays that affect the
+        # joint angles of the robot (or EE pose)
+        # 
         from temporal_policies.envs.pybullet.table_env import TableEnv
 
         assert isinstance(env, TableEnv)

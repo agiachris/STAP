@@ -43,6 +43,12 @@ class Predicate:
         """Evaluates to True if the geometrically grounded predicate is satisfied."""
         return True
 
+    def value_simple(
+        self, objects: Dict[str, Object]
+    ) -> bool:
+        """Evaluates to True if the geometrically grounded predicate is satisfied."""
+        return False
+
     def get_arg_objects(self, objects: Dict[str, Object]) -> List[Object]:
         return [objects[arg] for arg in self.args]
 
@@ -673,6 +679,10 @@ class Inhand(Predicate):
 
         return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
 
+    def value(
+        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+    ) -> bool:
+        raise NotImplementedError("Inhand value() not implemented.")
 
 class Under(Predicate):
     """Unary predicate enforcing that an object be placed underneath another."""
@@ -926,6 +936,20 @@ class On(Predicate):
 
         if f"tippable({child_obj})" not in state and not utils.is_upright(child_obj):
             dbprint(f"{self}.value():", False, "- child not upright")
+            return False
+
+        return True
+
+    def value_simple(
+        self, objects: Dict[str, Object]
+    ) -> bool:
+        """Evaluates to True if the grounding of On(a, b) is geometrically valid."""
+        child_obj, parent_obj = self.get_arg_objects(objects)
+        if child_obj.isinstance(Null):
+            return True
+
+        if not utils.is_above(child_obj, parent_obj):
+            dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
         return True
