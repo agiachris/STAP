@@ -1,5 +1,6 @@
 import ast
 from dataclasses import asdict, dataclass
+from enum import Enum
 import pathlib
 from typing import List, Literal, Optional
 import openai
@@ -21,9 +22,9 @@ GOAL_PROMPT = (
 ROBOT_PROMPT = "Robot action sequence: "
 
 
-def register_openai_key(key: str) -> None:
-    openai.api_key = key
-
+class APIType(Enum):
+    OPENAI = 0
+    HELM = 1
 
 # remove because can't save Enum in json
 # class RobotAnswerFormat(Enum):

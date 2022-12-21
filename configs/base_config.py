@@ -3,7 +3,7 @@ import dataclasses
 from functools import cached_property
 from typing import Literal
 
-from temporal_policies.task_planners.lm_utils import APIType
+from temporal_policies.task_planners.lm_data_structures import APIType
 
 
 @dataclass
@@ -98,7 +98,26 @@ class LMConfig:
     echo: bool = False
     api_type: APIType = APIType.HELM
     max_tokens: int = 100
+    
+    def __post_init__(self):
+        if self.api_type.value == APIType.OPENAI.value:
+            engine_dict = {
+                "davinci": "code-davinci-002",
+                "curie": "text-curie-001",
+                "babbage": "text-babbage-001",
+                "ada": "text-ada-001",
+            }
+        elif self.api_type.value == APIType.HELM.value:
+            engine_dict = {
+                "davinci": "text-davinci-003",
+                "curie": "text-curie-001",
+                "babbage": "text-babbage-001",
+                "ada": "text-ada-001",
+            }
+        else:
+            raise ValueError("Invalid API type")
 
+        self.engine = engine_dict[self.engine] if self.engine in engine_dict else self.engine
 
 @dataclass
 class PromptConfig:

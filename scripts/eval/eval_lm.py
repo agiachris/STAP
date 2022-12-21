@@ -29,25 +29,12 @@ def main(config: UnionEvalConfigs) -> None:
 
     if config.prompt_cfg.lm_cfg.api_type.value == APIType.OPENAI.value:
         api_key = "***REMOVED***"
-        engine_dict = {
-            "davinci": "code-davinci-002",
-            "curie": "text-curie-001",
-            "babbage": "text-babbage-001",
-            "ada": "text-ada-001",
-        }
     elif config.prompt_cfg.lm_cfg.api_type.value == APIType.HELM.value:
         api_key = "***REMOVED***"
-        engine_dict = {
-            "davinci": "text-davinci-003",
-            "curie": "text-curie-001",
-            "babbage": "text-babbage-001",
-            "ada": "text-ada-001",
-        }
     else:
         raise ValueError("Invalid API type")
-    auth: Authentication = register_api_key(config.prompt_cfg.lm_cfg.api_type, api_key)
 
-    ENGINE = engine_dict[config.prompt_cfg.lm_cfg.engine]
+    auth: Authentication = register_api_key(config.prompt_cfg.lm_cfg.api_type, api_key)
 
     lm_cache = load_lm_cache(Path(config.lm_cache_file))
 
@@ -100,17 +87,12 @@ def main(config: UnionEvalConfigs) -> None:
         result, lm_cache = generate_lm_response(
             header_prompt,
             current_prompt,
-            ENGINE,
             single_example_prompts,
-            max_tokens=config.prompt_cfg.lm_cfg.max_tokens,
-            temperature=config.prompt_cfg.lm_cfg.temperature,
-            logprobs=config.prompt_cfg.lm_cfg.logprobs,
-            echo=config.prompt_cfg.lm_cfg.echo,
-            lm_cache=lm_cache,
-            api_type=config.prompt_cfg.lm_cfg.api_type,
+            lm_cfg=config.prompt_cfg.lm_cfg,
             auth=auth,
+            lm_cache=lm_cache,
         )
-        result.save_to_json(f"outputs/{ENGINE}_eval_lm_goal_results.json")
+        result.save_to_json(f"outputs/{config.prompt_cfg.lm_cfg.engine}_eval_lm_goal_results.json")
 
         # compare the goal predicted to the expected goal
         if current_prompt.predict_goal:

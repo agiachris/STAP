@@ -2,6 +2,7 @@ import ast
 from enum import Enum
 import pathlib
 import pickle
+import random
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 import openai
 import getpass
@@ -10,10 +11,16 @@ from helm.common.request import Request, RequestResult
 from helm.common.authentication import Authentication
 from helm.proxy.services.remote_service import RemoteService
 from helm.proxy.accounts import Account
+import numpy as np
 
 import symbolic
+from configs.base_config import LMConfig
+from temporal_policies import envs
+from temporal_policies.envs.pybullet.table import predicates
+from temporal_policies.evaluation.utils import get_goal_props_instantiated, get_object_relationships, get_possible_props, get_task_plan_primitives_instantiated
 
 from temporal_policies.task_planners.lm_data_structures import (
+    APIType,
     CurrentExample,
     InContextExample,
     Result,
@@ -36,9 +43,6 @@ GOAL_PROMPT = (
 ROBOT_PROMPT = "Robot action sequence: "
 
 
-class APIType(Enum):
-    OPENAI = 0
-    HELM = 1
 
 def register_api_key(api_type: APIType = APIType.HELM, api_key: str = "") -> Optional[Authentication]:
     if api_key == "":
@@ -155,15 +159,10 @@ def gpt3_call(
 def generate_lm_response(
     header_prompt: InContextExample,
     current_prompt: CurrentExample,
-    engine: str,
     examples: Optional[List[InContextExample]] = None,
-    max_tokens: int = 200,
-    temperature: float = 0,
-    logprobs: int = 1,
-    echo: bool = False,
-    lm_cache: Optional[Dict[Tuple, Any]] = None,
-    api_type: APIType = APIType.HELM,
+    lm_cfg: Optional[LMConfig] = LMConfig(),
     auth: Optional[Authentication] = None,
+    lm_cache: Optional[Dict[str, str]] = None,
 ) -> Tuple[Result, Dict[Tuple, Any]]:
     result = Result(
         header_prompt=header_prompt,
@@ -177,7 +176,7 @@ def generate_lm_response(
         predicates=current_prompt.predicates if current_prompt.use_predicates else None,
         primitives=current_prompt.primitives if current_prompt.use_primitives else None,
         human=current_prompt.human if current_prompt.use_human else None,
-        engine=engine,
+        engine=lm_cfg.engine,
         test_goal=current_prompt.predict_goal,
         test_robot=current_prompt.predict_robot,
     )
@@ -185,13 +184,13 @@ def generate_lm_response(
     overall_prompt = ""
     if header_prompt:
         if header_prompt.use_predicates:
-            overall_prompt += f"{SCENE_PREDICATE_PROMPT}{header_prompt.predicates}\n\n"
+            overall_prompt += f"{SCENE_PREDICATE_PROMPT}{header_prompt.predicates}\n"
         if header_prompt.use_primitives:
-            overall_prompt += f"{SCENE_PRIMITIVE_PROMPT}{header_prompt.primitives}\n\n"
+            overall_prompt += f"{SCENE_PRIMITIVE_PROMPT}{header_prompt.primitives}\n"
 
     if examples is not None:
         for example in examples:
-            overall_prompt += example.overall_example + "\n"
+            overall_prompt += example.overall_example
 
     if current_prompt.use_predicates:
         overall_prompt += f"{SCENE_PREDICATE_PROMPT}{current_prompt.predicates}\n"
@@ -210,15 +209,15 @@ def generate_lm_response(
         overall_prompt += EXPLANATION_PROMPT
         stop = [GOAL_PROMPT, ROBOT_PROMPT]
         response, lm_cache = gpt3_call(
-            engine=engine,
+            engine=lm_cfg.engine,
             overall_prompt=overall_prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            logprobs=logprobs,
-            echo=echo,
+            max_tokens=lm_cfg.max_tokens,
+            temperature=lm_cfg.temperature,
+            logprobs=lm_cfg.logprobs,
+            echo=lm_cfg.echo,
             stop=stop,
             lm_cache=lm_cache,
-            api_type=api_type,
+            api_type=lm_cfg.api_type,
             auth=auth,
         )
 
@@ -236,15 +235,15 @@ def generate_lm_response(
         overall_prompt += GOAL_PROMPT
         stop = [ROBOT_PROMPT, SCENE_OBJECT_PROMPT, SCENE_PRIMITIVE_PROMPT]
         response, lm_cache = gpt3_call(
-            engine=engine,
+            engine=lm_cfg.engine,
             overall_prompt=overall_prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            logprobs=logprobs,
-            echo=echo,
+            max_tokens=lm_cfg.max_tokens,
+            temperature=lm_cfg.temperature,
+            logprobs=lm_cfg.logprobs,
+            echo=lm_cfg.echo,
             stop=stop,
             lm_cache=lm_cache,
-            api_type=api_type,
+            api_type=lm_cfg.api_type,
             auth=auth,
         )
         goal = response["choices"][0]["text"]
@@ -265,19 +264,19 @@ def generate_lm_response(
             overall_prompt += ROBOT_PROMPT
         stop = [SCENE_OBJECT_PROMPT, SCENE_PRIMITIVE_PROMPT, "```", "\nRobot action sequence"]
         response, lm_cache = gpt3_call(
-            engine=engine,
+            engine=lm_cfg.engine,
             overall_prompt=overall_prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            logprobs=logprobs,
-            echo=echo,
+            max_tokens=lm_cfg.max_tokens,
+            temperature=lm_cfg.temperature,
+            logprobs=lm_cfg.logprobs,
+            echo=lm_cfg.echo,
             stop=stop,
             lm_cache=lm_cache,
-            api_type=api_type,
+            api_type=lm_cfg.api_type,
             auth=auth,
         )
         robot = response["choices"][0]["text"]
-        if response["usage"]["completion_tokens"] == max_tokens:
+        if response["usage"]["completion_tokens"] == lm_cfg.max_tokens:
             print("max tokens reached")
             import ipdb
             ipdb.set_trace()
@@ -318,7 +317,6 @@ def generate_lm_response(
 
     print("Overall prompt:\n", overall_prompt)
     return result, lm_cache
-
 
 def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
     # Check if the lm_cache_file exists
