@@ -17,7 +17,6 @@ import symbolic
 from configs.base_config import LMConfig
 from temporal_policies import envs
 from temporal_policies.envs.pybullet.table import predicates
-from temporal_policies.evaluation.utils import get_goal_props_instantiated, get_object_relationships, get_possible_props, get_task_plan_primitives_instantiated
 
 from temporal_policies.task_planners.lm_data_structures import (
     APIType,
@@ -43,8 +42,9 @@ GOAL_PROMPT = (
 ROBOT_PROMPT = "Robot action sequence: "
 
 
-
-def register_api_key(api_type: APIType = APIType.HELM, api_key: str = "") -> Optional[Authentication]:
+def register_api_key(
+    api_type: APIType = APIType.HELM, api_key: str = ""
+) -> Optional[Authentication]:
     if api_key == "":
         api_key = getpass.getpass(prompt="Enter a valid API key: ")
     if api_type.value == APIType.OPENAI.value:
@@ -157,8 +157,8 @@ def gpt3_call(
 
 
 def generate_lm_response(
-    header_prompt: InContextExample,
-    current_prompt: CurrentExample,
+    header_prompt: Optional[InContextExample] = None,
+    current_prompt: Optional[CurrentExample] = None,
     examples: Optional[List[InContextExample]] = None,
     lm_cfg: Optional[LMConfig] = LMConfig(),
     auth: Optional[Authentication] = None,
@@ -203,7 +203,14 @@ def generate_lm_response(
     if current_prompt.use_human:
         overall_prompt += f"{HUMAN_INSTRUCTION_PROMPT}{current_prompt.human}\n"
     if current_prompt.use_goal:
-        overall_prompt += f"{GOAL_PROMPT}{current_prompt.goal}\n"
+        overall_prompt += (
+            f"{GOAL_PROMPT}{current_prompt.goal_predicted}\n"
+            if (
+                current_prompt.use_predicted_goal
+                and current_prompt.goal_predicted != ""
+            )
+            else f"{GOAL_PROMPT}{current_prompt.goal}\n"
+        )
 
     if current_prompt.predict_explanation:
         overall_prompt += EXPLANATION_PROMPT
@@ -258,11 +265,14 @@ def generate_lm_response(
             result.goal_success = success
 
     if current_prompt.predict_robot:
-        if current_prompt.custom_robot_prompt != "":
-            overall_prompt += current_prompt.custom_robot_prompt
-        else:
-            overall_prompt += ROBOT_PROMPT
-        stop = [SCENE_OBJECT_PROMPT, SCENE_PRIMITIVE_PROMPT, "```", "\nRobot action sequence"]
+        overall_prompt += get_robot_action_prompt(current_prompt)
+
+        stop = [
+            SCENE_OBJECT_PROMPT,
+            SCENE_PRIMITIVE_PROMPT,
+            "```",
+            "\nRobot action sequence",
+        ]
         response, lm_cache = gpt3_call(
             engine=lm_cfg.engine,
             overall_prompt=overall_prompt,
@@ -275,48 +285,96 @@ def generate_lm_response(
             api_type=lm_cfg.api_type,
             auth=auth,
         )
-        robot = response["choices"][0]["text"]
-        if response["usage"]["completion_tokens"] == lm_cfg.max_tokens:
-            print("max tokens reached")
-            import ipdb
-            ipdb.set_trace()
 
-        current_prompt.robot_predicted = robot
-        result.robot_predicted = robot
-        result.robot_ground_truth = current_prompt.robot
+    if response["usage"]["completion_tokens"] == lm_cfg.max_tokens:
+        print("max tokens reached")
+        import ipdb
 
-        overall_prompt += robot
-        robot_prediction_result_types, predicted_task_plan_descriptions = [], []
-        if current_prompt.custom_robot_answer_format == "python_list_of_lists":
-            parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
-            for parsed_robot_predicted in parsed_robot_predicted_lst:
-                robot_prediction_result_type, predicted_task_plan_description = check_task_plan_result(
-                    current_prompt.goal_predicted if current_prompt.use_predicted_goal or current_prompt.goal is None else current_prompt.goal,
-                    str(parsed_robot_predicted),
-                    current_prompt.pddl_domain_file,
-                    current_prompt.pddl_problem_file,
-                )
-                robot_prediction_result_types.append(robot_prediction_result_type)
-                predicted_task_plan_descriptions.append(predicted_task_plan_description)
-        elif current_prompt.custom_robot_answer_format == "python_list":
-            parsed_robot_predicted = result.parsed_robot_predicted
-            robot_prediction_result_type, predicted_task_plan_description = check_task_plan_result(
-                current_prompt.goal_predicted if current_prompt.use_predicted_goal or current_prompt.goal is None else current_prompt.goal,
+        ipdb.set_trace()
+
+    overall_prompt += response["choices"][0]["text"]
+    update_result_current_prompt_based_on_response_robot(
+        result, current_prompt, response
+    )
+
+    print("Overall prompt:\n", overall_prompt)
+    return result, lm_cache
+
+def get_robot_action_prompt(current_prompt: CurrentExample):
+    """
+    Get the robot action prompt for the current situation
+    based on current_prompt's settings.
+    """
+    robot_action_prompt = ""
+    if current_prompt.use_action_object_relationship_history:
+        assert len(current_prompt.all_executed_actions) + 1 == len(
+            current_prompt.all_prior_object_relationships
+        )
+        for i, executed_action in enumerate(current_prompt.all_executed_actions):
+            robot_action_prompt += f"Executed action: {executed_action}\n"
+            robot_action_prompt += f"New object relationships: {current_prompt.all_prior_object_relationships[i + 1]}\n"
+
+    if current_prompt.custom_robot_prompt != "":
+        robot_action_prompt += current_prompt.custom_robot_prompt
+    else:
+        robot_action_prompt += ROBOT_PROMPT
+    return robot_action_prompt
+
+def update_result_current_prompt_based_on_response_robot(
+    result: Result,
+    current_prompt: CurrentExample,
+    response: Dict,
+):
+    robot = response["choices"][0]["text"]
+
+    current_prompt.robot_predicted = robot
+    result.robot_predicted = robot
+    result.robot_ground_truth = current_prompt.robot
+
+    robot_prediction_result_types, predicted_task_plan_descriptions = [], []
+    if current_prompt.custom_robot_answer_format == "python_list_of_lists":
+        parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
+        for parsed_robot_predicted in parsed_robot_predicted_lst:
+            (
+                robot_prediction_result_type,
+                predicted_task_plan_description,
+            ) = check_task_plan_result(
+                current_prompt.goal_predicted
+                if current_prompt.use_predicted_goal or current_prompt.goal is None
+                else current_prompt.goal,
                 str(parsed_robot_predicted),
                 current_prompt.pddl_domain_file,
                 current_prompt.pddl_problem_file,
             )
             robot_prediction_result_types.append(robot_prediction_result_type)
             predicted_task_plan_descriptions.append(predicted_task_plan_description)
-        
-        result.robot_success = any(["success" in robot_prediction_result_type for robot_prediction_result_type in robot_prediction_result_types])
-        result.robot_prediction_result_types = robot_prediction_result_types
-        result.predicted_task_plan_descriptions = predicted_task_plan_descriptions
-        result.custom_robot_prompt = current_prompt.custom_robot_prompt
-        result.custom_robot_answer_format = current_prompt.custom_robot_answer_format
+    elif current_prompt.custom_robot_answer_format == "python_list":
+        parsed_robot_predicted = result.parsed_robot_predicted
+        (
+            robot_prediction_result_type,
+            predicted_task_plan_description,
+        ) = check_task_plan_result(
+            current_prompt.goal_predicted
+            if current_prompt.use_predicted_goal or current_prompt.goal is None
+            else current_prompt.goal,
+            str(parsed_robot_predicted),
+            current_prompt.pddl_domain_file,
+            current_prompt.pddl_problem_file,
+        )
+        robot_prediction_result_types.append(robot_prediction_result_type)
+        predicted_task_plan_descriptions.append(predicted_task_plan_description)
 
-    print("Overall prompt:\n", overall_prompt)
-    return result, lm_cache
+    result.robot_success = any(
+        [
+            "success" in robot_prediction_result_type
+            for robot_prediction_result_type in robot_prediction_result_types
+        ]
+    )
+    result.robot_prediction_result_types = robot_prediction_result_types
+    result.predicted_task_plan_descriptions = predicted_task_plan_descriptions
+    result.custom_robot_prompt = current_prompt.custom_robot_prompt
+    result.custom_robot_answer_format = current_prompt.custom_robot_answer_format
+
 
 def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
     # Check if the lm_cache_file exists
@@ -428,7 +486,13 @@ def check_task_plan_result(
     task_plan: str,
     pddl_domain_file: str,
     pddl_problem_file: str,
-) -> Literal["success: partial", "success", "success: superset", "failure: invalid symbolic action", "failure: misses goal"]:
+) -> Literal[
+    "success: partial",
+    "success",
+    "success: superset",
+    "failure: invalid symbolic action",
+    "failure: misses goal",
+]:
     """
     Check if the predicates in the goal are equivalent.
 
@@ -444,7 +508,9 @@ def check_task_plan_result(
     state = pddl.initial_state
     for action in task_plan:
         if action not in pddl.list_valid_actions(state):
-            predicted_task_plan_description = f"Action {action} is not valid in state {state}"
+            predicted_task_plan_description = (
+                f"Action {action} is not valid in state {state}"
+            )
             robot_prediction_result_type = "failure: invalid symbolic action"
             print(f"{robot_prediction_result_type}\n{predicted_task_plan_description}")
             return robot_prediction_result_type, predicted_task_plan_description
@@ -464,7 +530,7 @@ def check_task_plan_result(
         predicted_task_plan_description = f"Action sequence {task_plan} is valid and results in a superset {predicted_set} of the expected state {expected_set}"
         robot_prediction_result_type = "success: superset"
         print(f"{robot_prediction_result_type}\n{predicted_task_plan_description}")
-    
+
     else:
         predicted_task_plan_description = f"Action sequence {task_plan} is valid but results in state {predicted_set} instead of the goal state {expected_set}"
         robot_prediction_result_type = "failure: misses goal"
@@ -515,7 +581,16 @@ Top 3 robot action sequences (python list of lists):"""
     api_key = "***REMOVED***"
     # api_key = "***REMOVED***"
     auth = register_api_key(api_type=APIType.HELM, api_key=api_key)
-    response = gpt3_call("text-davinci-003", overall_prompt, 200, 0, 1, True, api_type=APIType.HELM, auth=auth)
+    response = gpt3_call(
+        "text-davinci-003",
+        overall_prompt,
+        200,
+        0,
+        1,
+        True,
+        api_type=APIType.HELM,
+        auth=auth,
+    )
     print(response)
     print(response[0]["choices"][0]["text"])
     # api_key = "***REMOVED***"
