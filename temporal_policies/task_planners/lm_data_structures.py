@@ -6,6 +6,7 @@ from typing import List, Literal, Optional
 import openai
 import json
 
+from helm.common.request import Token
 # complication: Episode can be used as a single CoT prompt, or as a prompt for current context
 # complication: Human might give an impossible goal ...
 # Single prompt unit that can be used to compose a chain of thought prompt or a current context prompt
@@ -34,6 +35,9 @@ class APIType(Enum):
 
 # Note(klin): redundant with InContextExampleConfig because
 # otherwise can't save to json
+
+# TODO(klin) update these properties to support overall_prompt_action and action_prompt?
+# overall action prompt refers to the entire example's prompt + action prompt
 @dataclass
 class InContextExample:
     predicates: Optional[List] = None
@@ -231,16 +235,37 @@ class CurrentExample(InContextExample):
     predict_explanation: bool = False
     use_predicted_goal: bool = False
 
+    # organizes overall current prompt to include: the history of actions that've 
+    # been executed and the evolution of the object relationships
+    use_action_object_relationship_history: bool = False
+    all_prior_object_relationships: Optional[List[List[str]]] = None
+    all_executed_actions: Optional[List[List[str]]] = None
+
+    # action scoring
+    score_action: bool = False
+    action_to_score: Optional[str] = None
+
     def create_from_incontext_example(self, inc_example: InContextExample):
         # create a CurrentExample from an InContextExample
         for k, v in asdict(inc_example).items():
             setattr(self, k, v)
 
-    # def __post_init__(self):
-    #     if self.use_predicted_goal:
-    #         assert (
-    #             self.predict_goal
-    #         ), "Cannot use predicted goal if not predicting goal."
+    def __post_init__(self):
+        if self.use_action_object_relationship_history:
+            assert (
+                self.all_prior_object_relationships is not None
+                and self.all_executed_actions is not None
+            ), "Must provide all prior object relationships and all executed actions."
+            # ensure length of observation is 1 more than the length of executed actions
+            assert (
+                len(self.all_prior_object_relationships)
+                == len(self.all_executed_actions) + 1
+            ), "Expected len(self.all_prior_object_relationships) == len(self.all_executed_actions) + 1 does not hold."
+
+        # if self.use_predicted_goal:
+        #     assert (
+        #         self.predict_goal
+        #     ), "Cannot use predicted goal if not predicting goal."
 
 
 @dataclass
@@ -257,6 +282,7 @@ class Result:
     goal_predicted: Optional[str] = None
     robot_ground_truth: Optional[str] = None
     robot_predicted: Optional[str] = None
+    tokens_predicted: Optional[List[Token]] = None
     engine: str = "n/a"
 
     use_predicted_goal: bool = False  # whether to use predicted goal in the prompt or to use the 'ground truth' goal

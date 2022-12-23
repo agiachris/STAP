@@ -103,6 +103,7 @@ def gpt3_call(
     api_type: APIType = APIType.HELM,  # either via helm api or via openai api
     auth: Optional[Authentication] = None,
 ) -> Tuple[Result, Optional[Dict[Tuple, Any]]]:
+    assert lm_cache is not None, "lm_cache must be provided"
     id = tuple(
         (engine, overall_prompt, max_tokens, temperature, logprobs, echo, str(stop))
     )
@@ -147,6 +148,7 @@ def gpt3_call(
                     }
                 ],
             }
+            response['tokens'] = request_result.completions[0].tokens
         else:
             raise ValueError(f"api_type {api_type} not supported")
 
@@ -164,6 +166,8 @@ def generate_lm_response(
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
 ) -> Tuple[Result, Dict[Tuple, Any]]:
+    if lm_cache is None:
+        assert lm_cache is not None, "lm_cache must be provided to save queries"
     result = Result(
         header_prompt=header_prompt,
         examples=examples,
@@ -183,10 +187,7 @@ def generate_lm_response(
 
     overall_prompt = ""
     if header_prompt:
-        if header_prompt.use_predicates:
-            overall_prompt += f"{SCENE_PREDICATE_PROMPT}{header_prompt.predicates}\n"
-        if header_prompt.use_primitives:
-            overall_prompt += f"{SCENE_PRIMITIVE_PROMPT}{header_prompt.primitives}\n"
+        overall_prompt = header_prompt.overall_example
 
     if examples is not None:
         for example in examples:
@@ -285,20 +286,18 @@ def generate_lm_response(
             api_type=lm_cfg.api_type,
             auth=auth,
         )
+        if response["usage"]["completion_tokens"] == lm_cfg.max_tokens:
+            print("max tokens reached")
+            import ipdb; ipdb.set_trace()
 
-    if response["usage"]["completion_tokens"] == lm_cfg.max_tokens:
-        print("max tokens reached")
-        import ipdb
-
-        ipdb.set_trace()
-
-    overall_prompt += response["choices"][0]["text"]
-    update_result_current_prompt_based_on_response_robot(
-        result, current_prompt, response
-    )
+        overall_prompt += response["choices"][0]["text"]
+        update_result_current_prompt_based_on_response_robot(
+            result, current_prompt, response
+        )
 
     print("Overall prompt:\n", overall_prompt)
     return result, lm_cache
+
 
 def get_robot_action_prompt(current_prompt: CurrentExample):
     """
@@ -314,11 +313,16 @@ def get_robot_action_prompt(current_prompt: CurrentExample):
             robot_action_prompt += f"Executed action: {executed_action}\n"
             robot_action_prompt += f"New object relationships: {current_prompt.all_prior_object_relationships[i + 1]}\n"
 
+    if current_prompt.score_action:
+        robot_action_prompt += f"Executed action: {current_prompt.action_to_score}"
+        return robot_action_prompt
+    
     if current_prompt.custom_robot_prompt != "":
         robot_action_prompt += current_prompt.custom_robot_prompt
     else:
         robot_action_prompt += ROBOT_PROMPT
     return robot_action_prompt
+
 
 def update_result_current_prompt_based_on_response_robot(
     result: Result,
@@ -374,7 +378,7 @@ def update_result_current_prompt_based_on_response_robot(
     result.predicted_task_plan_descriptions = predicted_task_plan_descriptions
     result.custom_robot_prompt = current_prompt.custom_robot_prompt
     result.custom_robot_answer_format = current_prompt.custom_robot_answer_format
-
+    result.tokens_predicted = response["tokens"] if response.get("tokens", False) else None
 
 def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
     # Check if the lm_cache_file exists
@@ -386,6 +390,8 @@ def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
         # If it does exist, load it
         with open(lm_cache_file, "rb") as f:
             lm_cache = pickle.load(f)
+        if lm_cache is None:
+            lm_cache = {}
     return lm_cache
 
 
@@ -536,6 +542,12 @@ def check_task_plan_result(
         robot_prediction_result_type = "failure: misses goal"
         print(f"{robot_prediction_result_type}\n{predicted_task_plan_description}")
     return robot_prediction_result_type, predicted_task_plan_description
+
+def save_lm_cache(lm_cache_file: Union[str, pathlib.Path], lm_cache: Dict[str, str]) -> None:
+    # save the lm_cache
+    with open(lm_cache_file, "wb") as f:
+        print(f"Saving lm_cache to {lm_cache_file}...")
+        pickle.dump(lm_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 if __name__ == "__main__":
