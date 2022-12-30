@@ -570,7 +570,6 @@ class TableEnv(PybulletEnv):
 
         task_sampling_trials = 0
         for seed, options in self._seed_generator(seed):
-            task_sampling_trials += 1
             if options is not None:
                 try:
                     max_num_objects: Optional[int] = options["max_num_objects"]  # type: ignore
@@ -665,6 +664,7 @@ class TableEnv(PybulletEnv):
             "policy_args": self.get_primitive().get_policy_args(),
         }
         self._seed = seed
+        task_sampling_trials += 1
 
         return self.get_observation(), info
 
