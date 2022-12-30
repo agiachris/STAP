@@ -549,7 +549,7 @@ class TableEnv(PybulletEnv):
                 yield seed, options
 
     def reset(  # type: ignore
-        self, *, seed: Optional[int] = None, options: Optional[dict] = None
+        self, *, seed: Optional[int] = None, options: Optional[dict] = None, max_samples_per_trial: int = 100
     ) -> Tuple[np.ndarray, dict]:
         # Parse reset options.
         try:
@@ -568,7 +568,9 @@ class TableEnv(PybulletEnv):
             p.removeState(state_id, physicsClientId=self.physics_id)
         self._states.clear()
 
+        task_sampling_trials = 0
         for seed, options in self._seed_generator(seed):
+            task_sampling_trials += 1
             if options is not None:
                 try:
                     max_num_objects: Optional[int] = options["max_num_objects"]  # type: ignore
@@ -577,8 +579,13 @@ class TableEnv(PybulletEnv):
 
             random_utils.seed(seed)
 
-            self._task = self.tasks.sample()
-            self.set_primitive(self.task.action_skeleton[0])
+            if task_sampling_trials % max_samples_per_trial == 0:
+                if task_sampling_trials > 0:
+                    dbprint(f"TableEnv.reset(seed={seed}): \
+                        for {self._task}: failed to sample task \
+                        propositions after {max_samples_per_trial} trials.")
+                self._task = self.tasks.sample()
+                self.set_primitive(self.task.action_skeleton[0])
 
             self.robot.reset()
             p.restoreState(
@@ -927,3 +934,12 @@ class VariantTableEnv(VariantEnv, TableEnv):  # type: ignore
 
     def step_simulation(self) -> None:
         return self.env.step_simulation()
+
+# Make a subclass of TableEnv
+# update the reset method to keep sampling continuous parameters for the task it just sampled from until success?
+# use this Env for the pretraining and also training
+class UniformResetsTableEnv(TableEnv):
+    # or, add a new kwarg to the env to make it sample until it succeeds? 
+    # or until it has sampled too many times?
+    def reset():
+        raise NotImplementedError
