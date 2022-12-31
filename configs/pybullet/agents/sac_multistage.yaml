@@ -1,10 +1,11 @@
+# YAML can be used for both pretraining and non-pretraining
 agent: SAC
 agent_kwargs:
-  tau: 0.005
-  initial_temperature: 0.1
+  tau: 0.005  # don't use target in 1 step envs
+  initial_temperature: 1e-6  # assume large dataset with multi-stage training + supervised Q already
   critic_update_freq: 1
   actor_update_freq: 1
-  target_update_freq: 2
+  target_update_freq: 1e8  # don't use target in 1 step envs
 
   actor_class: actors.DiagonalGaussianMLPActor
   actor_kwargs:

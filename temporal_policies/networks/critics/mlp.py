@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Type
 
 import torch
 
@@ -7,7 +7,12 @@ from temporal_policies.networks.mlp import LFF, MLP, weight_init
 
 
 def create_q_network(
-    observation_space, action_space, hidden_layers, act, fourier_features: Optional[int]
+    observation_space,
+    action_space,
+    hidden_layers,
+    act,
+    fourier_features: Optional[int],
+    output_act: Optional[Type[torch.nn.Module]] = None,
 ) -> torch.nn.Module:
     if fourier_features is not None:
         lff = LFF(observation_space.shape[0] + action_space.shape[0], fourier_features)
@@ -16,6 +21,7 @@ def create_q_network(
             1,
             hidden_layers=hidden_layers,
             act=act,
+            output_act=output_act,
         )
         return torch.nn.Sequential(lff, mlp)
     else:
@@ -24,6 +30,7 @@ def create_q_network(
             1,
             hidden_layers=hidden_layers,
             act=act,
+            output_act=output_act,
         )
         return mlp
 
@@ -38,6 +45,7 @@ class ContinuousMLPCritic(Critic):
         num_q_fns=2,
         ortho_init=False,
         fourier_features: Optional[int] = None,
+        output_act: Optional[Type[torch.nn.Module]] = None,
     ):
         super().__init__()
 
@@ -49,6 +57,7 @@ class ContinuousMLPCritic(Critic):
                     hidden_layers,
                     act,
                     fourier_features,
+                    output_act,
                 )
                 for _ in range(num_q_fns)
             ]
