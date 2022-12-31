@@ -29,9 +29,14 @@ def train(
     num_pretrain_steps: Optional[int] = None,
     num_train_steps: Optional[int] = None,
     num_eval_episodes: Optional[int] = None,
+    num_actor_only_train_steps: Optional[int] = None,
+    num_critic_only_train_steps: Optional[int] = None,
+    num_original_train_steps: Optional[int] = None,
     num_env_processes: Optional[int] = None,
     num_eval_env_processes: Optional[int] = None,
+    train_multistage: bool = False,
 ) -> None:
+
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
 
@@ -89,6 +94,12 @@ def train(
             trainer_kwargs["num_train_steps"] = num_train_steps
         if num_eval_episodes is not None:
             trainer_kwargs["num_eval_episodes"] = num_eval_episodes
+        if num_actor_only_train_steps is not None:
+            trainer_kwargs["num_actor_only_train_steps"] = num_actor_only_train_steps
+        if num_critic_only_train_steps is not None:
+            trainer_kwargs["num_critic_only_train_steps"] = num_critic_only_train_steps
+        if num_original_train_steps is not None:
+            trainer_kwargs["num_original_train_steps"] = num_original_train_steps
 
         print("[scripts.train.train_policy] Trainer config:")
         pprint(trainer_factory.config)
@@ -113,7 +124,13 @@ def train(
             eval_path.mkdir(parents=True, exist_ok=overwrite)
             eval_env_factory.save_config(eval_path)
 
-    trainer.train()
+    if train_multistage:
+        assert hasattr(
+            trainer, "train_multistage"
+        ), "trainer doesn't have method train_multistage()"
+        trainer.train_multistage()
+    else:
+        trainer.train()
 
     # Record gifs of the trained policy.
     if eval_recording_path is not None:
@@ -179,6 +196,24 @@ if __name__ == "__main__":
         "--num-pretrain-steps", type=int, help="Number of steps to pretrain"
     )
     parser.add_argument("--num-train-steps", type=int, help="Number of steps to train")
+    parser.add_argument(
+        "--num-actor-only-train-steps",
+        type=int,
+        help="Number of steps to train actor only",
+    )
+    parser.add_argument(
+        "--num-critic-only-train-steps",
+        type=int,
+        help="Number of steps to train critic only",
+    )
+    parser.add_argument(
+        "--num-original-train-steps", type=int, help="Number of steps to train original"
+    )
+    parser.add_argument(
+        "--train-multistage",
+        type=int,
+        help="Perform multistage training (critic, actor, original) or not",
+    )
     parser.add_argument(
         "--num-eval-episodes", type=int, help="Number of episodes per evaluation"
     )

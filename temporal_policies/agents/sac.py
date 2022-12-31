@@ -70,6 +70,10 @@ class SAC(rl.RLAgent):
         actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)  # type: ignore
 
         critic_class = configs.get_class(critic_class, networks)
+        if critic_kwargs.get("output_act", False):
+            critic_kwargs["output_act"] = configs.get_class(
+                critic_kwargs["output_act"], torch.nn
+            )
         critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)  # type: ignore
 
         target_critic = critic_class(  # type: ignore
@@ -220,15 +224,19 @@ class SAC(rl.RLAgent):
             Dict of optimizers for all trainable networks.
         """
         optimizers = {
-            "actor": optimizer_class(self.actor.parameters(), **optimizer_kwargs),
+            "actor": optimizer_class(
+                self.actor.parameters(), **optimizer_kwargs["actor_optimizer_kwargs"]
+            ),
             "critic": optimizer_class(
                 self.critic.parameters(),
                 # itertools.chain(
                 #     self.critic.parameters(), self.encoder.network.parameters()
                 # ),
-                **optimizer_kwargs,
+                **optimizer_kwargs["critic_optimizer_kwargs"],
             ),
-            "log_alpha": optimizer_class([self.log_alpha], **optimizer_kwargs),
+            "log_alpha": optimizer_class(
+                [self.log_alpha], **optimizer_kwargs["log_alpha_optimizer_kwargs"]
+            ),
         }
         return optimizers
 
@@ -316,6 +324,69 @@ class SAC(rl.RLAgent):
                 )
 
         return metrics
+
+    def validation_step(
+        self, batch: Batch, validate_actor: bool = False, validate_critic: bool = False
+    ) -> Dict[str, Any]:
+        """Performs a single validation step.
+
+        Args:
+            batch: Validation batch.
+
+        Returns:
+            Dict of loggable validation metrics.
+        """
+        assert isinstance(batch["observation"], torch.Tensor)
+        assert isinstance(batch["next_observation"], torch.Tensor)
+
+        batch["observation"] = self.encoder.encode(
+            batch["observation"], batch["policy_args"]
+        )
+        batch["next_observation"] = self.target_encoder.encode(
+            batch["next_observation"], batch["policy_args"]
+        )
+
+        metrics = {}
+        if validate_critic:
+            with torch.no_grad():
+                _, critic_metrics = self.compute_critic_loss(**batch)
+            metrics.update(critic_metrics)
+        if validate_actor:
+            with torch.no_grad():
+                _, _, actor_metrics = self.compute_actor_and_alpha_loss(
+                    batch["observation"]
+                )
+            metrics.update(actor_metrics)
+
+        return metrics
+
+    def train_critic_only(self) -> None:
+        """Sets the agent to only train critic in supervised learning loop."""
+        # store original update frequencies
+        self._original_critic_update_freq = self.critic_update_freq
+        self._original_actor_update_freq = self.actor_update_freq
+        self._original_target_update_freq = self.target_update_freq
+
+        # turn off actor and target updates until Q is trained
+        self.critic_update_freq = 1
+        self.actor_update_freq = 1e8
+        self.target_update_freq = 1e8
+
+    def train_actor_only(self) -> None:
+        """Sets the agent to only train actor in supervised learning loop.
+
+        Assumes train_critic_only() has been called first.
+        """
+        # turn off actor and target updates until Q is trained
+        self.critic_update_freq = 1e8
+        self.actor_update_freq = 1
+        self.target_update_freq = 1e8
+
+    def train_original(self) -> None:
+        """Sets the agent to train in original RL loop."""
+        self.critic_update_freq = self._original_critic_update_freq
+        self.actor_update_freq = self._original_actor_update_freq
+        self.target_update_freq = self._original_target_update_freq
 
 
 def _update_params(

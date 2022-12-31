@@ -42,6 +42,13 @@ class Model(abc.ABC, Generic[BatchType]):
         pass
 
     @abc.abstractmethod
+    def validation_step(
+        self,
+        batch: BatchType,
+    ) -> Dict[str, Any]:
+        pass
+
+    @abc.abstractmethod
     def state_dict(self) -> Dict[str, Any]:
         pass
 
