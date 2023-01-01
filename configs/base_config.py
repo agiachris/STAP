@@ -172,9 +172,9 @@ class PolicyDatasetGenerationConfig:
     env_config: str = ""
     eval_env_config: str = ""
     encoder_checkpoint: Optional[str] = None
-    exp_name: str = "20221105/decoupled_state_testing"
-    path: str = "models/20221105/decoupled_state_testing"
-    eval_recording_path: str = "plots/20221105/decoupled_state_testing"
+    exp_name: str = "20221231/dataset_collection/"
+    path: str = "models/20221231/dataset_collection/"
+    eval_recording_path: str = "plots/20221231/dataset_collection/"
     resume: str = False
     overwrite: str = False
     device: str = "auto"
