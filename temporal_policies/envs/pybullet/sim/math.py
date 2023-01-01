@@ -6,7 +6,8 @@ from ctrlutils import eigen
 import numpy as np
 
 
-PYBULLET_STEPS_PER_SEC = 240
+# dangerous if we're updating pybullet timestep (hardcoding timestep in connect_pybullet for now)
+PYBULLET_STEPS_PER_SEC = 60
 PYBULLET_TIMESTEP = 1 / PYBULLET_STEPS_PER_SEC
 
 

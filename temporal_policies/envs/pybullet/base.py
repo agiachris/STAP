@@ -38,7 +38,7 @@ def connect_pybullet(gui: bool = True, options: str = "") -> int:
             cameraTargetPosition=[0.76, 0.07, 0.37],
             physicsClientId=physics_id,
         )
-
+    p.setTimeStep(1 / 60)
     return physics_id
 
 
