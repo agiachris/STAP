@@ -6,6 +6,7 @@
 		movable - physobj
 		tool - movable
 		box - movable
+		rack - unmovable
 	)
 	(:constants table - unmovable)
 	(:predicates
@@ -54,9 +55,8 @@
 		)
 	)
     (:action push
-        :parameters (?obj - movable ?tool - tool ?dest - unmovable)
+        :parameters (?obj - movable ?tool - tool ?dest - rack)
         :precondition (and
-			(= ?dest rack)
             (inhand ?tool)
             (on ?obj table)
             (not (under ?obj ?rack))

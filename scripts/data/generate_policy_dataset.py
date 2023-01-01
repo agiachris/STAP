@@ -330,7 +330,7 @@ def get_env_config(
 def main(config: PolicyDatasetGenerationConfig):
     objects_with_properties: List[Tuple[str, str]] = [
         ("table", "unmovable"),
-        ("rack", "unmovable"),
+        ("rack", "rack"),
         ("red_box", "box"),
         ("yellow_box", "box"),
         ("cyan_box", "box"),
