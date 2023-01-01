@@ -6,7 +6,7 @@
 		movable - physobj
 		tool - movable
 		box - movable
-		rack - unmovable
+		rack - rack
 	)
 	(:constants table - unmovable)
 	(:predicates
