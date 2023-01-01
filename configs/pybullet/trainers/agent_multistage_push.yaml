@@ -1,0 +1,61 @@
+trainer: AgentTrainer
+trainer_kwargs:
+  dataset_class: ReplayBuffer
+  dataset_kwargs:
+    capacity: 1300000
+    batch_size: 128 # 1024
+    sample_strategy: uniform  # potentially update to PER or other
+    save_frequency: 100000
+
+  optimizer_class: Adam
+  optimizer_kwargs:
+    actor_optimizer_kwargs:
+      lr: 0.0001
+    critic_optimizer_kwargs:
+      lr: 0.0001
+    log_alpha_optimizer_kwargs:
+      lr: 0.00000001
+      # use SAC/AgentTrainer to 
+      # 1. supervise Q
+      # 2. supervise actor 
+      # 3. perform SAC as usual
+      # keep the alpha stuff but keep initial temperature very low
+
+  num_pretrain_steps: 0
+  num_train_steps: 0
+  num_critic_only_train_steps: 150000
+  num_actor_only_train_steps: 150000
+  num_original_train_steps: 50000
+  num_val_steps: 1000
+  val_freq: 10000
+  num_eval_episodes: 100
+  eval_freq: 1000
+  checkpoint_freq: 50000
+  log_freq: 1000
+  profile_freq: 100
+
+  dataset_checkpoints: 
+    - models/20221231/dataset_collection/push_0/train_data/
+    - models/20221231/dataset_collection/push_1/train_data/
+    - models/20221231/dataset_collection/push_2/train_data/
+    - models/20221231/dataset_collection/push_3/train_data/
+    - models/20221231/dataset_collection/push_4/train_data/
+    - models/20221231/dataset_collection/push_5/train_data/
+    - models/20221231/dataset_collection/push_6/train_data/
+    - models/20221231/dataset_collection/push_7/train_data/
+    - models/20221231/dataset_collection/push_8/train_data/
+    - models/20221231/dataset_collection/push_9/train_data/
+    # - models/20221231/dataset_collection/push_10/train_data/
+    # - models/20221231/dataset_collection/push_11/train_data/
+    # - models/20221231/dataset_collection/push_12/train_data/
+    # - models/20221231/dataset_collection/push_13/train_data/
+    # - models/20221231/dataset_collection/push_14/train_data/
+    # - models/20221231/dataset_collection/push_15/train_data/
+    # - models/20221231/dataset_collection/push_16/train_data/
+    # - models/20221231/dataset_collection/push_17/train_data/
+    # - models/20221231/dataset_collection/push_18/train_data/
+    # - models/20221231/dataset_collection/push_19/train_data/
+    # - models/20221231/dataset_collection/push_20/train_data/
+
+  val_dataset_checkpoints: 
+    - models/20221231/dataset_collection/push_100/train_data/

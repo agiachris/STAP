@@ -167,12 +167,13 @@ class PolicyDatasetGenerationConfig:
     pddl_cfg: PDDLConfig = dataclasses.field(
         default_factory=lambda: PDDLConfig(pddl_domain="template")
     )
-    trainer_config: str = "configs/pybullet/trainers/agent.yaml"
+    trainer_config: str = "configs/pybullet/trainers/data_collection.yaml"
     agent_config: str = "configs/pybullet/agents/sac.yaml"
     env_config: str = ""
     eval_env_config: str = ""
     encoder_checkpoint: Optional[str] = None
     exp_name: str = "20221231/dataset_collection/"
+    custom_path: str = ""
     resume: str = False
     overwrite: str = False
     device: str = "auto"
@@ -199,7 +200,10 @@ class PolicyDatasetGenerationConfig:
 
     @property
     def path(self) -> str:
-        return f"models/{self.exp_name}"
+        if self.custom_path == "":
+            return f"models/{self.exp_name}"
+        else:
+            return self.custom_path
 
     @property
     def eval_recording_path(self) -> str:
