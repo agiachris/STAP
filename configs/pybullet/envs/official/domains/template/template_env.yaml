@@ -1,0 +1,812 @@
+env: pybullet.TableEnv
+env_kwargs:
+  gui: 0
+  name: pull_4
+  objects:
+  - object_kwargs:
+      is_static: true
+      name: table
+      path: configs/pybullet/envs/assets/iprl_table.urdf
+    object_type: Urdf
+  - object_kwargs:
+      color:
+      - 0.6
+      - 0.6
+      - 0.6
+      - 1.0
+      handle_length: 0.38
+      handle_y: -1.0
+      head_length: 0.2
+      name: hook
+    object_type: Hook
+  - object_kwargs:
+      color:
+      - 0.4
+      - 0.2
+      - 0.0
+      - 1.0
+      name: rack
+      size:
+      - 0.22
+      - 0.32
+      - 0.16
+    object_type: Rack
+  - configs/pybullet/envs/assets/salt.yaml
+  - configs/pybullet/envs/assets/yogurt.yaml
+  - configs/pybullet/envs/assets/milk.yaml
+  - configs/pybullet/envs/assets/icecream.yaml
+  primitives:
+  - pick
+  - place
+  - pull
+  - push
+  robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
+  tasks:
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(red_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, table)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(yellow_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, table)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(cyan_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, rack)
+    - on(cyan_box, table)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - inhand(hook)
+    - inworkspace(rack)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, rack)
+    - poslimit(rack)
+  - action_skeleton:
+    - pull(blue_box, hook)
+    initial_state:
+    - aligned(rack)
+    - beyondworkspace(rack)
+    - inhand(hook)
+    - on(blue_box, table)
+    - on(cyan_box, rack)
+    - on(rack, table)
+    - on(red_box, rack)
+    - on(yellow_box, rack)
+    - poslimit(rack)
