@@ -173,8 +173,6 @@ class PolicyDatasetGenerationConfig:
     eval_env_config: str = ""
     encoder_checkpoint: Optional[str] = None
     exp_name: str = "20221231/dataset_collection/"
-    path: str = "models/20221231/dataset_collection/"
-    eval_recording_path: str = "plots/20221231/dataset_collection/"
     resume: str = False
     overwrite: str = False
     device: str = "auto"
@@ -195,6 +193,14 @@ class PolicyDatasetGenerationConfig:
     ] = "symbolically_valid_actions"
     save_primitive_env_config: bool = True
 
-    @cached_property
+    @property
     def save_primitive_env_config_path(self) -> str:
         return f"configs/pybullet/envs/official/primitives/{self.primitive}_{self.seed}_{self.symbolic_action_type}.yaml"
+
+    @property
+    def path(self) -> str:
+        return f"models/{self.exp_name}"
+
+    @property
+    def eval_recording_path(self) -> str:
+        return f"plots/{self.exp_name}"
