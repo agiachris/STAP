@@ -225,17 +225,25 @@ class SAC(rl.RLAgent):
         """
         optimizers = {
             "actor": optimizer_class(
-                self.actor.parameters(), **optimizer_kwargs["actor_optimizer_kwargs"]
+                self.actor.parameters(),
+                **optimizer_kwargs["actor_optimizer_kwargs"]
+                if optimizer_kwargs.get("actor_optimizer_kwargs", None) is not None
+                else optimizer_kwargs
             ),
             "critic": optimizer_class(
                 self.critic.parameters(),
                 # itertools.chain(
                 #     self.critic.parameters(), self.encoder.network.parameters()
                 # ),
-                **optimizer_kwargs["critic_optimizer_kwargs"],
+                **optimizer_kwargs["critic_optimizer_kwargs"]
+                if optimizer_kwargs.get("critic_optimizer_kwargs", None) is not None
+                else optimizer_kwargs
             ),
             "log_alpha": optimizer_class(
-                [self.log_alpha], **optimizer_kwargs["log_alpha_optimizer_kwargs"]
+                [self.log_alpha],
+                **optimizer_kwargs["log_alpha_optimizer_kwargs"]
+                if optimizer_kwargs.get("log_alpha_optimizer_kwargs", None) is not None
+                else optimizer_kwargs
             ),
         }
         return optimizers
