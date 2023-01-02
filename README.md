@@ -29,12 +29,39 @@ pyenv global 3.8.8  # Set this Python to default.
 
 # Clone repository
 git clone git@github.com:agiachris/temporal-policies.git --recurse-submodules
-cd temporal_policies
+cd text2motion
 
 # Install Pipenv.
 pip install pipenv
 pipenv install --dev
 ```
+
+### Alternatively, create new conda env.
+
+```bash
+conda create -n text2motion python=3.8
+
+pip install -r requirements.txt
+# if torch gets kills, comment out torch in `requirements.txt`
+# then, first run
+pip install torch --no-cache-dir
+
+pipenv sync
+pipenv shell
+```
+
+Note that crfm-helm has strict dependencies. For now, 
+`pip install crfm-helm` and then `pip install -r requirements.txt` 
+(manually remove `crfm-helm` from `requirements.txt`).
+
+TODO(klin) update requirements file and figure out how to use Piplock properly
+e.g. HELM leads to this kind of incompatibility.
+
+```
+torchvision 0.13.1 requires torch==1.12.1, but you have torch 1.11.0 which is incompatible.
+crfm-helm 0.1.0 requires torch~=1.12.1, but you have torch 1.11.0 which is incompatible.
+```
+
 
 To load virtual environment:
 ```bash
@@ -42,7 +69,11 @@ pipenv sync
 pipenv shell
 ```
 
-## Instructions
+## Instructions for Text2Motion
+
+TODO
+
+## Instructions for TAPS
 Task-Agnostic Policy Sequencing was designed modularly to support [training manipulation primitives](#training-manipulation-primitives) and [dynamics models](#learning-dynamics-models), [precomputing SCOD parameters](#pretraining-uncertainty-quantifiers) over primitive Q-networks, and finally, composing all of these components at test-time for [motion planning](#executing-motion-planning).
 
 
