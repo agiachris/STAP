@@ -1,11 +1,17 @@
 #!/bin/bash
 
+"""
+Usage:
+
+bash scripts/data/generate_policy_dataset_tmux.sh <conda_env_name>
+"""
+
 # Set the base command
 base_command="PYTHONPATH=. python scripts/data/generate_policy_dataset.py \
 --config.num-pretrain-steps 100000 --config.num-train-steps 0 --config.num-eval-episodes 0 --config.gui 0 \
 --config.primitive"
 
-echo "Please input the name of the conda environment you want to use for each command"
+echo "Currently using conda environment $1"
 echo "Usage of scripts/data/generate_policy_dataset.py"
 eval PYTHONPATH=. python scripts/data/generate_policy_dataset.py -h
 
