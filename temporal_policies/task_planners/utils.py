@@ -7,15 +7,41 @@ from typing import Tuple, List
 
 class SearchProblem:
     # Return the start state.
-    def startState(self): raise NotImplementedError("Override me")
+    def start_state(self): raise NotImplementedError("Override me")
 
     # Return whether |state| is an end state or not.
-    def isEnd(self, state) -> bool: raise NotImplementedError("Override me")
+    def is_end(self, state) -> bool: raise NotImplementedError("Override me")
 
     # Return a list of (action, newState, cost) tuples corresponding to edges
     # coming out of |state|.
-    def succAndCost(self, state): raise NotImplementedError("Override me")
+    def succ_and_cost(self, state): raise NotImplementedError("Override me")
 
+
+class BaseBeamSearchProblem:
+    # Return the start state.
+    def start_state(self): raise NotImplementedError("Override me")
+
+    # Return whether |state| is an end state or not.
+    def is_end(self, state) -> bool: raise NotImplementedError("Override me")
+
+    # Return a list of (action, newState, cost) tuples corresponding to edges
+    # coming out of |state|.
+    def succ_and_cost(self, state): raise NotImplementedError("Override me")
+
+class BeamSearchProblem(BaseBeamSearchProblem):
+    def __init__(self, start_state):
+        self._start_state = start_state
+
+    # Return the start state.
+    def start_state(self): 
+        raise NotImplementedError("Override me")
+
+    # Return whether |state| is an end state or not.
+    def is_end(self, state) -> bool: raise NotImplementedError("Override me")
+
+    # Return a list of (action, newState, cost) tuples corresponding to edges
+    # coming out of |state|.
+    def succ_and_cost(self, state): raise NotImplementedError("Override me")
 
 class SearchAlgorithm:
     # First, call solve on the desired SearchProblem |problem|.
@@ -25,6 +51,19 @@ class SearchAlgorithm:
     # - self.totalCost: the sum of the costs along the path or None if no valid
     #                   action sequence exists.
     def solve(self, problem: SearchProblem): raise NotImplementedError("Override me")
+
+
+############################################################
+# Beam search algorithm.
+
+class BeamSearchAlgorithm(SearchAlgorithm):
+    def __init__(self, verbose: int = 0):
+        self.verbose = verbose
+
+    def solve(self, problem: SearchProblem) -> Result:  
+        # TODO(klin) what should the beam search algorithm itself return?
+        # depends on where it's called
+
 
 
 ############################################################
@@ -46,8 +85,8 @@ class UniformCostSearch(SearchAlgorithm):
         backpointers = {}  # map state to (action, previous state)
 
         # Add the start state
-        startState = problem.startState()
-        frontier.update(startState, 0)
+        start_state = problem.start_state()
+        frontier.update(start_state, 0)
 
         while True:
             # Remove the state from the queue with the lowest pastCost
@@ -59,9 +98,9 @@ class UniformCostSearch(SearchAlgorithm):
                 print(("Exploring %s with pastCost %s" % (state, pastCost)))
 
             # Check if we've reached an end state; if so, extract solution.
-            if problem.isEnd(state):
+            if problem.is_end(state):
                 self.actions = []
-                while state != startState:
+                while state != start_state:
                     action, prevState = backpointers[state]
                     self.actions.append(action)
                     state = prevState
@@ -75,7 +114,7 @@ class UniformCostSearch(SearchAlgorithm):
 
             # Expand from |state| to new successor states,
             # updating the frontier with each newState.
-            for action, newState, cost in problem.succAndCost(state):
+            for action, newState, cost in problem.succ_and_cost(state):
                 if self.verbose >= 3:
                     print(("  Action %s => %s with cost %s + %s" % (action, newState, pastCost, cost)))
                 if frontier.update(newState, pastCost + cost):
@@ -122,11 +161,11 @@ class PriorityQueue:
 # A simple search problem on the number line:
 # Start at 0, want to go to 10, costs 1 to move left, 2 to move right.
 class NumberLineSearchProblem:
-    def startState(self) -> int: return 0
+    def start_state(self) -> int: return 0
 
-    def isEnd(self, state: int) -> bool: return state == 10
+    def is_end(self, state: int) -> bool: return state == 10
 
-    def succAndCost(self, state: int) -> List[Tuple[str, int, int]]:
+    def succ_and_cost(self, state: int) -> List[Tuple[str, int, int]]:
         return [('West', state - 1, 1), ('East', state + 1, 2)]
 
 
@@ -137,13 +176,13 @@ class GridSearchProblem(SearchProblem):
     def __init__(self, size: int, x: int, y: int):
         self.size, self.start = size, (x, y)
 
-    def startState(self) -> Tuple[int, int]:
+    def start_state(self) -> Tuple[int, int]:
         return self.start
 
-    def isEnd(self, state: Tuple[int, int]) -> bool:
+    def is_end(self, state: Tuple[int, int]) -> bool:
         return state == (0, 0)
 
-    def succAndCost(self, state: Tuple[int, int]) -> List[Tuple[str, Tuple[int, int], int]]:
+    def succ_and_cost(self, state: Tuple[int, int]) -> List[Tuple[str, Tuple[int, int], int]]:
         x, y = state
         results = []
         if x - 1 >= 0: results.append(('North', (x - 1, y), 2))
