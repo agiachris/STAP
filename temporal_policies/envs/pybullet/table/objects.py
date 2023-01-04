@@ -142,7 +142,9 @@ class Object(body.Body):
     def set_state(self, state: object_state.ObjectState) -> None:
         self.set_pose(state.pose())
 
-    def reset(self, action_skeleton: List) -> None:
+    def reset(
+        self, action_skeleton: List, initial_state: Optional[List] = None
+    ) -> None:
         pass
 
     @classmethod
@@ -261,6 +263,7 @@ class Urdf(Object):
     @property
     def bbox(self) -> np.ndarray:
         return self._bbox
+
 
 class Box(Object):
     def __init__(
@@ -551,6 +554,7 @@ class Null(Object):
     def unfreeze(self) -> bool:
         return False
 
+
 class PropTestBox(Box):
     def __init__(self, box_obj: Box):
         for k, v in box_obj.__dict__.items():
@@ -565,6 +569,7 @@ class PropTestBox(Box):
 
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
+
 
 class PropTestUrdf(Urdf):
 
@@ -583,6 +588,7 @@ class PropTestUrdf(Urdf):
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
 
+
 class PropTestRack(Object):
     def __init__(self, rack_obj: Rack):
         for k, v in rack_obj.__dict__.items():
@@ -598,6 +604,7 @@ class PropTestRack(Object):
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
 
+
 class PropTestNull(Object):
     def __init__(self, null_obj: Null):
         for k, v in null_obj.__dict__.items():
@@ -612,6 +619,7 @@ class PropTestNull(Object):
 
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
+
 
 class WrapperObject(Object):
     def __init__(self, body: Object):
@@ -654,8 +662,6 @@ class WrapperObject(Object):
 
     def state(self) -> object_state.ObjectState:
         return self.body.state()
-        # how do I ensure that any methods called by self.body still call the wrapper?
-        # answer: 
 
     @property
     def is_static(self) -> bool:  # type: ignore
@@ -744,6 +750,7 @@ class ObjectGroup:
         action_skeleton: List,
         min_num_objects: Optional[int] = None,
         max_num_objects: Optional[int] = None,
+        initial_state: Optional[List] = None,
     ) -> int:
         if min_num_objects is None:
             min_num_objects = 0
@@ -763,6 +770,10 @@ class ObjectGroup:
             obj
             for obj in instances
             if any(obj in primitive.arg_objects for primitive in action_skeleton)
+            or (
+                initial_state is not None
+                and any(obj in predicate.args for predicate in initial_state)
+            )
         ]
         num_required = len(self._required_instances)
 
@@ -794,7 +805,11 @@ class ObjectGroup:
 
         return num_objects
 
-    def pop_index(self, obj: Object, idx: Optional[int] = None) -> int:
+    def pop_index(
+        self,
+        obj: Object,
+        idx: Optional[int] = None,
+    ) -> int:
         """Pops an index from the list of available indices.
 
         Args:
@@ -908,7 +923,11 @@ class Variant(WrapperObject):
         return self._variants
 
     def set_variant(
-        self, idx_variant: Optional[int], action_skeleton: List, lock: bool = False
+        self,
+        idx_variant: Optional[int],
+        action_skeleton: List,
+        initial_state: Optional[List] = None,
+        lock: bool = False,
     ) -> None:
         """Sets the variant for debugging purposes.
 
@@ -916,12 +935,20 @@ class Variant(WrapperObject):
             idx_variant: Index of the variant to set.
             action_skeleton: List of primitives used to identify required objects.
             lock: Whether to lock the variant so it remains the same upon resetting.
+            initial_state: List of predicates used to identify required objects.
+            N.B. unclear how to avoid circular import for initial_state: List[Predicate]
         """
         if isinstance(self.variants, ObjectGroup):
-            idx_variant = self.variants.pop_index(self, idx_variant)
+            idx_variant = self.variants.pop_index(
+                self, idx_variant, initial_state=initial_state
+            )
         else:
             if idx_variant is None:
                 if any(self in primitive.arg_objects for primitive in action_skeleton):
+                    idx_variant = random.choice(self._real_indices)
+                elif initial_state is not None and any(
+                    self.name in predicate.args for predicate in initial_state
+                ):
                     idx_variant = random.choice(self._real_indices)
                 else:
                     idx_variant = random.randrange(len(self.variants))
@@ -938,11 +965,14 @@ class Variant(WrapperObject):
         if lock:
             self._idx_variant = idx_variant
 
-    def reset(self, action_skeleton: List) -> None:
-        self.set_variant(self._idx_variant, action_skeleton)
+    def reset(
+        self, action_skeleton: List, initial_state: Optional[List] = None
+    ) -> None:
+        self.set_variant(self._idx_variant, action_skeleton, initial_state)
         self.enable_collisions()
         self.unfreeze()
         self.body.reset(action_skeleton)
+
 
 CLS_TO_PROP_TEST_CLS = {
     "Box": PropTestBox,

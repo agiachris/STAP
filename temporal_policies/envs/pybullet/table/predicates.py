@@ -277,19 +277,24 @@ class PosLimit(Predicate):
     POS_EPS: Dict[Type[Object], float] = {Rack: 0.01}
     POS_SPEC: Dict[Type[Object], Dict[str, np.ndarray]] = {
         Rack: {
-            "inworkspace": np.array([0.44, -0.33]),
+            # hardcode rack to be both on left and right of table when inworkspace
+            "inworkspace": [np.array([0.44, -0.33]), np.array([0.44, 0.33])],
             "beyondworkspace": np.array([0.82, 0.00]),
         }
     }
 
     def bounds(self, child_obj: Object) -> Dict[str, np.ndarray]:
         assert child_obj.name == self.args[0]
-
         if child_obj.type() not in PosLimit.POS_SPEC:
             raise ValueError(f"Positions not specified for {child_obj.type()}")
 
         eps = PosLimit.POS_EPS[child_obj.type()]
-        xys = PosLimit.POS_SPEC[child_obj.type()]
+        xys = PosLimit.POS_SPEC[child_obj.type()].copy()
+        for key, val in xys.items():
+            if isinstance(val, list):
+                # select one element at random
+                elem = np.random.randint(len(val))
+                xys[key] = val[elem]
         bounds = {k: np.array([xy - eps, xy + eps]) for k, xy in xys.items()}
         return bounds
 

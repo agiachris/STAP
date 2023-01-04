@@ -549,7 +549,11 @@ class TableEnv(PybulletEnv):
                 yield seed, options
 
     def reset(  # type: ignore
-        self, *, seed: Optional[int] = None, options: Optional[dict] = None, max_samples_per_trial: int = 100
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[dict] = None,
+        max_samples_per_trial: int = 100,
     ) -> Tuple[np.ndarray, dict]:
         # Parse reset options.
         try:
@@ -580,9 +584,11 @@ class TableEnv(PybulletEnv):
 
             if task_sampling_trials % max_samples_per_trial == 0:
                 if task_sampling_trials > 0:
-                    dbprint(f"TableEnv.reset(seed={seed}): \
+                    dbprint(
+                        f"TableEnv.reset(seed={seed}): \
                         for {self._task}: failed to sample task \
-                        propositions after {max_samples_per_trial} trials.")
+                        propositions after {max_samples_per_trial} trials."
+                    )
                 self._task = self.tasks.sample()
                 self.set_primitive(self.task.action_skeleton[0])
 
@@ -608,7 +614,7 @@ class TableEnv(PybulletEnv):
                 if max_num_objects is not None:
                     max_num_objects -= num_objects
             for obj in self.objects.values():
-                obj.reset(self.task.action_skeleton)
+                obj.reset(self.task.action_skeleton, self.task.initial_state)
                 obj.freeze()
 
             # Make sure none of the action skeleton args is Null.
@@ -934,12 +940,3 @@ class VariantTableEnv(VariantEnv, TableEnv):  # type: ignore
 
     def step_simulation(self) -> None:
         return self.env.step_simulation()
-
-# Make a subclass of TableEnv
-# update the reset method to keep sampling continuous parameters for the task it just sampled from until success?
-# use this Env for the pretraining and also training
-class UniformResetsTableEnv(TableEnv):
-    # or, add a new kwarg to the env to make it sample until it succeeds? 
-    # or until it has sampled too many times?
-    def reset():
-        raise NotImplementedError
