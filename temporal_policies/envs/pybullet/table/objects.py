@@ -905,6 +905,11 @@ class Variant(WrapperObject):
                 for i, variant in enumerate(self.variants)
                 if not variant.isinstance(Null)
             ]
+            self._null_indices = [
+                i
+                for i, variant in enumerate(self.variants)
+                if variant.isinstance(Null)
+            ]
         else:
             assert group is not None
             self._variants = object_groups[group]
@@ -940,7 +945,7 @@ class Variant(WrapperObject):
         """
         if isinstance(self.variants, ObjectGroup):
             idx_variant = self.variants.pop_index(
-                self, idx_variant, initial_state=initial_state
+                self, idx_variant
             )
         else:
             if idx_variant is None:
@@ -951,7 +956,7 @@ class Variant(WrapperObject):
                 ):
                     idx_variant = random.choice(self._real_indices)
                 else:
-                    idx_variant = random.randrange(len(self.variants))
+                    idx_variant = random.choice(self._null_indices)
 
             # Hide unused variants below table.
             for i, obj in enumerate(self.variants):
