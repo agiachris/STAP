@@ -906,10 +906,11 @@ class Variant(WrapperObject):
                 if not variant.isinstance(Null)
             ]
             self._null_indices = [
-                i
-                for i, variant in enumerate(self.variants)
-                if variant.isinstance(Null)
+                i for i, variant in enumerate(self.variants) if variant.isinstance(Null)
             ]
+            if not len(self._null_indices) > 0:
+                print("No null variants available; please specify `- object_type: Null' \
+                    in relevant section of config if Variant object is not mentioned in any sampled task.")
         else:
             assert group is not None
             self._variants = object_groups[group]
@@ -944,9 +945,7 @@ class Variant(WrapperObject):
             N.B. unclear how to avoid circular import for initial_state: List[Predicate]
         """
         if isinstance(self.variants, ObjectGroup):
-            idx_variant = self.variants.pop_index(
-                self, idx_variant
-            )
+            idx_variant = self.variants.pop_index(self, idx_variant)
         else:
             if idx_variant is None:
                 if any(self in primitive.arg_objects for primitive in action_skeleton):
@@ -956,6 +955,9 @@ class Variant(WrapperObject):
                 ):
                     idx_variant = random.choice(self._real_indices)
                 else:
+                    assert (
+                        len(self._null_indices) > 0
+                    ), "No null variants available; please specify `- object_type: Null' in relevant section of config"
                     idx_variant = random.choice(self._null_indices)
 
             # Hide unused variants below table.
