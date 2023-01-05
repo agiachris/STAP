@@ -1,0 +1,72 @@
+env: pybullet.TableEnv
+env_kwargs:
+  name: pick
+  gui: true
+
+  primitives:
+    - pick
+
+  tasks:
+    - action_skeleton:
+        - pick(blue_box)
+      initial_state:
+        - on(blue_box, table)
+        - on(red_box, table)
+        - on(yellow_box, table)
+        - on(cyan_box, table)
+        - on(rack, table)
+        - on(hook, table)
+
+
+  robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
+
+  objects:
+    - object_type: Urdf
+      object_kwargs:
+        name: table
+        path: configs/pybullet/envs/assets/iprl_table.urdf
+        is_static: true
+    - object_type: Variant
+      object_kwargs:
+        name: rack
+        variants:
+          - object_type: Rack
+            object_kwargs:
+              size: [0.22, 0.32, 0.16]
+              color: [0.4, 0.2, 0.0, 1.0]
+          - object_type: Null
+    - object_type: Variant
+      object_kwargs:
+        name: hook
+        variants:
+          - object_type: Hook
+            object_kwargs:
+              head_length: 0.2
+              handle_length: 0.38
+              handle_y: -1.0
+              color: [0.6, 0.6, 0.6, 1.0]
+          - object_type: Null
+    - object_type: Variant
+      object_kwargs:
+        name: blue_box
+        variants:
+          - configs/pybullet/envs/assets/salt.yaml
+          - object_type: Null
+    - object_type: Variant
+      object_kwargs:
+        name: red_box
+        variants:
+          - configs/pybullet/envs/assets/milk.yaml
+          - object_type: Null
+    - object_type: Variant
+      object_kwargs:
+        name: yellow_box
+        variants:
+          - configs/pybullet/envs/assets/yogurt.yaml
+          - object_type: Null
+    - object_type: Variant
+      object_kwargs:
+        name: cyan_box
+        variants:
+          - configs/pybullet/envs/assets/icecream.yaml
+          - object_type: Null
