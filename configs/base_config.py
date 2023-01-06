@@ -172,7 +172,9 @@ class PolicyDatasetGenerationConfig:
     env_config: str = ""
     eval_env_config: str = ""
     encoder_checkpoint: Optional[str] = None
-    exp_name: str = "20221231/dataset_collection/"
+    max_num_box_obj: int = 4
+    min_num_box_obj: int = 3
+    exp_name: str = "20230105/dataset_collection"
     custom_path: str = ""
     resume: str = False
     overwrite: str = False
@@ -201,7 +203,7 @@ class PolicyDatasetGenerationConfig:
     @property
     def path(self) -> str:
         if self.custom_path == "":
-            return f"models/{self.exp_name}"
+            return f"models/{self.exp_name}/min{self.min_num_box_obj}_max{self.max_num_box_obj}_num_box_obj/"
         else:
             return self.custom_path
 

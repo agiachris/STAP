@@ -5,6 +5,8 @@ Usage:
 
 PYTHONPATH=. python scripts/data/generate_policy_dataset.py 
 --config.pddl-cfg.pddl-domain template --config.num-train-steps 0 --config.num-eval-episodes 0
+--config.exp-name 20230105/dataset_collection/  --config.primitive pick
+--config.min-num-box-obj 3 --config.max-num-box-obj 4
 
 N.B. last two configs to avoid training a policy and/or evaluating the policy.
 Intended usage is to generate a dataset of (s, a, s', r) pairs with multiple processes
@@ -123,6 +125,34 @@ def count_num_inhand(
     return num_inhand
 
 
+def count_num_box_objs_in_state(
+    symbolic_predicate_state: Union[List[str], Set[Tuple[str, str]]],
+    objects_with_properties: List[Tuple[str, str]],
+) -> int:
+    """Count the number of unique objets of box type involved in the symbolic predicate state.
+
+    Args:
+        symbolic_predicate_states (List[str]): List of symbolic predicate states.
+        E.g. [on(red_box, table), on(blue_box, rack), ...]
+        objects_with_properties (List[Tuple[str, str]]): List of objects with properties.
+
+    Returns:
+        int: Number of box type objects involved in the symbolic predicate state.
+    """
+    available_box_obj_set = set()
+    for obj, prop in objects_with_properties:
+        if prop == "box":
+            available_box_obj_set.add(obj)
+
+    seen_box_obj_set = set()
+    for single_symbolic_predicate_state in symbolic_predicate_state:
+        for box in available_box_obj_set:
+            if box in single_symbolic_predicate_state:
+                seen_box_obj_set.add(box)
+
+    return len(seen_box_obj_set)
+
+
 def hook_on_rack(
     symbolic_predicate_state: Union[List[str], Set[Tuple[str, str]]]
 ) -> bool:
@@ -142,7 +172,9 @@ def hook_on_rack(
 
 
 def enumerate_valid_symbolic_predicate_states(
-    objects_with_properties: List[Tuple[str, str]]
+    objects_with_properties: List[Tuple[str, str]],
+    min_num_box_obj: int = 3,
+    max_num_box_obj: int = 4,
 ) -> List[Set[str]]:
     """Enumerate possible symbolic predicate states.
 
@@ -160,12 +192,20 @@ def enumerate_valid_symbolic_predicate_states(
     movable_objects = [
         obj for obj, _ in objects_with_properties if obj != "table" and obj != "rack"
     ]
-    locations = ["on($movable, table)", "on($movable, rack)", "inhand($movable)"]
+    locations = [
+        "nonexistent($movable)",
+        "on($movable, table)",
+        "on($movable, rack)",
+        "inhand($movable)",
+    ]
 
     # get all possible locations choices (expressed as predicates) for each object
     object_predicate_possibilities: Dict[str, List[Set[str]]] = defaultdict(list)
     for obj in movable_objects:
         for loc in locations:
+            if obj == "hook" and "nonexistent" in loc:
+                print(f"Assuming hook is always in the scene. Skipping {loc} for hook.")
+                continue
             object_predicate_possibilities[obj].append(
                 {Template(loc).substitute(movable=obj)}
             )
@@ -201,7 +241,21 @@ def enumerate_valid_symbolic_predicate_states(
         if count_num_inhand(possible_predicate_set) <= 1 and not hook_on_rack(
             possible_predicate_set
         ):
-            filtered_all_possible_predicate_sets.append(possible_predicate_set)
+            # filter out any elements of possible_predicate_set that have "nonexistent" in them
+            possible_predicate_set = {
+                predicate
+                for predicate in possible_predicate_set
+                if "nonexistent" not in predicate
+            }
+            if (
+                min_num_box_obj
+                <= count_num_box_objs_in_state(
+                    list(possible_predicate_set), objects_with_properties
+                )
+                <= max_num_box_obj
+            ):
+                print(possible_predicate_set)
+                filtered_all_possible_predicate_sets.append(possible_predicate_set)
     print(f"Number of possible predicate sets: {len(all_possible_predicate_sets)}")
     print(
         f"Number of filtered predicate sets: {len(filtered_all_possible_predicate_sets)}"
@@ -312,9 +366,56 @@ def get_env_config(
                         "action_skeleton": [symbolic_action],
                     }
                 )
+
+    if symbolic_action_type == "symbolically_valid_actions":
+        # ensure probabilities of pick(hook) and pick(box) are equal
+        if env_primitive == "pick":
+            num_pick_hook_actions = 0
+            for task in tasks:
+                if "hook" in task["action_skeleton"][0]:
+                    num_pick_hook_actions += 1
+            num_pick_box_actions = len(tasks) - num_pick_hook_actions
+            # set probabilities associated with pick hook to 0.5
+            for task in tasks:
+                if "hook" in task["action_skeleton"][0]:
+                    task["prob"] = 0.5 * (1 / num_pick_hook_actions)
+                else:
+                    task["prob"] = 0.5 * (1 / num_pick_box_actions)
+
+            sum_prob_pick_hook = 0
+            for task in tasks:
+                if "hook" in task["action_skeleton"][0]:
+                    sum_prob_pick_hook += task["prob"]
+            assert math.isclose(
+                sum_prob_pick_hook, 0.5, abs_tol=1e-5
+            ), "sum of probabilities of pick hook actions should be 0.5"
+
+            sum_prob_pick_box = 0
+            for task in tasks:
+                if "hook" not in task["action_skeleton"][0]:
+                    sum_prob_pick_box += task["prob"]
+            assert math.isclose(
+                sum_prob_pick_box, 0.5, abs_tol=1e-5
+            ), "sum of probabilities of pick box actions should be 0.5"
+
+        # ensure probabilities of place(hook) and place(box) are equal
+        if env_primitive == "place":
+            num_place_hook_actions = 0
+            for task in tasks:
+                if "hook" in task["action_skeleton"][0]:
+                    num_place_hook_actions += 1
+            num_place_box_actions = len(tasks) - num_place_hook_actions
+            # set probabilities associated with place hook to 0.5
+            for task in tasks:
+                if "hook" in task["action_skeleton"][0]:
+                    task["prob"] = 0.5 * (1 / num_place_hook_actions)
+                else:
+                    task["prob"] = 0.5 * (1 / num_place_box_actions)
+
     env_config["env_kwargs"]["tasks"] = tasks
     env_config["env_kwargs"]["gui"] = gui
     env_config["env_kwargs"]["name"] = f"{env_primitive}_{seed}"
+    env_config["env_kwargs"]["primitives"] = [env_primitive]
 
     if save_primitive_env_config:
         assert save_primitive_env_config_path is not None, (
@@ -331,16 +432,19 @@ def main(config: PolicyDatasetGenerationConfig):
     objects_with_properties: List[Tuple[str, str]] = [
         ("table", "unmovable"),
         ("rack", "rack"),
-        ("red_box", "box"),
-        ("yellow_box", "box"),
-        ("cyan_box", "box"),
-        ("blue_box", "box"),
+        ("milk", "box"),
+        ("yoghurt", "box"),
+        ("icecream", "box"),
+        ("salt", "box"),
         ("hook", "tool"),
     ]
-
     valid_symbolic_predicate_states: List[
         Set[str]
-    ] = enumerate_valid_symbolic_predicate_states(objects_with_properties)
+    ] = enumerate_valid_symbolic_predicate_states(
+        objects_with_properties,
+        min_num_box_obj=config.min_num_box_obj,
+        max_num_box_obj=config.max_num_box_obj,
+    )
 
     valid_states_to_actions: Dict[str, Dict[str, List[str]]] = defaultdict(dict)
     states, actions = [], []
@@ -394,8 +498,8 @@ def main(config: PolicyDatasetGenerationConfig):
     # save these state actions to a file for debugging
     with open("states_actions.txt", "w") as f:
         for state, action in zip(states, actions):
-            f.write(f"state: {state}\n")
-            f.write(f"action: {action}\n\n")
+            f.write(f"state: {sorted(list(state))}\n")
+            f.write(f"action: {sorted(list(action))}\n\n")
 
     get_primitive_counts(valid_states_to_actions, ["pick", "place", "push", "pull"])
 
