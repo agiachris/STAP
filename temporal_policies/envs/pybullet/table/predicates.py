@@ -277,8 +277,7 @@ class PosLimit(Predicate):
     POS_EPS: Dict[Type[Object], float] = {Rack: 0.01}
     POS_SPEC: Dict[Type[Object], Dict[str, np.ndarray]] = {
         Rack: {
-            # hardcode rack to be both on left and right of table when inworkspace
-            "inworkspace": [np.array([0.44, -0.33]), np.array([0.44, 0.33])],
+            "inworkspace": np.array([0.44, -0.33]),
             "beyondworkspace": np.array([0.82, 0.00]),
         }
     }
