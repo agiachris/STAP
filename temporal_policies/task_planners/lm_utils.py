@@ -41,6 +41,20 @@ GOAL_PROMPT = (
 )
 ROBOT_PROMPT = "Robot action sequence: "
 
+color_box_to_objects = {
+    "red_box": "milk",
+    "blue_box": "salt",
+    "yellow_box": "yoghurt",
+    "cyan_box": "icecream",
+}
+
+objects_to_color_box = {
+    "milk": "red_box",
+    "salt": "blue_box",
+    "icecream": "cyan_box",
+    "yoghurt": "yellow_box",
+}
+
 
 def register_api_key(
     api_type: APIType = APIType.HELM, api_key: str = ""
@@ -389,7 +403,11 @@ def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
     else:
         # If it does exist, load it
         with open(lm_cache_file, "rb") as f:
-            lm_cache = pickle.load(f)
+            # check if the file is empty
+            if pathlib.Path(lm_cache_file).stat.st_size == 0:
+                lm_cache = {}
+            else:
+                lm_cache = pickle.load(f)
         if lm_cache is None:
             lm_cache = {}
     return lm_cache
