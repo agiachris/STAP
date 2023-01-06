@@ -28,7 +28,7 @@ class APIType(Enum):
     HELM = 1
 
 # remove because can't save Enum in json
-# class RobotAnswerFormat(Enum):
+# class Robotaction_sequenceFormat(Enum):
 #     PYTHON_LIST = 0
 #     PYTHON_LIST_OF_LISTS = 1
 
@@ -47,7 +47,7 @@ class InContextExample:
     human: Optional[str] = None
     explanation: Optional[str] = None
     goal: Optional[List[str]] = None
-    robot: Optional[List[str]] = None
+    robot_action_sequence: Optional[List[str]] = None
 
     use_primitives: bool = False
     use_predicates: bool = False
@@ -72,7 +72,7 @@ class InContextExample:
 
     # custom prompt engineering configs
     custom_robot_prompt: str = ""
-    custom_robot_answer_format: Literal[
+    custom_robot_action_sequence_format: Literal[
         "python_list", "python_list_of_lists"
     ] = "python_list"  # use special prompt for robot action sequence in overall_example
     
@@ -195,18 +195,20 @@ class InContextExample:
             res += f"{EXPLANATION_PROMPT}{self.explanation}\n"
         if self.use_goal and self.goal is not None:
             res += f"{GOAL_PROMPT}{str(self.goal)}\n"
-        if self.use_robot and self.robot is not None:
+        if self.use_robot and self.robot_action_sequence is not None:
             robot_prompt = (
                 self.custom_robot_prompt
                 if self.custom_robot_prompt != ""
                 else ROBOT_PROMPT
             )
-            answer = (
-                f"[{self.robot}, ]"
-                if self.custom_robot_answer_format == "python_list_of_lists"
-                else self.robot
-            )
-            res += f"{robot_prompt}{answer}\n"
+            if self.custom_robot_action_sequence_format == "python_list_of_lists":
+                action_sequence = f"[{self.robot_action_sequence}, ]"
+            elif self.custom_robot_action_sequence_format == "python_list":
+                action_sequence = self.robot_action_sequence
+            elif self.custom_robot_action_sequence_format == "saycan_with_done":
+                action_sequence = ', '.join(['{}. {}'.format(i + 1, action) for i, action in enumerate(self.robot_action_sequence + ['done'])])
+
+            res += f"{robot_prompt}{action_sequence}\n"
         return res
 
     def save_to_json(self, path: str, overwrite: bool = False) -> None:
@@ -267,6 +269,29 @@ class CurrentExample(InContextExample):
         #         self.predict_goal
         #     ), "Cannot use predicted goal if not predicting goal."
 
+    def add_action_to_history(self, action: str):
+        # add action to history
+        self.all_executed_actions.append(action)
+
+    def add_object_relationships_to_history(self, object_relationships: List[str]):
+        # add object relationships to history
+        self.all_prior_object_relationships.append(object_relationships)
+
+    def get_current_prompt(self, style: Literal["SayCan", "python_list"]) -> str:
+        # get current prompt
+        if style == "SayCan":
+            return self.get_current_prompt_saycan()
+        elif style == "python_list":
+            return self.get_current_prompt_python_list()
+        else:
+            raise ValueError(f"Unknown style {style}")
+
+@dataclass
+class OverallPrompt:
+    header_prompt: Optional[InContextExample] = None
+    examples: Optional[List[InContextExample]] = None
+    current_scenario_prompt: Optional[CurrentExample] = None
+
 
 @dataclass
 class Result:
@@ -301,7 +326,7 @@ class Result:
     ]]] = None
     predicted_task_plan_descriptions: Optional[List[str]] = None
     custom_robot_prompt: Optional[str] = None
-    custom_robot_answer_format: Optional[str] = None
+    custom_robot_action_sequence_format: Optional[str] = None
 
     @property
     def parsed_goal_predicted(self) -> List[str]:
@@ -336,8 +361,8 @@ class Result:
 
         Returns: [List[str]] <parsed robot predicted>
         """
-        assert self.robot_predicted is not None, "Robot predicted is None."
-        return ast.literal_eval(self.robot_predicted.strip())
+        assert self.robot_action_sequence_predicted is not None, "Robot predicted is None."
+        return ast.literal_eval(self.robot_action_sequence_predicted.strip())
 
     @property
     def parsed_robot_predicted_list_of_lists(self) -> List[str]:
@@ -348,8 +373,8 @@ class Result:
 
         Returns: [List[str]] <parsed robot predicted>
         """
-        assert self.robot_predicted is not None, "Robot predicted is None."
-        parsed = ast.literal_eval(self.robot_predicted.strip())
+        assert self.robot_action_sequence_predicted is not None, "Robot predicted is None."
+        parsed = ast.literal_eval(self.robot_action_sequence_predicted.strip())
         assert type(parsed) == list, "Robot predicted is not a list."
         assert all(
             type(x) == list for x in parsed

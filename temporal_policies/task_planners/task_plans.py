@@ -9,7 +9,7 @@ from helm.common.request import Token
 from configs.base_config import LMConfig
 from temporal_policies import envs
 from temporal_policies.envs.pybullet.table.objects import Object
-from temporal_policies.task_planners.lm_data_structures import CurrentExample, InContextExample
+from temporal_policies.task_planners.lm_data_structures import CurrentExample, InContextExample, OverallPrompt
 from temporal_policies.task_planners.lm_utils import APIType, generate_lm_response, get_examples_from_json_dir
 from temporal_policies.envs.pybullet.table import predicates
 
@@ -27,7 +27,7 @@ def get_task_plans_from_lm(
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
     custom_in_context_example_robot_format: str = "python list of lists",
     custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
-    custom_robot_answer_format: str = "python list of lists",
+    custom_robot_action_sequence_format: str = "python list of lists",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
@@ -51,7 +51,7 @@ def get_task_plans_from_lm(
         use_predicted_goal=True,
         predict_robot=True,
         custom_robot_prompt=custom_robot_prompt,
-        custom_robot_answer_format=custom_robot_answer_format,
+        custom_robot_action_sequence_format=custom_robot_action_sequence_format,
         pddl_domain_file=pddl_domain_file,
         pddl_problem_file=pddl_problem_file,
     )
@@ -63,8 +63,13 @@ def get_task_plans_from_lm(
         example.use_goal = True
         example.use_robot = True
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
-        example.custom_robot_answer_format = custom_in_context_example_robot_format
+        example.custom_robot_action_sequence_format = custom_in_context_example_robot_format
 
+    overall_prompt = OverallPrompt(
+        header_prompt=header_prompt,
+        current_prompt=current_prompt,
+        examples=examples,
+    )
     results, lm_cache = generate_lm_response(
         header_prompt,
         current_prompt,
@@ -91,7 +96,7 @@ def get_next_actions_from_lm(
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
     custom_in_context_example_robot_format: str = "python list",
     custom_robot_prompt: str = "Top 5 next actions (python list): ",
-    custom_robot_answer_format: str = "python list",
+    custom_robot_action_sequence_format: str = "python list",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
@@ -115,7 +120,7 @@ def get_next_actions_from_lm(
         use_predicted_goal=True,
         predict_robot=True,
         custom_robot_prompt=custom_robot_prompt,
-        custom_robot_answer_format=custom_robot_answer_format,
+        custom_robot_action_sequence_format=custom_robot_action_sequence_format,
         pddl_domain_file=pddl_domain_file,
         pddl_problem_file=pddl_problem_file,
         use_action_object_relationship_history=True,
@@ -130,7 +135,7 @@ def get_next_actions_from_lm(
         example.use_goal = True
         example.use_robot = True
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
-        example.custom_robot_answer_format = custom_in_context_example_robot_format
+        example.custom_robot_action_sequence_format = custom_in_context_example_robot_format
 
     results, lm_cache = generate_lm_response(
         header_prompt,
@@ -183,7 +188,7 @@ def get_action_scores_from_lm(
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
     custom_in_context_example_robot_format: str = "python list",
     custom_robot_prompt: str = "",
-    custom_robot_answer_format: str = "",
+    custom_robot_action_sequence_format: str = "",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
@@ -203,7 +208,7 @@ def get_action_scores_from_lm(
         example.use_goal = True
         example.use_robot = True
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
-        example.custom_robot_answer_format = custom_in_context_example_robot_format
+        example.custom_robot_action_sequence_format = custom_in_context_example_robot_format
 
     original_max_tokens = lm_cfg.max_tokens
     lm_cfg.max_tokens = 0
@@ -223,7 +228,7 @@ def get_action_scores_from_lm(
             use_predicted_goal=True,
             predict_robot=True,
             custom_robot_prompt=custom_robot_prompt,
-            custom_robot_answer_format=custom_robot_answer_format,
+            custom_robot_action_sequence_format=custom_robot_action_sequence_format,
             pddl_domain_file=pddl_domain_file,
             pddl_problem_file=pddl_problem_file,
             use_action_object_relationship_history=True,

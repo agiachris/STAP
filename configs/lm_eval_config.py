@@ -49,7 +49,7 @@ TaskPlan1PlanEvalConfig = Annotated[
                     use_human=True,
                     use_goal=True,
                     use_robot=True,
-                    custom_robot_answer_format="python_list"
+                    custom_robot_action_sequence_format="python_list"
                 ),
                 current_prompt_cfg=CurrentExampleConfig(
                     use_scene_objects=True,
@@ -83,7 +83,7 @@ TaskPlan2PlansEvalConfig = Annotated[
                     use_goal=True,
                     use_robot=True,
                     custom_robot_prompt="Top 1 robot action sequence: ",
-                    custom_robot_answer_format="python_list_of_lists"
+                    custom_robot_action_sequence_format="python_list_of_lists"
                 ),
                 current_prompt_cfg=CurrentExampleConfig(
                     use_scene_objects=True,
@@ -92,7 +92,7 @@ TaskPlan2PlansEvalConfig = Annotated[
                     use_goal=True,
                     predict_robot=True,
                     custom_robot_prompt="Top 2 robot action sequences (python list of lists): ",
-                    custom_robot_answer_format="python_list_of_lists"
+                    custom_robot_action_sequence_format="python_list_of_lists"
                 ),
             ),
             pddl_cfg=PDDLConfig(),
@@ -118,7 +118,7 @@ TaskPlan3PlansEvalConfig = Annotated[
                     use_goal=True,
                     use_robot=True,
                     custom_robot_prompt="Top 1 robot action sequence: ",
-                    custom_robot_answer_format="python_list_of_lists"
+                    custom_robot_action_sequence_format="python_list_of_lists"
                 ),
                 current_prompt_cfg=CurrentExampleConfig(
                     use_scene_objects=True,
@@ -127,7 +127,7 @@ TaskPlan3PlansEvalConfig = Annotated[
                     use_goal=True,
                     predict_robot=True,
                     custom_robot_prompt="Top 3 robot action sequences (python list of lists): ",
-                    custom_robot_answer_format="python_list_of_lists"
+                    custom_robot_action_sequence_format="python_list_of_lists"
                 ),
             ),
             pddl_cfg=PDDLConfig(),

@@ -350,7 +350,7 @@ def update_result_current_prompt_based_on_response_robot(
     result.robot_ground_truth = current_prompt.robot
 
     robot_prediction_result_types, predicted_task_plan_descriptions = [], []
-    if current_prompt.custom_robot_answer_format == "python_list_of_lists":
+    if current_prompt.custom_robot_action_sequence_format == "python_list_of_lists":
         parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
         for parsed_robot_predicted in parsed_robot_predicted_lst:
             (
@@ -366,7 +366,7 @@ def update_result_current_prompt_based_on_response_robot(
             )
             robot_prediction_result_types.append(robot_prediction_result_type)
             predicted_task_plan_descriptions.append(predicted_task_plan_description)
-    elif current_prompt.custom_robot_answer_format == "python_list":
+    elif current_prompt.custom_robot_action_sequence_format == "python_list":
         parsed_robot_predicted = result.parsed_robot_predicted
         (
             robot_prediction_result_type,
@@ -391,7 +391,7 @@ def update_result_current_prompt_based_on_response_robot(
     result.robot_prediction_result_types = robot_prediction_result_types
     result.predicted_task_plan_descriptions = predicted_task_plan_descriptions
     result.custom_robot_prompt = current_prompt.custom_robot_prompt
-    result.custom_robot_answer_format = current_prompt.custom_robot_answer_format
+    result.custom_robot_action_sequence_format = current_prompt.custom_robot_action_sequence_format
     result.tokens_predicted = response["tokens"] if response.get("tokens", False) else None
 
 def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
@@ -404,7 +404,7 @@ def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
         # If it does exist, load it
         with open(lm_cache_file, "rb") as f:
             # check if the file is empty
-            if pathlib.Path(lm_cache_file).stat.st_size == 0:
+            if pathlib.Path(lm_cache_file).stat().st_size == 0:
                 lm_cache = {}
             else:
                 lm_cache = pickle.load(f)

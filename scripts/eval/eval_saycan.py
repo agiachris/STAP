@@ -2,10 +2,13 @@
 Usage:
 
 PYTHONPATH=. python scripts/eval/eval_saycan.py  --planner-config configs/pybullet/planners/ablation/policy_cem.yaml --env-config configs/pybullet/envs/official/domains/constrained_packing/tamp0.yaml 
---policy-checkpoints models/20221105/decoupled_state/pick/ckpt_model_10.pt models/20221105/decoupled_state/place/ckpt_model_10.pt models/20221105/decoupled_state/pull/ckpt_model_10.pt 
-models/20221105/decoupled_state/push/ckpt_model_10.pt --dynamics-checkpoint models/20221105/decoupled_state/ckpt_model_10/dynamics/final_model.pt --seed 0 
+--policy-checkpoints models/official/pick/select_model.pt models/official/place/select_model.pt models/official/pull/select_model.pt models/official/push/select_model.pt
+--dynamics-checkpoint models/official/select_model/dynamics/best_model.pt
 --pddl-domain configs/pybullet/envs/official/domains/constrained_packing/tamp0_domain.pddl --pddl-problem configs/pybullet/envs/official/domains/constrained_packing/tamp0_problem.pddl 
---max-depth 4 --timeout 10 --closed-loop 1 --num-eval 100 --path plots/20221105/decoupled_state/tamp_experiment/constrained_packing/tamp0 --verbose 0 --engine davinci --gui 0
+--max-depth 4 --timeout 10 --closed-loop 1 --num-eval 100 --path plots/20221105/decoupled_state/tamp_experiment/constrained_packing/tamp0 --verbose 0 --engine davinci --gui 1
+
+# --policy-checkpoints models/20221105/decoupled_state/pick/ckpt_model_10.pt models/20221105/decoupled_state/place/ckpt_model_10.pt models/20221105/decoupled_state/pull/ckpt_model_10.pt 
+# models/20221105/decoupled_state/push/ckpt_model_10.pt --dynamics-checkpoint models/20221105/decoupled_state/ckpt_model_10/dynamics/final_model.pt --seed 0 
 """
 
 import functools
@@ -17,6 +20,7 @@ from temporal_policies.envs.pybullet.table.objects import Object
 import argparse
 import pathlib
 from typing import Any, Dict, List, Optional, Sequence, Union
+import json
 import symbolic
 
 
@@ -54,62 +58,6 @@ from temporal_policies.task_planners.task_plans import (
 )
 from temporal_policies.utils import tensors
 
-
-# skills = []
-# env = None
-
-# done = False
-# while not done:
-#     overall_score = [get_value(state, skill) * get_lm_score(skill) for skill in skills]  # the 'done' skill seems to have a hard-coded value according to the figures in saycan ...
-#     best_action = skills[np.argmax(overall_score)]
-#     state, _, done, _ = env.step(best_action)  # return done = True if LM's score on done is the highest?
-#     selected skills.append(best_action)
-#     new_object_relationships = get_object_relationships(state)
-#     new_object_relationships_lst.append(new_object_relationships)
-def get_instruction():
-    # return a list of word ids
-    return 0
-
-
-def get_goal(instruction):
-    # instruction is a list of word ids
-    # return a list of word ids
-    return 0
-
-
-def generate_lm_plans(goal, prompt):
-    # goal is a list of word ids
-    # return a list of lists of word ids
-    return 0
-
-
-def generate_prompt(goal):
-    # goal is a list of word ids
-    # return a list of word ids
-    return 0
-
-
-def argmax(iterable, key=lambda x: x):
-    return max(iterable, key=key)
-
-
-def is_feasible(plan):
-    # plan is a list of word ids
-    # return True if the plan is feasible
-    return 0
-
-
-def TAPS_optimize(plan):
-    # plan is a list of word ids
-    # return a list of word ids
-    return 0
-
-
-def get_value(state, skill, policy):
-    # state is a list of word ids
-    # skill is a list of word ids
-    # return the value of the state
-    return 0
 
 def get_values(
     observation: np.ndarray,
@@ -158,7 +106,7 @@ def get_policy_actions(
     dynamics: Dynamics,
     device: torch.device,
 ) -> List[int]:
-    """Get the action of the observation for each primitive."""
+    """Get the action of the policy for each primitive and the current observation."""
     policy_fns = [
         policies[primitive.idx_policy] for primitive in primitives
     ]
@@ -171,7 +119,7 @@ def get_policy_actions(
         functools.partial(dynamics.decode, primitive=primitive)
         for primitive in primitives
     ]
-    
+
     actions: List = []            
     with torch.no_grad():
         t_observation = tensors.from_numpy(observation, device=device)
@@ -211,7 +159,7 @@ def eval_saycan(
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
     custom_in_context_example_robot_format: str = "python list of lists",
     custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
-    custom_robot_answer_format: str = "python list of lists",
+    custom_robot_action_sequence_format: str = "python list of lists",
     engine: Optional[str] = None,
     temperature: Optional[int] = 0,
     logprobs: Optional[int] = 1,
@@ -219,8 +167,10 @@ def eval_saycan(
     max_tokens: Optional[int] = 100,
     auth: Optional[Authentication] = None,
 ):
-    INSTRUCTION = "Put the red box on the blue box"
+    INSTRUCTION = "Put the red box on the rack"
+
     examples = get_examples_from_json_dir(pddl_root_dir + "/" + pddl_domain_name)
+    print(len(examples), n_examples)
     examples = random.sample(examples, n_examples)
 
     lm_cfg: LMConfig = LMConfig(
@@ -231,6 +181,7 @@ def eval_saycan(
         api_type=api_type,
         max_tokens=max_tokens,
     )
+
     lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
 
     # Load environment.
@@ -303,7 +254,7 @@ def eval_saycan(
             custom_in_context_example_robot_prompt="Top robot action sequence: ",
             custom_in_context_example_robot_format="python list",
             custom_robot_prompt="6 valid next actions (python list): ",
-            custom_robot_answer_format="python list",
+            custom_robot_action_sequence_format="python list",
             examples=examples,
             lm_cfg=lm_cfg,
             auth=auth,
@@ -369,7 +320,9 @@ def main(args: argparse.Namespace) -> None:
     if args.api_type.value == APIType.OPENAI.value:
         api_key = "***REMOVED***"
     elif args.api_type.value == APIType.HELM.value:
-        api_key = "***REMOVED***"
+        # read api_key from credentials.json file
+        with open("credentials.json", "r") as f:
+            api_key = json.load(f)["openaiApiKey"]
     else:
         raise ValueError("Invalid API type")
     auth = register_api_key(args.api_type, api_key)
