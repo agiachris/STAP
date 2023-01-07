@@ -12,7 +12,7 @@ PYTHONPATH=. python scripts/data/generate_lm_dataset.py --config.overwrite
 """
 
 import random
-from typing import List, Union
+from typing import List, Literal, Union
 
 from symbolic import _and, parse_proposition
 import symbolic
@@ -44,47 +44,53 @@ def parse_pred_arg_string(string: str) -> List[Union[str, List[str]]]:
     arguments = words[1:]
     return [predicate], arguments
 
+
 def generate_instruction_for_on_proposition(object_a: str, object_b: str) -> List[str]:
     prepositions = [
-        "on top of",
         "on",
         "above",
         "over",
         "onto",
-        "on top of",
-        "on the top of",
     ]
     verbs = [
         "place",
         "put",
-        "move",
         "stack",
         "position",
         "situate",
         "arrange",
         "set",
-        "get",
-        "perch",
     ]
     return f"{random.choice(verbs)} {object_a} {random.choice(prepositions)} {object_b}"
 
 
 def generate_instruction_for_inhand_proposition(object_a):
-    verbs = ["hang on to", "grab", "pick up", "hold", "take", "carry, in your hand,"]
+    verbs = ["hang on to", "grab", "pick up", "hold", "take"]
     return f"{random.choice(verbs)} the {object_a}"
+
+
+def generate_instruction_for_under_proposition(object_a, object_b):
+    prepositions = [
+        "under",
+        "below",
+        "underneath",
+        "beneath",
+        "under the",
+    ]
+    verbs = [
+        "push",
+        "move",
+    ]
+    return f"{random.choice(verbs)} {object_a} {random.choice(prepositions)} {object_b}"
 
 
 def add_prefix_and_suffix_to_instruction(instruction: str) -> str:
     prefixes = [
         "",
         "please ",
-        "Can you ",
-        "Hey, ",
-        "can you please ",
         "could you ",
-        "could you please ",
     ]
-    suffixes = ["", " please?", " - thanks", ", thanks!", " now, thanks!"]
+    suffixes = ["", " - thanks"]
     return random.choice(prefixes) + instruction + random.choice(suffixes)
 
 
@@ -149,6 +155,7 @@ def generate_overall_instruction_for_pddl_problem(pddl):
     all_on_rack = True
     all_on_table = True
     inhand_propositions = []
+    under_propositions = []
 
     for prop in individual_propositions:
         if "on" in prop:
@@ -158,6 +165,10 @@ def generate_overall_instruction_for_pddl_problem(pddl):
                 all_on_rack = False
         if "inhand" in prop:
             inhand_propositions.append(prop)
+        if "under" in prop:
+            all_on_table = False
+            all_on_rack = False
+            under_propositions.append(prop)
     assert (
         len(inhand_propositions) <= 1
     ), "only maximum of one inhand propositions supported"
@@ -190,14 +201,31 @@ def generate_overall_instruction_for_pddl_problem(pddl):
         instruction += " and " + generate_instruction_for_inhand_proposition(
             inhand_object
         )
+
+    if len(under_propositions) > 0:
+        for under_proposition in under_propositions:
+            a = under_proposition[0].split("(")[1].split(",")[0]
+            b = (
+                under_propositions[0]
+                .split("(")[1]
+                .split(",")[1]
+                .split(")")[0]
+                .split()[0]
+            )
+            assert b == "rack", "only support under(rack) for now"
+            instruction += " and " + generate_instruction_for_under_proposition(a, b)
     return add_prefix_and_suffix_to_instruction(instruction)
+
 
 def get_task_plan(
     pddl: symbolic.Pddl,
     max_depth: int = 10,
     timeout: int = 10,
+    domain_name: Literal[
+        "constrained_packing", "hook_reach", "rearrangement_push"
+    ] = "constrained_packing",
 ) -> List[str]:
-    """Get a plan for the given pddl problem. 
+    """Get a plan for the given pddl problem.
     Assumes that the problem is solvable (and also within the timeout).
 
     Args:
@@ -211,8 +239,28 @@ def get_task_plan(
         planner.root, max_depth=max_depth, timeout=timeout, verbose=False
     )
     # take first (shortest) plan returned
-    plan = list(bfs)[0]
+    if domain_name == "constrained_packing":
+        plan = list(bfs)[0]
+    elif domain_name == "hook_reach":
+        # select the plan that involves the pull primitive with pull(a, hook)
+        plans = list(bfs)
+        for plan in plans:
+            if any("pull" in str(node.action) for node in plan):
+                print(f"initial_state: {pddl.initial_state}")
+                print(f"goal: {pddl.goal}")
+                break
+    elif domain_name == "rearrangement_push":
+        # select the plan that involves the push primitive with push(a, b)
+        plans = list(bfs)
+        for plan in plans:
+            if any("push" in str(node.action) for node in plan):
+                break
+    else:
+        raise ValueError(f"Unknown domain name {domain_name}")
+
+    print(f"plan for domain {domain_name}: {[str(node.action) for node in plan[1:]]}")
     return [str(node.action) for node in plan[1:]]
+
 
 def create_problem(
     config: ProblemGenerationConfig,
@@ -220,7 +268,16 @@ def create_problem(
     problem_name: str,
     objects_with_properties: List,
     num_objects: int,
-) -> None:
+    domain_name: Literal["constrained_packing", "hook_reach", "rearrangement_push"],
+    allow_box_on_any_obj: bool = False,
+    allow_obj_inhand_in_goal: bool = False,
+) -> bool:
+    """Create a problem for the given pddl domain.
+
+    Args:
+
+    Returns:
+        True if the problem was successfully created, False otherwise."""
     problem: symbolic.Problem = symbolic.Problem(problem_name, pddl.name)
 
     rack = objects_with_properties[0]
@@ -228,6 +285,11 @@ def create_problem(
     # add rack to table
     problem.add_initial_prop(f"on({rack[0]}, table)")
     num_objects += 1
+
+    if domain_name == "hook_reach" or "rearrangement_push":
+        # add hook to table
+        problem.add_object("hook", "tool")
+        problem.add_initial_prop(f"on(hook, table)")
 
     # randomly add other objects
     while len(problem._objects) < num_objects:
@@ -237,8 +299,8 @@ def create_problem(
         if not success:
             continue
         # manually add table
-        curr_objects = list(problem._objects) + [pddl.objects[0]]  
-        # on predicate: place newly created object on another object 
+        curr_objects = list(problem._objects) + [pddl.objects[0]]
+        # on predicate: place newly created object on another object
         # that's not itself or a box that already has a box on it
         potential_on_objs = []
         for o in curr_objects:
@@ -250,8 +312,14 @@ def create_problem(
                     continue
             potential_on_objs.append(o)
 
-        on_obj = random.choice(potential_on_objs)
+        if allow_box_on_any_obj:
+            on_obj = random.choice(potential_on_objs)
+        else:
+            on_obj = random.choice(
+                [o for o in potential_on_objs if o.type in ["table", "rack"]]
+            )
         problem.add_initial_prop(f"on({obj[0]}, {on_obj.name})")
+        print(f"Added {obj[0]} on {on_obj.name}")
 
     # create the problem pddl file and save to disk
     with open(config.pddl_cfg.get_problem_file(problem_name), "w") as f:
@@ -268,7 +336,10 @@ def create_problem(
         valid_actions = pddl.list_valid_actions(state)
         if len(valid_actions) == 0:
             print(f"No valid actions. State: {state}")
-            import ipdb; ipdb.set_trace()
+            print(pddl.is_valid(verbose=True))
+            import ipdb
+
+            ipdb.set_trace()
             break
 
         action = random.choice(valid_actions)
@@ -281,6 +352,19 @@ def create_problem(
             continue
         valid_syntax_prop = f"({parsed_prop[0]} {' '.join(parsed_prop[1])})"
         valid_syntax_state.append(valid_syntax_prop)
+        if not allow_box_on_any_obj:
+            assert any(
+                ["box" in o.name for o in curr_objects]
+            ), "No boxes in state - assumes boxes are named as xyz_box for now"
+            if parsed_prop[0] == "on" and not parsed_prop[1][1] in ["table", "rack"]:
+                # check if the box is on a box
+                print(f"Object on not on table or rack disallowed. State: {state}")
+                return False
+        if not allow_obj_inhand_in_goal:
+            if parsed_prop[0] == "inhand":
+                print(f"Object in hand in goal disallowed. State: {state}")
+                return False
+
     problem.set_goal(_and(*valid_syntax_state))
 
     # re-write the problem pddl file with the new goal
@@ -288,58 +372,78 @@ def create_problem(
         f.write(str(problem))
 
     pddl = symbolic.Pddl(
-        config.pddl_cfg.pddl_domain_file,  config.pddl_cfg.pddl_problem_file
+        config.pddl_cfg.pddl_domain_file, config.pddl_cfg.pddl_problem_file
     )
 
     human_instruction = generate_overall_instruction_for_pddl_problem(pddl)
-
-    task_plan = get_task_plan(pddl, max_depth=10, timeout=10)  # assumes this succeeds?
+    print(f"Human instruction: {human_instruction}")
+    task_plan = get_task_plan(
+        pddl, max_depth=10, timeout=10, domain_name=domain_name
+    )  # assumes this succeeds?
 
     example = InContextExample(
-        predicates=["on(a, b)", "inhand(a)"],
-        primitives=["pick(a, b)", "place(a, b)", "pull(a, b)", "push(a, b)"],
+        predicates=["on(a, b)", "inhand(a)", "under(a, b)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         scene_objects=[obj.name for obj in pddl.objects],
         scene_object_relationships=list(pddl.initial_state),
         human=human_instruction,
         goal=extract_propositions_from_pddl_goal(str(pddl.goal)),
-        robot=task_plan,
+        robot_action_sequence=task_plan,
         pddl_domain_file=config.pddl_cfg.pddl_domain_file,
         pddl_problem_file=config.pddl_cfg.pddl_problem_file,
     )
-    
+
     example.save_to_json(
         config.pddl_cfg.get_prompt_file(problem_name), overwrite=config.overwrite
     )
+    return True
 
 
 def main(config: ProblemGenerationConfig):
     pddl = symbolic.Pddl(config.pddl_cfg.pddl_domain_file)
     if config.pddl_cfg.pddl_domain == "constrained_packing":
         objects_with_properties: List[str] = [
-            ("rack", "unmovable"),
-            ("red_box", "box"),
-            ("yellow_box", "box"),
+            ("rack", "rack"),
             ("cyan_box", "box"),
+            ("red_box", "box"),
             ("blue_box", "box"),
+            ("yellow_box", "box"),
         ]
     elif config.pddl_cfg.pddl_domain == "hook_reach":
-        raise NotImplementedError("hook_reach not implemented properly yet (especially for the hooking related tasks)")
         objects_with_properties: List[str] = [
-            ("rack", "unmovable"),
-            ("red_box", "box"),
-            ("yellow_box", "box"),
+            ("rack", "rack"),
             ("cyan_box", "box"),
+            ("red_box", "box"),
             ("blue_box", "box"),
-            ("hook", "hook"),  # TODO(klin): unclear how the property field works
+            ("yellow_box", "box"),
+            ("hook", "tool"),
         ]
     else:
-        raise NotImplementedError(f"{config.pddl_cfg.pddl_domain} not implemented yet")
+        objects_with_properties: List[str] = [
+            ("rack", "rack"),
+            ("salt", "box"),
+            ("icecream", "box"),
+            ("yoghurt", "box"),
+            ("milk", "box"),
+            ("hook", "tool"),
+        ]
 
-    for problem_idx in range(config.num_problems):
+    problem_idx = 0
+    while problem_idx < config.num_problems:
         problem_name = f"{config.pddl_cfg.pddl_problem_prefix}{problem_idx}"
-
         num_objects = np.random.randint(2, len(objects_with_properties))
-        create_problem(config, pddl, problem_name, objects_with_properties, num_objects)
+
+        if create_problem(
+            config,
+            pddl,
+            problem_name,
+            objects_with_properties,
+            num_objects,
+            domain_name=config.pddl_cfg.pddl_domain,
+            allow_box_on_any_obj=config.allow_box_on_any_obj,
+            allow_obj_inhand_in_goal=config.allow_obj_inhand_in_goal,
+        ):
+            problem_idx += 1
 
 
 if __name__ == "__main__":

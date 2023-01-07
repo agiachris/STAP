@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import dataclasses
 from functools import cached_property
 from typing import Literal, Optional
@@ -15,9 +15,12 @@ class PDDLConfig:
     pddl_problem_prefix: str = "new_tamp_problem"
     pddl_file_name: str = "tamp0_domain.pddl"
     _pddl_problem_file: str = ""
+    custom_pddl_domain_file: str = ""
 
     @cached_property
     def pddl_domain_file(self) -> str:
+        if self.custom_pddl_domain_file != "":
+            return self.custom_pddl_domain_file
         return self.pddl_root_dir + "/" + self.pddl_domain + "/" + self.pddl_file_name
 
     @property
@@ -60,11 +63,13 @@ class PDDLConfig:
 @dataclass
 class ProblemGenerationConfig:
     pddl_cfg: PDDLConfig = dataclasses.field(default_factory=PDDLConfig)
-    num_problems: int = 20
+    num_problems: int = 10
     num_workers: int = 1
     min_steps: int = 10
     max_steps: int = 20
     overwrite: bool = False
+    allow_box_on_any_obj: bool = False
+    allow_obj_inhand_in_goal: bool = False
 
 
 @dataclass
@@ -80,9 +85,12 @@ class InContextExampleConfig:
     use_goal: bool = False
     use_robot: bool = False
     custom_robot_prompt: str = ""
-    custom_robot_answer_format: Literal[
-        "python_list", "python_list_of_lists"
+    custom_robot_action_sequence_format: Literal[
+        "python_list", "python_list_of_lists", "saycan_done"
     ] = "python_list"
+
+    predicates: Optional[list] = None
+    primitives: Optional[list] = None
 
 
 @dataclass
@@ -90,6 +98,7 @@ class CurrentExampleConfig(InContextExampleConfig):
     predict_goal: bool = False
     predict_explanation: bool = False
     predict_robot: bool = False
+    score_robot_action: bool = False
 
 
 @dataclass
@@ -127,8 +136,12 @@ class LMConfig:
 
 @dataclass
 class PromptConfig:
-    # tricky to define the structure of the prompt
-    header_cfg: InContextExampleConfig = InContextExampleConfig()
+    header_cfg: InContextExampleConfig = field(
+        default_factory=lambda: InContextExampleConfig(
+            primitives=["pick(a)", "place(a,b)", "push(a, hook)", "pull(a, hook, b)"],
+            predicates=["on(a, b)", "under(a, b)"],
+        ),
+    )
     single_in_context_prompt_cfg: InContextExampleConfig = InContextExampleConfig()
     current_prompt_cfg: CurrentExampleConfig = CurrentExampleConfig()
     lm_cfg: LMConfig = LMConfig()
