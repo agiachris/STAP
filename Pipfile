@@ -10,6 +10,12 @@ matplotlib = "*"
 pandas = "*"
 seaborn = "*"
 shapely = "*"
+functorch = "==0.2.1"
+torch = "==1.12.1"
+torchvision = "==0.13.1"
+torchaudio = "==0.12.1"
+tyro = "*"
+crfm-helm = "*"
 
 [dev-packages]
 black = "*"
