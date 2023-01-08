@@ -22,7 +22,7 @@ dependencies = [
   # Computing
   "numpy",
   "scipy",
-  "torch==1.11",
+  "torch>=1.11",
   # Image processing
   "imageio",
   "pillow",
@@ -37,7 +37,8 @@ dependencies = [
   "pybullet",
   # Ours
   "ctrlutils==1.4.1",
-  "pysymbolic>=1.0.1",
+  # "pysymbolic>=1.0.1",
+  "pysymbolic @ git+https://github.com/tmigimatsu/symbolic/tree/0b2d558aeb4be20066f1ac0d3b3b6982a22c14b0",
   # scod-regression,
   "spatialdyn==1.4.4",
 ]
