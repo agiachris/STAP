@@ -11,14 +11,14 @@ env_kwargs:
 
   tasks:
     - action_skeleton:
-        - pick(cyan_box, table)
+        - pick(cyan_box)
         - place(cyan_box, rack)
         - pick(red_box, table)
         - place(red_box, rack)
-        - pick(hook, table)
+        - pick(hook)
         - pull(yellow_box, hook)
         - place(hook, table)
-        - pick(yellow_box, table)
+        - pick(yellow_box)
         - place(yellow_box, rack)
       initial_state:
         - free(cyan_box)

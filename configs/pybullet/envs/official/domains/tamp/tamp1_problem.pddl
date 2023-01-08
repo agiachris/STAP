@@ -2,6 +2,7 @@
 	(:domain workspace)
 	(:objects
 		rack - unmovable
+		hook - tool
 		cyan_box - box
 		yellow_box - box
 		red_box - box
