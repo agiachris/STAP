@@ -5,8 +5,8 @@ Usage:
 
 PYTHONPATH=. python scripts/data/generate_policy_dataset.py 
 --config.pddl-cfg.pddl-domain template --config.num-train-steps 0 --config.num-eval-episodes 0
---config.exp-name 20230105/dataset_collection/  --config.primitive pick
---config.min-num-box-obj 3 --config.max-num-box-obj 4
+--config.exp-name 20230108/dataset_collection/  --config.primitive pick
+--config.min-num-box-obj 1 --config.max-num-box-obj 4
 
 N.B. last two configs to avoid training a policy and/or evaluating the policy.
 Intended usage is to generate a dataset of (s, a, s', r) pairs with multiple processes
@@ -21,6 +21,8 @@ import itertools
 from string import Template
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
 import yaml
+from scripts.eval.task_gen.utils import sort_propositions
+
 
 import symbolic
 import tyro
@@ -318,7 +320,6 @@ def get_primitive_counts(
         actions.
     """
     primitive_counts = defaultdict(int)
-    primitives = ["pick", "place", "pull", "push"]
     # get total counts that each primitive is used from valid_states_to_actions
     for _, symbolic_action_dict in symbolic_states_to_actions.items():
         for symbolic_action in symbolic_action_dict["symbolically_valid_actions"]:
@@ -450,14 +451,18 @@ def main(config: PolicyDatasetGenerationConfig):
     states, actions = [], []
     count = 0
     for symbolic_predicate_state in valid_symbolic_predicate_states:
-        problem_name = "val-training" + str(sorted(list(symbolic_predicate_state)))
+        problem_name = "val-training" + str(sort_propositions(list(symbolic_predicate_state)))
         problem: symbolic.Problem = generate_pddl_problem_from_state_set(
             problem_name,
             config.pddl_cfg,
             objects_with_properties,
-            symbolic_predicate_state,
+            sort_propositions(list(symbolic_predicate_state)),
             save_pddl_file=True,
         )
+        with open(config.pddl_cfg.get_problem_file(problem_name), "r") as f:
+            print(f.read())
+            print("read problem file successfully")
+        
         pddl = symbolic.Pddl(
             config.pddl_cfg.pddl_domain_file,
             config.pddl_cfg.get_problem_file(problem_name),
@@ -476,7 +481,9 @@ def main(config: PolicyDatasetGenerationConfig):
             for action in syntactically_valid_actions
             if not action in symbolically_valid_actions
         ]
-        state_key = str(sorted(list(symbolic_predicate_state)))
+        state_key = str(sort_propositions(list(symbolic_predicate_state)))
+
+        # check if sort_propositions is needed
         valid_states_to_actions[state_key][
             "symbolically_valid_actions"
         ] = symbolically_valid_actions
@@ -490,7 +497,7 @@ def main(config: PolicyDatasetGenerationConfig):
         count += len(
             symbolically_valid_actions
         )  # + len(syntactically_valid_symbolically_invalid_actions)
-        states.append(symbolic_predicate_state)
+        states.append(sort_propositions(list(symbolic_predicate_state)))
         actions.append(symbolically_valid_actions)
 
     print(f"valid_symbolic_predicate_states: {len(valid_symbolic_predicate_states)}")
@@ -501,7 +508,10 @@ def main(config: PolicyDatasetGenerationConfig):
             f.write(f"state: {sorted(list(state))}\n")
             f.write(f"action: {sorted(list(action))}\n\n")
 
-    get_primitive_counts(valid_states_to_actions, ["pick", "place", "push", "pull"])
+    print(get_primitive_counts(valid_states_to_actions, ["pick"]))
+    print(get_primitive_counts(valid_states_to_actions, ["place"]))
+    print(get_primitive_counts(valid_states_to_actions, ["pull"]))
+    print(get_primitive_counts(valid_states_to_actions, ["push"]))
 
     env_config = get_env_config(
         valid_states_to_actions,
