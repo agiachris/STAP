@@ -1,0 +1,63 @@
+env: pybullet.TableEnv
+env_kwargs:
+  name: lifted_0
+  gui: true
+
+  primitives:
+    - pick
+    - place
+    - pull
+    - push
+
+  tasks:
+    - action_skeleton:
+        - pick(red_box)
+        - place(red_box, rack)
+        - pick(yellow_box)
+        - place(yellow_box, rack)
+        - pick(hook)
+        - pull(cyan_box, hook)
+        - place(hook, table)
+        - pick(cyan_box)
+        - place(cyan_box, rack)
+      initial_state:
+        - free(hook)
+        - free(red_box)
+        - free(yellow_box)
+        - free(cyan_box)
+        - aligned(rack)
+        - poslimit(rack)
+        - inworkspace(rack)
+        - inworkspace(hook)
+        - inworkspace(red_box)
+        - inworkspace(yellow_box)
+        - beyondworkspace(cyan_box)
+        - on(rack, table)
+        - on(hook, table)
+        - on(red_box, table)
+        - on(yellow_box, table)
+        - on(cyan_box, table)
+        
+  robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
+
+  objects:
+    - object_type: Urdf
+      object_kwargs:
+        name: table
+        path: configs/pybullet/envs/assets/iprl_table.urdf
+        is_static: true
+    - object_type: Rack
+      object_kwargs:
+        name: rack
+        size: [0.22, 0.32, 0.16]
+        color: [0.4, 0.2, 0.0, 1.0]
+    - object_type: Hook
+      object_kwargs:
+        name: hook
+        head_length: 0.2
+        handle_length: 0.38
+        handle_y: -1.0
+        color: [0.6, 0.6, 0.6, 1.0]
+    - configs/pybullet/envs/assets/yogurt.yaml
+    - configs/pybullet/envs/assets/milk.yaml
+    - configs/pybullet/envs/assets/icecream.yaml
