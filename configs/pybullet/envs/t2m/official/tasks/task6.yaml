@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: structured_language_2
+  name: lifted_1
   gui: true
 
   primitives:
@@ -10,28 +10,29 @@ env_kwargs:
     - push
 
   tasks:
+    # "How would you get a prime colored box on the rack?"
     - action_skeleton:
-        - pick(blue_box)
-        - place(blue_box, table)
         - pick(hook)
-        - push(yellow_box, hook, rack)
+        - pull(blue_box, hook)
+        - place(hook, table)
+        - pick(blue_box)
+        - place(blue_box, rack)
       initial_state:
         - free(hook)
-        - free(yellow_box)
         - free(blue_box)
+        - free(cyan_box)
         - aligned(rack)
         - poslimit(rack)
+        - inworkspace(rack)
         - inworkspace(hook)
-        - inoperationalzone(yellow_box)
-        - inobstructionzone(blue_box)
-        - beyondworkspace(rack)
-        - infront(yellow_box, rack)
-        - infront(blue_box, rack)
-        - nonblocking(rack, hook)
+        - inworkspace(cyan_box)
+        - beyondworkspace(blue_box)
+        - nonblocking(blue_box, rack)
+        - nonblocking(blue_box, cyan_box)
         - on(rack, table)
         - on(hook, table)
-        - on(yellow_box, table)
         - on(blue_box, table)
+        - on(cyan_box, table)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -54,4 +55,4 @@ env_kwargs:
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/salt.yaml
-    - configs/pybullet/envs/assets/yogurt.yaml
+    - configs/pybullet/envs/assets/icecream.yaml

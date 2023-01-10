@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: lifted_1
+  name: lifted_0
   gui: true
 
   primitives:
@@ -10,26 +10,34 @@ env_kwargs:
     - push
 
   tasks:
+    # "How would you move the boxes to create the most space on the table?"
     - action_skeleton:
+        - pick(red_box)
+        - place(red_box, rack)
+        - pick(yellow_box)
+        - place(yellow_box, rack)
         - pick(hook)
-        - pull(blue_box, hook)
+        - pull(cyan_box, hook)
         - place(hook, table)
-        - pick(blue_box)
-        - place(blue_box, rack)
+        - pick(cyan_box)
+        - place(cyan_box, rack)
       initial_state:
         - free(hook)
-        - free(blue_box)
+        - free(red_box)
+        - free(yellow_box)
         - free(cyan_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(hook)
-        - inworkspace(cyan_box)
-        - beyondworkspace(blue_box)
-        - nonblocking(blue_box, cyan_box)
+        - inworkspace(red_box)
+        - inworkspace(yellow_box)
+        - beyondworkspace(cyan_box)
+        - nonblocking(cyan_box, rack)
         - on(rack, table)
         - on(hook, table)
-        - on(blue_box, table)
+        - on(red_box, table)
+        - on(yellow_box, table)
         - on(cyan_box, table)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
@@ -52,5 +60,6 @@ env_kwargs:
         handle_length: 0.38
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
-    - configs/pybullet/envs/assets/salt.yaml
+    - configs/pybullet/envs/assets/yogurt.yaml
+    - configs/pybullet/envs/assets/milk.yaml
     - configs/pybullet/envs/assets/icecream.yaml

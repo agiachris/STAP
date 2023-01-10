@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: structured_language_0
+  name: long_horizon_0
   gui: true
 
   primitives:
@@ -10,19 +10,25 @@ env_kwargs:
     - push
 
   tasks:
+    # "How would you move the blue box under the rack?"
     - action_skeleton:
+        - pick(blue_box)
+        - place(blue_box, table)
         - pick(hook)
-        - pull(red_box, hook)
-        - place(hook, table)
-        - pick(red_box)
+        - push(blue_box, hook, rack)
       initial_state:
         - free(hook)
-        - free(red_box)
+        - free(blue_box)
+        - aligned(rack)
+        - poslimit(rack)
         - inworkspace(hook)
-        - beyondworkspace(red_box)
+        - inworkspace(blue_box)
+        - beyondworkspace(rack)
+        - nonblocking(rack, hook)
+        - on(rack, table)
         - on(hook, table)
-        - on(red_box, table)
-
+        - on(blue_box, table)
+        
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   objects:
@@ -31,6 +37,11 @@ env_kwargs:
         name: table
         path: configs/pybullet/envs/assets/iprl_table.urdf
         is_static: true
+    - object_type: Rack
+      object_kwargs:
+        name: rack
+        size: [0.22, 0.32, 0.16]
+        color: [0.4, 0.2, 0.0, 1.0]
     - object_type: Hook
       object_kwargs:
         name: hook
@@ -38,4 +49,4 @@ env_kwargs:
         handle_length: 0.38
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
-    - configs/pybullet/envs/assets/milk.yaml
+    - configs/pybullet/envs/assets/salt.yaml

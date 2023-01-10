@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: lifted_0
+  name: long_horizon_1
   gui: true
 
   primitives:
@@ -10,33 +10,33 @@ env_kwargs:
     - push
 
   tasks:
+    # "How would you move all of the boxes to the rack?"
     - action_skeleton:
         - pick(red_box)
         - place(red_box, rack)
         - pick(yellow_box)
         - place(yellow_box, rack)
-        - pick(hook)
-        - pull(cyan_box, hook)
-        - place(hook, table)
         - pick(cyan_box)
         - place(cyan_box, rack)
+        - pick(blue_box)
+        - place(blue_box, rack)
       initial_state:
-        - free(hook)
         - free(red_box)
         - free(yellow_box)
         - free(cyan_box)
+        - free(blue_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
-        - inworkspace(hook)
         - inworkspace(red_box)
         - inworkspace(yellow_box)
-        - beyondworkspace(cyan_box)
+        - inworkspace(cyan_box)
+        - inworkspace(blue_box)
         - on(rack, table)
-        - on(hook, table)
         - on(red_box, table)
         - on(yellow_box, table)
         - on(cyan_box, table)
+        - on(blue_box, table)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -51,13 +51,7 @@ env_kwargs:
         name: rack
         size: [0.22, 0.32, 0.16]
         color: [0.4, 0.2, 0.0, 1.0]
-    - object_type: Hook
-      object_kwargs:
-        name: hook
-        head_length: 0.2
-        handle_length: 0.38
-        handle_y: -1.0
-        color: [0.6, 0.6, 0.6, 1.0]
+    - configs/pybullet/envs/assets/salt.yaml
     - configs/pybullet/envs/assets/yogurt.yaml
     - configs/pybullet/envs/assets/milk.yaml
     - configs/pybullet/envs/assets/icecream.yaml
