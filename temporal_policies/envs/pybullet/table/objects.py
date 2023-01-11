@@ -12,7 +12,16 @@ from temporal_policies.envs.pybullet.sim import body, math, shapes
 from temporal_policies.envs.pybullet.table import object_state
 
 
-OBJECT_HIERARCHY = ["rack", "table", "hook", "box", "salt", "milk", "icecream", "yogurt"]
+OBJECT_HIERARCHY = [
+    "rack",
+    "table",
+    "hook",
+    "box",
+    "salt",
+    "milk",
+    "icecream",
+    "yogurt",
+]
 
 
 def compute_bbox_vertices(
@@ -611,6 +620,7 @@ class PropTestRack(Object):
         assert self._bbox is not None, "Bbox not set"
         return self._bbox
 
+
 class PropTestNull(Object):
     def __init__(self, null_obj: Null):
         for k, v in null_obj.__dict__.items():
@@ -649,6 +659,7 @@ class PropTestHook(Object):
 
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
+
 
 class WrapperObject(Object):
     def __init__(self, body: Object):
@@ -938,8 +949,10 @@ class Variant(WrapperObject):
                 i for i, variant in enumerate(self.variants) if variant.isinstance(Null)
             ]
             if not len(self._null_indices) > 0:
-                print("No null variants available; please specify `- object_type: Null' \
-                    in relevant section of config if Variant object is not mentioned in any sampled task.")
+                print(
+                    "No null variants available; please specify `- object_type: Null' \
+                    in relevant section of config if Variant object is not mentioned in any sampled task."
+                )
         else:
             assert group is not None
             self._variants = object_groups[group]
