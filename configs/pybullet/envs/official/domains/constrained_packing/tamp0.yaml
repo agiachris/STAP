@@ -11,9 +11,9 @@ env_kwargs:
 
   tasks:
     - action_skeleton:
-        - pick(red_box, table)
+        - pick(red_box)
         - place(red_box, rack)
-        - pick(yellow_box, table)
+        - pick(yellow_box)
         - place(yellow_box, rack)
       initial_state:
         - free(blue_box)
