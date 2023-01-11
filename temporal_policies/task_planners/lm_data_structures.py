@@ -7,6 +7,7 @@ import openai
 import json
 
 from helm.common.request import Token
+
 # complication: Episode can be used as a single CoT prompt, or as a prompt for current context
 # complication: Human might give an impossible goal ...
 # Single prompt unit that can be used to compose a chain of thought prompt or a current context prompt
@@ -26,6 +27,7 @@ ROBOT_PROMPT = "Robot action sequence: "
 class APIType(Enum):
     OPENAI = 0
     HELM = 1
+
 
 # remove because can't save Enum in json
 # class Robotaction_sequenceFormat(Enum):
@@ -75,7 +77,7 @@ class InContextExample:
     custom_robot_action_sequence_format: Literal[
         "python_list", "python_list_of_lists"
     ] = "python_list"  # use special prompt for robot action sequence in overall_example
-    
+
     @property
     def action_prompt(self) -> str:
         """
@@ -205,8 +207,15 @@ class InContextExample:
                 action_sequence = f"[{self.robot_action_sequence}, ]"
             elif self.custom_robot_action_sequence_format == "python_list":
                 action_sequence = self.robot_action_sequence
-            elif self.custom_robot_action_sequence_format == "saycan_with_done":
-                action_sequence = ', '.join(['{}. {}'.format(i + 1, action) for i, action in enumerate(self.robot_action_sequence + ['done'])])
+            elif self.custom_robot_action_sequence_format == "saycan_done":
+                action_sequence = ", ".join(
+                    [
+                        "{}. {}".format(i + 1, action)
+                        for i, action in enumerate(
+                            self.robot_action_sequence + ["done()"]
+                        )
+                    ]
+                )
 
             res += f"{robot_prompt}{action_sequence}\n"
         return res
@@ -237,7 +246,7 @@ class CurrentExample(InContextExample):
     predict_explanation: bool = False
     use_predicted_goal: bool = False
 
-    # organizes overall current prompt to include: the history of actions that've 
+    # organizes overall current prompt to include: the history of actions that've
     # been executed and the evolution of the object relationships
     use_action_object_relationship_history: bool = False
     all_prior_object_relationships: Optional[List[List[str]]] = None
@@ -277,14 +286,6 @@ class CurrentExample(InContextExample):
         # add object relationships to history
         self.all_prior_object_relationships.append(object_relationships)
 
-    def get_current_prompt(self, style: Literal["SayCan", "python_list"]) -> str:
-        # get current prompt
-        if style == "SayCan":
-            return self.get_current_prompt_saycan()
-        elif style == "python_list":
-            return self.get_current_prompt_python_list()
-        else:
-            raise ValueError(f"Unknown style {style}")
 
 @dataclass
 class OverallPrompt:
@@ -318,12 +319,16 @@ class Result:
         False  # whether to compare LM's robot's action sequence with the "ground truth"
     )
     robot_success: bool = False
-    robot_prediction_result_types: Optional[List[Literal[
-        "success: partial",
-        "success",
-        "failure: invalid symbolic action",
-        "failure: misses goal",
-    ]]] = None
+    robot_prediction_result_types: Optional[
+        List[
+            Literal[
+                "success: partial",
+                "success",
+                "failure: invalid symbolic action",
+                "failure: misses goal",
+            ]
+        ]
+    ] = None
     predicted_task_plan_descriptions: Optional[List[str]] = None
     custom_robot_prompt: Optional[str] = None
     custom_robot_action_sequence_format: Optional[str] = None
@@ -361,8 +366,8 @@ class Result:
 
         Returns: [List[str]] <parsed robot predicted>
         """
-        assert self.robot_action_sequence_predicted is not None, "Robot predicted is None."
-        return ast.literal_eval(self.robot_action_sequence_predicted.strip())
+        assert self.robot_predicted is not None, "Robot predicted is None."
+        return ast.literal_eval(self.robot_predicted.strip())
 
     @property
     def parsed_robot_predicted_list_of_lists(self) -> List[str]:
@@ -373,8 +378,8 @@ class Result:
 
         Returns: [List[str]] <parsed robot predicted>
         """
-        assert self.robot_action_sequence_predicted is not None, "Robot predicted is None."
-        parsed = ast.literal_eval(self.robot_action_sequence_predicted.strip())
+        assert self.robot_predicted is not None, "Robot predicted is None."
+        parsed = ast.literal_eval(self.robot_predicted.strip())
         assert type(parsed) == list, "Robot predicted is not a list."
         assert all(
             type(x) == list for x in parsed

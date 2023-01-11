@@ -3,6 +3,7 @@ from enum import Enum
 import pathlib
 import pickle
 import random
+import time
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 import openai
 import getpass
@@ -36,9 +37,7 @@ SCENE_PREDICATE_PROMPT = "Available predicates: "
 SCENE_PRIMITIVE_PROMPT = "Available primitives: "
 HUMAN_INSTRUCTION_PROMPT = "Human instruction: "
 EXPLANATION_PROMPT = "Explanation: "
-GOAL_PROMPT = (
-    "Goal predicate set: "  # set seems to work better than list? nevermind ... hmm
-)
+GOAL_PROMPT = "Goal predicate set (single list of predicates, only use available objects): "  # set seems to work better than list? nevermind ... hmm
 ROBOT_PROMPT = "Robot action sequence: "
 
 color_box_to_objects = {
@@ -72,6 +71,15 @@ def register_api_key(
     else:
         raise ValueError(f"api_type {api_type} not supported")
 
+def authenticate(api_type: APIType) -> Optional[Authentication]:
+    if api_type == APIType.OPENAI:
+        raise ValueError("OpenAI API not supported")
+    elif api_type == APIType.HELM:
+        with open("../credentials.json", "r") as f:
+            api_key = json.load(f)["openaiApiKey"]
+        return register_api_key(api_type, api_key)
+    else:
+        raise ValueError("Invalid API type")
 
 def generate_current_setting_prompt(
     instruction: str,
@@ -150,10 +158,16 @@ def gpt3_call(
                 top_k_per_token=logprobs,
             )
             # print request arguments
-            request_result: RequestResult = service.make_request(auth, request)
+            try:
+                request_result: RequestResult = service.make_request(auth, request)
+            except Exception as e:
+                print(e)
+                print("retrying")
+                time.sleep(5)
+                request_result: RequestResult = service.make_request(auth, request)
             response: Dict[str, Dict] = {
                 "usage": {
-                    "completion_tokens": len(request_result.completions[0].tokens),
+                    "total_tokens": len(request_result.completions[0].tokens),
                 },
                 "choices": [
                     {
@@ -162,7 +176,7 @@ def gpt3_call(
                     }
                 ],
             }
-            response['tokens'] = request_result.completions[0].tokens
+            response["tokens"] = request_result.completions[0].tokens
         else:
             raise ValueError(f"api_type {api_type} not supported")
 
@@ -284,7 +298,7 @@ def generate_lm_response(
 
         stop = [
             SCENE_OBJECT_PROMPT,
-            SCENE_PRIMITIVE_PROMPT,
+            "\n\n",
             "```",
             "\nRobot action sequence",
         ]
@@ -300,16 +314,19 @@ def generate_lm_response(
             api_type=lm_cfg.api_type,
             auth=auth,
         )
-        if response["usage"]["completion_tokens"] == lm_cfg.max_tokens:
+        if response["usage"]["total_tokens"] == lm_cfg.max_tokens:
             print("max tokens reached")
-            import ipdb; ipdb.set_trace()
+            print(f"text is: {response['choices'][0]['text']}")
+            import ipdb
+
+            ipdb.set_trace()
 
         overall_prompt += response["choices"][0]["text"]
         update_result_current_prompt_based_on_response_robot(
             result, current_prompt, response
         )
 
-    print("Overall prompt:\n", overall_prompt)
+    print(f"Overall prompt:\n{overall_prompt}\n")
     return result, lm_cache
 
 
@@ -324,13 +341,13 @@ def get_robot_action_prompt(current_prompt: CurrentExample):
             current_prompt.all_prior_object_relationships
         )
         for i, executed_action in enumerate(current_prompt.all_executed_actions):
-            robot_action_prompt += f"Executed action: {executed_action}\n"
+            robot_action_prompt += f"Executed action: {str(executed_action).lower()}\n"
             robot_action_prompt += f"New object relationships: {current_prompt.all_prior_object_relationships[i + 1]}\n"
 
     if current_prompt.score_action:
         robot_action_prompt += f"Executed action: {current_prompt.action_to_score}"
         return robot_action_prompt
-    
+
     if current_prompt.custom_robot_prompt != "":
         robot_action_prompt += current_prompt.custom_robot_prompt
     else:
@@ -347,7 +364,7 @@ def update_result_current_prompt_based_on_response_robot(
 
     current_prompt.robot_predicted = robot
     result.robot_predicted = robot
-    result.robot_ground_truth = current_prompt.robot
+    result.robot_ground_truth = current_prompt.robot_action_sequence
 
     robot_prediction_result_types, predicted_task_plan_descriptions = [], []
     if current_prompt.custom_robot_action_sequence_format == "python_list_of_lists":
@@ -391,8 +408,13 @@ def update_result_current_prompt_based_on_response_robot(
     result.robot_prediction_result_types = robot_prediction_result_types
     result.predicted_task_plan_descriptions = predicted_task_plan_descriptions
     result.custom_robot_prompt = current_prompt.custom_robot_prompt
-    result.custom_robot_action_sequence_format = current_prompt.custom_robot_action_sequence_format
-    result.tokens_predicted = response["tokens"] if response.get("tokens", False) else None
+    result.custom_robot_action_sequence_format = (
+        current_prompt.custom_robot_action_sequence_format
+    )
+    result.tokens_predicted = (
+        response["tokens"] if response.get("tokens", False) else None
+    )
+
 
 def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
     # Check if the lm_cache_file exists
@@ -423,6 +445,7 @@ def get_examples_from_json_dir(path: str) -> List[InContextExample]:
     # using pathlib, get all json files in the directory and load them
     for file in pathlib.Path(path).iterdir():
         if file.suffix == ".json":
+            print(f"Loading examples from {file} ...")
             with open(file, "r") as f:
                 examples.extend([InContextExample(**ex) for ex in json.load(f)])
 
@@ -561,7 +584,10 @@ def check_task_plan_result(
         print(f"{robot_prediction_result_type}\n{predicted_task_plan_description}")
     return robot_prediction_result_type, predicted_task_plan_description
 
-def save_lm_cache(lm_cache_file: Union[str, pathlib.Path], lm_cache: Dict[str, str]) -> None:
+
+def save_lm_cache(
+    lm_cache_file: Union[str, pathlib.Path], lm_cache: Dict[str, str]
+) -> None:
     # save the lm_cache
     with open(lm_cache_file, "wb") as f:
         print(f"Saving lm_cache to {lm_cache_file}...")

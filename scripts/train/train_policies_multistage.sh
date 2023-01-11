@@ -31,7 +31,7 @@ function train_policy {
     args="${args} --seed 0"
     args="${args} ${ENV_KWARGS}"
     args="${args} --train-multistage 1"
-    args="${args} --num-critic-only-train-steps 150000"
+    args="${args} --num-critic-only-train-steps 800000"
     args="${args} --num-actor-only-train-steps 150000"
     args="${args} --num-original-train-steps 50000"
 
@@ -60,27 +60,27 @@ echo "primitives: ${primitives[@]}"
 
 # loop through the primitives and train the policy
 for primitive in "${primitives[@]}"; do
-    exp_name="20230101/complete_q_multistage_${primitive}"
+    exp_name="20230107/complete_q_multistage/"
     AGENT_CONFIG="configs/pybullet/agents/sac_multistage.yaml"
 
     TRAINER_CONFIG="configs/pybullet/trainers/agent_multistage_${primitive}.yaml"
 
     POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
     EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
-    ENV_KWARGS="--num-env-processes 4 --num-eval-env-processes 1 --gui 0"
+    ENV_KWARGS="--num-env-processes 8 --num-eval-env-processes 1 --gui 0"
     if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
         ENV_KWARGS="${ENV_KWARGS} --gui 0"
     fi
 
     ENV_CONFIG="configs/pybullet/envs/official/primitives/${primitive}_0_symbolically_valid_actions.yaml"
     EVAL_ENV_CONFIG="configs/pybullet/envs/official/primitives/${primitive}_0_symbolically_valid_actions.yaml"
-    # train_policy
+    train_policy
 done
 
 # primitives=("pick" "place" "push" "pull")
 # # loop through the primitives and train the policy
 # for primitive in "${primitives[@]}"; do
-#     exp_name="20230101/complete_q_multistage_${primitive}"
+#     exp_name="20230103/complete_q_multistage/${primitive}"
 #     AGENT_CONFIG="configs/pybullet/agents/sac_multistage.yaml"
 
 #     TRAINER_CONFIG="configs/pybullet/trainers/agent_multistage_${primitive}.yaml"

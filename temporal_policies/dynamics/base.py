@@ -139,6 +139,10 @@ class Dynamics(abc.ABC):
 
             # Dynamics state -> dynamics state.
             state = self.forward_eval(state, action, primitive)
+            # TODO(klin) verify hardcoding works properly
+            # hardcode table pose to 0 (assume table is always the second row)
+            # state[0, 1] = 0
+
             states[:, t + 1] = state
 
         if batch_size is None:

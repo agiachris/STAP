@@ -191,6 +191,8 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             self.load_dataset(
                 dataset_checkpoints, val_dataset_checkpoints, eval_dataset_checkpoints
             )
+            statistics = dataset.dataset_statistics()
+            print(f"Dataset statistics: {statistics}")
 
         self._eval_env = self.agent.env if eval_env is None else eval_env
         self._reset_collect = True

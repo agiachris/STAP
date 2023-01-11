@@ -21,6 +21,18 @@ def query_policy_actor(
         policy.encoder.encode(observation.to(policy.device), policy_args)
     )
 
+@tensors.numpy_wrap
+def query_policy_critic(
+    policy: agents.RLAgent, observation: torch.Tensor, policy_args: Optional[Any]
+) -> torch.Tensor:
+    """Numpy wrapper to query the policy critic."""
+    action = policy.actor.predict(
+        policy.encoder.encode(observation.to(policy.device), policy_args)
+    )
+    return policy.critic.predict(
+        policy.encoder.encode(observation.to(policy.device), policy_args), action
+    )
+
 
 def observation_str(env: envs.Env, observation: np.ndarray) -> str:
     """Converts observations to a pretty string."""
@@ -57,21 +69,42 @@ def evaluate_episode(
     if record:
         env.record_start()
 
+    t_pos = 0
+    t_neg = 0
+    f_pos = 0
+    f_neg = 0
     rewards = []
+    obs_diffs = []
     done = False
     while not done:
         action = query_policy_actor(policy, observation, reset_info["policy_args"])
-        if verbose:
-            print("observation:", observation_str(env, observation))
-            print("action:", action_str(env, action))
+        q = query_policy_critic(policy, observation, reset_info["policy_args"])
         if debug:
             input("step?")
 
-        observation, reward, terminated, truncated, step_info = env.step(action)
+        new_observation, reward, terminated, truncated, step_info = env.step(action)
+        if q > 0.5:
+            if reward > 0:
+                print(f"True +ve q: {q}")
+                t_pos += 1
+            else:
+                print(f"False +ve: {q}")
+                f_pos += 1
+        if q < 0.5:
+            if reward > 0:
+                print(f"False -ve: {q}")
+                f_neg += 1
+            else:
+                print(f"True -ve: {q}")
+                t_neg += 1
+
         if verbose:
             print("step_info:", step_info)
             print(f"reward: {reward}, terminated: {terminated}, truncated: {truncated}")
-
+            # print magnitude of difference in observations
+            print("observation diff w/o hook:", np.linalg.norm(observation - new_observation))
+            obs_diffs.append(np.linalg.norm(observation - new_observation))
+        observation = new_observation
         rewards.append(reward)
         done = terminated or truncated
 
@@ -81,7 +114,14 @@ def evaluate_episode(
     if debug:
         input("finish?")
 
-    return rewards
+    info = {
+        "obs_diff": obs_diffs,
+        "t_pos": t_pos,
+        "t_neg": t_neg,
+        "f_pos": f_pos,
+        "f_neg": f_neg,
+    }
+    return rewards, info
 
 
 def evaluate_episodes(
@@ -98,11 +138,21 @@ def evaluate_episodes(
         desc=f"Evaluate {env.name}",
         dynamic_ncols=True,
     )
+    rewards_lst = []
+    obs_diffs = []
+    t_pos, t_neg, f_pos, f_neg = 0, 0, 0, 0
     for i in pbar:
         # Evaluate episode.
-        rewards = evaluate_episode(
+        rewards, info = evaluate_episode(
             policy, env, verbose=verbose, debug=False, record=True
         )
+        obs_diff = info["obs_diff"]
+        t_pos += info["t_pos"]
+        t_neg += info["t_neg"]
+        f_pos += info["f_pos"]
+        f_neg += info["f_neg"]
+        rewards_lst.append(rewards)
+        obs_diffs.append(obs_diff)
         success = sum(rewards) > 0.0
         num_successes += success
         pbar.set_postfix(
@@ -120,6 +170,23 @@ def evaluate_episodes(
                     "seed": env._seed,
                 }
                 np.savez_compressed(f, **save_dict)  # type: ignore
+    if verbose:
+        rewards_lst = np.array(rewards_lst)
+        obs_diffs = np.array(obs_diffs)
+        print(f"t_pos: {t_pos}, t_neg: {t_neg}, f_pos: {f_pos}, f_neg: {f_neg}")
+        print(f"obs_diffs: {obs_diffs}")
+        print(f"obs_diffs avg: {np.mean(obs_diffs)}")
+        print(f"obs_diffs std: {np.std(obs_diffs)}")
+        # stats for successes
+        success_obs_diffs = obs_diffs[rewards_lst > 0]
+        print(f"success_obs_diffs: {success_obs_diffs}")
+        print(f"success_obs_diffs avg: {np.mean(success_obs_diffs)}")
+        print(f"success_obs_diffs std: {np.std(success_obs_diffs)}")
+        # stats for failures
+        fail_obs_diffs = obs_diffs[rewards_lst <= 0]
+        print(f"fail_obs_diffs: {fail_obs_diffs}")
+        print(f"fail_obs_diffs avg: {np.mean(fail_obs_diffs)}")
+        print(f"fail_obs_diffs std: {np.std(fail_obs_diffs)}")
 
 
 def evaluate_policy(
@@ -128,7 +195,7 @@ def evaluate_policy(
     debug_results: Optional[str] = None,
     path: Optional[Union[str, pathlib.Path]] = None,
     num_episodes: int = 100,
-    seed: Optional[int] = None,
+    seed: Optional[int] = 0,
     gui: Optional[bool] = None,
     verbose: bool = True,
     device: str = "auto",
@@ -140,6 +207,8 @@ def evaluate_policy(
         raise ValueError("Either path or load_results must be specified")
     if seed is not None:
         random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
 
     # Load env.
     env_kwargs: Dict[str, Any] = {}

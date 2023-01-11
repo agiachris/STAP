@@ -5,7 +5,7 @@ import datetime
 import enum
 import functools
 import pathlib
-from typing import Any, Generator, Optional, Sequence, Union
+from typing import Any, Dict, Generator, Optional, Sequence, Union
 
 try:
     from typing import TypedDict
@@ -216,6 +216,21 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             "terminated": np.zeros(size, dtype=bool),
             "truncated": np.zeros(size, dtype=bool),
             "policy_args": np.empty(size, dtype=object),
+        }
+
+    def dataset_statistics(self) -> Dict[str, int]:
+        """Returns statistics related to dataset.
+        """
+        total_episodes = self._worker_buffers["terminated"].sum() + self._worker_buffers[
+            "truncated"
+        ].sum()
+        failed_episodes = self._worker_buffers["truncated"].sum()
+        successful_episodes = self.worker_buffers["terminated"].sum()
+        return {
+            "total_episodes": total_episodes,
+            "failed_episodes": failed_episodes,
+            "successful_episodes": successful_episodes,
+            "success_rate": successful_episodes / total_episodes,
         }
 
     def add(

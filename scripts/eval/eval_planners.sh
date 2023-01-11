@@ -42,7 +42,7 @@ function eval_planner {
     else
         args="${args} --num-eval 100"
         args="${args} --path ${PLANNER_OUTPUT_PATH}"
-        args="${args} --verbose 0"
+        args="${args} --verbose 1"
     fi
     CMD="python scripts/eval/eval_planners.py ${args}"
     run_cmd
@@ -97,7 +97,7 @@ output_path="plots"
 # Evaluate planners.
 PLANNERS=(
 # Q-value / Latent dynamics.
-    # "policy_cem"
+    "policy_cem"
     # "random_cem"
     # "policy_shooting"
     # "random_shooting"
@@ -151,11 +151,12 @@ PLANNERS=(
 # )
 
 # Pybullet.
-exp_name="20220914/official"
+# exp_name="20230108/test-taps"
+exp_name="official"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     ## Domain 1: Hook Reach
-    # "hook_reach/task0"
+    "hook_reach/task0"
     # "hook_reach/task1"
     # "hook_reach/task2"
     ## Domain 2: Constrained Packing
@@ -184,10 +185,12 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; 
     ENV_KWARGS="--gui 0"
 fi
 
+ENV_KWARGS="--gui 0"
+
 # Run planners.
 POLICY_INPUT_PATH="${input_path}/${exp_name}"
-SCOD_INPUT_PATH="${input_path}/${exp_name}"
-SCOD_CONFIG="scod"
+# SCOD_INPUT_PATH="${input_path}/${exp_name}"
+# SCOD_CONFIG="scod"
 DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
 for CKPT in "${checkpoints[@]}"; do
     for env in "${ENVS[@]}"; do
