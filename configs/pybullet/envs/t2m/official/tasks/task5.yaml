@@ -10,7 +10,7 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you move the boxes to create the most space on the table?"
+    # "How would you move the boxes to create more space on the table?"
     - action_skeleton:
         - pick(red_box)
         - place(red_box, rack)

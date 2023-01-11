@@ -22,10 +22,10 @@ def main(config: str):
     inst = "How would you move all of the boxes to the rack?"
 
     # Lifted Task 1.
-    inst = "How would you move the boxes to create the most space on the table?"
+    inst = "How would you move the boxes to create more space on the table?"
 
     # Lifted Task 2.
-    inst = "How would you get a prime colored box on the rack?"
+    inst = "How would you put a prime colored box on the rack?"
 
 
 if __name__ == "__main__":

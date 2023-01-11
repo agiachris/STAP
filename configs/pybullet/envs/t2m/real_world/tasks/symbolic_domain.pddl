@@ -1,4 +1,4 @@
-(define (domain workspace)
+(define (domain symbolic_workspace)
 	(:requirements :strips :typing :equality :universal-preconditions :negative-preconditions :conditional-effects)
 	(:types
 		physobj - object
@@ -6,30 +6,25 @@
 		movable - physobj
 		tool - movable
 		box - movable
-		rack - unmovable
+		receptacle - unmovable
 	)
 	(:constants table - unmovable)
 	(:predicates
 		(inhand ?a - movable)
-		(on ?a - movable ?b - physobj)
-		(inworkspace ?a - movable)
+		(on ?a - movable ?b - unmovable)
+		(inworkspace ?a - physobj)
 		(beyondworkspace ?a - physobj)
-		(under ?a - movable ?b - unmovable)
+		(under ?a - movable ?b - receptacle)
 	)
 	(:action pick
 		:parameters (?a - movable)
 		:precondition (and
-			(exists (?b - physobj) (on ?a ?b))
-			(forall (?b - movable)
-			(and
-				(not (inhand ?b))
-				(not (on ?b ?a))
-			)
-			)
+			(exists (?b - unmovable) (on ?a ?b))
+			(forall (?b - movable) (not (inhand ?b)))
 		)
 		:effect (and
 			(inhand ?a)
-			(forall (?b - physobj) (not (on ?a ?b)))
+			(forall (?b - unmovable) (not (on ?a ?b)))
 		)
 	)
 	(:action place
@@ -55,14 +50,15 @@
 		)
 	)
     (:action push
-        :parameters (?obj - movable ?tool - tool ?dest - rack)
+        :parameters (?a - box ?b - tool ?c - receptacle)
         :precondition (and
-            (inhand ?tool)
-            (on ?obj table)
-            (not (under ?obj ?rack))
+            (inhand ?b)
+            (on ?a table)
+            (not (under ?a ?c))
         )
         :effect (and
-            (under ?obj ?dest)
+            (under ?a ?c)
+			(beyondworkspace ?a)
         )
     )
 )
