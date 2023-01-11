@@ -690,9 +690,7 @@ class Inhand(Predicate):
         return True
         raise NotImplementedError("Inhand value() not implemented.")
 
-    def value_simple(
-        self, objects: Dict[str, Object]
-    ) -> bool:
+    def value_simple(self, objects: Dict[str, Object]) -> bool:
         """Evaluates to True if the grounding of Inhand(a) is geometrically valid."""
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
@@ -700,10 +698,13 @@ class Inhand(Predicate):
 
         z_pos = obj.state().pos[2]
         if not hasattr(self, "alerted_hardcoding"):
-            print(f"Hardcoded inhand predicate. If z_pos={z_pos} > 0.3, then inhand(obj).")
+            print(
+                f"Hardcoded inhand predicate. If z_pos={z_pos} > 0.3, then inhand(obj)."
+            )
             self.alerted_hardcoding = True
 
         return z_pos > 0.3
+
 
 class Under(Predicate):
     """Unary predicate enforcing that an object be placed underneath another."""
