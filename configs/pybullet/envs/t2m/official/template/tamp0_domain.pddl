@@ -59,7 +59,7 @@
         :precondition (and
             (inhand ?tool)
             (on ?obj table)
-            (not (under ?obj ?rack))
+            (not (under ?obj ?dest))
         )
         :effect (and
             (under ?obj ?dest)
