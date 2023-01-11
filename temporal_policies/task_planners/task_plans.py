@@ -82,11 +82,6 @@ def get_task_plans_from_lm(
             custom_in_context_example_robot_format
         )
 
-    overall_prompt = OverallPrompt(
-        header_prompt=header_prompt,
-        current_prompt=current_prompt,
-        examples=examples,
-    )
     results, lm_cache = generate_lm_response(
         header_prompt,
         current_prompt,
