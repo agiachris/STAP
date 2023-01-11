@@ -49,6 +49,7 @@ from temporal_policies.task_planners.goals import get_goal_from_lm, is_valid_goa
 
 from temporal_policies.task_planners.lm_data_structures import APIType
 from temporal_policies.task_planners.lm_utils import (
+    authenticate,
     get_examples_from_json_dir,
     load_lm_cache,
     register_api_key,
@@ -169,6 +170,7 @@ def eval_saycan(
     INSTRUCTION = "Put the red box on the rack"
 
     examples = get_examples_from_json_dir(pddl_root_dir + "/" + pddl_domain_name)
+    import ipdb;ipdb.set_trace()
     for example in examples:
         example.custom_robot_action_sequence_format = (
             custom_robot_action_sequence_format
@@ -194,7 +196,6 @@ def eval_saycan(
         env_kwargs["gui"] = bool(gui)
     env_factory = envs.EnvFactory(config=env_config)
     env = env_factory(**env_kwargs)
-
     # Load planner.
     planner = planners.load(
         config=planner_config,
@@ -220,6 +221,7 @@ def eval_saycan(
 
     observation, info = env.reset()
     done = False
+    import ipdb;ipdb.set_trace()
 
     # get goal props
     objects = list(env.objects.keys())
@@ -245,6 +247,7 @@ def eval_saycan(
     )
 
     actions: List[str]
+    viz_idx = 0
     while not done:
         lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
         # TODO(klin) overall prompt doesn't include the executed actions
@@ -330,7 +333,7 @@ def eval_saycan(
         ]  # the 'done' skill seems to have a hard-coded value according to the figures in saycan ...
         best_action_idx = overall_scores.index(max(overall_scores))
         env.set_primitive(potential_actions[best_action_idx])
-
+        env.record_start()
         observation, reward, terminated, _, info = env.step(
             policy_actions[best_action_idx]
         )
@@ -350,17 +353,11 @@ def eval_saycan(
         object_relationships = [str(prop) for prop in object_relationships]
         all_executed_actions.append(potential_actions[best_action_idx])
         all_prior_object_relationships.append(object_relationships)
-
-
-def authenticate(api_type: APIType):
-    if api_type == APIType.OPENAI:
-        raise ValueError("OpenAI API not supported")
-    elif api_type == APIType.HELM:
-        with open("../credentials.json", "r") as f:
-            api_key = json.load(f)["openaiApiKey"]
-        return register_api_key(api_type, api_key)
-    else:
-        raise ValueError("Invalid API type")
+        viz_idx += 1
+        if viz_idx == 5:
+            env.record_stop()
+            gif_path = path / f"saycan_planning_len{5}.gif"
+            env.record_save(gif_path, reset=True)
 
 
 def main(args: argparse.Namespace) -> None:
