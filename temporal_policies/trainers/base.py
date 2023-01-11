@@ -24,7 +24,6 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         path: Union[str, pathlib.Path],
         model: ModelType,
         dataset: datasets.ReplayBuffer,
-        val_dataset: Optional[datasets.ReplayBuffer],
         eval_dataset: datasets.ReplayBuffer,
         processor: processors.Processor,
         optimizers: Dict[str, torch.optim.Optimizer],
@@ -38,9 +37,10 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         checkpoint_freq: int,
         log_freq: int,
         profile_freq: Optional[int],
-        val_metric: str,
         eval_metric: str,
         num_data_workers: int,
+        val_metric: Optional[str] = None,
+        val_dataset: Optional[datasets.ReplayBuffer] = None,
     ):
         """Prepares the trainer for training.
 
@@ -48,7 +48,8 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             path: Training output path.
             model: Model to be trained.
             dataset: Train dataset.
-            val_dataset: Validation dataset. Used in multistage training when there is a train/val split.
+            val_dataset: [Optional] Validation dataset.
+                used in multistage training when there is a train/val split.
             eval_dataset: Eval dataset.
             processor: Batch data processor.
             optimizers: Model optimizers.
@@ -63,14 +64,14 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
                 eval checkpoints).
             log_freq: Logging frequency.
             profile_freq: Profiling frequency.
-            val_metric: Metric to use for validation.
+            val_metric: [Optional] Metric to use for validation.
             eval_metric: Metric to use for evaluation.
             num_data_workers: Number of workers to use for dataloader.
         """
         self._path = pathlib.Path(path)
         self._model = model
         self._dataset = dataset
-        self._val_dataset = val_dataset
+        self._val_dataset = val_dataset if val_dataset is not None else None
         self._eval_dataset = eval_dataset
 
         self._processor = processor
@@ -87,7 +88,11 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         self.num_data_workers = num_data_workers
 
         self.val_metric = val_metric
-        self._best_val_score = metrics.init_metric(self.val_metric)
+        self._best_val_score = (
+            metrics.init_metric(self.val_metric)
+            if self.val_metric is not None
+            else None
+        )
         self.eval_metric = eval_metric
         self._best_eval_score = metrics.init_metric(self.eval_metric)
 
@@ -260,6 +265,9 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         Args:
             checkpoint: Checkpoint path.
             strict: Make sure the state dict keys match.
+            load_dataset: Whether or not to load the dataset from the checkpoint;
+                if multistage training, generally don't re-save the training dataset
+                use self.load_dataset() if using multistage training
         """
         state_dict = torch.load(checkpoint, map_location=self.device)
         self.load_state_dict(state_dict, strict=strict)
@@ -271,8 +279,15 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         #     dataset_size = state_dict["dataset_size"]
         # if eval_dataset_size is None:
         #     eval_dataset_size = state_dict["eval_dataset_size"]
-        self.dataset.load(max_entries=dataset_size)
-        self.eval_dataset.load(max_entries=eval_dataset_size)
+        # if directory self.dataset.path exists, load the dataset
+        if self.dataset.path.exists():
+            self.dataset.load(max_entries=dataset_size)
+            self.eval_dataset.load(max_entries=eval_dataset_size)
+        else:
+            print(
+                f"Default dataset path {self.dataset.path} does not exist. "
+                "Please load the dataset via load_dataset() if intending to load a dataset.\n",
+            )
 
     def load_dataset(
         self,
@@ -289,6 +304,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             val_dataset_checkpoint: Checkpoint path for validation dataset.
             eval_dataset_checkpoint: Checkpoint path for eval dataset.
         """
+        print(f"Loading dataset manually via load_dataset()")
         if val_dataset_checkpoints is None:
             val_dataset_checkpoints = []
         if eval_dataset_checkpoints is None:
@@ -467,6 +483,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
             val_metrics_list: List of validation metric dicts accumulated since
                 the last post_validate_step.
         """
+        assert self.val_metric is not None, "No validation metric specified."
         if not val_metrics_list:
             return
 
@@ -547,7 +564,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
 
         # Pretrain.
         self.pretrain()
-        self.dataset.save()
+
         assert self.step >= self.num_pretrain_steps
 
         # Evaluate.
