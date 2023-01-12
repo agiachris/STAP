@@ -1,3 +1,17 @@
+"""
+python scripts/eval/eval_tamp.py  --planner-config configs/pybullet/planners/greedy.yaml 
+--env-config configs/pybullet/envs/official/domains/hook_reach/tamp0.yaml 
+--policy-checkpoints models/official/pick/select_model.pt models/official/place/select_model.pt models/official/pull/select_model.pt models/official/push/select_model.pt 
+--dynamics-checkpoint models/20230101/complete_q_multistage/ckpt_model_300000/dynamics/ckpt_model_20000.pt --seed 0 
+--pddl-domain configs/pybullet/envs/official/domains/hook_reach/tamp0_domain.pddl 
+--pddl-problem configs/pybullet/envs/official/domains/hook_reach/tamp0_problem.pddl 
+--max-depth 4 --timeout 10 --closed-loop 0 --num-eval 100 --path plots/official/tamp_experiment/hook_reach/tamp0 --verbose 0
+"""
+
+# --dynamics-checkpoint models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_all_4/best_model.pt --seed 0
+# --dynamics-checkpoint models/official/select_model/dynamics/best_model.pt --seed 0
+
+
 import argparse
 import pathlib
 from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
@@ -8,7 +22,7 @@ import tqdm
 
 from temporal_policies import dynamics, envs, planners
 from temporal_policies.envs.pybullet.table import primitives as table_primitives
-from temporal_policies.utils import recording, timing
+from temporal_policies.utils import timing
 
 
 def seed_generator(
@@ -69,48 +83,31 @@ def task_plan(
     max_depth: int = 5,
     timeout: float = 10.0,
     verbose: bool = False,
+    hardcoded: bool = False,
 ) -> Generator[List[envs.Primitive], None, None]:
-    planner = symbolic.Planner(pddl, pddl.initial_state)
-    bfs = symbolic.BreadthFirstSearch(
-        planner.root, max_depth=max_depth, timeout=timeout, verbose=False
-    )
-    for plan in bfs:
+    if hardcoded:
+        plan = [
+            "pick(blue_box, table)",
+            "pull(hook, red_box)",
+            "place(hook, table)",
+            "pick(red_box, table)",
+            "place(red_box, rack)",
+        ]
         action_skeleton = [
-            env.get_primitive_info(action_call=str(node.action)) for node in plan[1:]
+            env.get_primitive_info(action_call=str(node)) for node in plan
         ]
         yield action_skeleton
-
-
-def evaluate_plan(
-    idx_iter: int,
-    env: envs.Env,
-    planner: planners.Planner,
-    action_skeleton: Sequence[envs.Primitive],
-    plan: planners.PlanningResult,
-    rewards: np.ndarray,
-    path: pathlib.Path,
-    grid_resolution: Optional[int] = None,
-) -> Dict[str, Any]:
-    assert isinstance(env, envs.pybullet.TableEnv)
-    recorder = recording.Recorder()
-    recorder.start()
-    for primitive, predicted_state, action in zip(
-        action_skeleton, plan.states[1:], plan.actions
-    ):
-        env.set_primitive(primitive)
-        env._recording_text = (
-            "Action: ["
-            + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
-            + "]"
+    else:
+        planner = symbolic.Planner(pddl, pddl.initial_state)
+        bfs = symbolic.BreadthFirstSearch(
+            planner.root, max_depth=max_depth, timeout=timeout, verbose=False
         )
-
-        recorder.add_frame(frame=env.render())
-        env.set_observation(predicted_state)
-        recorder.add_frame(frame=env.render())
-    recorder.stop()
-    recorder.save(path / f"predicted_trajectory_{idx_iter}.gif")
-
-    return {}
+        for plan in bfs:
+            action_skeleton = [
+                env.get_primitive_info(action_call=str(node.action))
+                for node in plan[1:]
+            ]
+            yield action_skeleton
 
 
 def eval_tamp(
@@ -175,6 +172,7 @@ def eval_tamp(
         action_skeleton_generator = task_plan(
             pddl=pddl, env=env, max_depth=max_depth, timeout=timeout, verbose=verbose
         )
+
         for action_skeleton in action_skeleton_generator:
             timer.tic("motion_planner")
             env.set_primitive(action_skeleton[0])
@@ -194,14 +192,15 @@ def eval_tamp(
 
         # Get best TAMP plan.
         if motion_plans[0].visited_values is not None:
-            values = [(plan.p_success, -plan.visited_values[0]) for plan in motion_plans]
+            values = [
+                (plan.p_success, -plan.visited_values[0]) for plan in motion_plans
+            ]
             best = max(values)
             idx_best = values.index(best)
         else:
             idx_best = np.argmax([plan.p_success for plan in motion_plans])
         best_task_plan = task_plans[idx_best]
         best_motion_plan = motion_plans[idx_best]
-
         if closed_loop:
             env.record_start()
 
@@ -237,6 +236,13 @@ def eval_tamp(
             if t_planner is not None:
                 motion_planner_times += t_planner
         else:
+            planner.vizualize_predicted_plan(
+                idx_iter,
+                env,
+                action_skeleton,
+                best_motion_plan,
+                path,
+            )
             # Execute plan.
             rewards = planners.evaluate_plan(
                 env,
