@@ -1,19 +1,18 @@
-from dataclasses import dataclass, field
+from typing import Literal, Optional, Dict
+
+import os
 import dataclasses
+from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Literal, Optional
 
 from temporal_policies.task_planners.lm_data_structures import APIType
 
 
 @dataclass
 class PDDLConfig:
-    pddl_root_dir: str = "configs/pybullet/envs/official/domains"
-    pddl_domain: Literal[
-        "constrained_packing", "hook_reach", "template"
-    ] = "constrained_packing"
-    pddl_problem_prefix: str = "new_tamp_problem"
-    pddl_file_name: str = "tamp0_domain.pddl"
+    pddl_root_dir: str = "configs/pybullet/envs/t2m/official/template"
+    pddl_file_name: str = "template_domain.pddl"
+    pddl_problem_prefix: str = "pddl_problem"
     _pddl_problem_file: str = ""
     custom_pddl_domain_file: str = ""
 
@@ -21,7 +20,7 @@ class PDDLConfig:
     def pddl_domain_file(self) -> str:
         if self.custom_pddl_domain_file != "":
             return self.custom_pddl_domain_file
-        return self.pddl_root_dir + "/" + self.pddl_domain + "/" + self.pddl_file_name
+        return os.path.join(self.pddl_root_dir, self.pddl_file_name)
 
     @property
     def pddl_problem_file(self) -> str:
@@ -33,32 +32,15 @@ class PDDLConfig:
         self._pddl_problem_file = value
 
     def get_problem_file(self, problem_name: str) -> str:
-        problem_file = (
-            self.pddl_root_dir + "/" + self.pddl_domain + "/" + problem_name + ".pddl"
-        )
+        problem_file = os.path.join(self.pddl_root_dir, problem_name + ".pddl")
         self.pddl_problem_file = problem_file
         return problem_file
 
     def get_instructions_file(self, problem_name: str) -> str:
-        return (
-            self.pddl_root_dir
-            + "/"
-            + self.pddl_domain
-            + "/"
-            + problem_name
-            + "_instructions.txt"
-        )
+        return os.path.join(self.pddl_root_dir, problem_name + "_instructions.txt")
 
     def get_prompt_file(self, problem_name: str) -> str:
-        return (
-            self.pddl_root_dir
-            + "/"
-            + self.pddl_domain
-            + "/"
-            + problem_name
-            + "_prompt.json"
-        )
-
+        return os.path.join(self.pddl_root_dir, problem_name + "_prompt.json")
 
 @dataclass
 class ProblemGenerationConfig:
@@ -176,22 +158,14 @@ class EvaluationConfig:
 
 @dataclass
 class PolicyDatasetGenerationConfig:
-    """
-    Configuration for generating a dataset of (s, a, s', r) tuples
-    for a policy training task.
-    """
-
-    pddl_cfg: PDDLConfig = dataclasses.field(
-        default_factory=lambda: PDDLConfig(pddl_domain="template")
-    )
+    """Configuration for generating a dataset of (s, a, s', r) tuples."""
+    exp_name: str = "20230105/dataset_collection"
+    # Trainer configs.
     trainer_config: str = "configs/pybullet/trainers/data_collection.yaml"
     agent_config: str = "configs/pybullet/agents/sac.yaml"
     env_config: str = ""
     eval_env_config: str = ""
     encoder_checkpoint: Optional[str] = None
-    max_num_box_obj: int = 4
-    min_num_box_obj: int = 3
-    exp_name: str = "20230105/dataset_collection"
     custom_path: str = ""
     resume: str = False
     overwrite: str = False
@@ -204,14 +178,21 @@ class PolicyDatasetGenerationConfig:
     num_eval_episodes: int = 0
     num_env_processes: int = 1
     num_eval_env_processes: int = 1
+    # Dataset generation configs.
+    pddl_cfg: PDDLConfig = dataclasses.field(default_factory=lambda: PDDLConfig())
+    template_env_yaml: str = "configs/pybullet/envs/t2m/official/template/template_env.yaml"
     primitive: Literal["pick", "place", "push", "pull"] = "pick"
-    template_yaml_path: str = (
-        "configs/pybullet/envs/official/domains/template/template_env.yaml"
-    )
-    symbolic_action_type: Literal[
-        "symbolically_valid_actions", "syntactically_valid_symbolically_invalid_actions"
-    ] = "symbolically_valid_actions"
+    symbolic_action_type: Literal["valid_actions", "invalid_actions"] = "valid_actions"
     save_primitive_env_config: bool = True
+    object_types: Dict[str, str] = {
+        "table": "unmovable",
+        "rack": "receptacle",
+        "hook": "tool",
+        "milk": "box",
+        "yogurt": "box",
+        "icecream": "box",
+        "salt": "box"
+    }
 
     @property
     def save_primitive_env_config_path(self) -> str:

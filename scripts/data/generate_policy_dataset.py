@@ -13,22 +13,35 @@ Intended usage is to generate a dataset of (s, a, s', r) pairs with multiple pro
 and then train a Q function and policy on the dataset.
 """
 
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
+
 import ast
 import math
 import re
-from collections import defaultdict
+import yaml
 import itertools
 from string import Template
-from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Union
-import yaml
-from scripts.eval.task_gen.utils import sort_propositions
+from collections import defaultdict
 
-
-import symbolic
 import tyro
+import symbolic
 
 from configs.base_config import PDDLConfig, PolicyDatasetGenerationConfig
-from scripts.train.train_policy import train
+from scripts.eval.task_gen import utils
+from scripts.train import train_policy
+
+
+MOVABLE_TYPES = {
+    "box",
+    "tool"
+    "movable"
+}
+
+
+UNMOVABLE_TYPES = {
+    "receptacle"
+    "unmovable"
+}
 
 
 def to_template_strings(function_call_strs: List[str]):
@@ -107,163 +120,85 @@ def get_syntactically_valid_actions(
     return syntactically_valid_actions
 
 
-def count_num_inhand(
-    symbolic_predicate_state: Union[List[str], Set[Tuple[str, str]]]
-) -> int:
+def num_inhand(state: Union[List[str], Set[Tuple[str, str]]]) -> int:
     """Count the number of objects in the gripper.
 
     Args:
-        symbolic_predicate_states (List[str]): List of symbolic predicate states.
-        E.g. [on(red_box, table), on(blue_box, rack), ...]
+        state: List of symbolic predicate states.
 
     Returns:
         int: Number of objects in the gripper
     """
     num_inhand = 0
-    # if we've a list of sets, convert to list of strings
-    for symbolic_predicate_state in symbolic_predicate_state:
+    for symbolic_predicate_state in state:
         if "inhand" in symbolic_predicate_state:
             num_inhand += 1
     return num_inhand
 
 
-def count_num_box_objs_in_state(
-    symbolic_predicate_state: Union[List[str], Set[Tuple[str, str]]],
-    objects_with_properties: List[Tuple[str, str]],
-) -> int:
-    """Count the number of unique objets of box type involved in the symbolic predicate state.
-
-    Args:
-        symbolic_predicate_states (List[str]): List of symbolic predicate states.
-        E.g. [on(red_box, table), on(blue_box, rack), ...]
-        objects_with_properties (List[Tuple[str, str]]): List of objects with properties.
-
-    Returns:
-        int: Number of box type objects involved in the symbolic predicate state.
-    """
-    available_box_obj_set = set()
-    for obj, prop in objects_with_properties:
-        if prop == "box":
-            available_box_obj_set.add(obj)
-
-    seen_box_obj_set = set()
-    for single_symbolic_predicate_state in symbolic_predicate_state:
-        for box in available_box_obj_set:
-            if box in single_symbolic_predicate_state:
-                seen_box_obj_set.add(box)
-
-    return len(seen_box_obj_set)
-
-
-def hook_on_rack(
-    symbolic_predicate_state: Union[List[str], Set[Tuple[str, str]]]
-) -> bool:
+def is_hook_on_rack(state: Union[List[str], Set[Tuple[str, str]]]) -> bool:
     """Check if the hook is on the rack.
 
     Args:
-        symbolic_predicate_states (List[str]): List of symbolic predicate states.
-        E.g. [on(red_box, table), on(blue_box, rack), ...]
+        state: List of symbolic predicate states.
 
     Returns:
         bool: True if the hook is on the rack, False otherwise.
     """
-    for symbolic_predicate_state in symbolic_predicate_state:
+    for symbolic_predicate_state in state:
         if "hook" in symbolic_predicate_state and "rack" in symbolic_predicate_state:
             return True
     return False
 
 
-def enumerate_valid_symbolic_predicate_states(
-    objects_with_properties: List[Tuple[str, str]],
-    min_num_box_obj: int = 3,
-    max_num_box_obj: int = 4,
+def generate_symbolic_states(
+    object_types: Dict[str, str],
+    rack_properties: Set[str] = {"aligned", "poselimit"},
+    hook_on_rack: bool = True,
 ) -> List[Set[str]]:
-    """Enumerate possible symbolic predicate states.
-
-    Method: enumerate all possible locations for each object,
-    take the cartesian product of all possible locations for all objects
-    and filter out invalid states.
-
-    Note: hardcoding predicates for the rack
+    """Generate all possible symbolic states over specified objects.
+    
+    Arguments:
+        object_types: Dictionary of object names to their type.
 
     Returns:
-        List[str]: List of symbolic predicate states.
-        E.g. [on(red_box, table), on(blue_box, rack), ...]
+        symbolic_states: List of valid symbolic states.
     """
-    # get all movable objects
-    movable_objects = [
-        obj for obj, _ in objects_with_properties if obj != "table" and obj != "rack"
-    ]
-    locations = [
-        "nonexistent($movable)",
-        "on($movable, table)",
-        "on($movable, rack)",
-        "inhand($movable)",
-    ]
+    movable_objects = [obj for obj, obj_type in object_types if obj_type in MOVABLE_TYPES]
+    unmovable_objects = [obj for obj, obj_type in object_types if obj_type in UNMOVABLE_TYPES]
+    locations = ["nonexistent($movable)", "inhand($movable)"] + [f"on($movable, {obj})" for obj in unmovable_objects]
 
-    # get all possible locations choices (expressed as predicates) for each object
-    object_predicate_possibilities: Dict[str, List[Set[str]]] = defaultdict(list)
+    # Store possible locations of objects.
+    object_locations: Dict[str, List[Set[str]]] = defaultdict(list)
     for obj in movable_objects:
         for loc in locations:
-            if obj == "hook" and "nonexistent" in loc:
-                print(f"Assuming hook is always in the scene. Skipping {loc} for hook.")
-                continue
-            object_predicate_possibilities[obj].append(
-                {Template(loc).substitute(movable=obj)}
-            )
+            object_locations[obj].append({Template(loc).substitute(movable=obj)})
 
-    # add predicate possibilities for the rack
-    # constrained packing
-    rack_in_workspace_predicates = {
-        "on(rack, table)",
-        "aligned(rack)",
-        "poslimit(rack)",
-        "inworkspace(rack)",
-    }
-    # hook reach and rearrangement push
-    rack_beyond_workspace_predicates = {
-        "on(rack, table)",
-        "aligned(rack)",
-        "poslimit(rack)",
-        "beyondworkspace(rack)",
-    }
-    rack_predicate_possibilities: List[set] = []
-    rack_predicate_possibilities.append(rack_in_workspace_predicates)
-    rack_predicate_possibilities.append(rack_beyond_workspace_predicates)
+    # Rack predicates.
+    if "rack" in unmovable_objects:
+        rack_predicates = {f"{p}(rack)" for p in rack_properties}
+        rack_inworkspace = {"on(rack, table)", "inworkspace(rack)"}.union(rack_predicates)
+        rack_beyondworkspace = {"on(rack, table)", "beyondworkspace(rack)"}.union(rack_predicates)
+        object_locations["rack"].extend([rack_inworkspace, rack_beyondworkspace])
 
-    object_predicate_possibilities["rack"].extend(rack_predicate_possibilities)
-    all_possible_predicate_sets = list(
-        itertools.product(*object_predicate_possibilities.values())
-    )
-    filtered_all_possible_predicate_sets = []
 
-    for possible_predicate_set in all_possible_predicate_sets:
-        # get the union of all the sets
-        possible_predicate_set = set.union(*possible_predicate_set)
-        if count_num_inhand(possible_predicate_set) <= 1 and not hook_on_rack(
-            possible_predicate_set
-        ):
-            # filter out any elements of possible_predicate_set that have "nonexistent" in them
-            possible_predicate_set = {
-                predicate
-                for predicate in possible_predicate_set
-                if "nonexistent" not in predicate
-            }
-            if (
-                min_num_box_obj
-                <= count_num_box_objs_in_state(
-                    list(possible_predicate_set), objects_with_properties
-                )
-                <= max_num_box_obj
-            ):
-                print(possible_predicate_set)
-                filtered_all_possible_predicate_sets.append(possible_predicate_set)
-    print(f"Number of possible predicate sets: {len(all_possible_predicate_sets)}")
-    print(
-        f"Number of filtered predicate sets: {len(filtered_all_possible_predicate_sets)}"
-    )
-    return filtered_all_possible_predicate_sets
+    breakpoint()
 
+    candidate_states = list(itertools.product(*object_locations.values()))
+    symbolic_states = []
+    for state in candidate_states:
+        breakpoint()
+        state = set.union(*state)
+
+        if num_inhand(state) > 1 or (not hook_on_rack and is_hook_on_rack(state)):
+            continue
+
+        # Filter out nonexistent predicates.
+        state = {p for p in state if "nonexistent" not in p}
+        symbolic_states.append(state)
+
+    return symbolic_states
+ 
 
 def generate_pddl_problem_from_state_set(
     problem_name: str,
@@ -430,33 +365,24 @@ def get_env_config(
 
 
 def main(config: PolicyDatasetGenerationConfig):
-    objects_with_properties: List[Tuple[str, str]] = [
-        ("table", "unmovable"),
-        ("rack", "rack"),
-        ("milk", "box"),
-        ("yoghurt", "box"),
-        ("icecream", "box"),
-        ("salt", "box"),
-        ("hook", "tool"),
-    ]
-    valid_symbolic_predicate_states: List[
-        Set[str]
-    ] = enumerate_valid_symbolic_predicate_states(
-        objects_with_properties,
-        min_num_box_obj=config.min_num_box_obj,
-        max_num_box_obj=config.max_num_box_obj,
-    )
+    """Create a primitive specific dataset of (s, a, r, s') transitions.
+
+    Arguments:
+        config: PolicyDatasetGenerationConfig.
+    """
+    symbolic_states: List[Set[str]] = generate_symbolic_states(config.object_types)
+    
 
     valid_states_to_actions: Dict[str, Dict[str, List[str]]] = defaultdict(dict)
     states, actions = [], []
     count = 0
-    for symbolic_predicate_state in valid_symbolic_predicate_states:
-        problem_name = "val-training" + str(sort_propositions(list(symbolic_predicate_state)))
+    for symbolic_predicate_state in symbolic_states:
+        problem_name = "val-training" + str(utils.sort_propositions(list(symbolic_predicate_state)))
         problem: symbolic.Problem = generate_pddl_problem_from_state_set(
             problem_name,
             config.pddl_cfg,
             objects_with_properties,
-            sort_propositions(list(symbolic_predicate_state)),
+            utils.sort_propositions(list(symbolic_predicate_state)),
             save_pddl_file=True,
         )
         with open(config.pddl_cfg.get_problem_file(problem_name), "r") as f:
@@ -481,7 +407,7 @@ def main(config: PolicyDatasetGenerationConfig):
             for action in syntactically_valid_actions
             if not action in symbolically_valid_actions
         ]
-        state_key = str(sort_propositions(list(symbolic_predicate_state)))
+        state_key = str(utils.sort_propositions(list(symbolic_predicate_state)))
 
         # check if sort_propositions is needed
         valid_states_to_actions[state_key][
@@ -497,10 +423,10 @@ def main(config: PolicyDatasetGenerationConfig):
         count += len(
             symbolically_valid_actions
         )  # + len(syntactically_valid_symbolically_invalid_actions)
-        states.append(sort_propositions(list(symbolic_predicate_state)))
+        states.append(utils.sort_propositions(list(symbolic_predicate_state)))
         actions.append(symbolically_valid_actions)
 
-    print(f"valid_symbolic_predicate_states: {len(valid_symbolic_predicate_states)}")
+    print(f"valid_symbolic_predicate_states: {len(symbolic_states)}")
     print(f"count: {count}")
     # save these state actions to a file for debugging
     with open("states_actions.txt", "w") as f:
@@ -524,7 +450,7 @@ def main(config: PolicyDatasetGenerationConfig):
         save_primitive_env_config_path=config.save_primitive_env_config_path,
     )
 
-    train(
+    train_policy.train(
         config.path,
         trainer_config=config.trainer_config,
         agent_config=config.agent_config,
