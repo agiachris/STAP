@@ -1,11 +1,22 @@
 """
 Usage:
 
-PYTHONPATH=. python scripts/eval/eval_lm_tamp.py  --planner-config configs/pybullet/planners/ablation/policy_cem.yaml --env-config configs/pybullet/envs/official/domains/constrained_packing/tamp0.yaml 
---policy-checkpoints models/20221105/decoupled_state/pick/ckpt_model_10.pt models/20221105/decoupled_state/place/ckpt_model_10.pt models/20221105/decoupled_state/pull/ckpt_model_10.pt 
-models/20221105/decoupled_state/push/ckpt_model_10.pt --dynamics-checkpoint models/20221105/decoupled_state/ckpt_model_10/dynamics/final_model.pt --seed 0 
---pddl-domain configs/pybullet/envs/official/domains/constrained_packing/tamp0_domain.pddl --pddl-problem configs/pybullet/envs/official/domains/constrained_packing/tamp0_problem.pddl 
---max-depth 4 --timeout 10 --closed-loop 1 --num-eval 100 --path plots/20221105/decoupled_state/tamp_experiment/constrained_packing/tamp0 --verbose 0 --engine davinci
+PYTHONPATH=. python scripts/eval/eval_lm_tamp.py  
+--planner-config configs/pybullet/planners/policy_cem.yaml
+--env-config configs/pybullet/envs/official/domains/hook_reach/tamp0.yaml 
+--policy-checkpoints
+    models/20230106/complete_q_multistage/pick_0/ckpt_model_1000000.pt 
+    models/20230101/complete_q_multistage/place_0/best_model.pt 
+    models/20230101/complete_q_multistage/pull_0/best_model.pt
+    models/20230101/complete_q_multistage/push_0/best_model.pt
+--dynamics-checkpoint models/official/select_model/dynamics/best_model.pt
+--seed 0 
+--pddl-domain configs/pybullet/envs/official/domains/template/tamp0_domain.pddl 
+--pddl-problem configs/pybullet/envs/official/domains/hook_reach/tamp0_problem.pddl
+--pddl-domain-name hook_reach
+--max-depth 4 --timeout 10 --closed-loop 1 --num-eval 100 
+--path plots/20230109/tamp_experiment/hook_reach/tamp0 --verbose 0 --engine davinci
+--n-examples 5
 """
 
 import argparse
@@ -15,10 +26,12 @@ import random
 from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
+import torch
 import symbolic
 import tqdm
 from helm.common.authentication import Authentication
 from configs.base_config import LMConfig
+from symbolic import _and, parse_proposition
 
 from temporal_policies import dynamics, envs, planners
 from temporal_policies.envs.pybullet.table import (
@@ -37,6 +50,7 @@ from temporal_policies.task_planners.task_plans import get_task_plans_from_lm
 from temporal_policies.utils import recording, timing
 
 from temporal_policies.task_planners.lm_utils import (
+    authenticate,
     get_examples_from_json_dir,
     generate_lm_response,
     load_lm_cache,
@@ -127,6 +141,7 @@ def evaluate_plan(
     assert isinstance(env, envs.pybullet.TableEnv)
     recorder = recording.Recorder()
     recorder.start()
+    recorder.add_frame(frame=env.render())
     for primitive, predicted_state, action in zip(
         action_skeleton, plan.states[1:], plan.actions
     ):
@@ -169,19 +184,24 @@ def eval_lm_tamp(
     lm_cache_file: Optional[Union[str, pathlib.Path]] = None,
     n_examples: Optional[int] = 1,
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
-    custom_in_context_example_robot_format: str = "python list of lists",
-    custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
-    custom_robot_action_sequence_format: str = "python list of lists",
+    custom_in_context_example_robot_format: str = "python_list_of_lists",
+    custom_robot_prompt: str = "Top 4 robot action sequences (python list of lists): ",
+    custom_robot_action_sequence_format: str = "python_list_of_lists",
     engine: Optional[str] = None,
     temperature: Optional[int] = 0,
     logprobs: Optional[int] = 1,
     api_type: Optional[APIType] = APIType.HELM,
-    max_tokens: Optional[int] = 100,
+    max_tokens: Optional[int] = 200,
     auth: Optional[Authentication] = None,
 ) -> None:
+    # set seeds
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
     examples = get_examples_from_json_dir(pddl_root_dir + "/" + pddl_domain_name)
     examples = random.sample(examples, n_examples)
-
     lm_cfg = LMConfig(
         engine=engine,
         temperature=temperature,
@@ -230,6 +250,8 @@ def eval_lm_tamp(
         motion_planner_times = []
         INSTRUCTION = "Ensure the red block is on the table."  # one of the examples needs to use the hook
         INSTRUCTION = "Grab the red block."
+        INSTRUCTION = "Stock the red box onto the rack."
+
         available_predicates = [
             "on",
             "inhand",
@@ -241,6 +263,7 @@ def eval_lm_tamp(
         )
         possible_props: List[predicates.Predicate] = get_possible_props(env.objects, available_predicates)
 
+        lm_cfg.engine = "text-davinci-003"
         predicted_goal_props: List[str]
         predicted_goal_props, lm_cache = get_goal_from_lm(
             INSTRUCTION,
@@ -253,6 +276,7 @@ def eval_lm_tamp(
             auth=auth,
             lm_cache=lm_cache,
         )
+        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
         if is_valid_goal_props(predicted_goal_props, possible_props):
             parsed_goal_props = [
@@ -261,11 +285,12 @@ def eval_lm_tamp(
             ]
             goal_props_callable: List[predicates.Predicate] = get_goal_props_instantiated(parsed_goal_props)
         else:
+            import ipdb;ipdb.set_trace()
             raise ValueError("Invalid goal props")
             
-        save_lm_cache(lm_cache_file, lm_cache)
 
-        # generate prompt from environment observation
+        # generate prompt from environment observation\
+        lm_cfg.max_tokens = 300
         generated_task_plans, lm_cache = get_task_plans_from_lm(
             INSTRUCTION,
             predicted_goal_props,
@@ -282,19 +307,35 @@ def eval_lm_tamp(
             auth=auth,
             lm_cache=lm_cache,
         )
+        save_lm_cache(lm_cache_file, lm_cache)
+        lm_cfg.engine = "text-davinci-002"
 
+
+        # convert action_skeleton's elements with the format pick(a) to pick(a, table)
+        converted_task_plans = []
+        for task_plan in generated_task_plans:
+            new_task_plan = []
+            for action in task_plan:
+                primitive, args = parse_proposition(action)
+                if "pick" == primitive:
+                    new_task_plan.append(f"pick({args[0]}, table)")
+                else:
+                    new_task_plan.append(action)
+            converted_task_plans.append(new_task_plan)
+        generated_task_plans = converted_task_plans
+        print(f'generated task plans: {generated_task_plans}')
         action_skeletons_instantiated = get_task_plan_primitives_instantiated(generated_task_plans, env)
-        # save the lm_cache
-        with open(lm_cache_file, "wb") as f:
-            print(f"Saving lm_cache to {lm_cache_file}...")
-            pickle.dump(lm_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
-
+        print(f"obj states table: {env.object_states()['table'].pos}")
         # if performing entire task plan generation e.g. open_ended generation
+        idx_iter = 0
         for action_skeleton in action_skeletons_instantiated:
+            print(f'action_skeleton: {action_skeleton}')
+
             timer.tic("motion_planner")
             env.set_primitive(action_skeleton[0])
             plan = planner.plan(env.get_observation(), action_skeleton)
             t_motion_planner = timer.toc("motion_planner")
+            print(f"obj states table: {env.object_states()['table'].pos}")
 
             task_plans.append(action_skeleton)
             motion_plans.append(plan)
@@ -307,6 +348,17 @@ def eval_lm_tamp(
             if "greedy" in str(planner_config):
                 break
 
+            evaluate_plan(idx_iter, env, planner, action_skeleton, plan, None, path=path)
+            idx_iter += 1
+
+        for plan in motion_plans:
+            for state in plan.states:
+                objects = list(env.objects.keys())
+                object_relationships = get_object_relationships(
+                    state, env.objects, available_predicates, use_hand_state=False
+                )
+                object_relationships = [str(prop) for prop in object_relationships]
+                print(f'object_relationships: {object_relationships}')
         # Filter out plans that do not reach the goal.
         goal_reaching_task_plans = []
         goal_reaching_motion_plans = []
@@ -496,13 +548,7 @@ def eval_lm_tamp(
 
 
 def main(args: argparse.Namespace) -> None:
-    if args.api_type.value == APIType.OPENAI.value:
-        api_key = "***REMOVED***"
-    elif args.api_type.value == APIType.HELM.value:
-        api_key = "***REMOVED***"
-    else:
-        raise ValueError("Invalid API type")
-    auth = register_api_key(args.api_type, api_key)
+    auth = authenticate(args.api_type)
     eval_lm_tamp(**vars(args), auth=auth)
 
 

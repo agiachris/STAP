@@ -2,7 +2,7 @@ trainer: AgentTrainer
 trainer_kwargs:
   dataset_class: ReplayBuffer
   dataset_kwargs:
-    capacity: 1300000
+    capacity: 1500000
     batch_size: 128 # 1024
     sample_strategy: uniform  # potentially update to PER or other
     save_frequency: 100000
@@ -12,7 +12,7 @@ trainer_kwargs:
     actor_optimizer_kwargs:
       lr: 0.0001
     critic_optimizer_kwargs:
-      lr: 0.0001
+      lr: 0.001
     log_alpha_optimizer_kwargs:
       lr: 0.00000001
       # use SAC/AgentTrainer to 
@@ -23,7 +23,7 @@ trainer_kwargs:
 
   num_pretrain_steps: 0
   num_train_steps: 0
-  num_critic_only_train_steps: 150000
+  num_critic_only_train_steps: 800000
   num_actor_only_train_steps: 150000
   num_original_train_steps: 50000
   num_val_steps: 1000

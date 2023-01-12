@@ -35,6 +35,8 @@ cd text2motion
 pip install pipenv
 pipenv install --dev
 ```
+Note if functorch causes an issue, it's likely because the pytorch version is incompatible.
+Uninstall pytorch and reinstall version 1.11.0
 
 ### Alternatively, create new conda env.
 
@@ -54,6 +56,7 @@ Note that crfm-helm has strict dependencies. For now,
 `pip install crfm-helm` and then `pip install -r requirements.txt` 
 (manually remove `crfm-helm` from `requirements.txt`).
 
+
 TODO(klin) update requirements file and figure out how to use Piplock properly
 e.g. HELM leads to this kind of incompatibility.
 
@@ -71,7 +74,15 @@ pipenv shell
 
 ## Instructions for Text2Motion
 
-TODO
+Note: when the YAML for Sigmoid (used in the single-step env critics), gets saved, it gets saved as something like `!!python/name:torch.nn.modules.activation.Sigmoid ''`. 
+However, the code expects `Sigmoid` only.
+
+
+### Scripts
+
+Generating training data for Q, dynamics and policies.
+
+Run `bash scripts/data/generate_policy_dataset.sh`
 
 ## Instructions for TAPS
 Task-Agnostic Policy Sequencing was designed modularly to support [training manipulation primitives](#training-manipulation-primitives) and [dynamics models](#learning-dynamics-models), [precomputing SCOD parameters](#pretraining-uncertainty-quantifiers) over primitive Q-networks, and finally, composing all of these components at test-time for [motion planning](#executing-motion-planning).

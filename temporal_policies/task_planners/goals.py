@@ -23,8 +23,8 @@ def get_goal_from_lm(
 ) -> List[Union[List[str], Dict[str, str]]]:
     # generate header, in context example, and current example prompts
     header_prompt = InContextExample(
-        predicates=["on(a, b)", "inhand(a)"],
-        primitives=["pick(a, b)", "place(a, b)", "pull(a, b)", "push(a, b)"],
+        predicates=["on(a, b)", "inhand(a)", "under(a, b)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
     )

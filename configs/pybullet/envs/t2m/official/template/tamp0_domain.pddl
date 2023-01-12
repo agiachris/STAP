@@ -2,19 +2,21 @@
 	(:requirements :strips :typing :equality :universal-preconditions :negative-preconditions :conditional-effects)
 	(:types
 		physobj - object
-		unmovable - physobj
 		movable - physobj
+		unmovable - physobj
 		tool - movable
 		box - movable
 		rack - unmovable
 	)
-	(:constants table - unmovable)
+	(:constants table - physobj)
 	(:predicates
 		(inhand ?a - movable)
-		(on ?a - movable ?b - physobj)
-		(inworkspace ?a - movable)
+		(on ?a - physobj ?b - physobj)
+		(inworkspace ?a - physobj)
 		(beyondworkspace ?a - physobj)
 		(under ?a - movable ?b - unmovable)
+		(aligned ?a - object)
+		(poslimit ?a - object)
 	)
 	(:action pick
 		:parameters (?a - movable)
@@ -33,7 +35,7 @@
 		)
 	)
 	(:action place
-		:parameters (?a - movable ?b - unmovable)
+		:parameters (?a - movable ?b - physobj)
 		:precondition (and
 			(not (= ?a ?b))
 			(inhand ?a)

@@ -96,19 +96,20 @@ output_path="plots"
 # Evaluate planners.
 PLANNERS=(
     "ablation/policy_cem"
-    "ablation/scod_policy_cem"
-    "ablation/policy_shooting"
+    # "ablation/scod_policy_cem"
+    # "ablation/policy_shooting"
     # "daf_random_shooting"
-    "ablation/random_cem"
-    "ablation/random_shooting"
-    "greedy"
+    # "ablation/random_cem"
+    # "ablation/random_shooting"
+    # "greedy"
 )
 
 # Experiments.
 
 # Pybullet.
 # exp_name="20220914/official"
-exp_name="20221105/decoupled_state"
+exp_name="20230103/complete_q_multistage"
+# exp_name="20221105/decoupled_state"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     "hook_reach/tamp0"
@@ -117,7 +118,9 @@ ENVS=(
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 # CKPT="select_model"
-CKPT="ckpt_model_10"
+# CKPT="ckpt_model_10"
+CKPT="best_model"
+
 SCOD_CONFIG="scod"
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then

@@ -115,13 +115,17 @@ class LMConfig:
             engine_dict = {
                 # "davinci": "code-davinci-002",
                 "davinci": "text-davinci-003",
+                "text-davinci-003": "text-davinci-003",
+                "text-davinci-002": "text-davinci-002",
                 "curie": "text-curie-001",
                 "babbage": "text-babbage-001",
                 "ada": "text-ada-001",
             }
         elif self.api_type.value == APIType.HELM.value:
             engine_dict = {
-                "davinci": "text-davinci-003",
+                "text-davinci-003": "text-davinci-003",
+                "text-davinci-002": "text-davinci-002",
+                "davinci": "text-davinci-002",
                 "curie": "text-curie-001",
                 "babbage": "text-babbage-001",
                 "ada": "text-ada-001",

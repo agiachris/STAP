@@ -12,7 +12,16 @@ from temporal_policies.envs.pybullet.sim import body, math, shapes
 from temporal_policies.envs.pybullet.table import object_state
 
 
-OBJECT_HIERARCHY = ["rack", "table", "hook", "box"]
+OBJECT_HIERARCHY = [
+    "rack",
+    "table",
+    "hook",
+    "box",
+    "salt",
+    "milk",
+    "icecream",
+    "yogurt",
+]
 
 
 def compute_bbox_vertices(
@@ -559,7 +568,6 @@ class PropTestBox(Box):
     def __init__(self, box_obj: Box):
         for k, v in box_obj.__dict__.items():
             self.__dict__[k] = v
-            print(k, v)
 
         self.custom_pose: Optional[math.Pose] = None
 
@@ -570,6 +578,11 @@ class PropTestBox(Box):
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
 
+    @property
+    def bbox(self) -> np.ndarray:
+        assert self._bbox is not None, "Bbox not set"
+        return self._bbox
+
 
 class PropTestUrdf(Urdf):
 
@@ -577,7 +590,6 @@ class PropTestUrdf(Urdf):
     def __init__(self, urdf_obj: Urdf):
         for k, v in urdf_obj.__dict__.items():
             self.__dict__[k] = v
-            print(k, v)
 
         self.custom_pose: Optional[math.Pose] = None
 
@@ -593,7 +605,6 @@ class PropTestRack(Object):
     def __init__(self, rack_obj: Rack):
         for k, v in rack_obj.__dict__.items():
             self.__dict__[k] = v
-            print(k, v)
 
         self.custom_pose: Optional[math.Pose] = None
 
@@ -604,18 +615,47 @@ class PropTestRack(Object):
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
 
+    @property
+    def bbox(self) -> np.ndarray:
+        assert self._bbox is not None, "Bbox not set"
+        return self._bbox
+
 
 class PropTestNull(Object):
     def __init__(self, null_obj: Null):
         for k, v in null_obj.__dict__.items():
             self.__dict__[k] = v
-            print(k, v)
 
         self.custom_pose: Optional[math.Pose] = None
 
     def pose(self) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
+
+    def set_custom_pose(self, pose: math.Pose) -> None:
+        self.custom_pose = pose
+
+    @property
+    def bbox(self) -> np.ndarray:
+        assert self._bbox is not None, "Bbox not set"
+        return self._bbox
+
+
+class PropTestHook(Object):
+    def __init__(self, hook_obj: Hook):
+        for k, v in hook_obj.__dict__.items():
+            self.__dict__[k] = v
+
+        self.custom_pose: Optional[math.Pose] = None
+
+    def pose(self) -> math.Pose:
+        assert self.custom_pose is not None, "Custom pose not set"
+        return self.custom_pose
+
+    @property
+    def bbox(self) -> np.ndarray:
+        assert self._bbox is not None, "Bbox not set"
+        return self._bbox
 
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
@@ -909,8 +949,10 @@ class Variant(WrapperObject):
                 i for i, variant in enumerate(self.variants) if variant.isinstance(Null)
             ]
             if not len(self._null_indices) > 0:
-                print("No null variants available; please specify `- object_type: Null' \
-                    in relevant section of config if Variant object is not mentioned in any sampled task.")
+                print(
+                    "No null variants available; please specify `- object_type: Null' \
+                    in relevant section of config if Variant object is not mentioned in any sampled task."
+                )
         else:
             assert group is not None
             self._variants = object_groups[group]
@@ -959,7 +1001,7 @@ class Variant(WrapperObject):
                         len(self._null_indices) > 0
                     ), "No null variants available; please specify `- object_type: Null' in relevant section of config"
                     idx_variant = random.choice(self._null_indices)
-
+                    # idx_variant = random.choice(len(self._variants))
             # Hide unused variants below table.
             for i, obj in enumerate(self.variants):
                 if i == idx_variant:
@@ -986,4 +1028,5 @@ CLS_TO_PROP_TEST_CLS = {
     "Urdf": PropTestUrdf,
     "Rack": PropTestRack,
     "Null": PropTestNull,
+    "Hook": PropTestHook,
 }
