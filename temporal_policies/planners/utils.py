@@ -7,7 +7,7 @@ import yaml
 
 from temporal_policies import agents, dynamics, envs, networks, planners
 from temporal_policies.dynamics import Dynamics, LatentDynamics, load as load_dynamics
-from temporal_policies.utils import configs, spaces, tensors, timing
+from temporal_policies.utils import configs, spaces, tensors, timing, recording
 
 
 class PlannerFactory(configs.Factory):
@@ -301,6 +301,38 @@ def evaluate_plan(
         env.record_save(gif_path, reset=True)
 
     return rewards
+
+
+def vizualize_predicted_plan(
+    save_path_suffix: Union[int, str],
+    env: envs.Env,
+    action_skeleton: Sequence[envs.Primitive],
+    plan: planners.PlanningResult,
+    path: pathlib.Path,
+) -> None:
+    """Visualize the predicted trajectory of a task and motion plan."""
+    assert isinstance(env, envs.pybullet.TableEnv)
+    recorder = recording.Recorder()
+    recorder.start()
+    original_state = plan.states[0]
+    for primitive, predicted_state, action in zip(
+        action_skeleton, plan.states[1:], plan.actions
+    ):
+        env.set_primitive(primitive)
+        env._recording_text = (
+            "Action: ["
+            + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+            + "]"
+        )
+
+        recorder.add_frame(frame=env.render())
+        env.set_observation(predicted_state)
+        recorder.add_frame(frame=env.render())
+
+    recorder.stop()
+    recorder.save(path / f"predicted_trajectory_{save_path_suffix}.gif")
+
+    env.set_observation(original_state)
 
 
 def run_open_loop_planning(

@@ -281,25 +281,26 @@ def evaluate_place_action(
     )
     grid_q_values = grid_q_values.clip(0.0, 1.0)
 
-    path_obj = save_critic_obj(
-        grid_states,
-        grid_q_values,
-        path=path / "assets",
-        name="action_q_values",
-        grid_resolution=grid_resolution,
-        z_scale=0.0,
-        z_height=0.001,
-    )
-
-    for view in ("front", "top"):
-        plot_critic_overlay(
-            env=env,
-            path_obj=path_obj,
-            path=path,
-            name=f"action_values_{view}",
-            opacity=0.9,
-            view=view,
+    for z_height in np.linspace(0.001, 0.1, 5):
+        path_obj = save_critic_obj(
+            grid_states,
+            grid_q_values,
+            path=path / "assets",
+            name=f"action_q_values_{z_height}",
+            grid_resolution=grid_resolution,
+            z_scale=0.0,
+            z_height=z_height,
         )
+
+        for view in ("front", "top"):
+            plot_critic_overlay(
+                env=env,
+                path_obj=path_obj,
+                path=path,
+                name=f"action_values_{view}_z{z_height}",
+                opacity=0.9,
+                view=view,
+            )
 
 
 def evaluate_pick(
@@ -316,9 +317,9 @@ def evaluate_pick(
         env.reset()
         obj = primitive.arg_objects[0]
         obj.set_pose(math.Pose(pos=np.array([0.4, 0.0, -obj.bbox[0, 2]])))
-        if "rack" in env.objects:
+        if "rack" in env.objects and env.objects["rack"] in list(env.real_objects()):
             rack = env.objects["rack"]
-            rack.set_pose(math.Pose(pos=np.array([0.5, 0.25, -rack.bbox[0, 2]])))
+            rack.set_pose(math.Pose(pos=np.array([0.82, 0.00, -rack.bbox[0, 2]])))
 
         evaluate_pick_state(
             env=env,
@@ -373,9 +374,9 @@ def evaluate_place(
 
         # Setup scene.
         env.reset()
-        if "rack" in env.objects:
+        if "rack" in env.objects and env.objects["rack"] in list(env.real_objects()):
             rack = env.objects["rack"]
-            rack.set_pose(math.Pose(pos=np.array([0.5, 0.25, -rack.bbox[0, 2]])))
+            rack.set_pose(math.Pose(pos=np.array([0.82, 0.00, -rack.bbox[0, 2]])))
 
         evaluate_place_action(
             env=env,

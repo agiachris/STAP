@@ -220,7 +220,7 @@ class Primitive(envs.Primitive, abc.ABC):
         # how'd we implement things if the primitive were not tied to the env?
         # ultimately, env.step only needs to take action i.e. numpy arrays that affect the
         # joint angles of the robot (or EE pose)
-        # 
+        #
         from temporal_policies.envs.pybullet.table_env import TableEnv
 
         assert isinstance(env, TableEnv)
@@ -340,7 +340,9 @@ class Place(Primitive):
     Action = primitive_actions.PlaceAction
     ALLOW_COLLISIONS = False
 
-    def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
+    def execute(
+        self, action: np.ndarray, real_world: bool = False, verbose: bool = False
+    ) -> ExecutionResult:
         from temporal_policies.envs.pybullet.table_env import TableEnv
 
         assert isinstance(self.env, TableEnv)
@@ -397,6 +399,8 @@ class Place(Primitive):
         try:
             robot.goto_pose(pre_pos, command_quat)
             if not allow_collisions and did_non_args_move():
+                if verbose:
+                    print("Robot.goto_pose(pre_pos, command_quat) collided")
                 raise ControlException(
                     f"Robot.goto_pose({pre_pos}, {command_quat}) collided"
                 )
@@ -412,20 +416,28 @@ class Place(Primitive):
             if not real_world and not utils.is_within_distance(
                 obj, target, MAX_DROP_DISTANCE, robot.physics_id
             ):
+                if verbose:
+                    print("Object dropped from too high.")
                 raise ControlException("Object dropped from too high.")
 
             robot.grasp(0)
             if not allow_collisions and did_non_args_move():
+                if verbose:
+                    print("Robot.grasp(0) collided")
                 raise ControlException("Robot.grasp(0) collided")
 
             robot.goto_pose(pre_pos, command_quat)
             if not allow_collisions and did_non_args_move():
+                if verbose:
+                    print("Robot.goto_pose(pre_pos, command_quat) collided")
                 raise ControlException(
                     f"Robot.goto_pose({pre_pos}, {command_quat}) collided"
                 )
         except ControlException as e:
             # If robot fails before grasp(0), object may still be grasped.
             dbprint("Place.execute():\n", e)
+            if verbose:
+                print("Place.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
 
         self.env.wait_until_stable()
@@ -435,6 +447,8 @@ class Place(Primitive):
             return ExecutionResult(success=False, truncated=True)
 
         if not utils.is_upright(obj) or not utils.is_above(obj, target):
+            if verbose:
+                print("Object not upright or not above target.")
             return ExecutionResult(success=False, truncated=False)
 
         return ExecutionResult(success=True, truncated=False)
@@ -464,7 +478,9 @@ class Pull(Primitive):
     Action = primitive_actions.PullAction
     ALLOW_COLLISIONS = True
 
-    def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
+    def execute(
+        self, action: np.ndarray, real_world: bool = False, verbose: bool = False
+    ) -> ExecutionResult:
         from temporal_policies.envs.pybullet.table_env import TableEnv
 
         assert isinstance(self.env, TableEnv)
@@ -525,6 +541,9 @@ class Pull(Primitive):
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             if not self.ALLOW_COLLISIONS and did_non_args_move():
+                if verbose:
+                    if verbose:
+                        print("Robot collided during pre-pose")
                 raise ControlException(
                     f"Robot.goto_pose({pre_pos}, {command_pose_reach.quat}) collided"
                 )
@@ -539,6 +558,8 @@ class Pull(Primitive):
                 ],
             )
             if not real_world and not utils.is_upright(target):
+                if verbose:
+                    print("Target is not upright")
                 raise ControlException("Target is not upright", target.pose().quat)
 
             robot.goto_pose(
@@ -547,6 +568,8 @@ class Pull(Primitive):
                 pos_gains=np.array([[49, 14], [49, 14], [121, 22]]),
             )
             if not allow_collisions and did_non_args_move():
+                if verbose:
+                    print("Pull.execute(): collided")
                 raise ControlException(
                     f"Robot.goto_pose({command_pose_pull.pos}, {command_pose_pull.quat}) collided"
                 )
@@ -556,6 +579,8 @@ class Pull(Primitive):
 
             robot.goto_pose(post_pos, command_pose_pull.quat)
             if did_non_args_move():
+                if verbose:
+                    print("Pull.execute(): collided 1")
                 raise ControlException(
                     f"Robot.goto_pose({post_pos}, {command_pose_pull.quat}) collided"
                 )
@@ -567,10 +592,14 @@ class Pull(Primitive):
 
         if not real_world and not utils.is_upright(target):
             dbprint("Pull.execute(): not upright")
+            if verbose:
+                print(f"Pull.execute(): not upright")
             return ExecutionResult(success=False, truncated=False)
 
         if not real_world and not utils.is_inworkspace(obj=target):
             dbprint("Pull.execute(): not in workspace")
+            if verbose:
+                print(f"Pull.execute(): not in workspace")
             return ExecutionResult(success=False, truncated=False)
 
         new_target_distance = np.linalg.norm(target.pose().pos[:2])
@@ -578,6 +607,10 @@ class Pull(Primitive):
             not real_world
             and new_target_distance >= target_distance - MIN_PULL_DISTANCE
         ):
+            if verbose:
+                print(
+                    f"Pull.execute(): not moved enough {new_target_distance} {target_distance}"
+                )
             dbprint(
                 "Pull.execute(): not moved enough", new_target_distance, target_distance
             )
