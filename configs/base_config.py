@@ -13,18 +13,19 @@ class PDDLConfig:
     pddl_root_dir: str = "configs/pybullet/envs/t2m/official/template"
     pddl_file_name: str = "template_domain.pddl"
     pddl_problem_prefix: str = "pddl_problem"
-    _pddl_problem_file: str = ""
-    custom_pddl_domain_file: str = ""
+    _pddl_problem_file: Optional[str] = None
+    custom_pddl_domain_file: Optional[str] = None
 
     @cached_property
     def pddl_domain_file(self) -> str:
-        if self.custom_pddl_domain_file != "":
+        if self.custom_pddl_domain_file is not None:
             return self.custom_pddl_domain_file
         return os.path.join(self.pddl_root_dir, self.pddl_file_name)
 
     @property
     def pddl_problem_file(self) -> str:
-        assert self._pddl_problem_file != ""
+        if self._pddl_problem_file is None:
+            raise ValueError("Must set PDDLConfig.pddl_problem_file before calling.")
         return self._pddl_problem_file
 
     @pddl_problem_file.setter
@@ -159,14 +160,14 @@ class EvaluationConfig:
 @dataclass
 class PolicyDatasetGenerationConfig:
     """Configuration for generating a dataset of (s, a, s', r) tuples."""
-    exp_name: str = "20230105/dataset_collection"
+    exp_name: str = "20230112/dataset_collection"
+    custom_path: Optional[str] = None
     # Trainer configs.
     trainer_config: str = "configs/pybullet/trainers/data_collection.yaml"
     agent_config: str = "configs/pybullet/agents/sac.yaml"
     env_config: str = ""
     eval_env_config: str = ""
     encoder_checkpoint: Optional[str] = None
-    custom_path: str = ""
     resume: str = False
     overwrite: str = False
     device: str = "auto"
@@ -184,26 +185,29 @@ class PolicyDatasetGenerationConfig:
     primitive: Literal["pick", "place", "push", "pull"] = "pick"
     symbolic_action_type: Literal["valid_actions", "invalid_actions"] = "valid_actions"
     save_primitive_env_config: bool = True
-    object_types: Dict[str, str] = {
-        "table": "unmovable",
-        "rack": "receptacle",
-        "hook": "tool",
-        "milk": "box",
-        "yogurt": "box",
-        "icecream": "box",
-        "salt": "box"
-    }
-
+    object_types: Dict[str, str] = dataclasses.field(
+        default_factory=lambda: {
+            "table": "unmovable",
+            "rack": "receptacle",
+            "hook": "tool",
+            "milk": "box",
+            "yogurt": "box",
+            "icecream": "box",
+            "salt": "box"
+        }
+    )
+    
     @property
     def save_primitive_env_config_path(self) -> str:
-        return f"configs/pybullet/envs/official/primitives/{self.primitive}_{self.seed}_{self.symbolic_action_type}.yaml"
+        root = "configs/pybullet/envs/t2m/official/primitives/data_collection"
+        file = f"{self.primitive}_{self.symbolic_action_type}_{self.seed}.yaml"
+        return os.path.join(root, file)
 
     @property
     def path(self) -> str:
-        if self.custom_path == "":
-            return f"models/{self.exp_name}/min{self.min_num_box_obj}_max{self.max_num_box_obj}_num_box_obj/"
-        else:
+        if self.custom_path is not None:
             return self.custom_path
+        return f"models/{self.exp_name}/"
 
     @property
     def eval_recording_path(self) -> str:
