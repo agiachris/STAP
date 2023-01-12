@@ -40,20 +40,33 @@ DEBUG=0
 # Evaluate policies.
 
 policy_envs=(
-    # "pick"
-    "place"
+    "pick_0"
+    # "place_0"
+    # "place"
 )
 experiments=(
-    "20220903/examples_collisions"
-    "20220904/examples_curriculum"
-    "20220904/examples_pretrain5000"
-    "20220904/examples_mlp3layer"
+    "20230107/complete_q_multistage/"
+    # "20220903/examples_collisions"
+    # "official"
+    # "20230103/complete_q_multistage/lr1e-3"
+    # "20230103/complete_q_multistage"
+    # "20230101/complete_q_multistage"
+#     "20220903/examples_collisions"
+#     "20220904/examples_curriculum"
+#     "20220904/examples_pretrain5000"
+#     "20220904/examples_mlp3layer"
 )
 
 for EXP_NAME in "${experiments[@]}"; do
     for policy_env in "${policy_envs[@]}"; do
-        POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/final_model.pt"
-        ENV_CONFIG="configs/pybullet/envs/examples/primitives/${policy_env}_single_rack.yaml"
+        # POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/final_model.pt"
+        POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/ckpt_model_700000.pt"
+        # POLICY_CHECKPOINT="models/${EXP_NAME}/${policy_env}/select_model.pt"
+        # POLICY_CHECKPOINT="models/official/constrained_packing/task0/daf_random_cem/place/best_model.pt"
+        # ENV_CONFIG="configs/pybullet/envs/examples/primitives/${policy_env}_single_rack.yaml"
+        # ENV_CONFIG="configs/pybullet/envs/official/primitives/pick_viz.yaml"
+        ENV_CONFIG="configs/pybullet/envs/official/primitives/pick_viz.yaml"
+        # ENV_CONFIG="configs/pybullet/envs/official/primitives/place_eval.yaml"
         # EVAL_RESULTS="plots/${EXP_NAME}/${policy_env}/results_12.npz"
         eval_policies
     done

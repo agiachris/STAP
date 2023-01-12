@@ -60,22 +60,27 @@ output_path="models"
 
 # Pybullet.
 
-exp_name="20221024/decoupled_state"
+exp_name="20230101/complete_q_multistage/"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
-policy_envs=("pick" "place" "pull" "push")
+policy_envs=("pick_0" "place_0" "pull_0" "push_0")
+# policy_envs=( "pick_0") # "pull_0" "push_0")
+# policy_envs=( "push_0") # "pull_0" "push_0")
 checkpoints=(
     # "final_model"
     # "best_model"
     # "select_model"
-    "ckpt_model_50000"
-    "ckpt_model_100000"
-    "ckpt_model_150000"
-    "ckpt_model_200000"
+    # "ckpt_model_50000"
+    # "ckpt_model_100000"
+    # "ckpt_model_150000"
+    # "ckpt_model_200000"
+    "ckpt_model_300000"
 )
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
+
+ENV_KWARGS="--gui 0"
 
 for ckpt in "${checkpoints[@]}"; do
     POLICY_CHECKPOINTS=()
