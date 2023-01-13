@@ -6,7 +6,7 @@ function run_cmd {
     echo ""
     echo "${PATH_CMD}"
     echo "${CMD}"
-    if [[ `hostname` == "sc.stanford.edu" ]]; then
+    if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]] ; then
         sbatch scripts/data/generate_data_juno.sh "${PATH_CMD}" "${CMD}"
     else
         ${PATH_CMD}
