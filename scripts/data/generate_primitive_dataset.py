@@ -332,7 +332,7 @@ def main(config: PolicyDatasetGenerationConfig):
     """
     # Create environment root directory.
     if not os.path.exists(config.env_root_dir):
-        os.makedirs(config.env_root_dir)
+        os.makedirs(config.env_root_dir, exist_ok=True)
 
     # Create temporary PDDL problem subdirectory.
     config.pddl_config.problem_subdir = f"{config.env_name}"
