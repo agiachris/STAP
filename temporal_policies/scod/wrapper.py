@@ -78,7 +78,9 @@ class WrapperSCOD(scod.SCOD, abc.ABC):
             uncertainties = torch.zeros(batch_size, 1, device=self.device)
 
         if self.device.type == "cuda":
-            minibatch_size, num_minibatches = tensors.compute_minibatch(batch_size, element_size)
+            minibatch_size, num_minibatches = tensors.compute_minibatch(
+                batch_size, element_size
+            )
         else:
             # If on CPU, keep the minibatch size at a reasonable size.
             minibatch_size = min(batch_size, 10000)

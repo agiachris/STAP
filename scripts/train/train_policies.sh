@@ -54,19 +54,6 @@ plots_path="plots"
 
 # Experiments.
 
-# Pybox2d.
-# exp_name="20220806/pybox2d"
-# TRAINER_CONFIG="configs/pybox2d/trainers/agent.yaml"
-# AGENT_CONFIG="configs/pybox2d/agents/sac.yaml"
-# POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
-# EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
-#
-# ENV_CONFIG="configs/pybox2d/envs/placeright.yaml"
-# train_policy
-
-# ENV_CONFIG="configs/pybox2d/envs/pushleft.yaml"
-# train_policy
-
 # Pybullet.
 
 exp_name="20221024/decoupled_state"

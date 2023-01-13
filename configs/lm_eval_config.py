@@ -3,7 +3,14 @@ from typing_extensions import Annotated
 
 import tyro
 
-from configs.base_config import CurrentExampleConfig, EvaluationConfig, InContextExampleConfig, LMConfig, PDDLConfig, PromptConfig
+from configs.base_config import (
+    CurrentExampleConfig,
+    EvaluationConfig,
+    InContextExampleConfig,
+    LMConfig,
+    PDDLConfig,
+    PromptConfig,
+)
 
 
 GoalEvalConfig = Annotated[
@@ -49,7 +56,7 @@ TaskPlan1PlanEvalConfig = Annotated[
                     use_human=True,
                     use_goal=True,
                     use_robot=True,
-                    custom_robot_action_sequence_format="python_list"
+                    custom_robot_action_sequence_format="python_list",
                 ),
                 current_prompt_cfg=CurrentExampleConfig(
                     use_scene_objects=True,
@@ -83,7 +90,7 @@ TaskPlan2PlansEvalConfig = Annotated[
                     use_goal=True,
                     use_robot=True,
                     custom_robot_prompt="Top 1 robot action sequence: ",
-                    custom_robot_action_sequence_format="python_list_of_lists"
+                    custom_robot_action_sequence_format="python_list_of_lists",
                 ),
                 current_prompt_cfg=CurrentExampleConfig(
                     use_scene_objects=True,
@@ -92,7 +99,7 @@ TaskPlan2PlansEvalConfig = Annotated[
                     use_goal=True,
                     predict_robot=True,
                     custom_robot_prompt="Top 2 robot action sequences (python list of lists): ",
-                    custom_robot_action_sequence_format="python_list_of_lists"
+                    custom_robot_action_sequence_format="python_list_of_lists",
                 ),
             ),
             pddl_cfg=PDDLConfig(),
@@ -118,7 +125,7 @@ TaskPlan3PlansEvalConfig = Annotated[
                     use_goal=True,
                     use_robot=True,
                     custom_robot_prompt="Top 1 robot action sequence: ",
-                    custom_robot_action_sequence_format="python_list_of_lists"
+                    custom_robot_action_sequence_format="python_list_of_lists",
                 ),
                 current_prompt_cfg=CurrentExampleConfig(
                     use_scene_objects=True,
@@ -127,7 +134,7 @@ TaskPlan3PlansEvalConfig = Annotated[
                     use_goal=True,
                     predict_robot=True,
                     custom_robot_prompt="Top 3 robot action sequences (python list of lists): ",
-                    custom_robot_action_sequence_format="python_list_of_lists"
+                    custom_robot_action_sequence_format="python_list_of_lists",
                 ),
             ),
             pddl_cfg=PDDLConfig(),
@@ -136,4 +143,9 @@ TaskPlan3PlansEvalConfig = Annotated[
     ),
 ]
 
-UnionEvalConfigs = Union[GoalEvalConfig, TaskPlan1PlanEvalConfig, TaskPlan2PlansEvalConfig, TaskPlan3PlansEvalConfig]
+UnionEvalConfigs = Union[
+    GoalEvalConfig,
+    TaskPlan1PlanEvalConfig,
+    TaskPlan2PlansEvalConfig,
+    TaskPlan3PlansEvalConfig,
+]

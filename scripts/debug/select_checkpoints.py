@@ -17,7 +17,9 @@ CHECKPOINTS = {
 DYNAMICS_CHECKPOINT = "200000"
 
 
-def select_checkpoints(clone_name: str, dry_run: bool = False, clone_dynamics: bool = False) -> None:
+def select_checkpoints(
+    clone_name: str, dry_run: bool = False, clone_dynamics: bool = False
+) -> None:
     if dry_run:
         cp: Callable = functools.partial(print, "cp")
     else:
@@ -28,7 +30,7 @@ def select_checkpoints(clone_name: str, dry_run: bool = False, clone_dynamics: b
         print(policy)
         cp(path / f"ckpt_model_{ckpt}.pt", path / f"select{clone_name}_model.pt")
         cp(path / f"ckpt_trainer_{ckpt}.pt", path / f"select{clone_name}_trainer.pt")
-    
+
     if dry_run:
         cp: Callable = functools.partial(print, "cp")
     else:
@@ -37,7 +39,10 @@ def select_checkpoints(clone_name: str, dry_run: bool = False, clone_dynamics: b
     if clone_dynamics:
         path = pathlib.Path(PATH) / EXP_NAME
         print(path)
-        cp(path / f"ckpt_model_{DYNAMICS_CHECKPOINT}", path / f"select{clone_name}_model")
+        cp(
+            path / f"ckpt_model_{DYNAMICS_CHECKPOINT}",
+            path / f"select{clone_name}_model",
+        )
 
 
 if __name__ == "__main__":
@@ -47,7 +52,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print("Dry run...")
-    select_checkpoints(args.clone_name, dry_run=True, clone_dynamics=args.clone_dynamics)
+    select_checkpoints(
+        args.clone_name, dry_run=True, clone_dynamics=args.clone_dynamics
+    )
 
     key = input("Copy files? (y/n): ")
     if key != "y":

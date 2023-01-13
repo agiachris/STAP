@@ -106,9 +106,7 @@ class CEMPlanner(planners.Planner):
         T = len(action_skeleton)
 
         # Roll out a trajectory.
-        _, actions = self.dynamics.rollout(
-            observation, action_skeleton, self.policies
-        )
+        _, actions = self.dynamics.rollout(observation, action_skeleton, self.policies)
         mean = actions
 
         # Scale the standard deviations by the action spaces.

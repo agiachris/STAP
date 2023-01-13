@@ -13,12 +13,12 @@ env_kwargs:
     - action_skeleton:
         - pick(blue_box)
       initial_state:
-        - on(blue_box, table)
+        - on(rack, table)
+        - on(hook, table)
         - on(red_box, table)
         - on(yellow_box, table)
         - on(cyan_box, table)
-        - on(rack, table)
-        - on(hook, table)
+        - on(blue_box, table)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -33,13 +33,18 @@ env_kwargs:
         name: rack
         size: [0.22, 0.32, 0.16]
         color: [0.4, 0.2, 0.0, 1.0]
-    - object_type: Hook
+    - object_type: Variant
       object_kwargs:
         name: hook
-        head_length: 0.2
-        handle_length: 0.38
-        handle_y: -1.0
-        color: [0.6, 0.6, 0.6, 1.0]
+        variants:
+          - object_type: Hook
+            object_kwargs:
+              name: _hook
+              head_length: 0.2
+              handle_length: 0.38
+              handle_y: -1.0
+              color: [0.6, 0.6, 0.6, 1.0]
+          - object_type: Null
     - object_type: Variant
       object_kwargs:
         name: salt
@@ -54,7 +59,7 @@ env_kwargs:
           - object_type: Null
     - object_type: Variant
       object_kwargs:
-        name: yoghurt
+        name: yogurt
         variants:
           - configs/pybullet/envs/assets/yogurt.yaml
           - object_type: Null

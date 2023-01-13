@@ -21,6 +21,7 @@ def query_policy_actor(
         policy.encoder.encode(observation.to(policy.device), policy_args)
     )
 
+
 @tensors.numpy_wrap
 def query_policy_critic(
     policy: agents.RLAgent, observation: torch.Tensor, policy_args: Optional[Any]
@@ -102,7 +103,10 @@ def evaluate_episode(
             print("step_info:", step_info)
             print(f"reward: {reward}, terminated: {terminated}, truncated: {truncated}")
             # print magnitude of difference in observations
-            print("observation diff w/o hook:", np.linalg.norm(observation - new_observation))
+            print(
+                "observation diff w/o hook:",
+                np.linalg.norm(observation - new_observation),
+            )
             obs_diffs.append(np.linalg.norm(observation - new_observation))
         observation = new_observation
         rewards.append(reward)

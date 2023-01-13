@@ -49,19 +49,23 @@ def get_task_plan_primitives_instantiated(
         if len(task_plan) == 0:
             continue
         else:
-            task_plans_instantiated.append([
-                env.get_primitive_info(action_call=action_call)
-                for action_call in task_plan
-            ])
+            task_plans_instantiated.append(
+                [
+                    env.get_primitive_info(action_call=action_call)
+                    for action_call in task_plan
+                ]
+            )
     return task_plans_instantiated
 
-def get_callable_goal_props(predicted_goal_props: List[str], possible_props: List[predicates.Predicate]) -> List[predicates.Predicate]:
+
+def get_callable_goal_props(
+    predicted_goal_props: List[str], possible_props: List[predicates.Predicate]
+) -> List[predicates.Predicate]:
     if not is_valid_goal_props(predicted_goal_props, possible_props):
         raise ValueError("Invalid goal props")
 
     parsed_goal_props = [
-        symbolic.problem.parse_proposition(prop)
-        for prop in predicted_goal_props
+        symbolic.problem.parse_proposition(prop) for prop in predicted_goal_props
     ]
     return get_goal_props_instantiated(parsed_goal_props)
 
@@ -107,16 +111,24 @@ def get_prop_testing_objs(env: envs.Env) -> Dict[str, Object]:
         prop_testing_objs[obj_name] = prop_test_obj
     return prop_testing_objs
 
-def is_satisfy_goal_props(props: predicates.Predicate, objects: Dict[str, Object], state: np.ndarray, use_hand_state: bool = False) -> bool:
+
+def is_satisfy_goal_props(
+    props: predicates.Predicate,
+    objects: Dict[str, Object],
+    state: np.ndarray,
+    use_hand_state: bool = False,
+) -> bool:
     """Returns True if all props for hold for the given objects, False otherwise.
-    
+
     Args:
         props: list of predicates to test
         objects: dict of objects in the scene
         state: state (either observation or predicted dynamics state) of the scene
     """
     if not use_hand_state:
-        print(f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)")
+        print(
+            f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)"
+        )
         # cutting out the EE observation means that I probably won't have access to inhand(a)
         state = state[1:]
 
@@ -128,6 +140,7 @@ def is_satisfy_goal_props(props: predicates.Predicate, objects: Dict[str, Object
 
     return success
 
+
 def get_object_relationships(
     observation: np.ndarray,
     objects: Dict[str, Object],
@@ -135,7 +148,9 @@ def get_object_relationships(
     use_hand_state: bool = False,
 ) -> List[str]:
     if not use_hand_state:
-        print(f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)")
+        print(
+            f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)"
+        )
         # cutting out the EE observation means that I probably won't have access to inhand(a)
         observation = observation[1:]
     possible_props = get_possible_props(objects, available_predicates)

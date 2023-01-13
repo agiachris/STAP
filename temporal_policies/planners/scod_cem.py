@@ -100,7 +100,7 @@ class SCODCEMPlanner(planners.Planner):
     def momentum(self) -> float:
         """Momentum of distribution updates."""
         return self._momentum
-    
+
     @property
     def filter_decay(self) -> Optional[str]:
         """Filter decay type, either "linear" or "geometric"."""
@@ -258,15 +258,13 @@ class SCODCEMPlanner(planners.Planner):
                 # Filter out trajectories with the highest uncertainty.
                 num_filter_per_step = self.num_filter_per_step * task_dimensionality
                 if self.filter_decay == "linear":
-                    decay_ratio = (idx_iter / self.num_iterations)
-                    num_filter_per_step = int(num_filter_per_step  * (1-decay_ratio))
-                elif self.filter_decay == "geometric": 
-                    decay_ratio = self.filter_decay_rate ** idx_iter
+                    decay_ratio = idx_iter / self.num_iterations
+                    num_filter_per_step = int(num_filter_per_step * (1 - decay_ratio))
+                elif self.filter_decay == "geometric":
+                    decay_ratio = self.filter_decay_rate**idx_iter
                     num_filter_per_step = int(num_filter_per_step * decay_ratio)
-                
-                unc_trajectory_idx = values_unc.topk(
-                    num_filter_per_step, dim=0
-                ).indices
+
+                unc_trajectory_idx = values_unc.topk(num_filter_per_step, dim=0).indices
                 p_success[unc_trajectory_idx.flatten().unique()] = float("-Inf")
 
                 # Select the top trajectories.
