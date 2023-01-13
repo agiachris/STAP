@@ -7,7 +7,7 @@ function run_cmd {
     echo "${CMD}"
     path_mod="./scripts/train:./scripts/eval:/.configs"
     if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]] ; then
-        sbatch scripts/data/generate_data_juno.sh ${path_mod} "${CMD}"
+        sbatch scripts/data/generate_data_juno.sh "${path_mod}" "${CMD}"
     else
         export PYTHONPATH="${path_mod}:${PYTHONPATH}"
         pipenv run ${CMD}
@@ -31,7 +31,6 @@ function generate_data {
 
 # Experiments.
 EXP_NAME="20230113/datasets"
-
 SYMBOLIC_ACTION_TYPE="valid"
 NUM_PRETRAIN_STEPS="200000"
 NUM_ENV_PROCESSES="4"
