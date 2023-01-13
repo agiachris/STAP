@@ -75,7 +75,7 @@ class InContextExample:
     # custom prompt engineering configs
     custom_robot_prompt: str = ""
     custom_robot_action_sequence_format: Literal[
-        "python_list", "python_list_of_lists"
+        "python_list", "python_list_of_lists", "python_list_with_done"
     ] = "python_list"  # use special prompt for robot action sequence in overall_example
 
     @property

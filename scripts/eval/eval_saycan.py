@@ -3,15 +3,15 @@ Usage:
 
 PYTHONPATH=. python scripts/eval/eval_saycan.py
 --planner-config configs/pybullet/planners/ablation/policy_cem.yaml 
---env-config configs/pybullet/envs/official/domains/hook_reach/tamp0.yaml 
+--env-config configs/pybullet/envs/t2m/official/tasks/task0.yaml
 --policy-checkpoints
     models/20230106/complete_q_multistage/pick_0/ckpt_model_1000000.pt 
     models/20230101/complete_q_multistage/place_0/best_model.pt 
     models/20230101/complete_q_multistage/pull_0/best_model.pt
     models/20230101/complete_q_multistage/push_0/best_model.pt
 --dynamics-checkpoint models/official/select_model/dynamics/best_model.pt
---pddl-domain configs/pybullet/envs/official/domains/template/tamp0_domain.pddl 
---pddl-problem configs/pybullet/envs/official/domains/hook_reach/tamp0_problem.pddl
+--pddl-domain configs/pybullet/envs/t2m/official/tasks/symbolic_domain.pddl
+--pddl-problem configs/pybullet/envs/t2m/official/tasks/task0_symbolic.pddl
 --verbose 0 --engine davinci --gui 1
 """
 
@@ -21,6 +21,11 @@ from scripts.eval.eval_policies import query_policy_actor, query_policy_critic
 from temporal_policies import agents, envs, planners
 from temporal_policies.dynamics.base import Dynamics
 from temporal_policies.envs.pybullet.table.objects import Object
+
+import tabulate
+
+tabulate.PRESERVE_WHITESPACE = True
+from tabulate import tabulate
 
 from termcolor import colored
 import argparse
@@ -89,10 +94,14 @@ def get_values(
     with torch.no_grad():
         t_observation = tensors.from_numpy(observation, device=device)
         for i in range(len(policy_fns)):
-            policy_state = decode_fns[i](t_observation)
-            q_s_a = value_fns[i].predict(
-                policy_state, tensors.from_numpy(actions[i], device=device)
-            )
+            try:
+                policy_state = decode_fns[i](t_observation)
+                q_s_a = value_fns[i].predict(
+                    policy_state, tensors.from_numpy(actions[i], device=device)
+                )
+            except RuntimeError as e:
+                q_s_a = torch.tensor(0, dtype=torch.float32)
+                print(f"Failed to predict Q for {primitives[i]}, returning Q = 0.")
             values.append(q_s_a.item())
     return values
 
@@ -120,10 +129,72 @@ def get_policy_actions(
     with torch.no_grad():
         t_observation = tensors.from_numpy(observation, device=device)
         for i in range(len(policy_fns)):
-            policy_state = decode_fns[i](t_observation)
-            action = policy_fns[i].actor.predict(policy_state)
+            try:
+                policy_state = decode_fns[i](t_observation)
+                action = policy_fns[i].actor.predict(policy_state)
+            except RuntimeError as e:
+                action = torch.tensor(
+                    policy_fns[i].action_space.sample(), dtype=torch.float32
+                )
+                print(
+                    f"Failed to predict action for {primitives[i]}, using random action instead."
+                )
             actions.append(action.cpu().numpy())
     return actions
+
+
+def format_saycan_scoring_table(
+    table_headers: List[str],
+    potential_actions_str: List[str],
+    lm_action_scores: List[float],
+    value_action_scores: List[float],
+    overall_scores: List[float],
+    action_pad_width: int = 30,
+) -> str:
+    # sort the potential actions by overall score and sort the scores accordingly
+    potential_actions_str = [
+        x for _, x in sorted(zip(overall_scores, potential_actions_str), reverse=True)
+    ]
+    # pad the actions to be the same length
+    potential_actions_str = [
+        action.ljust(action_pad_width) for action in potential_actions_str
+    ]
+    rounded_lm_action_scores = [
+        np.round(lm_action_score, 2) for lm_action_score in lm_action_scores
+    ]
+    rounded_value_action_scores = [
+        np.round(value_action_score, 2) for value_action_score in value_action_scores
+    ]
+    rounded_overall_scores = [
+        np.round(overall_score, 2) for overall_score in overall_scores
+    ]
+    rounded_lm_action_scores = [
+        x
+        for _, x in sorted(zip(overall_scores, rounded_lm_action_scores), reverse=True)
+    ]
+    rounded_value_action_scores = [
+        x
+        for _, x in sorted(
+            zip(overall_scores, rounded_value_action_scores), reverse=True
+        )
+    ]
+    rounded_overall_scores = [
+        x for _, x in sorted(zip(overall_scores, rounded_overall_scores), reverse=True)
+    ]
+    # add escape code to format the color of the scores: if the score is closer to 1, set the color closer to green, if the score is closer to 0, set the color closer to red
+    # rounded_lm_action_scores = [f'\033[38;2;{int(255 * (1 - lm_action_score))};{int(255 * lm_action_score)};0m{lm_action_score}\033[0m' for lm_action_score in rounded_lm_action_scores]
+    # rounded_value_action_scores = [f'\033[38;2;{int(255 * (1 - value_action_score))};{int(255 * value_action_score)};0m{value_action_score}\033[0m' for value_action_score in rounded_value_action_scores]
+    formatted_table_str = tabulate(
+        zip(
+            potential_actions_str,
+            rounded_lm_action_scores,
+            rounded_value_action_scores,
+            rounded_overall_scores,
+        ),
+        headers=table_headers,
+        tablefmt="plain",
+    )
+    return formatted_table_str
 
 
 def eval_saycan(
@@ -152,7 +223,7 @@ def eval_saycan(
     custom_in_context_example_robot_format: str = "python_list_of_lists",
     custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
     custom_robot_action_sequence_format: Literal[
-        "python_list_of_lists", "python_list", "saycan_done"
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_done"
     ] = "python_list",
     engine: Optional[str] = None,
     temperature: Optional[int] = 0,
@@ -168,16 +239,17 @@ def eval_saycan(
         torch.manual_seed(seed)
 
     INSTRUCTION = "Put the red box on the rack"
+    # these would perhaps belong in .../prompts/
+    examples = get_examples_from_json_dir(
+        "configs/pybullet/envs/t2m/official/prompts/hook_reach/"
+    )
 
-    examples = get_examples_from_json_dir(pddl_root_dir + "/" + pddl_domain_name)
-    import ipdb;ipdb.set_trace()
     for example in examples:
         example.custom_robot_action_sequence_format = (
             custom_robot_action_sequence_format
         )
 
     examples = random.sample(examples, n_examples)
-
     lm_cfg: LMConfig = LMConfig(
         engine=engine,
         temperature=temperature,
@@ -186,7 +258,7 @@ def eval_saycan(
         api_type=api_type,
         max_tokens=max_tokens,
     )
-    lm_cfg.engine = "text-davinci-003"
+    # lm_cfg.engine = "text-davinci-003"
 
     lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
 
@@ -208,7 +280,7 @@ def eval_saycan(
 
     prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
 
-    available_predicates: List[str] = ["on", "inhand"]
+    available_predicates: List[str] = ["on", "inhand", "under"]
     possible_props: List[predicates.Predicate] = get_possible_props(
         env.objects, available_predicates
     )
@@ -221,7 +293,6 @@ def eval_saycan(
 
     observation, info = env.reset()
     done = False
-    import ipdb;ipdb.set_trace()
 
     # get goal props
     objects = list(env.objects.keys())
@@ -245,11 +316,15 @@ def eval_saycan(
     goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
         goal_props_predicted, possible_props
     )
-
+    print(f"goal props predicted: {goal_props_predicted}")
     actions: List[str]
     viz_idx = 0
+    env.record_start()
+
+    max_steps = 10  # potentially task dependent and loadable from the yaml
+    step = 0
     while not done:
-        lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
+        # lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
         # TODO(klin) overall prompt doesn't include the executed actions
         actions, lm_cache = get_next_actions_from_lm(
             INSTRUCTION,
@@ -261,7 +336,7 @@ def eval_saycan(
             pddl_domain,
             pddl_problem,
             custom_in_context_example_robot_prompt="Top robot action sequence: ",
-            custom_robot_prompt="Top 4 valid next actions (python list of primitives): ",
+            custom_robot_prompt="Top 5 valid next actions (python list of primitives): ",
             examples=examples,
             lm_cfg=lm_cfg,
             auth=auth,
@@ -269,6 +344,13 @@ def eval_saycan(
         )
         save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
+        print(
+            colored(
+                f"Executed actions: {[str(action) for action in all_executed_actions]}",
+                "green",
+            )
+        )
+        print(colored(f"Newly generated actions: {actions}", "yellow"))
         env_lst = [env] * len(actions)
         potential_actions: List[table_primitives.Primitive] = [
             env.get_primitive_info(action, env)
@@ -277,7 +359,7 @@ def eval_saycan(
         potential_actions_str: List[str] = [
             str(action).lower() for action in potential_actions
         ]
-        lm_cfg.engine = "text-davinci-002"  # 003 isn't really influeced by the incontext examples at all ---- pick(hook) is really low
+        # lm_cfg.engine = "text-davinci-002"  # 003 isn't really influeced by the incontext examples at all ---- pick(hook) is really low
         lm_action_scores, lm_cache = get_action_scores_from_lm(
             INSTRUCTION,
             potential_actions_str,
@@ -312,33 +394,33 @@ def eval_saycan(
             device=tensors.device(device),
         )
 
-        ### Start plotting Values ###
-        table_headers = ["Action sequence", "LM score", "Value score", "Overall score"]
-        format_row = "{:<30}" * 4
-        print(colored(format_row.format(*table_headers), "blue"))
-        for i in range(len(potential_actions)):
-            print(colored(
-                format_row.format(
-                    str(potential_actions[i]).lower(),
-                    np.round(lm_action_scores[i], 3),
-                    np.round(value_action_scores[i], 3),
-                    np.round(lm_action_scores[i] * value_action_scores[i], 3),
-                ), "blue")
+        table_headers = ["Action", "LM", "Value", "Overall"]
+        overall_scores = [
+            lm_action_score * value_action_score
+            for (lm_action_score, value_action_score) in zip(
+                lm_action_scores, value_action_scores
             )
-        ### End plotting Values ###
-
-        overall_scores: List[float] = [
-            lm_action_scores[i] * value_action_scores[i]
-            for i in range(len(potential_actions))
-        ]  # the 'done' skill seems to have a hard-coded value according to the figures in saycan ...
+        ]
+        formatted_table_str = format_saycan_scoring_table(
+            table_headers,
+            potential_actions_str,
+            lm_action_scores,
+            value_action_scores,
+            overall_scores,
+        )
         best_action_idx = overall_scores.index(max(overall_scores))
         env.set_primitive(potential_actions[best_action_idx])
-        env.record_start()
-        observation, reward, terminated, _, info = env.step(
-            policy_actions[best_action_idx]
-        )
 
-        print(f"action: {potential_actions[best_action_idx]}; reward: {reward}")
+        custom_recording_text: str = f"""human: {INSTRUCTION}\npredicted: {goal_props_predicted}\n{formatted_table_str}"""
+
+        observation, reward, terminated, _, info = env.step(
+            policy_actions[best_action_idx], custom_recording_text
+        )
+        step += 1
+
+        print(
+            f"action executed: {potential_actions[best_action_idx]}; reward: {reward}"
+        )
 
         if is_satisfy_goal_props(
             goal_props_callable, prop_testing_objs, observation, use_hand_state=False
@@ -353,11 +435,14 @@ def eval_saycan(
         object_relationships = [str(prop) for prop in object_relationships]
         all_executed_actions.append(potential_actions[best_action_idx])
         all_prior_object_relationships.append(object_relationships)
-        viz_idx += 1
-        if viz_idx == 5:
-            env.record_stop()
-            gif_path = path / f"saycan_planning_len{5}.gif"
-            env.record_save(gif_path, reset=True)
+        if step == max_steps:
+            done = True
+
+    env.record_stop()
+    gif_path = pathlib.Path(path) / f"saycan_execution_{step}_steps.gif"
+    env.record_save(gif_path, reset=False)
+    gif_path = pathlib.Path(path) / f"saycan_execution_{step}_steps.mp4"
+    env.record_save(gif_path, reset=True)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -429,7 +514,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
     parser.add_argument(
-        "--api_type", type=APIType, default=APIType.HELM, help="API to use"
+        "--api_type", type=APIType, default=APIType.OPENAI, help="API to use"
     )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")
