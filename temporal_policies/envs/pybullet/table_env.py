@@ -674,7 +674,9 @@ class TableEnv(PybulletEnv):
 
         return self.get_observation(), info
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
+    def step(
+        self, action: np.ndarray, custom_recording_text: Optional[Dict[str, str]] = None
+    ) -> Tuple[np.ndarray, float, bool, bool, dict]:
         primitive = self.get_primitive()
         assert isinstance(primitive, Primitive)
 
@@ -684,6 +686,8 @@ class TableEnv(PybulletEnv):
                 + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
                 + "]"
             )
+            if custom_recording_text is not None:
+                self._recording_text = custom_recording_text
 
         if isinstance(self.robot.arm, real.arm.Arm):
             input("Continue?")
@@ -817,7 +821,8 @@ class TableEnv(PybulletEnv):
         draw.multiline_text(
             (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", font=FONT
         )
-
+        # text_color = (255, 100, 255)
+        # draw.text((20, 10), "Hello World", fill=text_color, font=FONT)
         return np.array(img)
 
     def record_start(
