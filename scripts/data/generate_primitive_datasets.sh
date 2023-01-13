@@ -4,13 +4,13 @@ set -e
 
 function run_cmd {
     echo ""
-    echo "${PATH_CMD}"
     echo "${CMD}"
+    echo "${PATH_CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]] ; then
         sbatch scripts/data/generate_data_juno.sh "${PATH_CMD}" "${CMD}"
     else
-        ${PATH_CMD}
-        ${CMD}
+        export PYTHONPATH="${PATH_CMD}:${PYTHONPATH}"
+        pipenv run ${CMD}
     fi
 }
 
@@ -29,8 +29,7 @@ function generate_data {
     run_cmd
 }
 
-pythonpath="./scripts/train:./scripts/eval:./configs"
-PATH_CMD="export PYTHONPATH=${pythonpath}:${PYTHONPATH}"
+PATH_CMD="./scripts/train:./scripts/eval:./configs"
 
 # Experiments.
 EXP_NAME="20230113/datasets"
