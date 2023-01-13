@@ -19,8 +19,6 @@ from scripts.train import train_policy
 
 
 MOVABLE_TYPES = {"box", "tool", "movable"}
-
-
 UNMOVABLE_TYPES = {"receptacle", "unmovable"}
 
 
