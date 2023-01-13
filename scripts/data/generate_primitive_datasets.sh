@@ -6,12 +6,12 @@ function run_cmd {
     echo ""
     echo "${CMD}"
     pythonpath="./scripts/train:./scripts/eval:./configs"
-    # if [[ `hostname` == "sc.stanford.edu" ]]; then
-    #     sbatch scripts/train/generate_data_juno.sh "${pythonpath}" "${CMD}"
-    # else
-    export PYTHONPATH="${pythonpath}:${PYTHONPATH}"
-    eval ${CMD}
-    # fi
+    if [[ `hostname` == "sc.stanford.edu" ]]; then
+        sbatch scripts/data/generate_data_juno.sh "${pythonpath}" "${CMD}"
+    else
+        export PYTHONPATH="${pythonpath}:${PYTHONPATH}"
+        eval ${CMD}
+    fi
 }
 
 function generate_data {
