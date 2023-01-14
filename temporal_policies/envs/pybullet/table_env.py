@@ -734,7 +734,7 @@ class TableEnv(PybulletEnv):
 
     def _is_goal_state(self) -> bool:
         if self.task.goal_predicates is None:
-            return False
+            raise ValueError("Goal states not declared for task.")
         return all(
             pred.value(self.robot, self.objects, self.task.initial_state)
             for pred in self.task.goal_predicates
