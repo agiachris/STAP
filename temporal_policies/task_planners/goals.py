@@ -46,6 +46,10 @@ def get_goal_from_lm(
         example.use_scene_object_relationships = True
         example.use_human = True
         example.use_goal = True
+        example.use_explanation = False
+        example.use_robot = False
+        example.use_predicates = False
+        example.use_primitives = False
 
     # generate goal from LM
     results, lm_cache = generate_lm_response(

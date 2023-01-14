@@ -28,6 +28,12 @@ env_kwargs:
         - on(rack, table)
         - on(hook, table)
         - on(red_box, table)
+        - beyondworkspace(blue_box)
+        - beyondworkspace(yellow_box)
+        - beyondworkspace(cyan_box)
+        - on(blue_box, table)
+        - on(yellow_box, table)
+        - on(cyan_box, table)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -50,3 +56,7 @@ env_kwargs:
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/milk.yaml
+    - configs/pybullet/envs/assets/salt.yaml
+    - configs/pybullet/envs/assets/icecream.yaml
+    - configs/pybullet/envs/assets/yogurt.yaml
+
