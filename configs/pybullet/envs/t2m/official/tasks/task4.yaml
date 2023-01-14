@@ -37,6 +37,11 @@ env_kwargs:
         - on(yellow_box, table)
         - on(cyan_box, table)
         - on(blue_box, table)
+      goal_predicates:
+        - on(red_box, rack)
+        - on(yellow_box, rack)
+        - on(cyan_box, rack)
+        - on(blue_box, rack)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
