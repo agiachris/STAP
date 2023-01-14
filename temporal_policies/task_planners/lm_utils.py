@@ -73,8 +73,14 @@ def register_api_key(
     else:
         raise ValueError(f"api_type {api_type} not supported")
 
-def authenticate(api_type: APIType, key_name: Optional[str] = None) -> Optional[Authentication]:
-    assert api_type in [APIType.OPENAI, APIType.HELM], f"api_type {api_type} not supported"
+
+def authenticate(
+    api_type: APIType, key_name: Optional[str] = None
+) -> Optional[Authentication]:
+    assert api_type in [
+        APIType.OPENAI,
+        APIType.HELM,
+    ], f"api_type {api_type} not supported"
     if key_name is None:
         if api_type == APIType.OPENAI:
             key_name = "personal-all"
@@ -84,6 +90,7 @@ def authenticate(api_type: APIType, key_name: Optional[str] = None) -> Optional[
     with open("../credentials.json", "r") as f:
         api_key = json.load(f)[key_name]
     return register_api_key(api_type, api_key)
+
 
 def generate_current_setting_prompt(
     instruction: str,
@@ -138,10 +145,13 @@ def gpt3_call(
     if lm_cache is not None and id in lm_cache.keys():
         print("cache hit, returning")
         response = lm_cache[id]
-        raw_tokens = response['choices'][0]['logprobs']['tokens']
-        logprobs = response['choices'][0]['logprobs']['token_logprobs']
+        raw_tokens = response["choices"][0]["logprobs"]["tokens"]
+        logprobs = response["choices"][0]["logprobs"]["token_logprobs"]
         # for compatibility with helm api
-        helm_token_list: List[Token] = [Token(text=token, logprob=logprob, top_logprobs=99999) for token, logprob in zip(raw_tokens, logprobs)]
+        helm_token_list: List[Token] = [
+            Token(text=token, logprob=logprob, top_logprobs=99999)
+            for token, logprob in zip(raw_tokens, logprobs)
+        ]
         response["tokens"] = helm_token_list
     else:
         if api_type.value == APIType.OPENAI.value:
@@ -154,10 +164,13 @@ def gpt3_call(
                 max_tokens=max_tokens,
                 stop=stop,
             )
-            raw_tokens = response['choices'][0]['logprobs']['tokens']
-            logprobs = response['choices'][0]['logprobs']['token_logprobs']
+            raw_tokens = response["choices"][0]["logprobs"]["tokens"]
+            logprobs = response["choices"][0]["logprobs"]["token_logprobs"]
             # for compatibility with helm api
-            helm_token_list: List[Token] = [Token(text=token, logprob=logprob, top_logprobs=99999) for token, logprob in zip(raw_tokens, logprobs)]
+            helm_token_list: List[Token] = [
+                Token(text=token, logprob=logprob, top_logprobs=99999)
+                for token, logprob in zip(raw_tokens, logprobs)
+            ]
             response["tokens"] = helm_token_list
         elif api_type.value == APIType.HELM.value:
             assert auth is not None, "auth must be provided for helm api"
@@ -449,6 +462,7 @@ def update_result_current_prompt_based_on_response_robot(
     else:
         result.tokens_predicted = None
 
+
 def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
     # Check if the lm_cache_file exists
     if not lm_cache_file.exists():
@@ -462,7 +476,11 @@ def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
             if pathlib.Path(lm_cache_file).stat().st_size == 0:
                 lm_cache = {}
             else:
-                lm_cache = pickle.load(f)
+                try:
+                    lm_cache = json.load(f)
+                except UnicodeDecodeError as e:
+                    print(f"Error loading lm_cache: {e}")
+                    lm_cache = {}
         if lm_cache is None:
             lm_cache = {}
     return lm_cache
