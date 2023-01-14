@@ -670,7 +670,11 @@ class TableEnv(PybulletEnv):
                 continue
 
             if all(
-                prop.value(self.robot, self.objects, self.task.initial_state)
+                prop.value(
+                    robot=self.robot, 
+                    objects=self.objects, 
+                    state=self.task.initial_state
+                )
                 for prop in self.task.initial_state
             ):
                 # Break if all propositions in the initial state are true.
@@ -736,7 +740,11 @@ class TableEnv(PybulletEnv):
         if self.task.goal_predicates is None:
             raise ValueError("Goal states not declared for task.")
         return all(
-            pred.value(self.robot, self.objects, self.task.initial_state)
+            pred.value(
+                robot=self.robot, 
+                objects=self.objects, 
+                state=self.task.initial_state
+            )
             for pred in self.task.goal_predicates
         )
 

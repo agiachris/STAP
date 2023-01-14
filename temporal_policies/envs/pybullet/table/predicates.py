@@ -9,6 +9,7 @@ import symbolic
 from shapely.geometry import Polygon, LineString
 
 from temporal_policies.envs.pybullet.table import primitive_actions, utils
+from temporal_policies.envs.pybullet.table.primitives import ACTION_CONSTRAINTS
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Null, Object, Rack
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import Robot
@@ -21,6 +22,16 @@ dbprint = lambda *args: None  # noqa
 @dataclasses.dataclass
 class Predicate:
     args: List[str]
+
+    @property
+    def state_req(self) -> bool:
+        "Predicate.value() requires non-null state argument"
+        return False
+    
+    @property
+    def robot_req(self) -> bool:
+        "Predicate.value() requires non-null robot argument"
+        return False
 
     @classmethod
     def create(cls, proposition: str) -> "Predicate":
@@ -38,14 +49,30 @@ class Predicate:
         return True
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence["Predicate"]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
-        """Evaluates to True if the geometrically grounded predicate is satisfied."""
-        return True
+        """Evaluates to True if the geometrically grounded predicate is satisfied.
+        
+        Note (robot, state): Few Predicates require robot and state to evaluate their truth.
+        The function signature supports evaluation for predicates that do not, e.g., for 
+        goal predicate evaluation, while the necessary checks are added to predicates that do.
 
-    def value_simple(self, objects: Dict[str, Object]) -> bool:
-        """Evaluates to True if the geometrically grounded predicate is satisfied."""
-        return False
+        Note (sim): When False, the predicate will be evaluated over `objects`' ObjectState. 
+        When True, the predicate will be evaluated in the current pybullet state, which will
+        overwrite ObjectStates and potentially corrupt future sim=False queries. It is recommended to
+        use sim=True for checking predicates at environment initialization, and sim=False for planning.
+        """
+        if (robot is None and self.robot_req) and (state is None and self.state_req):
+            raise ValueError(f"{str(self.__class__)}.value() requires robot and state, but None were given.")
+        elif robot is None and self.robot_req:
+            raise ValueError(f"{str(self.__class__)}.value() requires robot, but None was given.")
+        elif state is None and self.state_req:
+            raise ValueError(f"{str(self.__class__)}.value() requires state, but None was given.")
+        return True
 
     def get_arg_objects(self, objects: Dict[str, Object]) -> List[Object]:
         return [objects[arg] for arg in self.args]
@@ -82,9 +109,21 @@ class Free(Predicate):
         (Hook, Rack): 0.1,
     }
 
+    @property
+    def state_req(self) -> bool:
+        return True
+
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        if not sim:
+            raise ValueError("Free.value() can only be evaluated in sim mode.")
+
         child_obj = self.get_arg_objects(objects)[0]
         if child_obj.isinstance(Null):
             return True
@@ -222,34 +261,6 @@ class Aligned(Predicate):
         (Rack, "beyondworkspace"): 0.0,
     }
 
-    # def value(
-    #     self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
-    # ) -> bool:
-    #     obj = self.get_arg_objects(objects)[0]
-    #     if obj.isinstance(Null):
-    #         return True
-
-    #     try:
-    #         zone = TableBounds.get_zone(obj=obj, state=state)
-    #         angle_mean = Aligned.ZONE_ANGLES[(obj.type(), type(zone).__name__.lower())]
-    #         if (
-    #             angle_mean - Aligned.ANGLE_ABS < -np.pi
-    #             or angle_mean + Aligned.ANGLE_ABS > np.pi
-    #         ):
-    #             raise ValueError("Cannot recover wrapped angle.")
-    #     except KeyError:
-    #         angle_mean = 0.0
-
-    #     angle = eigen.AngleAxisd(eigen.Quaterniond(obj.pose().quat)).angle - angle_mean
-    #     if not (
-    #         Aligned.ANGLE_EPS <= abs(angle) <= Aligned.ANGLE_ABS
-    #         and utils.is_upright(obj)
-    #     ):
-    #         dbprint(f"{self}.value():", False)
-    #         return False
-
-    #     return True
-
     @staticmethod
     def sample_angle(obj: Object, zone: Optional[str] = None) -> float:
         angle = 0.0
@@ -302,8 +313,14 @@ class InWorkspace(Predicate, TableBounds):
     """Unary predicate ensuring than an object is in the robot workspace."""
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance((Null, Rack)):  # Rack is in workspace by construction.
             return True
@@ -352,8 +369,14 @@ class InCollisionZone(Predicate, TableBounds):
     """Unary predicate ensuring the object is in the collision zone."""
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
@@ -395,8 +418,14 @@ class InOperationalZone(Predicate, TableBounds):
     """Unary predicate ensuring the object is in the operational zone."""
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
@@ -438,8 +467,14 @@ class InObstructionZone(Predicate, TableBounds):
     """Unary predicate ensuring the object is in the obstruction zone."""
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
@@ -479,8 +514,14 @@ class BeyondWorkspace(Predicate, TableBounds):
     """Unary predicate ensuring than an object is in beyond the robot workspace."""
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
@@ -526,8 +567,14 @@ class InOodZone(Predicate, TableBounds):
     """Unary predicate ensuring than an object is in beyond the robot workspace."""
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
@@ -682,36 +729,33 @@ class Inhand(Predicate):
         return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
-        print(
-            f"{self}.value() not implemented; assuming True for checking initialization from sample()."
-        )
-        return True
-        raise NotImplementedError("Inhand value() not implemented.")
-
-    def value_simple(self, objects: Dict[str, Object]) -> bool:
-        """Evaluates to True if the grounding of Inhand(a) is geometrically valid."""
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return False
 
-        z_pos = obj.state().pos[2]
-        if not hasattr(self, "alerted_hardcoding"):
-            print(
-                f"Hardcoded inhand predicate. If z_pos={z_pos} > 0.3, then inhand(obj)."
-            )
-            self.alerted_hardcoding = True
-
-        return z_pos > 0.3
+        return utils.is_inhand(obj)
 
 
 class Under(Predicate):
     """Unary predicate enforcing that an object be placed underneath another."""
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
             return True
@@ -721,15 +765,21 @@ class Under(Predicate):
             return False
 
         return True
-
+        
 
 class InFront(Predicate):
     """Binary predicate enforcing that one object is in-front of another with
     respect to the world x-y coordinate axis."""
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
             return True
@@ -777,8 +827,14 @@ class NonBlocking(Predicate):
     }
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
+        Predicate.value(objects=objects, robot=robot, state=state)
+        
         target_obj, intersect_obj = self.get_arg_objects(objects)
         if target_obj.isinstance(Null) or intersect_obj.isinstance(Null):
             return True
@@ -826,6 +882,14 @@ class NonBlocking(Predicate):
 
 class On(Predicate):
     MAX_SAMPLE_ATTEMPTS = 10
+
+    @property
+    def state_req(self) -> bool:
+        return True
+    
+    @property
+    def robot_req(self) -> bool:
+        return True
 
     def sample(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
@@ -945,32 +1009,25 @@ class On(Predicate):
         return success
 
     def value(
-        self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
+        self, 
+        objects: Dict[str, Object], 
+        robot: Optional[Robot] = None, 
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = True,
     ) -> bool:
-        """Evaluates to True if the grounding of On(a, b) is geometrically valid."""
+        Predicate.value(objects=objects, robot=robot, state=state)
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
             return True
 
-        if not utils.is_above(child_obj, parent_obj):
+        if not utils.is_on(child_obj, parent_obj):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
-        if f"tippable({child_obj})" not in state and not utils.is_upright(child_obj):
-            dbprint(f"{self}.value():", False, "- child not upright")
-            return False
-
-        return True
-
-    def value_simple(self, objects: Dict[str, Object]) -> bool:
-        """Evaluates to True if the grounding of On(a, b) is geometrically valid."""
-        child_obj, parent_obj = self.get_arg_objects(objects)
-        if child_obj.isinstance(Null):
-            return True
-
-        if not utils.is_above(child_obj, parent_obj):
-            dbprint(f"{self}.value():", False, "- child below parent")
-            return False
+        if state is not None:
+            if f"tippable({child_obj})" not in state and not utils.is_upright(child_obj):
+                dbprint(f"{self}.value():", False, "- child not upright")
+                return False
 
         return True
 

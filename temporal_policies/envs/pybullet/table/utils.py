@@ -10,6 +10,7 @@ import yaml
 
 from temporal_policies.envs.pybullet.sim import body, math
 from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.envs.pybullet.table.primitives import ACTION_CONSTRAINTS
 
 
 TABLE_CONSTRAINTS = {
@@ -25,34 +26,39 @@ TABLE_CONSTRAINTS = {
 }
 
 
-EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 0.1}
+EPSILONS = {
+    "aabb": 0.01, 
+    "align": 0.99, 
+    "twist": 0.001, 
+    "tipping": 0.1
+}
 
 
-def compute_margins(obj: Object) -> np.ndarray:
+def compute_margins(obj: Object, sim: bool = True) -> np.ndarray:
     """Compute the x-y margins of the object in the world frame."""
-    aabb = obj.aabb()[:, :2]
+    aabb = obj.aabb(sim=sim)[:, :2]
     margin = 0.5 * (aabb[1] - aabb[0])
     return margin
 
 
-def compute_object_pose(obj: Object, theta: float) -> math.Pose:
+def compute_object_pose(obj: Object, theta: float, sim: bool = True) -> math.Pose:
     """Computes a new pose for the object with the given theta."""
     aa = eigen.AngleAxisd(theta, np.array([0.0, 0.0, 1.0]))
     quat = eigen.Quaterniond(aa)
-    pose = math.Pose(pos=obj.pose().pos, quat=quat.coeffs)
+    pose = math.Pose(pos=obj.pose(sim=sim).pos, quat=quat.coeffs)
     return pose
 
 
-def is_above(obj_a: Object, obj_b: Object) -> bool:
+def is_above(obj_a: Object, obj_b: Object, sim=True) -> bool:
     """Returns True if the object a is above the object b."""
-    min_child_z = obj_a.aabb()[0, 2]
-    max_parent_z = obj_b.aabb()[1, 2]
+    min_child_z = obj_a.aabb(sim=sim)[0, 2]
+    max_parent_z = obj_b.aabb(sim=sim)[1, 2]
     return min_child_z > max_parent_z - EPSILONS["aabb"]
+    
 
-
-def is_upright(obj: Object) -> bool:
+def is_upright(obj: Object, sim=True) -> bool:
     """Returns True if the child objects z-axis aligns with the world frame."""
-    aa = eigen.AngleAxisd(eigen.Quaterniond(obj.pose().quat))
+    aa = eigen.AngleAxisd(eigen.Quaterniond(obj.pose(sim=sim).quat))
     return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= EPSILONS["align"]
 
 
@@ -97,9 +103,9 @@ def is_moving(obj: Object, use_history: Optional[str] = None) -> bool:
     return bool((np.abs(twist) >= EPSILONS["twist"]).any())
 
 
-def is_below_table(obj: Object) -> bool:
+def is_below_table(obj: Object, sim: bool = True) -> bool:
     """Returns True if the object is below the table."""
-    return obj.pose().pos[2] < TABLE_CONSTRAINTS["table_z_max"]
+    return obj.pose(sim=sim).pos[2] < TABLE_CONSTRAINTS["table_z_max"]
 
 
 def is_touching(
@@ -144,6 +150,24 @@ def is_under(obj_a: Object, obj_b: Object) -> bool:
     if not is_above(obj_a, obj_b) and is_intersecting(obj_a, obj_b):
         return True
     return False
+
+
+def is_on(obj_a: Object, obj_b: Object, on_distance: float = 0.02) -> bool:
+    """Returns True if object a is on top of object b."""
+    if (is_above(obj_a, obj_b) 
+        and is_intersecting(obj_a, obj_b) 
+        and not is_inhand(obj_a)
+        and abs(obj_a.aabb()[0, 2] - obj_b.aabb()[1, 2]) < on_distance
+    ):
+        return True
+    return False
+
+
+def is_inhand(obj: Object) -> bool:
+    """Returns True if the object is in the gripper."""
+    z_pos = obj.pose().pos[2]
+    z_min = ACTION_CONSTRAINTS["max_lift_height"] - obj.size[2] * 0.5
+    return z_pos > z_min
 
 
 def is_inworkspace(
