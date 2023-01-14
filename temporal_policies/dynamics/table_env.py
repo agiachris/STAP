@@ -232,7 +232,7 @@ class TableEnvDynamics(LatentDynamics):
         # Update env state with new unnormalized observation.
         next_env_state = env_state.clone()
         next_env_state[..., idx_args, :] = self._unnormalize_state(next_dynamics_state)
-        
+
         # set states of non existent objects to 0
         non_existent_obj_start_idx = policy_args["shuffle_range"][1]
         next_env_state[..., non_existent_obj_start_idx:, :] = 0

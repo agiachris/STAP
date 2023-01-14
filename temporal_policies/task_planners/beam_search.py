@@ -26,7 +26,10 @@ from temporal_policies.evaluation.utils import (
     get_possible_props,
     get_task_plan_primitives_instantiated,
 )
-from temporal_policies.task_planners.task_plans import get_action_scores_from_lm, get_next_actions_from_lm
+from temporal_policies.task_planners.task_plans import (
+    get_action_scores_from_lm,
+    get_next_actions_from_lm,
+)
 
 
 # Node = namedtuple('Node', ['optimized_action_distribution', 'action_primitive', 'depth'])
@@ -134,8 +137,7 @@ def expand_node(current_node: Node) -> List[Node]:
 
     env_lst = [env] * len(actions)
     potential_actions: List[table_primitives.Primitive] = [
-        env.get_primitive_info(action, env)
-        for (action, env) in zip(actions, env_lst)
+        env.get_primitive_info(action, env) for (action, env) in zip(actions, env_lst)
     ]
 
     new_nodes = []
@@ -180,9 +182,7 @@ def beam_search(
         # extract the full action sequences for each node in next_beam and then score them
         action_sequences = [node.action_sequence for node in next_beam]
         # TODO(klin)
-        action_sequence_lm_scores = get_action_sequence_scores_from_lm(
-            instruction
-        )
+        action_sequence_lm_scores = get_action_sequence_scores_from_lm(instruction)
 
         for i, node in enumerate(next_beam):
             node.action_sequence_score_lm = action_sequence_lm_scores[i]

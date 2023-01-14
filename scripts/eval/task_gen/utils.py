@@ -12,7 +12,19 @@ from temporal_policies.envs.pybullet.table.predicates import (
 )
 
 
-OBJECTS = ["rack", "salt", "icecream", "yogurt", "milk", "blue_box", "yellow_box", "red_box", "cyan_box", "purple_box", "hook"]
+OBJECTS = [
+    "rack",
+    "salt",
+    "icecream",
+    "yogurt",
+    "milk",
+    "blue_box",
+    "yellow_box",
+    "red_box",
+    "cyan_box",
+    "purple_box",
+    "hook",
+]
 LOCATIONS = ["table", "rack", "bin"]
 LIFTED_OBJECTS = ["?M0", "?M1", "?M2", "?M3", "?M4", "?M5"]
 LIFTED_LOCATIONS = ["?L0", "?L1", "?L2"]

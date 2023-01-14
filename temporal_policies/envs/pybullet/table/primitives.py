@@ -18,10 +18,7 @@ dbprint = lambda *args: None  # noqa
 # dbprint = print
 
 
-ACTION_CONSTRAINTS = {
-    "max_lift_height": 0.4,
-    "max_lift_radius": 0.7
-}
+ACTION_CONSTRAINTS = {"max_lift_height": 0.4, "max_lift_radius": 0.7}
 
 
 def compute_top_down_orientation(

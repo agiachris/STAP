@@ -6,12 +6,15 @@ python scripts/lm_token_calculation.py
 
 from enum import Enum
 
+
 class ActionSequenceMethod(Enum):
     """Action sequence method."""
+
     LM_SHOOTING_VIA_REQUERYING = 0  # 'perspective 2': query the LM for entire action sequence but with different temperatures
     LM_SHOOTING_VIA_PROMPT_SPECIFICATION = 1  # same as above, except query model once and modify the prompt to ask LM to generation K action plans
     SCORING = 2  # 'saycan': assume SayCan's scoring + TAPS generates successfully action sequence with length 'search_depth'
     BEAM_SEARCH_SCORING = 3  # 'beam search': from the LM's POV, BEARM_SEARCH_SCORING is the same as SCORING, except now we have a beam width K instead of 1
+
 
 def tokens_for_single_problem_goal_only(num_in_context: int):
     # compute cost of evaluating classifier (using only AND goal predicates)
@@ -149,20 +152,23 @@ def main():
     )
     total_input_tokens += input_tokens
     total_output_tokens += output_tokens
-    total_tokens = input_tokens + output_tokens    
+    total_tokens = input_tokens + output_tokens
     print(
         f"Goal: total_tokens {total_tokens}, total_cost ${get_cost(total_tokens, ENGINE)}\n"
     )
 
     print("=== Single problem action sequence costs and tokens===")
     print("Assumptions:")
-    print((
-        f"objects per domain: {NUM_OBJECTS_PER_DOMAIN}\n"
-        f"LM shooting samples: {NUM_LM_SHOOTING_SAMPLES}\n"
-        f"search depth: {SEARCH_DEPTH}\n"
-        f"beam width: {BEAM_WIDTH}\n"
-        f"number of in context examples: {NUM_IN_CONTEXT_EXAMPLES}\n"
-        f"engine: {ENGINE}\n"))
+    print(
+        (
+            f"objects per domain: {NUM_OBJECTS_PER_DOMAIN}\n"
+            f"LM shooting samples: {NUM_LM_SHOOTING_SAMPLES}\n"
+            f"search depth: {SEARCH_DEPTH}\n"
+            f"beam width: {BEAM_WIDTH}\n"
+            f"number of in context examples: {NUM_IN_CONTEXT_EXAMPLES}\n"
+            f"engine: {ENGINE}\n"
+        )
+    )
 
     for method in ActionSequenceMethod:
         input_tokens, output_tokens = tokens_for_single_problem_action_sequence(
@@ -180,14 +186,15 @@ def main():
             f"{method.name}: total_tokens {total_tokens}, total_cost ${get_cost(total_tokens, ENGINE)}"
         )
 
-        if method.name == ActionSequenceMethod.LM_SHOOTING_VIA_PROMPT_SPECIFICATION.name:
+        if (
+            method.name
+            == ActionSequenceMethod.LM_SHOOTING_VIA_PROMPT_SPECIFICATION.name
+        ):
             print(
                 f"   - Manual prompting engineering shows some promise; need more testing]"
             )
         elif method.name == ActionSequenceMethod.SCORING.name:
-            print(
-                f"   - Assumes that beam-width = 1 (i.e. what SayCan does) works"
-            )
+            print(f"   - Assumes that beam-width = 1 (i.e. what SayCan does) works")
 
     print(f"\nTotal input tokens for all methods: {total_input_tokens}")
     print(f"Total output tokens for all methods: {total_output_tokens}")
@@ -200,7 +207,10 @@ def main():
     print(f"Total output tokens for all problems and methods: {total_output_tokens}")
 
     # compute costs for all problems and all methods
-    print(f"\nTotal cost for all problems and methods: ${get_cost(total_input_tokens + total_output_tokens, ENGINE)}")
+    print(
+        f"\nTotal cost for all problems and methods: ${get_cost(total_input_tokens + total_output_tokens, ENGINE)}"
+    )
+
 
 if __name__ == "__main__":
     main()

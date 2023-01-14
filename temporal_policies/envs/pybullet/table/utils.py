@@ -26,12 +26,7 @@ TABLE_CONSTRAINTS = {
 }
 
 
-EPSILONS = {
-    "aabb": 0.01, 
-    "align": 0.99, 
-    "twist": 0.001, 
-    "tipping": 0.1
-}
+EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 0.1}
 
 
 def compute_margins(obj: Object, sim: bool = True) -> np.ndarray:
@@ -49,14 +44,14 @@ def compute_object_pose(obj: Object, theta: float, sim: bool = True) -> math.Pos
     return pose
 
 
-def is_above(obj_a: Object, obj_b: Object, sim=True) -> bool:
+def is_above(obj_a: Object, obj_b: Object, sim: bool = True) -> bool:
     """Returns True if the object a is above the object b."""
     min_child_z = obj_a.aabb(sim=sim)[0, 2]
     max_parent_z = obj_b.aabb(sim=sim)[1, 2]
     return min_child_z > max_parent_z - EPSILONS["aabb"]
-    
 
-def is_upright(obj: Object, sim=True) -> bool:
+
+def is_upright(obj: Object, sim: bool = True) -> bool:
     """Returns True if the child objects z-axis aligns with the world frame."""
     aa = eigen.AngleAxisd(eigen.Quaterniond(obj.pose(sim=sim).quat))
     return abs(aa.axis.dot(np.array([0.0, 0.0, 1.0]))) >= EPSILONS["align"]
@@ -130,13 +125,15 @@ def is_touching(
     return len(contacts) > 0
 
 
-def is_intersecting(obj_a: Object, obj_b: Object) -> bool:
+def is_intersecting(obj_a: Object, obj_b: Object, sim: bool = True) -> bool:
     """Returns True if object a intersects object b in the world x-y plane."""
     polygons_a = [
-        Polygon(hull) for hull in obj_a.convex_hulls(world_frame=True, project_2d=True)
+        Polygon(hull)
+        for hull in obj_a.convex_hulls(world_frame=True, project_2d=True, sim=sim)
     ]
     polygons_b = [
-        Polygon(hull) for hull in obj_b.convex_hulls(world_frame=True, project_2d=True)
+        Polygon(hull)
+        for hull in obj_b.convex_hulls(world_frame=True, project_2d=True, sim=sim)
     ]
 
     return any(
@@ -145,27 +142,30 @@ def is_intersecting(obj_a: Object, obj_b: Object) -> bool:
     )
 
 
-def is_under(obj_a: Object, obj_b: Object) -> bool:
+def is_under(obj_a: Object, obj_b: Object, sim: bool = True) -> bool:
     """Returns True if object a is underneath object b."""
-    if not is_above(obj_a, obj_b) and is_intersecting(obj_a, obj_b):
+    if not is_above(obj_a, obj_b, sim=sim) and is_intersecting(obj_a, obj_b, sim=sim):
         return True
     return False
 
 
-def is_on(obj_a: Object, obj_b: Object, on_distance: float = 0.02) -> bool:
+def is_on(
+    obj_a: Object, obj_b: Object, on_distance: float = 0.02, sim: bool = True
+) -> bool:
     """Returns True if object a is on top of object b."""
-    if (is_above(obj_a, obj_b) 
-        and is_intersecting(obj_a, obj_b) 
-        and not is_inhand(obj_a)
-        and abs(obj_a.aabb()[0, 2] - obj_b.aabb()[1, 2]) < on_distance
+    if (
+        is_above(obj_a, obj_b, sim=sim)
+        and is_intersecting(obj_a, obj_b, sim=sim)
+        and not is_inhand(obj_a, sim=sim)
+        and abs(obj_a.aabb(sim=sim)[0, 2] - obj_b.aabb(sim=sim)[1, 2]) < on_distance
     ):
         return True
     return False
 
 
-def is_inhand(obj: Object) -> bool:
+def is_inhand(obj: Object, sim: bool = True) -> bool:
     """Returns True if the object is in the gripper."""
-    z_pos = obj.pose().pos[2]
+    z_pos = obj.pose(sim=sim).pos[2]
     z_min = ACTION_CONSTRAINTS["max_lift_height"] - obj.size[2] * 0.5
     return z_pos > z_min
 
@@ -174,12 +174,13 @@ def is_inworkspace(
     obj: Optional[Object] = None,
     obj_pos: Optional[np.ndarray] = None,
     distance: Optional[float] = None,
+    sim: bool = True,
 ) -> bool:
     """Returns True if the object is in the workspace."""
     if obj_pos is None or distance is None:
         if obj is None:
             raise ValueError("Must specify obj or obj_pos and distance")
-        obj_pos = obj.pose().pos[:2]
+        obj_pos = obj.pose(sim=sim).pos[:2]
         distance = float(np.linalg.norm(obj_pos))
     if not (
         TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
@@ -194,12 +195,13 @@ def is_beyondworkspace(
     obj: Optional[Object] = None,
     obj_pos: Optional[np.ndarray] = None,
     distance: Optional[float] = None,
+    sim: bool = True,
 ) -> bool:
     """Returns True if the object is beyond the workspace."""
     if obj_pos is None or distance is None:
         if obj is None:
             raise ValueError("Must specify obj or obj_pos and distance")
-        obj_pos = obj.pose().pos[:2]
+        obj_pos = obj.pose(sim=sim).pos[:2]
         distance = float(np.linalg.norm(obj_pos))
     if distance < TABLE_CONSTRAINTS["workspace_radius"]:
         return False

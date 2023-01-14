@@ -56,14 +56,14 @@ class Task:
         prob: Optional[float] = None,
         goal_predicates: Optional[List[str]] = None,
     ) -> "Task":
-    
+
         # Primitives.
         primitives = []
         for action_call in action_skeleton:
             primitive = env.get_primitive_info(action_call=action_call)
             assert isinstance(primitive, Primitive)
             primitives.append(primitive)
-        
+
         # Initial state.
         propositions = [predicates.Predicate.create(prop) for prop in initial_state]
 
@@ -76,7 +76,7 @@ class Task:
             action_skeleton=primitives,
             initial_state=propositions,
             prob=float("nan") if prob is None else prob,
-            goal_predicates=predicates
+            goal_predicates=predicates,
         )
 
 
@@ -671,9 +671,9 @@ class TableEnv(PybulletEnv):
 
             if all(
                 prop.value(
-                    robot=self.robot, 
-                    objects=self.objects, 
-                    state=self.task.initial_state
+                    robot=self.robot,
+                    objects=self.objects,
+                    state=self.task.initial_state,
                 )
                 for prop in self.task.initial_state
             ):
@@ -736,14 +736,15 @@ class TableEnv(PybulletEnv):
 
         return obs, reward, terminated, result.truncated, info
 
-    def _is_goal_state(self) -> bool:
+    def _is_goal_state(self, sim: bool = True) -> bool:
         if self.task.goal_predicates is None:
             raise ValueError("Goal states not declared for task.")
         return all(
             pred.value(
-                robot=self.robot, 
-                objects=self.objects, 
-                state=self.task.initial_state
+                robot=self.robot,
+                objects=self.objects,
+                state=self.task.initial_state,
+                sim=sim,
             )
             for pred in self.task.goal_predicates
         )

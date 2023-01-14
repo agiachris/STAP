@@ -71,6 +71,7 @@ def register_api_key(
     else:
         raise ValueError(f"api_type {api_type} not supported")
 
+
 def authenticate(api_type: APIType) -> Optional[Authentication]:
     if api_type == APIType.OPENAI:
         raise ValueError("OpenAI API not supported")
@@ -80,6 +81,7 @@ def authenticate(api_type: APIType) -> Optional[Authentication]:
         return register_api_key(api_type, api_key)
     else:
         raise ValueError("Invalid API type")
+
 
 def generate_current_setting_prompt(
     instruction: str,

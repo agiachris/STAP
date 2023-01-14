@@ -9,7 +9,6 @@ import symbolic
 from shapely.geometry import Polygon, LineString
 
 from temporal_policies.envs.pybullet.table import primitive_actions, utils
-from temporal_policies.envs.pybullet.table.primitives import ACTION_CONSTRAINTS
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Null, Object, Rack
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import Robot
@@ -27,7 +26,7 @@ class Predicate:
     def state_req(self) -> bool:
         "Predicate.value() requires non-null state argument"
         return False
-    
+
     @property
     def robot_req(self) -> bool:
         "Predicate.value() requires non-null robot argument"
@@ -49,29 +48,35 @@ class Predicate:
         return True
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         """Evaluates to True if the geometrically grounded predicate is satisfied.
-        
+
         Note (robot, state): Few Predicates require robot and state to evaluate their truth.
-        The function signature supports evaluation for predicates that do not, e.g., for 
+        The function signature supports evaluation for predicates that do not, e.g., for
         goal predicate evaluation, while the necessary checks are added to predicates that do.
 
-        Note (sim): When False, the predicate will be evaluated over `objects`' ObjectState. 
+        Note (sim): When False, the predicate will be evaluated over `objects`' ObjectState.
         When True, the predicate will be evaluated in the current pybullet state, which will
         overwrite ObjectStates and potentially corrupt future sim=False queries. It is recommended to
         use sim=True for checking predicates at environment initialization, and sim=False for planning.
         """
         if (robot is None and self.robot_req) and (state is None and self.state_req):
-            raise ValueError(f"{str(self.__class__)}.value() requires robot and state, but None were given.")
+            raise ValueError(
+                f"{str(self.__class__)}.value() requires robot and state, but None were given."
+            )
         elif robot is None and self.robot_req:
-            raise ValueError(f"{str(self.__class__)}.value() requires robot, but None was given.")
+            raise ValueError(
+                f"{str(self.__class__)}.value() requires robot, but None was given."
+            )
         elif state is None and self.state_req:
-            raise ValueError(f"{str(self.__class__)}.value() requires state, but None was given.")
+            raise ValueError(
+                f"{str(self.__class__)}.value() requires state, but None was given."
+            )
         return True
 
     def get_arg_objects(self, objects: Dict[str, Object]) -> List[Object]:
@@ -114,9 +119,9 @@ class Free(Predicate):
         return True
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
@@ -313,21 +318,21 @@ class InWorkspace(Predicate, TableBounds):
     """Unary predicate ensuring than an object is in the robot workspace."""
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance((Null, Rack)):  # Rack is in workspace by construction.
             return True
 
-        obj_pos = obj.pose().pos[:2]
+        obj_pos = obj.pose(sim=sim).pos[:2]
         distance = float(np.linalg.norm(obj_pos))
-        if not utils.is_inworkspace(obj_pos=obj_pos, distance=distance):
+        if not utils.is_inworkspace(obj_pos=obj_pos, distance=distance, sim=sim):
             dbprint(
                 f"{self}.value():", False, "- pos:", obj_pos[:2], "distance:", distance
             )
@@ -369,23 +374,23 @@ class InCollisionZone(Predicate, TableBounds):
     """Unary predicate ensuring the object is in the collision zone."""
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
 
-        obj_pos = obj.pose().pos[:2]
+        obj_pos = obj.pose(sim=sim).pos[:2]
         distance = float(np.linalg.norm(obj_pos))
         if not (
             utils.TABLE_CONSTRAINTS["workspace_x_min"]
-            <= obj.pose().pos[0]
+            <= obj_pos[0]
             < utils.TABLE_CONSTRAINTS["operational_x_min"]
             and distance < utils.TABLE_CONSTRAINTS["workspace_radius"]
         ):
@@ -418,19 +423,19 @@ class InOperationalZone(Predicate, TableBounds):
     """Unary predicate ensuring the object is in the operational zone."""
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
 
-        obj_pos = obj.pose().pos[:2]
+        obj_pos = obj.pose(sim=sim).pos[:2]
         distance = float(np.linalg.norm(obj_pos))
         if not (
             utils.TABLE_CONSTRAINTS["operational_x_min"]
@@ -467,19 +472,19 @@ class InObstructionZone(Predicate, TableBounds):
     """Unary predicate ensuring the object is in the obstruction zone."""
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
 
-        obj_pos = obj.pose().pos[:2]
+        obj_pos = obj.pose(sim=sim).pos[:2]
         distance = float(np.linalg.norm(obj_pos))
         if not (
             obj_pos[0] >= utils.TABLE_CONSTRAINTS["obstruction_x_min"]
@@ -514,22 +519,22 @@ class BeyondWorkspace(Predicate, TableBounds):
     """Unary predicate ensuring than an object is in beyond the robot workspace."""
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
 
-        distance = float(np.linalg.norm(obj.pose().pos[:2]))
-        if not utils.is_beyondworkspace(obj=obj, distance=distance):
-            return False
+        distance = float(np.linalg.norm(obj.pose(sim=sim).pos[:2]))
+        if not utils.is_beyondworkspace(obj=obj, distance=distance, sim=sim):
             dbprint(f"{self}.value():", False, "- distance:", distance)
+            return False
 
         return True
 
@@ -567,14 +572,14 @@ class InOodZone(Predicate, TableBounds):
     """Unary predicate ensuring than an object is in beyond the robot workspace."""
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return True
@@ -729,68 +734,68 @@ class Inhand(Predicate):
         return math.Pose(pos=xyz, quat=eigen.Quaterniond(aa).coeffs)
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
             return False
 
-        return utils.is_inhand(obj)
+        return utils.is_inhand(obj, sim=sim)
 
 
 class Under(Predicate):
     """Unary predicate enforcing that an object be placed underneath another."""
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
             return True
 
-        if not utils.is_under(child_obj, parent_obj):
+        if not utils.is_under(child_obj, parent_obj, sim=sim):
             dbprint(f"{self}.value():", False)
             return False
 
         return True
-        
+
 
 class InFront(Predicate):
     """Binary predicate enforcing that one object is in-front of another with
     respect to the world x-y coordinate axis."""
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
             return True
 
-        child_pos = child_obj.pose().pos
-        xy_min, xy_max = parent_obj.aabb()[:, :2]
+        child_pos = child_obj.pose(sim=sim).pos
+        xy_min, xy_max = parent_obj.aabb(sim=sim)[:, :2]
         if (
             child_pos[0] >= xy_min[0]
             or child_pos[1] <= xy_min[1]
             or child_pos[1] >= xy_max[1]
-            or utils.is_under(child_obj, parent_obj)
+            or utils.is_under(child_obj, parent_obj, sim=sim)
         ):
             dbprint(f"{self}.value():", False, "- pos:", child_pos)
             return False
@@ -827,23 +832,25 @@ class NonBlocking(Predicate):
     }
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
-        
+
         target_obj, intersect_obj = self.get_arg_objects(objects)
         if target_obj.isinstance(Null) or intersect_obj.isinstance(Null):
             return True
 
-        target_line = LineString([[0, 0], target_obj.pose().pos[:2].tolist()])
+        target_line = LineString([[0, 0], target_obj.pose(sim=sim).pos[:2].tolist()])
         if intersect_obj.isinstance(Hook):
-            convex_hulls = Object.convex_hulls(intersect_obj, project_2d=True)
+            convex_hulls = Object.convex_hulls(intersect_obj, project_2d=True, sim=sim)
         else:
-            convex_hulls = intersect_obj.convex_hulls(world_frame=True, project_2d=True)
+            convex_hulls = intersect_obj.convex_hulls(
+                world_frame=True, project_2d=True, sim=sim
+            )
 
         if len(convex_hulls) > 1:
             raise NotImplementedError(f"Compound shapes are not yet supported")
@@ -857,9 +864,9 @@ class NonBlocking(Predicate):
             pull_margins = None
 
         if pull_margins is not None:
-            if utils.is_inworkspace(obj=intersect_obj):
+            if utils.is_inworkspace(obj=intersect_obj, sim=sim):
                 zone = "inworkspace"
-            elif utils.is_beyondworkspace(obj=intersect_obj):
+            elif utils.is_beyondworkspace(obj=intersect_obj, sim=sim):
                 zone = "beyondworkspace"
             else:
                 zone = None
@@ -886,7 +893,7 @@ class On(Predicate):
     @property
     def state_req(self) -> bool:
         return True
-    
+
     @property
     def robot_req(self) -> bool:
         return True
@@ -1009,23 +1016,26 @@ class On(Predicate):
         return success
 
     def value(
-        self, 
-        objects: Dict[str, Object], 
-        robot: Optional[Robot] = None, 
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
         Predicate.value(objects=objects, robot=robot, state=state)
+
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
             return True
 
-        if not utils.is_on(child_obj, parent_obj):
+        if not utils.is_on(child_obj, parent_obj, sim=sim):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
         if state is not None:
-            if f"tippable({child_obj})" not in state and not utils.is_upright(child_obj):
+            if f"tippable({child_obj})" not in state and not utils.is_upright(
+                child_obj, sim=sim
+            ):
                 dbprint(f"{self}.value():", False, "- child not upright")
                 return False
 

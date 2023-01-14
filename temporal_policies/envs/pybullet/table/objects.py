@@ -418,7 +418,10 @@ class Hook(Object):
         return self._bbox
 
     def convex_hulls(
-        self, world_frame: bool = True, project_2d: bool = False, sim: bool = True,
+        self,
+        world_frame: bool = True,
+        project_2d: bool = False,
+        sim: bool = True,
     ) -> List[np.ndarray]:
         """Computes the convex hulls of the handle and head links."""
         handle_pose = self.shapes[1].pose
@@ -715,7 +718,10 @@ class WrapperObject(Object):
         return self.body.bbox
 
     def convex_hulls(
-        self, world_frame: bool = True, project_2d: bool = False, sim: bool = True,
+        self,
+        world_frame: bool = True,
+        project_2d: bool = False,
+        sim: bool = True,
     ) -> List[np.ndarray]:
         return self.body.convex_hulls(world_frame, project_2d, sim=sim)
 

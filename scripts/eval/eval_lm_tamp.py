@@ -39,7 +39,14 @@ from temporal_policies.envs.pybullet.table import (
     primitives as table_primitives,
 )
 from temporal_policies.envs.pybullet.table.objects import Object
-from temporal_policies.evaluation.utils import get_goal_props_instantiated, get_object_relationships, get_possible_props, get_prop_testing_objs, get_task_plan_primitives_instantiated, is_satisfy_goal_props
+from temporal_policies.evaluation.utils import (
+    get_goal_props_instantiated,
+    get_object_relationships,
+    get_possible_props,
+    get_prop_testing_objs,
+    get_task_plan_primitives_instantiated,
+    is_satisfy_goal_props,
+)
 from temporal_policies.task_planners.goals import get_goal_from_lm, is_valid_goal_props
 from temporal_policies.task_planners.lm_data_structures import (
     APIType,
@@ -127,6 +134,7 @@ def task_plan(
             env.get_primitive_info(action_call=str(node.action)) for node in plan[1:]
         ]
         yield action_skeleton
+
 
 def evaluate_plan(
     idx_iter: int,
@@ -261,7 +269,9 @@ def eval_lm_tamp(
         object_relationships = get_object_relationships(
             observation, env.objects, available_predicates, use_hand_state=False
         )
-        possible_props: List[predicates.Predicate] = get_possible_props(env.objects, available_predicates)
+        possible_props: List[predicates.Predicate] = get_possible_props(
+            env.objects, available_predicates
+        )
 
         lm_cfg.engine = "text-davinci-003"
         predicted_goal_props: List[str]
@@ -283,11 +293,14 @@ def eval_lm_tamp(
                 symbolic.problem.parse_proposition(prop)
                 for prop in predicted_goal_props
             ]
-            goal_props_callable: List[predicates.Predicate] = get_goal_props_instantiated(parsed_goal_props)
+            goal_props_callable: List[
+                predicates.Predicate
+            ] = get_goal_props_instantiated(parsed_goal_props)
         else:
-            import ipdb;ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
             raise ValueError("Invalid goal props")
-            
 
         # generate prompt from environment observation\
         lm_cfg.max_tokens = 300
@@ -310,7 +323,6 @@ def eval_lm_tamp(
         save_lm_cache(lm_cache_file, lm_cache)
         lm_cfg.engine = "text-davinci-002"
 
-
         # convert action_skeleton's elements with the format pick(a) to pick(a, table)
         converted_task_plans = []
         for task_plan in generated_task_plans:
@@ -323,13 +335,15 @@ def eval_lm_tamp(
                     new_task_plan.append(action)
             converted_task_plans.append(new_task_plan)
         generated_task_plans = converted_task_plans
-        print(f'generated task plans: {generated_task_plans}')
-        action_skeletons_instantiated = get_task_plan_primitives_instantiated(generated_task_plans, env)
+        print(f"generated task plans: {generated_task_plans}")
+        action_skeletons_instantiated = get_task_plan_primitives_instantiated(
+            generated_task_plans, env
+        )
         print(f"obj states table: {env.object_states()['table'].pos}")
         # if performing entire task plan generation e.g. open_ended generation
         idx_iter = 0
         for action_skeleton in action_skeletons_instantiated:
-            print(f'action_skeleton: {action_skeleton}')
+            print(f"action_skeleton: {action_skeleton}")
 
             timer.tic("motion_planner")
             env.set_primitive(action_skeleton[0])
@@ -348,7 +362,9 @@ def eval_lm_tamp(
             if "greedy" in str(planner_config):
                 break
 
-            evaluate_plan(idx_iter, env, planner, action_skeleton, plan, None, path=path)
+            evaluate_plan(
+                idx_iter, env, planner, action_skeleton, plan, None, path=path
+            )
             idx_iter += 1
 
         for plan in motion_plans:
@@ -358,7 +374,7 @@ def eval_lm_tamp(
                     state, env.objects, available_predicates, use_hand_state=False
                 )
                 object_relationships = [str(prop) for prop in object_relationships]
-                print(f'object_relationships: {object_relationships}')
+                print(f"object_relationships: {object_relationships}")
         # Filter out plans that do not reach the goal.
         goal_reaching_task_plans = []
         goal_reaching_motion_plans = []
@@ -366,10 +382,12 @@ def eval_lm_tamp(
         for task_plan, motion_plan in zip(task_plans, motion_plans):
             # find first timestep where the goal is reached
             for i, state in enumerate(motion_plan.states):
-                if is_satisfy_goal_props(goal_props_callable, prop_testing_objs, state, use_hand_state=False):
+                if is_satisfy_goal_props(
+                    goal_props_callable, prop_testing_objs, state, use_hand_state=False
+                ):
                     goal_reaching_task_plans.append(task_plan[:i])
                     goal_reaching_motion_plans.append(motion_plan.actions[:i])
-                    # probability of success is the probability of success (i.e. value) 
+                    # probability of success is the probability of success (i.e. value)
                     # at each timestep multiplied together
                     p_success = np.prod([value for value in motion_plan.values[:i]])
                     print(f"p_success: {p_success}")
@@ -615,7 +633,9 @@ if __name__ == "__main__":
         help="LM engine (curie or davinci or baggage or ada)",
     )
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
-    parser.add_argument("--api_type", type=APIType, default=APIType.HELM, help="API to use")
+    parser.add_argument(
+        "--api_type", type=APIType, default=APIType.HELM, help="API to use"
+    )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")
 

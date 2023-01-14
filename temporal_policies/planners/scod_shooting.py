@@ -91,7 +91,9 @@ class SCODShootingPlanner(planners.Planner):
             )
 
             best_actions = spaces.null(self.dynamics.action_space, (num_minibatches, T))
-            best_states = spaces.null(self.dynamics.state_space, (num_minibatches, T + 1))
+            best_states = spaces.null(
+                self.dynamics.state_space, (num_minibatches, T + 1)
+            )
             best_p_success = np.full(num_minibatches, float("nan"))
             best_values = np.full((num_minibatches, T), float("nan"))
             for idx_minibatch in tqdm.tqdm(range(num_minibatches)):

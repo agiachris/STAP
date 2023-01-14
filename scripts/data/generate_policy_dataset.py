@@ -451,7 +451,9 @@ def main(config: PolicyDatasetGenerationConfig):
     states, actions = [], []
     count = 0
     for symbolic_predicate_state in valid_symbolic_predicate_states:
-        problem_name = "val-training" + str(sort_propositions(list(symbolic_predicate_state)))
+        problem_name = "val-training" + str(
+            sort_propositions(list(symbolic_predicate_state))
+        )
         problem: symbolic.Problem = generate_pddl_problem_from_state_set(
             problem_name,
             config.pddl_cfg,
@@ -462,7 +464,7 @@ def main(config: PolicyDatasetGenerationConfig):
         with open(config.pddl_cfg.get_problem_file(problem_name), "r") as f:
             print(f.read())
             print("read problem file successfully")
-        
+
         pddl = symbolic.Pddl(
             config.pddl_cfg.pddl_domain_file,
             config.pddl_cfg.get_problem_file(problem_name),

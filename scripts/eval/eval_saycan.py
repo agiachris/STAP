@@ -170,7 +170,9 @@ def eval_saycan(
     INSTRUCTION = "Put the red box on the rack"
 
     examples = get_examples_from_json_dir(pddl_root_dir + "/" + pddl_domain_name)
-    import ipdb;ipdb.set_trace()
+    import ipdb
+
+    ipdb.set_trace()
     for example in examples:
         example.custom_robot_action_sequence_format = (
             custom_robot_action_sequence_format
@@ -221,7 +223,9 @@ def eval_saycan(
 
     observation, info = env.reset()
     done = False
-    import ipdb;ipdb.set_trace()
+    import ipdb
+
+    ipdb.set_trace()
 
     # get goal props
     objects = list(env.objects.keys())
@@ -317,13 +321,16 @@ def eval_saycan(
         format_row = "{:<30}" * 4
         print(colored(format_row.format(*table_headers), "blue"))
         for i in range(len(potential_actions)):
-            print(colored(
-                format_row.format(
-                    str(potential_actions[i]).lower(),
-                    np.round(lm_action_scores[i], 3),
-                    np.round(value_action_scores[i], 3),
-                    np.round(lm_action_scores[i] * value_action_scores[i], 3),
-                ), "blue")
+            print(
+                colored(
+                    format_row.format(
+                        str(potential_actions[i]).lower(),
+                        np.round(lm_action_scores[i], 3),
+                        np.round(value_action_scores[i], 3),
+                        np.round(lm_action_scores[i] * value_action_scores[i], 3),
+                    ),
+                    "blue",
+                )
             )
         ### End plotting Values ###
 

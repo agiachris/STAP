@@ -219,11 +219,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         }
 
     def dataset_statistics(self) -> Dict[str, int]:
-        """Returns statistics related to dataset.
-        """
-        total_episodes = self._worker_buffers["terminated"].sum() + self._worker_buffers[
-            "truncated"
-        ].sum()
+        """Returns statistics related to dataset."""
+        total_episodes = (
+            self._worker_buffers["terminated"].sum()
+            + self._worker_buffers["truncated"].sum()
+        )
         failed_episodes = self._worker_buffers["truncated"].sum()
         successful_episodes = self.worker_buffers["terminated"].sum()
         return {
