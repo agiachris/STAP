@@ -11,6 +11,7 @@ from configs.base_config import LMConfig
 from temporal_policies import envs
 from temporal_policies.envs.pybullet.table.objects import Object
 from temporal_policies.task_planners.lm_data_structures import (
+    SCENE_OBJECT_PROMPT,
     CurrentExample,
     InContextExample,
     OverallPrompt,
@@ -159,6 +160,12 @@ def get_next_actions_from_lm(
         lm_cfg=lm_cfg,
         auth=auth,
         lm_cache=lm_cache,
+        custom_stop_sequence=[
+            "Executed action: ",
+            custom_robot_prompt,
+            "\n",
+            SCENE_OBJECT_PROMPT,
+        ],
     )
     return (
         results.parsed_robot_predicted,
@@ -263,6 +270,8 @@ def get_action_scores_from_lm(
             score_action=True,
             action_to_score=potential_action,
         )
+        # generate LM response to the particular prompt (maybe made up of)
+        # then, I need to get scores corresponding
         results, lm_cache = generate_lm_response(
             header_prompt,
             current_prompt,
@@ -306,6 +315,7 @@ def get_action_scores_from_lm(
             np.exp(np.array(list(action_logprobs_dct.values())) * softmax_beta)
         )
 
+    print(f"softmax_beta: {softmax_beta}")
     # dynamically compute the width of the columns based on longest data for each column
     col_widths = [
         max(
@@ -315,10 +325,9 @@ def get_action_scores_from_lm(
         for i in range(2)
     ]
     format_row = "{:<" + str(col_widths[0]) + "}" + "{:<" + str(col_widths[1]) + "}"
-    print(f"softmax_beta: {softmax_beta}")
-    print(format_row.format(logprob_type, "Softmax score"))
-    for option, softmax_score in softmax_scores.items():
-        print(format_row.format(option, np.round(softmax_score, 3)))
+    # print(format_row.format(logprob_type, "Softmax score"))
+    # for option, softmax_score in softmax_scores.items():
+    #     print(format_row.format(option, np.round(softmax_score, 3)))
 
     action_scores = [
         softmax_scores[

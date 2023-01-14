@@ -760,3 +760,15 @@ class Push(Primitive):
         action.theta = 0.125 * np.pi
 
         return action
+
+class Null(Primitive):
+    """Do nothing."""
+    def __init__(self, arg_objects: Optional[List[str]] = None):
+        self._arg_objects = arg_objects
+
+
+    def execute(self, action: primitive_actions.PrimitiveAction) -> ExecutionResult:
+        return ExecutionResult(success=True, truncated=False)
+
+    def sample_action(self) -> primitive_actions.PrimitiveAction:
+        return self.Action()
