@@ -46,6 +46,7 @@ class Task:
     action_skeleton: List[Primitive]
     initial_state: List[predicates.Predicate]
     prob: float
+    goal_predicates: Optional[List[predicates.Predicate]]
 
     @staticmethod
     def create(
@@ -53,17 +54,29 @@ class Task:
         action_skeleton: List[str],
         initial_state: List[str],
         prob: Optional[float] = None,
+        goal_predicates: Optional[List[str]] = None,
     ) -> "Task":
+    
+        # Primitives.
         primitives = []
         for action_call in action_skeleton:
             primitive = env.get_primitive_info(action_call=action_call)
             assert isinstance(primitive, Primitive)
             primitives.append(primitive)
+        
+        # Initial state.
         propositions = [predicates.Predicate.create(prop) for prop in initial_state]
+
+        # Goal predicates.
+        predicates = None
+        if goal_predicates is not None:
+            predicates = [predicates.Predicate.create(pred) for pred in goal_predicates]
+
         return Task(
             action_skeleton=primitives,
             initial_state=propositions,
             prob=float("nan") if prob is None else prob,
+            goal_predicates=predicates
         )
 
 
@@ -718,6 +731,14 @@ class TableEnv(PybulletEnv):
         info = {"policy_args": primitive.get_policy_args()}
 
         return obs, reward, terminated, result.truncated, info
+
+    def _is_goal_state(self) -> bool:
+        if self.task.goal_predicates is None:
+            return False
+        return all(
+            pred.value(self.robot, self.objects, self.task.initial_state)
+            for pred in self.task.goal_predicates
+        )
 
     def _is_any_object_below_table(self) -> bool:
         return any(

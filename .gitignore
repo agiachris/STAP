@@ -6,6 +6,7 @@ plots/
 plots_debug/
 scripts/train/train_juno.sh
 scripts/eval/eval_planners_juno.sh
+scripts/data/generate_data_juno.sh
 logs/
 
 # Byte-compiled / optimized / DLL files
