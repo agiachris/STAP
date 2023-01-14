@@ -318,9 +318,8 @@ def eval_saycan(
     )
     print(f"goal props predicted: {goal_props_predicted}")
     actions: List[str]
-    viz_idx = 0
     env.record_start()
-
+    # TODO(klin) load this from the yaml when ready
     max_steps = 10  # potentially task dependent and loadable from the yaml
     step = 0
     while not done:
