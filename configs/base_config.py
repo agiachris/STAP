@@ -201,10 +201,10 @@ class PolicyDatasetGenerationConfig:
     seed: int = 0
     gui: int = 0
     use_curriculum: int = 0
-    num_pretrain_steps: int = 200000
+    num_pretrain_steps: int = 100000
     num_train_steps: int = 0
     num_eval_episodes: int = 0
-    num_env_processes: int = 2
+    num_env_processes: int = 1
     num_eval_env_processes: int = 0
     # Dataset generation configs.
     pddl_config: PDDLConfig = dataclasses.field(default_factory=lambda: PDDLConfig())
