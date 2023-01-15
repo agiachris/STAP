@@ -354,7 +354,7 @@ def main(config: PolicyDatasetGenerationConfig):
     # Delete temporary PDDL problem subdirectory.
     shutil.rmtree(pddl_problem_dir)
 
-    states_to_primitives = get_states_to_primitives(
+    states_to_primitives: Dict[str, List[str]] = get_states_to_primitives(
         states_to_actions=states_to_actions,
         symbolic_action_type=config.symbolic_action_type,
         primitive=config.primitive,

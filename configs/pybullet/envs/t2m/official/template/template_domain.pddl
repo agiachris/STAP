@@ -57,6 +57,7 @@
             (inhand ?b)
             (on ?a table)
             (not (under ?a ?c))
+			(beyondworkspace ?c)
         )
         :effect (and
             (under ?a ?c)
