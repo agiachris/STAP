@@ -684,11 +684,12 @@ class Inhand(Predicate):
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
-        print(
-            f"{self}.value() not implemented; assuming True for checking initialization from sample()."
-        )
-        return True
-        raise NotImplementedError("Inhand value() not implemented.")
+        """Evaluates to True if the grounding of Inhand(a) is geometrically valid."""
+        obj = self.get_arg_objects(objects)[0]
+        if obj.isinstance(Null):
+            return False
+
+        return utils.is_inhand(obj)
 
     def value_simple(self, objects: Dict[str, Object]) -> bool:
         """Evaluates to True if the grounding of Inhand(a) is geometrically valid."""
@@ -696,14 +697,7 @@ class Inhand(Predicate):
         if obj.isinstance(Null):
             return False
 
-        z_pos = obj.state().pos[2]
-        if not hasattr(self, "alerted_hardcoding"):
-            print(
-                f"Hardcoded inhand predicate. If z_pos={z_pos} > 0.3, then inhand(obj)."
-            )
-            self.alerted_hardcoding = True
-
-        return z_pos > 0.3
+        return utils.is_inhand(obj)
 
 
 class Under(Predicate):
@@ -952,7 +946,7 @@ class On(Predicate):
         if child_obj.isinstance(Null):
             return True
 
-        if not utils.is_above(child_obj, parent_obj):
+        if not utils.is_on(child_obj, parent_obj):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
@@ -968,7 +962,7 @@ class On(Predicate):
         if child_obj.isinstance(Null):
             return True
 
-        if not utils.is_above(child_obj, parent_obj):
+        if not utils.is_on(child_obj, parent_obj):
             dbprint(f"{self}.value():", False, "- child below parent")
             return False
 
