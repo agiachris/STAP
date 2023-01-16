@@ -13,8 +13,8 @@ from temporal_policies.utils import configs, metrics, tensors
 from temporal_policies.utils.typing import Batch, Scalar
 
 
-class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
-    """Agent trainer."""
+class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
+    """Policy trainer."""
 
     def __init__(
         self,
@@ -34,20 +34,18 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             str, Type[torch.optim.lr_scheduler._LRScheduler]
         ] = DummyScheduler,
         scheduler_kwargs: Dict[str, Any] = {},
+        train_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
-        num_pretrain_steps: int = 1000,
-        num_train_steps: int = 100000,
+        num_train_steps: int = 200000,
         num_eval_episodes: int = 100,
         eval_freq: int = 1000,
         checkpoint_freq: int = 10000,
-        log_freq: int = 100,
+        log_freq: int = 1000,
         profile_freq: Optional[int] = None,
         eval_metric: str = "reward",
         num_data_workers: int = 0,
-        dataset_size: Optional[int] = None,
-        eval_dataset_size: Optional[int] = None,
         name: Optional[str] = None,
     ):
         """Prepares the agent trainer for training.
@@ -66,10 +64,10 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             optimizer_kwargs: Kwargs for optimizer class.
             scheduler_class: Optional optimizer scheduler class.
             scheduler_kwargs: Kwargs for scheduler class.
+            train_data_checkpoints: Checkpoints to train data.
             checkpoint: Optional path to trainer checkpoint.
             env_kwargs: Optional kwargs passed to EnvFactory.
             device: Torch device.
-            num_pretrain_steps: Number of steps to pretrain.
             num_train_steps: Number of steps to train.
             num_eval_episodes: Number of episodes per evaluation.
             eval_freq: Evaluation frequency.
@@ -85,14 +83,21 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             name = agent.env.name
         path = pathlib.Path(path) / name
 
+        if train_data_checkpoints and checkpoint is None:
+            raise ValueError("Must provide data checkpoints or PolicyTrainer checkpoint.")
+
         dataset_class = configs.get_class(dataset_class, datasets)
         dataset_kwargs = dict(dataset_kwargs)
         dataset_kwargs["path"] = path / "train_data"
+        dataset_kwargs["save_frequency"] = None
         dataset = dataset_class(
             observation_space=agent.observation_space,
             action_space=agent.action_space,
             **dataset_kwargs,
         )
+        if train_data_checkpoints is not None:
+            for train_data in train_data_checkpoints:
+                dataset.load(train_data)
 
         if eval_dataset_kwargs is None:
             eval_dataset_kwargs = dataset_kwargs
@@ -127,7 +132,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             schedulers=schedulers,
             checkpoint=None,
             device=device,
-            num_pretrain_steps=num_pretrain_steps,
+            num_pretrain_steps=0,
             num_train_steps=num_train_steps,
             num_eval_steps=num_eval_episodes,
             eval_freq=eval_freq,
@@ -139,19 +144,15 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         )
 
         if checkpoint is not None:
-            self.load(
-                checkpoint,
-                strict=True,
-                dataset_size=dataset_size,
-                eval_dataset_size=eval_dataset_size,
-            )
+            self.load(checkpoint, strict=True)
             eval_env_config = pathlib.Path(checkpoint).parent / "eval/env_config.yaml"
             if eval_env_config.exists():
                 eval_env = envs.load(eval_env_config, **env_kwargs)
+        else:
+            self.dataset.save()
+            self.eval_dataset.save()
 
         self._eval_env = self.agent.env if eval_env is None else eval_env
-        self._reset_collect = True
-
         self._episode_length = 0
         self._episode_reward = 0.0
 
@@ -169,86 +170,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     def eval_env(self) -> envs.Env:
         """Agent env."""
         return self._eval_env
-
-    def collect_step(self, random: bool = False) -> Mapping[str, Any]:
-        """Collects data for the replay buffer.
-
-        Args:
-            random: Use random actions.
-
-        Returns:
-            Collect metrics.
-        """
-        with self.profiler.profile("collect"):
-            if self._reset_collect:
-                self._reset_collect = False
-                observation, _ = self.env.reset(
-                    options={"schedule": self.step - self.num_pretrain_steps}
-                )
-                self.dataset.add(observation=observation)
-                self._episode_length = 0
-                self._episode_reward = 0.0
-
-            if random:
-                action = self.env.get_primitive().sample()
-            else:
-                self.eval_mode()
-                with torch.no_grad():
-                    t_observation = tensors.from_numpy(
-                        self.env.get_observation(), self.device
-                    )
-                    if isinstance(self.agent.encoder.network, IMAGE_ENCODERS):
-                        t_observation = tensors.rgb_to_cnn(t_observation)
-                    policy_args = self.env.get_primitive().get_policy_args()
-                    t_observation = self.agent.encoder.encode(
-                        t_observation, policy_args
-                    )
-                    t_action = self.agent.actor.predict(t_observation, sample=True)
-                    action = t_action.cpu().numpy()
-                self.train_mode()
-
-            next_observation, reward, terminated, truncated, info = self.env.step(
-                action
-            )
-            done = terminated or truncated
-            discount = 1.0 - float(done)
-            try:
-                policy_args = info["policy_args"]
-            except KeyError:
-                policy_args = None
-
-            self.dataset.add(
-                action=action,
-                reward=reward,
-                next_observation=next_observation,
-                discount=discount,
-                terminated=terminated,
-                truncated=truncated,
-                policy_args=policy_args,
-            )
-
-            self._episode_length += 1
-            self._episode_reward += reward
-            if not done:
-                return {}
-
-            self.increment_epoch()
-
-            metrics = {
-                "reward": self._episode_reward,
-                "length": self._episode_length,
-                "episode": self.epoch,
-            }
-
-            # Reset the environment
-            observation, _ = self.env.reset(
-                options={"schedule": self.step - self.num_pretrain_steps}
-            )
-            self.dataset.add(observation=observation)
-            self._episode_length = 0
-            self._episode_reward = 0.0
-
-            return metrics
 
     def process_batch(self, batch: Batch) -> Batch:
         """Processes replay buffer batch for training.
@@ -268,48 +189,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             batch["observation"] = tensors.rgb_to_cnn(batch["observation"])  # type: ignore
             batch["next_observation"] = tensors.rgb_to_cnn(batch["next_observation"])  # type: ignore
         return super().process_batch(batch)
-
-    def pretrain(self) -> None:
-        """Runs the pretrain phase."""
-        self.dataset.initialize()
-        log_freq = self.log_freq
-        self.log_freq = min(log_freq, self.num_pretrain_steps // 10)
-        pbar = tqdm.tqdm(
-            range(self.step, self.num_pretrain_steps),
-            desc=f"Pretrain {self.name}",
-            dynamic_ncols=True,
-        )
-        metrics_list = []
-        for _ in pbar:
-            collect_metrics = self.collect_step(random=True)
-            if collect_metrics:
-                pbar.set_postfix({self.eval_metric: collect_metrics[self.eval_metric]})
-
-            metrics_list.append(collect_metrics)
-            metrics_list = self.log_step(metrics_list, stage="pretrain")
-
-            self.increment_step()
-        self.log_freq = log_freq
-
-    def train_step(self, step: int, batch: Batch) -> Mapping[str, float]:
-        """Performs a single training step.
-
-        Args:
-            step: Training step.
-            batch: Training batch.
-
-        Returns:
-            Dict of training metrics for logging.
-        """
-        collect_metrics = self.collect_step(random=False)
-        train_metrics = super().train_step(step, batch)
-
-        return {**collect_metrics, **train_metrics}
-
-    def train(self) -> None:
-        """Trains the model."""
-        super().train()
-        self.dataset.save()
 
     def evaluate(self) -> List[Mapping[str, Union[Scalar, np.ndarray]]]:
         """Evaluates the model.
@@ -331,10 +210,7 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 metrics_list.append(episode_metrics)
                 pbar.set_postfix({self.eval_metric: episode_metrics[self.eval_metric]})
 
-            self.eval_dataset.save()
-
         self.train_mode()
-        self._reset_collect = True
 
         return metrics_list
 
@@ -349,7 +225,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             policy_args = info["policy_args"]
         except KeyError:
             policy_args = None
-        self.eval_dataset.add(observation=observation)
 
         step_metrics_list = []
         done = False
@@ -366,15 +241,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 action
             )
             done = terminated or truncated
-            self.eval_dataset.add(
-                action=action,
-                reward=reward,
-                next_observation=observation,
-                discount=1.0 - done,
-                terminated=terminated,
-                truncated=truncated,
-                policy_args=policy_args,
-            )
 
             step_metrics = {
                 metric: value

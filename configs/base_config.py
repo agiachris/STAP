@@ -191,7 +191,7 @@ class PolicyDatasetGenerationConfig:
     custom_path: Optional[str] = None
     # Trainer configs.
     trainer_config: str = "configs/pybullet/trainers/primitive_dataset.yaml"
-    agent_config: str = "configs/pybullet/agents/sac.yaml"
+    agent_config: str = "configs/pybullet/agents/single_stage/sac.yaml"
     env_config: str = ""
     eval_env_config: str = ""
     encoder_checkpoint: Optional[str] = None
