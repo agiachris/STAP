@@ -9,7 +9,7 @@ PYTHONPATH=. python scripts/eval/eval_lm_tamp.py
     models/20230101/complete_q_multistage/place_0/best_model.pt 
     models/20230101/complete_q_multistage/pull_0/best_model.pt
     models/20230101/complete_q_multistage/push_0/best_model.pt
---dynamics-checkpoint models/20230101/complete_q_multistage/ckpt_model_300000/dynamics/ckpt_model_20000.pt
+--dynamics-checkpoint models/official/select_model/dynamics/best_model.pt --seed 0
 --pddl-domain configs/pybullet/envs/t2m/official/tasks/symbolic_domain.pddl
 --pddl-problem configs/pybullet/envs/t2m/official/tasks/task0_symbolic.pddl
 --seed 0
@@ -370,6 +370,7 @@ def eval_lm_tamp(
         save_lm_cache(lm_cache_file, lm_cache)
         # lm_cfg.engine = "text-davinci-002"
 
+        generated_task_plans = [["pick(hook)", "place(hook, table)"]]
         # convert action_skeleton's elements with the format pick(a) to pick(a, table)
         converted_task_plans = []
         for task_plan in generated_task_plans:
@@ -469,8 +470,11 @@ def eval_lm_tamp(
             else 0
         )
 
-        best_task_plan = goal_reaching_task_plans[idx_best]
-        best_motion_plan = goal_reaching_motion_plans[idx_best]
+        # best_task_plan = goal_reaching_task_plans[idx_best]
+        # best_motion_plan = goal_reaching_motion_plans[idx_best]
+
+        best_task_plan = task_plans[1]
+        best_motion_plan = motion_plans[1]
 
         if closed_loop:
             env.record_start()

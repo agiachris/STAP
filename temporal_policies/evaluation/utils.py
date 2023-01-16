@@ -55,6 +55,19 @@ def get_task_plan_primitives_instantiated(
             ])
     return task_plans_instantiated
 
+def instantiate_task_plan_primitives(
+    task_plan: List[str], env: envs.Env
+) -> List[envs.Primitive]:
+    """Converts a task plan (a list of action calls) to a list of primitives.
+
+    task_plan has the form:
+    ["pick(box, table)", "place(box, table)"]
+    """
+    return [
+        env.get_primitive_info(action_call=action_call)
+        for action_call in task_plan
+    ]
+
 def get_callable_goal_props(predicted_goal_props: List[str], possible_props: List[predicates.Predicate]) -> List[predicates.Predicate]:
     if not is_valid_goal_props(predicted_goal_props, possible_props):
         raise ValueError("Invalid goal props")
@@ -128,12 +141,13 @@ def is_satisfy_goal_props(props: predicates.Predicate, objects: Dict[str, Object
 
     return success
 
+# TODO(klin) unclear if this successfully handles the case proptestobjects were handling
 def get_object_relationships(
     observation: np.ndarray,
     objects: Dict[str, Object],
     available_predicates: List[str],
     use_hand_state: bool = False,
-) -> List[str]:
+) -> List[predicates.Predicate]:
     if not use_hand_state:
         print(f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)")
         # cutting out the EE observation means that I probably won't have access to inhand(a)

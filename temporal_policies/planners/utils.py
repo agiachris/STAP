@@ -1,4 +1,3 @@
-from dataclasses import field
 import pathlib
 from typing import (
     Any,
@@ -329,8 +328,12 @@ def vizualize_predicted_plan(
     file_extensions: Optional[List[Literal["gif", "mp4"]]] = None,
 ) -> None:
     """Visualize the predicted trajectory of a task and motion plan."""
-    assert isinstance(env, envs.pybullet.TableEnv)
-    original_state = plan.states[0]
+    import pybullet as p
+
+    assert isinstance(
+        env, envs.pybullet.TableEnv
+    ), "vizualize_predicted_plan only supports pybullet.TableEnv"
+    state_id: int = p.saveState()
     recorder = recording.Recorder()
     recorder.start()
 
@@ -352,7 +355,10 @@ def vizualize_predicted_plan(
     ):
         env.set_primitive(primitive)
         if custom_recording_text is not None:
-            env._recording_text = custom_recording_text
+            if isinstance(custom_recording_text, list):
+                env._recording_text = custom_recording_text[i]
+            else:
+                env._recording_text = custom_recording_text
         else:
             env._recording_text = (
                 "Action: ["
@@ -371,7 +377,10 @@ def vizualize_predicted_plan(
     # add final frame and text
     env.set_primitive(Null())
     if custom_recording_text is not None:
-        env._recording_text = custom_recording_text
+        if isinstance(custom_recording_text, list):
+            env._recording_text = custom_recording_text[-1]
+        else:
+            env._recording_text = custom_recording_text
     if object_relationships_list is not None:
         add_object_relationships(object_relationships_list[-1])
     env.set_observation(plan.states[-1])
@@ -383,8 +392,8 @@ def vizualize_predicted_plan(
             path / f"predicted_trajectory_{save_path_suffix}.{file_extension}",
             reset=i == len(file_extensions) - 1,
         )
-
-    env.set_observation(original_state)
+    # prevent visualization from corrupting the env state
+    p.restoreState(state_id)
 
 
 def run_open_loop_planning(
