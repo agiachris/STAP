@@ -326,9 +326,7 @@ def vizualize_predicted_plan(
     path: pathlib.Path,
     custom_recording_text: Optional[str] = None,
     object_relationships_list: Optional[List[List[str]]] = None,
-    file_extensions: Optional[List[Literal["gif", "mp4"]]] = field(
-        default_factory=lambda: ["gif"]
-    ),
+    file_extensions: Optional[List[Literal["gif", "mp4"]]] = None,
 ) -> None:
     """Visualize the predicted trajectory of a task and motion plan."""
     assert isinstance(env, envs.pybullet.TableEnv)
@@ -338,7 +336,7 @@ def vizualize_predicted_plan(
 
     def add_object_relationships(obj_rels: List[str]) -> None:
         MAX_ROW_LENGTH = 60
-        curr_line = "\nobj_rel: " if env._recording_text != "" else "obj_rel:"
+        curr_line = "\nobj_rel: " if env._recording_text != "" else "obj_rel: "
         # add curr_line to env._recording_text before getting too long
         # then add "\n" to the front of new curr_line
         for obj_rel in obj_rels:
@@ -346,6 +344,7 @@ def vizualize_predicted_plan(
                 env._recording_text += curr_line + "\n"
                 curr_line = ""
             curr_line += obj_rel + ", "
+
         env._recording_text += curr_line
 
     for i, (primitive, predicted_state, action) in enumerate(
@@ -368,6 +367,7 @@ def vizualize_predicted_plan(
         env.set_observation(predicted_state)
         recorder.add_frame(frame=env.render())
 
+    env._recording_text = ""
     # add final frame and text
     env.set_primitive(Null())
     if custom_recording_text is not None:
