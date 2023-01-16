@@ -12,7 +12,7 @@ PYTHONPATH=. python scripts/eval/eval_ilm_tamp.py
 --dynamics-checkpoint models/official/select_model/dynamics/best_model.pt
 --pddl-domain configs/pybullet/envs/t2m/official/tasks/symbolic_domain.pddl
 --pddl-problem configs/pybullet/envs/t2m/official/tasks/task0_symbolic.pddl
---verbose 0 --engine davinci --gui 1
+--verbose 0 --engine davinci --gui 0 --visualize-planning 1
 """
 
 import functools
@@ -21,11 +21,6 @@ from scripts.eval.eval_policies import query_policy_actor, query_policy_critic
 from temporal_policies import agents, envs, planners
 from temporal_policies.dynamics.base import Dynamics
 from temporal_policies.envs.pybullet.table.objects import Object
-
-import tabulate
-
-tabulate.PRESERVE_WHITESPACE = True
-from tabulate import tabulate
 
 from termcolor import colored
 import argparse
@@ -69,61 +64,11 @@ from temporal_policies.task_planners.task_plans import (
     get_next_actions_from_lm,
 )
 from temporal_policies.utils import tensors
-from temporal_policies.task_planners.beam_search import BeamSearchAlgorithm, BeamSearchProblem
-
-
-def format_saycan_scoring_table(
-    table_headers: List[str],
-    potential_actions_str: List[str],
-    lm_action_scores: List[float],
-    value_action_scores: List[float],
-    overall_scores: List[float],
-    action_pad_width: int = 30,
-) -> str:
-    # sort the potential actions by overall score and sort the scores accordingly
-    potential_actions_str = [
-        x for _, x in sorted(zip(overall_scores, potential_actions_str), reverse=True)
-    ]
-    # pad the actions to be the same length
-    potential_actions_str = [
-        action.ljust(action_pad_width) for action in potential_actions_str
-    ]
-    rounded_lm_action_scores = [
-        np.round(lm_action_score, 2) for lm_action_score in lm_action_scores
-    ]
-    rounded_value_action_scores = [
-        np.round(value_action_score, 2) for value_action_score in value_action_scores
-    ]
-    rounded_overall_scores = [
-        np.round(overall_score, 2) for overall_score in overall_scores
-    ]
-    rounded_lm_action_scores = [
-        x
-        for _, x in sorted(zip(overall_scores, rounded_lm_action_scores), reverse=True)
-    ]
-    rounded_value_action_scores = [
-        x
-        for _, x in sorted(
-            zip(overall_scores, rounded_value_action_scores), reverse=True
-        )
-    ]
-    rounded_overall_scores = [
-        x for _, x in sorted(zip(overall_scores, rounded_overall_scores), reverse=True)
-    ]
-    # add escape code to format the color of the scores: if the score is closer to 1, set the color closer to green, if the score is closer to 0, set the color closer to red
-    # rounded_lm_action_scores = [f'\033[38;2;{int(255 * (1 - lm_action_score))};{int(255 * lm_action_score)};0m{lm_action_score}\033[0m' for lm_action_score in rounded_lm_action_scores]
-    # rounded_value_action_scores = [f'\033[38;2;{int(255 * (1 - value_action_score))};{int(255 * value_action_score)};0m{value_action_score}\033[0m' for value_action_score in rounded_value_action_scores]
-    formatted_table_str = tabulate(
-        zip(
-            potential_actions_str,
-            rounded_lm_action_scores,
-            rounded_value_action_scores,
-            rounded_overall_scores,
-        ),
-        headers=table_headers,
-        tablefmt="plain",
-    )
-    return formatted_table_str
+from temporal_policies.task_planners.beam_search import (
+    BeamSearchAlgorithm,
+    BeamSearchProblem,
+    Node,
+)
 
 
 def eval_ilm_tamp(
@@ -160,6 +105,7 @@ def eval_ilm_tamp(
     api_type: Optional[APIType] = APIType.HELM,
     max_tokens: Optional[int] = 100,
     auth: Optional[Authentication] = None,
+    visualize_planning: bool = False,
 ):
     # set seeds
     if seed is not None:
@@ -245,7 +191,9 @@ def eval_ilm_tamp(
     )
     print(f"goal props predicted: {goal_props_predicted}")
 
-    beam_search_algorithm = BeamSearchAlgorithm(max_beam_size=1, max_depth=max_depth, num_successors_per_node=5)
+    beam_search_algorithm = BeamSearchAlgorithm(
+        max_beam_size=1, max_depth=max_depth, num_successors_per_node=5
+    )
 
     actions: List[str]
     env.record_start()
@@ -270,27 +218,33 @@ def eval_ilm_tamp(
             lm_cache,
             lm_cache_file,
         )
-
-        successful_action_nodes = beam_search_algorithm.solve(beam_search_problem, visualize=True)
-        successful_action_node = successful_action_nodes[0]
+        successful_action_nodes: List[Node] = beam_search_algorithm.solve(
+            beam_search_problem, visualize=visualize_planning
+        )
+        idx_best = np.argmax(
+            [
+                node.motion_plan_post_optimization.values.prod()
+                for node in successful_action_nodes
+            ]
+        )
+        successful_action_node = successful_action_nodes[idx_best]
         best_motion_plan = successful_action_node.motion_plan_post_optimization
-        best_task_plan = successful_action_node.action_skeleton
+        best_task_plan = successful_action_node.action_skeleton_as_primitives
 
         # Execute one step.
         action = best_motion_plan.actions[0]
         assert isinstance(action, np.ndarray)
         state = best_motion_plan.states[0]
         assert isinstance(state, np.ndarray)
-        p_success = best_motion_plan.p_success
         value = best_motion_plan.values[0]
         env.set_primitive(best_task_plan[0])
-        _, reward, _, _, _ = env.step(action, custom_recording_text)
+        # @TODO(klin) issue with env.set_observation() of an infeasible
+        # state leads robot being frozen during env.step()
+        _, reward, _, _, _ = env.step(action)
 
         step += 1
 
-        print(
-            f"action executed: {potential_actions[best_action_idx]}; reward: {reward}"
-        )
+        print(f"action executed: {str(best_task_plan[0])}; reward: {reward}")
 
         if is_satisfy_goal_props(
             goal_props_callable, prop_testing_objs, observation, use_hand_state=False
@@ -303,15 +257,15 @@ def eval_ilm_tamp(
             observation, env.objects, available_predicates, use_hand_state=False
         )
         object_relationships = [str(prop) for prop in object_relationships]
-        all_executed_actions.append(potential_actions[best_action_idx])
+        all_executed_actions.append(str(best_task_plan[0]))
         all_prior_object_relationships.append(object_relationships)
         if step == max_steps:
             done = True
 
     env.record_stop()
-    gif_path = pathlib.Path(path) / f"saycan_execution_{step}_steps.gif"
+    gif_path = pathlib.Path(path) / f"integrated_beamsize_1_execution_{step}_steps.gif"
     env.record_save(gif_path, reset=False)
-    gif_path = pathlib.Path(path) / f"saycan_execution_{step}_steps.mp4"
+    gif_path = pathlib.Path(path) / f"integrated_beamsize_1_execution_{step}_steps.mp4"
     env.record_save(gif_path, reset=True)
 
 
@@ -388,7 +342,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")
-
+    parser.add_argument(
+        "--visualize-planning",
+        type=int,
+        default=0,
+        help="Visualize planning process \
+        (@TODO(klin) issue with env.set_observation() of an infeasible state leads robot being frozen during env.step()",
+    )
     args = parser.parse_args()
 
     main(args)

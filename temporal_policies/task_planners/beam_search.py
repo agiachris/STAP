@@ -88,7 +88,7 @@ class Node:
 
     @property
     def action_sequence_q_product_post_optimization(self):
-        return self.planning_result_post_optimization.values.prod()
+        return self.motion_plan_post_optimization.values.prod()
 
     @property
     def root_node_geometric_state(self) -> np.ndarray:
@@ -144,7 +144,6 @@ class Node:
         action_skeleton_lst.append(str(self.action_primitive).lower())
         return action_skeleton_lst
 
-
     @property
     def action_skeleton_as_primitives(self) -> List[primitives.Primitive]:
         if self.action_primitive is None:
@@ -154,7 +153,7 @@ class Node:
         return action_skeleton_lst
 
     @cached_property
-    def planning_result_post_optimization(self) -> planners.PlanningResult:
+    def motion_plan_post_optimization(self) -> planners.PlanningResult:
         """Full motion plan after optimization"""
         return self.motion_planner.plan(
             self.root_node_geometric_state,
@@ -162,19 +161,11 @@ class Node:
         )
 
     @cached_property
-    def motion_plan_post_optimization(self) -> np.ndarray:
-        """Full motion plan after optimization"""
-        return self.planning_result_post_optimization.states
-
-    @cached_property
-    def object_relationships_sequence_post_optimization(self):
+    def object_relationships_sequence_post_optimization(self) -> List[List[str]]:
         """All object relationships in the sequence of actions after optimization"""
-        planning_result: planners.PlanningResult = (
-            self.planning_result_post_optimization
-        )
         # for each state in the motion plan, get the object relationships
         object_relationships_sequence: List[List[str]] = []
-        for state in planning_result.states:
+        for state in self.motion_plan_post_optimization.states:
             object_relationships = get_object_relationships(
                 state,
                 self.env.objects,
@@ -187,7 +178,7 @@ class Node:
         return object_relationships_sequence
 
     @property
-    def potential_actions_from_lm(self):
+    def potential_actions_from_lm(self) -> List[str]:
         """Next possible actions (according to the language model)"""
         if self._potential_actions_from_lm is None:
             raise ValueError("Potential actions from LM not set")
@@ -271,16 +262,14 @@ class BeamSearchProblem(SearchProblem):
                 f"Checking if node is end: {node.action_skeleton_as_strings}", "green"
             )
         )
-        print(
-            f"Action skeleton values: {node.planning_result_post_optimization.values}"
-        )
+        print(f"Action skeleton values: {node.motion_plan_post_optimization.values}")
         print(
             f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
         )
         if is_satisfy_goal_props(
             self.goal_props_callable,
             self.prop_testing_objs,
-            node.motion_plan_post_optimization[-1],
+            node.motion_plan_post_optimization.states[-1],
             use_hand_state=False,
         ):
             print(colored(f"Success: {node.action_skeleton_as_strings}", "green"))
@@ -440,6 +429,11 @@ class BeamSearchAlgorithm:
                     next_beam.extend(successors)
                 else:
                     print(colored("Reached max depth, stopping search", "red"))
+                    break
+
+            if len(next_beam) == 0:
+                print(colored("No successors, stopping search", "red"))
+                break
 
             # Set the current beam to the next beam
             node_scores = problem.get_node_scores(next_beam)
@@ -472,7 +466,7 @@ class BeamSearchAlgorithm:
                         node.action_skeleton_as_strings,
                         node.env,
                         node.action_skeleton_as_primitives,
-                        node.planning_result_post_optimization,
+                        node.motion_plan_post_optimization,
                         path=pathlib.Path("plots/ilm_tamp/"),
                         object_relationships_list=node.object_relationships_sequence_post_optimization,
                         custom_recording_text=node.custom_recording_text_sequence,
