@@ -70,10 +70,6 @@ class SAC(rl.RLAgent):
         actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)  # type: ignore
 
         critic_class = configs.get_class(critic_class, networks)
-        if critic_kwargs.get("output_act", False):
-            critic_kwargs["output_act"] = configs.get_class(
-                critic_kwargs["output_act"], torch.nn
-            )
         critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)  # type: ignore
 
         target_critic = critic_class(  # type: ignore
@@ -158,21 +154,20 @@ class SAC(rl.RLAgent):
             dist = self.actor(next_observation)
             next_action = dist.rsample()
             log_prob = dist.log_prob(next_action).sum(dim=-1)
-            target_q1, target_q2 = self.target_critic(next_observation, next_action)
-            target_v = torch.min(target_q1, target_q2) - self.alpha.detach() * log_prob
+            target_q = self.target_critic(next_observation, next_action)
+            target_q = torch.min(torch.stack(target_q), axis=0).values
+            target_v = target_q - self.alpha.detach() * log_prob
             target_q = reward + discount * target_v
 
-        q1, q2 = self.critic(observation, action)
-        q1_loss = torch.nn.functional.mse_loss(q1, target_q)
-        q2_loss = torch.nn.functional.mse_loss(q2, target_q)
-        q_loss = q1_loss + q2_loss
+        qs = self.critic(observation, action)
+        q_losses = [torch.nn.functional.mse_loss(q, target_q) for q in qs]
+        q_loss = sum(q_losses)
 
-        metrics = {
-            "q1_loss": q1_loss.item(),
-            "q2_loss": q2_loss.item(),
+        metrics = {f"q{i}_loss": q.item() for i, q in enumerate(q_losses)}
+        metrics.update({
             "q_loss": q_loss.item(),
             "target_q": target_q.mean().item(),
-        }
+        })
 
         return q_loss, metrics
 
@@ -191,10 +186,9 @@ class SAC(rl.RLAgent):
         dist = self.actor(obs)
         action = dist.rsample()
         log_prob = dist.log_prob(action).sum(dim=-1)
-        q1, q2 = self.critic(obs, action)
-        q = torch.min(q1, q2)
+        q = self.critic(obs, action)
+        q = torch.min(torch.stack(q), axis=0).values
         actor_loss = (self.alpha.detach() * log_prob - q).mean()
-
         alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
 
         metrics = {
@@ -224,27 +218,9 @@ class SAC(rl.RLAgent):
             Dict of optimizers for all trainable networks.
         """
         optimizers = {
-            "actor": optimizer_class(
-                self.actor.parameters(),
-                **optimizer_kwargs["actor_optimizer_kwargs"]
-                if optimizer_kwargs.get("actor_optimizer_kwargs", None) is not None
-                else optimizer_kwargs
-            ),
-            "critic": optimizer_class(
-                self.critic.parameters(),
-                # itertools.chain(
-                #     self.critic.parameters(), self.encoder.network.parameters()
-                # ),
-                **optimizer_kwargs["critic_optimizer_kwargs"]
-                if optimizer_kwargs.get("critic_optimizer_kwargs", None) is not None
-                else optimizer_kwargs
-            ),
-            "log_alpha": optimizer_class(
-                [self.log_alpha],
-                **optimizer_kwargs["log_alpha_optimizer_kwargs"]
-                if optimizer_kwargs.get("log_alpha_optimizer_kwargs", None) is not None
-                else optimizer_kwargs
-            ),
+            "actor": optimizer_class(self.actor.parameters(), **optimizer_kwargs),
+            "critic": optimizer_class(self.critic.parameters(), **optimizer_kwargs),
+            "log_alpha": optimizer_class([self.log_alpha], **optimizer_kwargs),
         }
         return optimizers
 
@@ -322,11 +298,6 @@ class SAC(rl.RLAgent):
 
         if updating_target:
             with torch.no_grad():
-                # _update_params(
-                #     source=self.encoder.network,
-                #     target=self.target_encoder.network,
-                #     tau=self.tau,
-                # )
                 _update_params(
                     source=self.critic, target=self.target_critic, tau=self.tau
                 )
@@ -334,7 +305,8 @@ class SAC(rl.RLAgent):
         return metrics
 
     def validation_step(
-        self, batch: Batch, validate_actor: bool = False, validate_critic: bool = False
+        self,
+        batch: Batch,
     ) -> Dict[str, Any]:
         """Performs a single validation step.
 
@@ -344,57 +316,30 @@ class SAC(rl.RLAgent):
         Returns:
             Dict of loggable validation metrics.
         """
-        assert isinstance(batch["observation"], torch.Tensor)
-        assert isinstance(batch["next_observation"], torch.Tensor)
+        evaluating_critic = self.critic_update_freq > 0
+        evaluating_actor = self.actor_update_freq > 0
 
-        batch["observation"] = self.encoder.encode(
-            batch["observation"], batch["policy_args"]
-        )
-        batch["next_observation"] = self.target_encoder.encode(
-            batch["next_observation"], batch["policy_args"]
-        )
+        if evaluating_critic or evaluating_actor:
+            with torch.no_grad():
+                batch["observation"] = self.encoder.encode(
+                    batch["observation"], batch["policy_args"]
+                )
+                batch["next_observation"] = self.target_encoder.encode(
+                    batch["next_observation"], batch["policy_args"]
+                )
 
         metrics = {}
-        if validate_critic:
-            with torch.no_grad():
-                _, critic_metrics = self.compute_critic_loss(**batch)
+        if self.critic_update_freq > 0:
+            _, critic_metrics = self.compute_critic_loss(**batch)  # type: ignore
             metrics.update(critic_metrics)
-        if validate_actor:
-            with torch.no_grad():
-                _, _, actor_metrics = self.compute_actor_and_alpha_loss(
-                    batch["observation"]
-                )
+
+        if self.actor_update_freq > 0:
+            _, _, actor_metrics = self.compute_actor_and_alpha_loss(
+                batch["observation"]
+            )
             metrics.update(actor_metrics)
 
         return metrics
-
-    def train_critic_only(self) -> None:
-        """Sets the agent to only train critic in supervised learning loop."""
-        # store original update frequencies
-        self._original_critic_update_freq = self.critic_update_freq
-        self._original_actor_update_freq = self.actor_update_freq
-        self._original_target_update_freq = self.target_update_freq
-
-        # turn off actor and target updates until Q is trained
-        self.critic_update_freq = 1
-        self.actor_update_freq = 1e8
-        self.target_update_freq = 1e8
-
-    def train_actor_only(self) -> None:
-        """Sets the agent to only train actor in supervised learning loop.
-
-        Assumes train_critic_only() has been called first.
-        """
-        # turn off actor and target updates until Q is trained
-        self.critic_update_freq = 1e8
-        self.actor_update_freq = 1
-        self.target_update_freq = 1e8
-
-    def train_original(self) -> None:
-        """Sets the agent to train in original RL loop."""
-        self.critic_update_freq = self._original_critic_update_freq
-        self.actor_update_freq = self._original_actor_update_freq
-        self.target_update_freq = self._original_target_update_freq
 
 
 def _update_params(
