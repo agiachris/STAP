@@ -352,7 +352,10 @@ def vizualize_predicted_plan(
     ):
         env.set_primitive(primitive)
         if custom_recording_text is not None:
-            env._recording_text = custom_recording_text
+            if isinstance(custom_recording_text, list):
+                env._recording_text = custom_recording_text[i]
+            else:
+                env._recording_text = custom_recording_text
         else:
             env._recording_text = (
                 "Action: ["
@@ -371,7 +374,10 @@ def vizualize_predicted_plan(
     # add final frame and text
     env.set_primitive(Null())
     if custom_recording_text is not None:
-        env._recording_text = custom_recording_text
+        if isinstance(custom_recording_text, list):
+            env._recording_text = custom_recording_text[-1]
+        else:
+            env._recording_text = custom_recording_text
     if object_relationships_list is not None:
         add_object_relationships(object_relationships_list[-1])
     env.set_observation(plan.states[-1])
