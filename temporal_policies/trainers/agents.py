@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, List, Literal, Mapping, Optional, Type, Union
+from typing import Any, Dict, List, Mapping, Optional, Type, Union
 
 import numpy as np
 import torch
@@ -23,7 +23,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         eval_env: Optional[envs.Env] = None,
         dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
-        val_dataset_kwargs: Optional[Dict[str, Any]] = None,
         eval_dataset_kwargs: Optional[Dict[str, Any]] = None,
         processor_class: Union[
             str, Type[processors.Processor]
@@ -36,25 +35,16 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         ] = DummyScheduler,
         scheduler_kwargs: Dict[str, Any] = {},
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
-        dataset_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
-        val_dataset_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
-        eval_dataset_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
         env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
         num_pretrain_steps: int = 1000,
         num_train_steps: int = 100000,
         num_eval_episodes: int = 100,
-        num_actor_only_train_steps: Optional[int] = None,
-        num_critic_only_train_steps: Optional[int] = None,
-        num_original_train_steps: Optional[int] = None,
-        num_val_steps: int = 1000,
-        val_freq: int = 1000,
         eval_freq: int = 1000,
         checkpoint_freq: int = 10000,
         log_freq: int = 100,
         profile_freq: Optional[int] = None,
         eval_metric: str = "reward",
-        val_metric: str = "q_loss",
         num_data_workers: int = 0,
         dataset_size: Optional[int] = None,
         eval_dataset_size: Optional[int] = None,
@@ -77,26 +67,17 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             scheduler_class: Optional optimizer scheduler class.
             scheduler_kwargs: Kwargs for scheduler class.
             checkpoint: Optional path to trainer checkpoint.
-            dataset_checkpoints: Optional list of path to dataset checkpoints.
-            val_dataset_checkpoints: Optional list of path to validation dataset checkpoints (for train_multistage() only).
-            eval_dataset_checkpoints: Optional list of path to eval dataset checkpoints.
             env_kwargs: Optional kwargs passed to EnvFactory.
             device: Torch device.
             num_pretrain_steps: Number of steps to pretrain.
             num_train_steps: Number of steps to train.
             num_eval_episodes: Number of episodes per evaluation.
-            num_actor_only_train_steps: Number of steps to train actor only (for train_multistage() only).
-            num_critic_only_train_steps: Number of steps to train critic only (for train_multistage() only).
-            num_original_train_steps: Number of steps to train agent using original scheme (for train_multistage() only).
-            num_val_steps: Number of steps to validate current model for (for train_multistage() only).
-            val_freq: Validation frequency (used in train_multistage() and requires a loaded train/val split).
             eval_freq: Evaluation frequency.
             checkpoint_freq: Checkpoint frequency (separate from latest/best
                 eval checkpoints).
             log_freq: Logging frequency.
             profile_freq: Profiling frequency.
             eval_metric: Metric to use for evaluation.
-            val_metric: Metric to use for validation (for train_multistage() only).
             num_data_workers: Number of workers to use for dataloader.
             name: Optional trainer name. Uses env name by default.
         """
@@ -111,15 +92,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             observation_space=agent.observation_space,
             action_space=agent.action_space,
             **dataset_kwargs,
-        )
-
-        if val_dataset_kwargs is None:
-            val_dataset_kwargs = dataset_kwargs
-        val_dataset_kwargs["path"] = path / "val_data"
-        val_dataset = dataset_class(
-            observation_space=agent.observation_space,
-            action_space=agent.action_space,
-            **val_dataset_kwargs,
         )
 
         if eval_dataset_kwargs is None:
@@ -149,7 +121,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             path=path,
             model=agent,
             dataset=dataset,
-            val_dataset=val_dataset,
             eval_dataset=eval_dataset,
             processor=processor,
             optimizers=optimizers,
@@ -163,18 +134,9 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             checkpoint_freq=checkpoint_freq,
             log_freq=log_freq,
             profile_freq=profile_freq,
-            val_metric=val_metric,
             eval_metric=eval_metric,
             num_data_workers=num_data_workers,
         )
-
-        # Multistage training
-        self.num_actor_only_train_steps = num_actor_only_train_steps
-        self.num_critic_only_train_steps = num_critic_only_train_steps
-        self.num_original_train_steps = num_original_train_steps
-        self.num_val_steps = num_val_steps
-        self.val_freq = val_freq
-        self.val_metric = val_metric
 
         if checkpoint is not None:
             self.load(
@@ -186,13 +148,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             eval_env_config = pathlib.Path(checkpoint).parent / "eval/env_config.yaml"
             if eval_env_config.exists():
                 eval_env = envs.load(eval_env_config, **env_kwargs)
-
-        if dataset_checkpoints is not None:
-            self.load_dataset(
-                dataset_checkpoints, val_dataset_checkpoints, eval_dataset_checkpoints
-            )
-            statistics = dataset.dataset_statistics()
-            print(f"Dataset statistics: {statistics}")
 
         self._eval_env = self.agent.env if eval_env is None else eval_env
         self._reset_collect = True
@@ -351,112 +306,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
         return {**collect_metrics, **train_metrics}
 
-    def train_multistage(self) -> None:
-        """Trains the agent by:
-
-        1. training critic only
-        2. training actor only
-        3. train 'normally'
-        """
-
-        def train(
-            self: AgentTrainer,
-            total_steps: int,
-            training_mode: Literal[
-                "train_original", "train_critic_only", "train_actor_only"
-            ],
-        ):
-            dataloader = self.create_dataloader(self.dataset, self.num_data_workers)
-            validation_dataloader = self.create_dataloader(
-                self.val_dataset, self.num_data_workers
-            )
-
-            # Train.
-            self.train_mode()
-            getattr(self.model, training_mode)()
-            if training_mode == "train_critic_only":
-                new_val_metric = "q_loss"
-            elif training_mode == "train_actor_only":
-                new_val_metric = "actor_loss"
-            else:
-                new_val_metric = "loss"
-
-            self.update_val_metric(new_val_metric)
-
-            metrics_list = []
-            batches = iter(dataloader)
-            pbar = tqdm.tqdm(
-                range(self.step - self.num_pretrain_steps, total_steps),
-                desc=f"Train {self.name}",
-                dynamic_ncols=True,
-            )
-            for train_step in pbar:
-                self.profile_step()
-
-                # Get next batch.
-                with self.profiler.profile("dataset"):
-                    try:
-                        batch = next(batches)
-                    except StopIteration:
-                        batches = iter(dataloader)
-                        batch = next(batches)
-                        self.increment_epoch()
-
-                # Train step.
-                train_metrics = super().train_step(self.step, batch)
-                try:
-                    pbar.set_postfix(
-                        {self.eval_metric: train_metrics[self.eval_metric]}
-                    )
-                except KeyError:
-                    pass
-
-                # Log.
-                metrics_list.append(train_metrics)
-                metrics_list = self.log_step(metrics_list)
-
-                self.increment_step()
-                eval_step = train_step + 1
-
-                if training_mode == "train_original":
-                    # Evaluate.
-                    if eval_step % self.eval_freq == 0:
-                        self.profiler.enable()
-                        eval_metrics_list = self.evaluate()
-                        self.post_evaluate_step(eval_metrics_list)
-                elif (
-                    training_mode == "train_critic_only"
-                    or training_mode == "train_actor_only"
-                ):
-                    # Validate.
-                    if eval_step % self.val_freq == 0:
-                        self.profiler.enable()
-                        val_metrics_list = self.validate(
-                            validation_dataloader, train_mode=training_mode
-                        )
-                        self.post_validate_step(val_metrics_list)
-                else:
-                    raise ValueError(f"Invalid training mode: {training_mode}")
-
-                # Checkpoint.
-                if eval_step % self.checkpoint_freq == 0:
-                    self.save(self.path, f"ckpt_trainer_{eval_step}")
-                    self.model.save(self.path, f"ckpt_model_{eval_step}")
-
-        train(self, self.num_critic_only_train_steps, "train_critic_only")
-        train(
-            self,
-            self.num_critic_only_train_steps + self.num_actor_only_train_steps,
-            "train_actor_only",
-        )
-        train(
-            self,
-            self.num_critic_only_train_steps
-            + self.num_actor_only_train_steps
-            + self.num_original_train_steps,
-            "train_original",
-        )
-
     def train(self) -> None:
         """Trains the model."""
         super().train()
@@ -483,52 +332,6 @@ class AgentTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 pbar.set_postfix({self.eval_metric: episode_metrics[self.eval_metric]})
 
             self.eval_dataset.save()
-
-        self.train_mode()
-        self._reset_collect = True
-
-        return metrics_list
-
-    def validate(
-        self,
-        validation_dataloader: torch.utils.data.DataLoader,
-        train_mode: Literal[
-            "train_critic_only", "train_actor_only"
-        ] = "train_critic_only",
-    ) -> List[Mapping[str, Union[Scalar, np.ndarray]]]:
-        """Validates the model.
-
-        Returns:
-            Validation metrics.
-        """
-        self.eval_mode()
-        self.eval_dataset.initialize()  # if not initialized, initialize (logic handled in method)
-
-        with self.profiler.profile("validate"):
-            metrics_list: List[Mapping[str, Union[Scalar, np.ndarray]]] = []
-            batches = iter(validation_dataloader)
-            pbar = tqdm.tqdm(
-                range(self.num_val_steps),
-                desc=f"Validate {self.name}",
-                dynamic_ncols=True,
-            )
-            for _ in pbar:
-                # Get next batch.
-                with self.profiler.profile("validation_dataset"):
-                    try:
-                        batch = next(batches)
-                    except StopIteration:
-                        batches = iter(validation_dataloader)
-                        batch = next(batches)
-                        self.increment_epoch()
-
-                episode_metrics = self.validation_step(
-                    batch,
-                    validate_actor=train_mode == "train_actor_only",
-                    validate_critic=train_mode == "train_critic_only",
-                )
-                metrics_list.append(episode_metrics)
-                pbar.set_postfix({self.val_metric: episode_metrics[self.val_metric]})
 
         self.train_mode()
         self._reset_collect = True
