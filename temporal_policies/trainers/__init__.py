@@ -1,5 +1,7 @@
 from .base import Trainer
 from .agents import AgentTrainer
+from .value import ValueTrainer
+from .policy import PolicyTrainer
 from .daf import DafTrainer
 from .dreamer import DreamerTrainer
 from .dynamics import DynamicsTrainer
