@@ -25,7 +25,7 @@ function generate_data {
     args="${args} --config.num-pretrain-steps ${NUM_PRETRAIN_STEPS}"
     args="${args} --config.num-env-processes ${NUM_ENV_PROCESSES}"
     
-    CMD="python scripts/data/generate_primitive_dataset.py ${args}"
+    CMD="python scripts/data/generate_primitive_dataset.py ${args}"    
     run_cmd
 }
 
@@ -33,25 +33,20 @@ function generate_data {
 EXP_NAME="20230113/datasets"
 SYMBOLIC_ACTION_TYPE="valid"
 NUM_PRETRAIN_STEPS="100000"
-NUM_ENV_PROCESSES="1"
+NUM_ENV_PROCESSES="2"
 
 # Pybullet.
-SPLIT="train"
-PRIMITIVE="pick"
-SEED="0"
-generate_data
-
-# primitives=("pick" "place" "pull" "push")
-# train_seeds=("0" "1" "2" "3" "4" "5" "6" "7")
-# validation_seeds=("8" "9")
-# for PRIMITIVE in "${primitives[@]}"; do
-#     SPLIT="train"
-#     for SEED in "${train_seeds[@]}"; do
-#         generate_data
-#     done
+primitives=("pick" "place" "pull" "push")
+train_seeds=("0" "1" "2" "3" "4" "5" "6" "7")
+validation_seeds=("8" "9")
+for PRIMITIVE in "${primitives[@]}"; do
+    SPLIT="train"
+    for SEED in "${train_seeds[@]}"; do
+        generate_data
+    done
     
-#     SPLIT="validation"
-#     for SEED in "${validation_seeds[@]}"; do
-#         generate_data
-#     done
-# done
+    SPLIT="validation"
+    for SEED in "${validation_seeds[@]}"; do
+        generate_data
+    done
+done
