@@ -15,7 +15,6 @@ PYTHONPATH=. python scripts/eval/eval_ilm_tamp.py
 --verbose 0 --engine davinci --gui 0 --visualize-planning 1
 """
 
-import functools
 import random
 from scripts.eval.eval_policies import query_policy_actor, query_policy_critic
 from temporal_policies import agents, envs, planners
@@ -26,9 +25,6 @@ from termcolor import colored
 import argparse
 import pathlib
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
-import json
-import symbolic
-
 
 import torch
 import numpy as np
@@ -57,12 +53,8 @@ from temporal_policies.task_planners.lm_utils import (
 )
 from temporal_policies.envs.pybullet.table import (
     predicates,
-    primitives as table_primitives,
 )
-from temporal_policies.task_planners.task_plans import (
-    get_action_scores_from_lm,
-    get_next_actions_from_lm,
-)
+
 from temporal_policies.utils import tensors
 from temporal_policies.task_planners.beam_search import (
     BeamSearchAlgorithm,
@@ -195,10 +187,15 @@ def eval_ilm_tamp(
         max_beam_size=1, max_depth=max_depth, num_successors_per_node=5
     )
 
-    actions: List[str]
-    env.record_start()
+    if is_satisfy_goal_props(
+        goal_props_callable, prop_testing_objs, observation, use_hand_state=False
+    ):
+        print(colored("predicted goal props satisfied"), "green")
+        done = True
+
+    recording_id: Optional[int] = None
     # TODO(klin) load this from the yaml when ready
-    max_steps = 10  # potentially task dependent and loadable from the yaml
+    max_steps = 3  # potentially task dependent and loadable from the yaml
     step = 0
     while not done:
         beam_search_problem = BeamSearchProblem(
@@ -218,6 +215,8 @@ def eval_ilm_tamp(
             lm_cache,
             lm_cache_file,
         )
+        # probably use the set_state function again? unclear if that works for the other variables e.g.
+        # recorder though ... yeah probably not
         successful_action_nodes: List[Node] = beam_search_algorithm.solve(
             beam_search_problem, visualize=visualize_planning
         )
@@ -238,18 +237,23 @@ def eval_ilm_tamp(
         assert isinstance(state, np.ndarray)
         value = best_motion_plan.values[0]
         env.set_primitive(best_task_plan[0])
-        # @TODO(klin) issue with env.set_observation() of an infeasible
-        # state leads robot being frozen during env.step()
-        _, reward, _, _, _ = env.step(action)
+
+        if recording_id is None:
+            recording_id = env.record_start()
+        else:
+            env.record_start(recording_id)
+        observation, reward, _, _, _ = env.step(
+            action, successful_action_node.custom_recording_text_sequence[0]
+        )
+        env.record_stop(recording_id)
 
         step += 1
 
         print(f"action executed: {str(best_task_plan[0])}; reward: {reward}")
-
         if is_satisfy_goal_props(
             goal_props_callable, prop_testing_objs, observation, use_hand_state=False
         ):
-            print("goal props satisfied")
+            print(colored("predicted goal props satisfied"), "green")
             done = True
 
         objects = list(env.objects.keys())
@@ -262,7 +266,7 @@ def eval_ilm_tamp(
         if step == max_steps:
             done = True
 
-    env.record_stop()
+    # TODO(klin) test if the "ground truth" goal props are satisfied --- pending update from @cagia
     gif_path = pathlib.Path(path) / f"integrated_beamsize_1_execution_{step}_steps.gif"
     env.record_save(gif_path, reset=False)
     gif_path = pathlib.Path(path) / f"integrated_beamsize_1_execution_{step}_steps.mp4"
@@ -343,11 +347,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")
     parser.add_argument(
-        "--visualize-planning",
-        type=int,
-        default=0,
-        help="Visualize planning process \
-        (@TODO(klin) issue with env.set_observation() of an infeasible state leads robot being frozen during env.step()",
+        "--visualize-planning", type=int, default=0, help="Visualize planning process"
     )
     args = parser.parse_args()
 

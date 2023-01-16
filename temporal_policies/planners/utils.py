@@ -1,4 +1,3 @@
-from dataclasses import field
 import pathlib
 from typing import (
     Any,
@@ -329,8 +328,12 @@ def vizualize_predicted_plan(
     file_extensions: Optional[List[Literal["gif", "mp4"]]] = None,
 ) -> None:
     """Visualize the predicted trajectory of a task and motion plan."""
-    assert isinstance(env, envs.pybullet.TableEnv)
-    original_state = plan.states[0]
+    import pybullet as p
+
+    assert isinstance(
+        env, envs.pybullet.TableEnv
+    ), "vizualize_predicted_plan only supports pybullet.TableEnv"
+    state_id: int = p.saveState()
     recorder = recording.Recorder()
     recorder.start()
 
@@ -389,8 +392,8 @@ def vizualize_predicted_plan(
             path / f"predicted_trajectory_{save_path_suffix}.{file_extension}",
             reset=i == len(file_extensions) - 1,
         )
-
-    env.set_observation(original_state)
+    # prevent visualization from corrupting the env state
+    p.restoreState(state_id)
 
 
 def run_open_loop_planning(
