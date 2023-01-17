@@ -172,7 +172,7 @@ class SAC(rl.RLAgent):
 
         qs = self.critic(observation, action)
         q_losses = [torch.nn.functional.mse_loss(q, target_q) for q in qs]
-        q_loss = sum(q_losses)
+        q_loss = sum(q_losses) / len(q_losses)
 
         metrics = {f"q{i}_loss": q.item() for i, q in enumerate(q_losses)}
         metrics.update({
