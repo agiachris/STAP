@@ -222,8 +222,6 @@ class Primitive(envs.Primitive, abc.ABC):
 
         def did_non_args_move() -> bool:
             """Checks if any object has moved significantly from its old pose."""
-            new_poses = [obj.pose() for obj in objects] 
-
             return any(
                 did_object_move(obj, old_pose)
                 for obj, old_pose in zip(objects, old_poses)
