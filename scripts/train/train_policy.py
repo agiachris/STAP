@@ -3,7 +3,7 @@
 import argparse
 import pathlib
 from pprint import pprint
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, List
 
 import numpy as np
 import tqdm
@@ -31,6 +31,8 @@ def train(
     num_eval_episodes: Optional[int] = None,
     num_env_processes: Optional[int] = None,
     num_eval_env_processes: Optional[int] = None,
+    train_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
+    eval_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
 ) -> None:
 
     if resume:
@@ -90,6 +92,10 @@ def train(
             trainer_kwargs["num_train_steps"] = num_train_steps
         if num_eval_episodes is not None:
             trainer_kwargs["num_eval_episodes"] = num_eval_episodes
+        if train_data_checkpoints is not None:
+            trainer_kwargs["train_data_checkpoints"] = train_data_checkpoints
+        if eval_data_checkpoints is not None:
+            trainer_kwargs["eval_data_checkpoints"] = eval_data_checkpoints
 
         print("[scripts.train.train_policy] Trainer config:")
         pprint(trainer_factory.config)
@@ -155,37 +161,25 @@ def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--trainer-config",
-        "--config",
-        "-c",
-        required=True,
-        help="Path to trainer config",
-    )
-    parser.add_argument(
-        "--agent-config", "-a", required=True, help="Path to agent config"
-    )
+    parser.add_argument("--trainer-config", "--config", "-c", required=True, help="Path to trainer config",)
+    parser.add_argument("--agent-config", "-a", required=True, help="Path to agent config")
     parser.add_argument("--env-config", "-e", required=True, help="Path to env config")
     parser.add_argument("--eval-env-config", help="Path to evaluation env config")
     parser.add_argument("--encoder-checkpoint", help="Path to encoder checkpoint")
-    parser.add_argument("--path", "-p", required=True)
-    parser.add_argument("--eval-recording-path")
+    parser.add_argument("--path", "-p", required=True, help="Experiment save path.")
+    parser.add_argument("--eval-recording-path", help="Path to record final policy.")
     parser.add_argument("--resume", action="store_true", default=False)
     parser.add_argument("--overwrite", action="store_true", default=False)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument("--use-curriculum", type=int, help="Use training curriculum")
-    parser.add_argument(
-        "--num-pretrain-steps", type=int, help="Number of steps to pretrain"
-    )
+    parser.add_argument("--num-pretrain-steps", type=int, help="Number of steps to pretrain")
     parser.add_argument("--num-train-steps", type=int, help="Number of steps to train")
-    parser.add_argument(
-        "--num-eval-episodes", type=int, help="Number of episodes per evaluation"
-    )
+    parser.add_argument("--num-eval-episodes", type=int, help="Number of episodes per evaluation")
     parser.add_argument("--num-env-processes", type=int, help="Number of env processes")
-    parser.add_argument(
-        "--num-eval-env-processes", type=int, help="Number of eval env processes"
-    )
+    parser.add_argument("--num-eval-env-processes", type=int, help="Number of eval env processes")
+    parser.add_argument("--train-data-checkpoints", nargs="+", help="Paths to train data checkpoints")
+    parser.add_argument("--eval-data-checkpoints", nargs="+", help="Paths to eval data checkpoints")
 
     main(parser.parse_args())

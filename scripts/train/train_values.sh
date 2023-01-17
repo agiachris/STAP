@@ -17,28 +17,25 @@ function run_cmd {
     fi
 }
 
-function train_policy {
+function train_value {
     args=""
     args="${args} --trainer-config ${TRAINER_CONFIG}"
     args="${args} --agent-config ${AGENT_CONFIG}"
     args="${args} --env-config ${ENV_CONFIG}"
-    if [ ! -z "${EVAL_ENV_CONFIG}" ]; then
-        args="${args} --eval-env-config ${EVAL_ENV_CONFIG}"
-    fi
     if [ ! -z "${ENCODER_CHECKPOINT}" ]; then
         args="${args} --encoder-checkpoint ${ENCODER_CHECKPOINT}"
     fi
+    args="${args} --train-data-checkpoints ${TRAIN_DATA_CHECKPOINTS}"
+    args="${args} --eval-data-checkpoints ${EVAL_DATA_CHECKPOINTS}"
     args="${args} --seed 0"
-    args="${args} ${ENV_KWARGS}"
+    
     if [[ $DEBUG -ne 0 ]]; then
-        args="${args} --path ${POLICY_OUTPUT_PATH}_debug"
+        args="${args} --path ${VALUE_OUTPUT_PATH}_debug"
         args="${args} --overwrite"
-        args="${args} --num-pretrain-steps 10"
         args="${args} --num-train-steps 10"
         args="${args} --num-eval-episodes 10"
     else
-        args="${args} --path ${POLICY_OUTPUT_PATH}"
-        args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
+        args="${args} --path ${VALUE_OUTPUT_PATH}"
     fi
 
     CMD="python scripts/train/train_policy.py ${args}"
@@ -46,36 +43,45 @@ function train_policy {
 }
 
 # Setup.
-DEBUG=0
+DEBUG=1
 output_path="models"
 plots_path="plots"
 
 # Experiments.
-exp_name="20230113/sac"
+exp_name="20230117/value"
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_value.yaml"
+
+# exp_name="20230117/value_ens"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value.yaml"
 
 # Pybullet.
-AGENT_CONFIG="configs/pybullet/agents/single_stage/sac.yaml"
-TRAINER_CONFIG="configs/pybullet/trainers/agent_sac.yaml"
-
-POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
-EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
-ENV_KWARGS="--num-env-processes 4 --num-eval-env-processes 2"
+TRAINER_CONFIG="configs/pybullet/trainers/value.yaml"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
-    ENV_KWARGS="${ENV_KWARGS} --gui 0"
+    ENV_KWARGS="--gui 0"
 fi
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/pick.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/pick_eval.yaml"
-train_policy
+VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
+EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/place.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/place_eval.yaml"
-train_policy
+symbolic_action_type="valid"
+primitives=("pick" "place" "pull" "push")
+train_seeds=("0" "1" "2" "3" "4" "5" "6" "7")
+validation_seeds=("8" "9")
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/pull.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/pull_eval.yaml"
-train_policy
+data_checkpoint_path="models/20230116/datasets"
+for primitive in "${primitives[@]}"; do
+    ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/push.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/push_eval.yaml"
-train_policy
+    TRAIN_DATA_CHECKPOINTS=""
+    for seed in "${train_seeds[@]}"; do
+        data_path="${data_checkpoint_path}/train_${symbolic_action_type}_${primitive}_${seed}/train_data"
+        TRAIN_DATA_CHECKPOINTS="${TRAIN_DATA_CHECKPOINTS} ${data_path}"
+    done
+
+    for seed in "${validation_seeds[@]}"; do
+        data_path="${data_checkpoint_path}/validation_${symbolic_action_type}_${primitive}_${seed}/train_data"
+        EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
+    done
+
+    train_value
+done

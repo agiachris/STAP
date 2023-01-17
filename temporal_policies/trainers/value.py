@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Mapping, Optional, Type, Union, Generator
 import numpy as np
 import torch
 import tqdm
+import pathlib
 
 from temporal_policies import agents, datasets, processors
 from temporal_policies.networks.encoders import IMAGE_ENCODERS
@@ -36,11 +37,12 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         train_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
         eval_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
-        num_train_steps: int = 200000,
-        num_eval_steps: int = 1000,
+        num_train_steps: int = 500000,
+        num_eval_episodes: int = 1000,
         eval_freq: int = 1000,
-        checkpoint_freq: int = 10000,
+        checkpoint_freq: int = 50000,
         log_freq: int = 1000,
         profile_freq: Optional[int] = None,
         eval_metric: str = "q_loss",
@@ -64,10 +66,11 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             train_data_checkpoints: Checkpoints to train data.
             eval_data_checkpoints: Checkpoints to validation data.
             checkpoint: Optional path to trainer checkpoint.
+            env_kwargs: Optional kwargs passed to EnvFactory.
             device: Torch device.
             num_pretrain_steps: Number of steps to pretrain.
             num_train_steps: Number of steps to train.
-            num_eval_steps: Number of steps per evaluation.
+            num_eval_episodes: Number of steps per evaluation.
             eval_freq: Evaluation frequency.
             checkpoint_freq: Checkpoint frequency.
             log_freq: Logging frequency.
@@ -95,7 +98,7 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         )
         if train_data_checkpoints is not None:
             for train_data in train_data_checkpoints:
-                dataset.load(train_data)
+                dataset.load(pathlib.Path(train_data))
 
         # Load eval dataset.
         if eval_dataset_kwargs is None:
@@ -110,7 +113,7 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         )
         if eval_data_checkpoints is not None:
             for eval_data in eval_data_checkpoints:
-                eval_dataset.load(eval_data)
+                eval_dataset.load(pathlib.Path(eval_data))
 
         processor_class = configs.get_class(processor_class, processors)
         processor = processor_class(agent.observation_space, **processor_kwargs)
@@ -136,7 +139,7 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             device=device,
             num_pretrain_steps=0,
             num_train_steps=num_train_steps,
-            num_eval_steps=num_eval_steps,
+            num_eval_steps=num_eval_episodes,
             eval_freq=eval_freq,
             checkpoint_freq=checkpoint_freq,
             log_freq=log_freq,
@@ -209,7 +212,8 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                     self._eval_batches = iter(self.eval_dataloader)
                     batch = next(self.eval_batches)
 
-                eval_metrics = self.agent.validation_step(batch)
+                model_batch = self.process_batch(batch)
+                eval_metrics = self.agent.validation_step(model_batch)
                 metrics_list.append(eval_metrics)
                 pbar.set_postfix({self.eval_metric: eval_metrics[self.eval_metric]})
 
