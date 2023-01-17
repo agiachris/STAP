@@ -33,6 +33,7 @@ def train(
     num_eval_env_processes: Optional[int] = None,
     train_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
     eval_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
+    name: Optional[str] = None,
 ) -> None:
 
     if resume:
@@ -96,6 +97,8 @@ def train(
             trainer_kwargs["train_data_checkpoints"] = train_data_checkpoints
         if eval_data_checkpoints is not None:
             trainer_kwargs["eval_data_checkpoints"] = eval_data_checkpoints
+        if name is not None:
+            trainer_kwargs["name"] = name
 
         print("[scripts.train.train_policy] Trainer config:")
         pprint(trainer_factory.config)
@@ -181,5 +184,6 @@ if __name__ == "__main__":
     parser.add_argument("--num-eval-env-processes", type=int, help="Number of eval env processes")
     parser.add_argument("--train-data-checkpoints", nargs="+", help="Paths to train data checkpoints")
     parser.add_argument("--eval-data-checkpoints", nargs="+", help="Paths to eval data checkpoints")
+    parser.add_argument("--name", type=str, help="Experiment name")
 
     main(parser.parse_args())
