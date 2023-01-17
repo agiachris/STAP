@@ -78,6 +78,7 @@ def train(
             encoder_checkpoint=encoder_checkpoint,
             device=device,
         )
+        agent_factory.save_config()
         agent = agent_factory()
         assert isinstance(agent, agents.RLAgent)
         trainer_factory = trainers.TrainerFactory(
@@ -117,7 +118,6 @@ def train(
         trainer.path.mkdir(parents=True, exist_ok=overwrite)
         configs.save_git_hash(trainer.path)
         trainer_factory.save_config(trainer.path)
-        agent_factory.save_config(trainer.path)
         env_factory.save_config(trainer.path)
         if eval_env_factory is not None:
             eval_path = trainer.path / "eval"

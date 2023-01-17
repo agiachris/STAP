@@ -53,6 +53,11 @@ class SAC(rl.RLAgent):
             actor_update_freq: Actor update frequency.
             target_update_freq: Target update frequency.
         """
+        for mlp_kwargs in [actor_kwargs, critic_kwargs, encoder_kwargs]:
+            for kwarg in ["act", "output_act"]:
+                if mlp_kwargs.get(kwarg, False):
+                    mlp_kwargs[kwarg] = configs.get_class(mlp_kwargs[kwarg], torch.nn)
+
         if encoder is None:
             encoder = encoders.Encoder(env, encoder_class, encoder_kwargs, device)
             target_encoder = encoders.Encoder(
@@ -68,12 +73,8 @@ class SAC(rl.RLAgent):
 
         actor_class = configs.get_class(actor_class, networks)
         actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)  # type: ignore
-
+        
         critic_class = configs.get_class(critic_class, networks)
-        if critic_kwargs.get("output_act", False):
-            critic_kwargs["output_act"] = configs.get_class(
-                critic_kwargs["output_act"], torch.nn
-            )
         critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)  # type: ignore
 
         target_critic = critic_class(  # type: ignore
