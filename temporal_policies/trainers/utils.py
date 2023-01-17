@@ -26,6 +26,7 @@ class TrainerFactory(configs.Factory):
         agent_trainers: Optional[Sequence["trainers.AgentTrainer"]] = None,
         env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
+        name: Optional[str] = None,
     ):
         """Creates the trainer factory from a config or checkpoint.
 
