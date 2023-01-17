@@ -68,6 +68,13 @@ class TrainerFactory(configs.Factory):
 
             self.kwargs["agent"] = agent
             self.kwargs["eval_env"] = eval_env
+
+        elif issubclass(self.cls, trainers.ValueTrainer):
+            raise NotImplementedError("Implement ValueTrainer factory.")
+        
+        if issubclass(self.cls, trainers.PolicyTrainer):
+            raise NotImplementedError("Implement PolicyTrainer factory.")
+
         elif issubclass(self.cls, (trainers.DynamicsTrainer, trainers.UnifiedTrainer)):
             if dynamics is None:
                 if checkpoint is None:
