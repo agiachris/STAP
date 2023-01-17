@@ -29,12 +29,8 @@ def train(
     num_pretrain_steps: Optional[int] = None,
     num_train_steps: Optional[int] = None,
     num_eval_episodes: Optional[int] = None,
-    num_actor_only_train_steps: Optional[int] = None,
-    num_critic_only_train_steps: Optional[int] = None,
-    num_original_train_steps: Optional[int] = None,
     num_env_processes: Optional[int] = None,
     num_eval_env_processes: Optional[int] = None,
-    train_multistage: bool = False,
 ) -> None:
 
     if resume:
@@ -95,12 +91,6 @@ def train(
             trainer_kwargs["num_train_steps"] = num_train_steps
         if num_eval_episodes is not None:
             trainer_kwargs["num_eval_episodes"] = num_eval_episodes
-        if num_actor_only_train_steps is not None:
-            trainer_kwargs["num_actor_only_train_steps"] = num_actor_only_train_steps
-        if num_critic_only_train_steps is not None:
-            trainer_kwargs["num_critic_only_train_steps"] = num_critic_only_train_steps
-        if num_original_train_steps is not None:
-            trainer_kwargs["num_original_train_steps"] = num_original_train_steps
 
         print("[scripts.train.train_policy] Trainer config:")
         pprint(trainer_factory.config)
@@ -124,13 +114,7 @@ def train(
             eval_path.mkdir(parents=True, exist_ok=overwrite)
             eval_env_factory.save_config(eval_path)
 
-    if train_multistage:
-        assert hasattr(
-            trainer, "train_multistage"
-        ), "trainer doesn't have method train_multistage()"
-        trainer.train_multistage()
-    else:
-        trainer.train()
+    trainer.train()
 
     # Record gifs of the trained policy.
     if eval_recording_path is not None:
