@@ -1136,4 +1136,17 @@ PREDICATE_HIERARCHY = [
 assert len(UNARY_PREDICATES) + len(BINARY_PREDICATES) == len(PREDICATE_HIERARCHY)
 
 
-GOAL_PREDICATES = [Inhand, Under, On]
+SUPPORTED_GOAL_PREDICATES = {
+    "under": {
+        "signature": "under(x, y)",
+        "class": Under,
+        }, 
+    "on": {
+        "signature": "on(x, y)",
+        "class": On,
+        }, 
+    "inhand": {
+        "signature": "inhand(x)",
+        "class": Inhand,
+        },
+}

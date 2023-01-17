@@ -20,6 +20,7 @@ def main(env_config: str, seed: Optional[int] = None) -> None:
         print("Supported goal predicates:", env.supported_goal_predicates)
         print("Task instruction:", env.instruction)
         print("Goal predicates:", env.goal_predicates)
+        print("Supported goal predicates:", env.supported_goal_predicates)
         print("")
 
         action_skeleton = env.task.action_skeleton

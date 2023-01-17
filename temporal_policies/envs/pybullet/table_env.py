@@ -46,8 +46,9 @@ class Task:
     action_skeleton: List[Primitive]
     initial_state: List[predicates.Predicate]
     prob: float
-    goal_predicates: Optional[List[predicates.Predicate]]
     instruction: Optional[str]
+    goal_predicates: Optional[List[predicates.Predicate]]
+    supported_goal_predicates: Optional[List[str]]
 
     @staticmethod
     def create(
@@ -55,8 +56,9 @@ class Task:
         action_skeleton: List[str],
         initial_state: List[str],
         prob: Optional[float] = None,
-        goal_predicates: Optional[List[str]] = None,
         instruction: Optional[str] = None,
+        goal_predicates: Optional[List[str]] = None,
+        supported_goal_predicates: Optional[List[str]] = None,
     ) -> "Task":
 
         # Primitives.
@@ -78,8 +80,9 @@ class Task:
             action_skeleton=primitives,
             initial_state=initial_propositions,
             prob=float("nan") if prob is None else prob,
-            goal_predicates=goal_propositions,
             instruction=instruction,
+            goal_predicates=goal_propositions,
+            supported_goal_predicates=supported_goal_predicates
         )
 
 
@@ -740,23 +743,28 @@ class TableEnv(PybulletEnv):
         return obs, reward, terminated, result.truncated, info
 
     @property
-    def instruction(self) -> Optional[str]:
+    def instruction(self) -> str:
         """Return natural language description of the task."""
         if self.task.instruction is None:
             raise ValueError("Instruction not declared in task.")
         return self.task.instruction
 
     @property
-    def goal_predicates(self) -> Optional[List[predicates.Predicate]]:
+    def goal_predicates(self) -> List[predicates.Predicate]:
         """Return list of task-specific goal predicates."""
         if self.task.goal_predicates is None:
-            raise ValueError("Goal states not declared in task.")
+            raise ValueError("Goal predicates not declared in task.")
         return self.task.goal_predicates
 
     @property
-    def supported_goal_predicates(self) -> Optional[Type[predicates.Predicate]]:
-        """Return list of supported task-agnostic goal predicates."""
-        return predicates.GOAL_PREDICATES
+    def supported_goal_predicates(self) -> List[str]:
+        """Return list of supported task-agnostic goal predicates signatures."""
+        if self.task.supported_goal_predicates is None:
+            raise ValueError("Supported goal predicates not declared in task.")
+        try:
+            return [predicates.SUPPORTED_GOAL_PREDICATES[pred]["signature"] for pred in self.task.supported_goal_predicates]
+        except KeyError:
+            raise ValueError("Task require unsupported goal predicates.")
 
     def is_goal_state(self, sim: bool = True) -> bool:
         """Returns True if the goal predicates hold in the current state."""
