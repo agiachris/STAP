@@ -684,11 +684,7 @@ class Inhand(Predicate):
     def value(
         self, robot: Robot, objects: Dict[str, Object], state: Sequence[Predicate]
     ) -> bool:
-        print(
-            f"{self}.value() not implemented; assuming True for checking initialization from sample()."
-        )
         return True
-        raise NotImplementedError("Inhand value() not implemented.")
 
     def value_simple(self, objects: Dict[str, Object]) -> bool:
         """Evaluates to True if the grounding of Inhand(a) is geometrically valid."""

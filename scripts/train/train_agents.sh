@@ -64,17 +64,17 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] |
 fi
 
 ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pick.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pick_eval.yaml"
+# EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pick_eval.yaml"
 train_policy
 
 ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/place.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/place_eval.yaml"
+# EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/place_eval.yaml"
 train_policy
 
 ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pull.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pull_eval.yaml"
+# EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pull_eval.yaml"
 train_policy
 
 ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/push.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/push_eval.yaml"
+# EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/push_eval.yaml"
 train_policy
