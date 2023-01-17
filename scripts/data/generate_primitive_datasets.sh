@@ -16,24 +16,20 @@ function run_cmd {
 
 function generate_data {
     args="--exp-name ${EXP_NAME}"
-    # Data specific.
     args="${args} --config.split ${SPLIT}"
     args="${args} --config.primitive ${PRIMITIVE}"
     args="${args} --config.symbolic-action-type ${SYMBOLIC_ACTION_TYPE}"
     args="${args} --config.seed ${SEED}"
-    # Compute specific.
     args="${args} --config.num-pretrain-steps ${NUM_PRETRAIN_STEPS}"
-    args="${args} --config.num-env-processes ${NUM_ENV_PROCESSES}"
     
     CMD="python scripts/data/generate_primitive_dataset.py ${args}"    
     run_cmd
 }
 
 # Experiments.
-EXP_NAME="20230113/datasets"
+EXP_NAME="20230116/datasets"
 SYMBOLIC_ACTION_TYPE="valid"
 NUM_PRETRAIN_STEPS="100000"
-NUM_ENV_PROCESSES="2"
 
 # Pybullet.
 primitives=("pick" "place" "pull" "push")
