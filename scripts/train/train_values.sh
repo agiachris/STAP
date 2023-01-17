@@ -105,7 +105,7 @@ value_sweeps=(
 for primitive in "${primitives[@]}"; do
     for value_name in "${value_sweeps[@]}"; do
         NAME="${primitive}/${value_name}"
-        AGENT_CONFIG="${config_path}/${NAME}.yaml"
+        AGENT_CONFIG="${config_path}/${value_name}.yaml"
         ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
 
         TRAIN_DATA_CHECKPOINTS=""
