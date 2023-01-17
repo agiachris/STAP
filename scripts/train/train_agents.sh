@@ -51,7 +51,7 @@ output_path="models"
 plots_path="plots"
 
 # Experiments.
-exp_name="20230113/sac"
+exp_name="20230116/sac"
 
 # Pybullet.
 AGENT_CONFIG="configs/pybullet/agents/single_stage/sac.yaml"
@@ -59,23 +59,22 @@ TRAINER_CONFIG="configs/pybullet/trainers/agent_sac.yaml"
 
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
-ENV_KWARGS="--num-env-processes 4 --num-eval-env-processes 2"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
-    ENV_KWARGS="${ENV_KWARGS} --gui 0"
+    ENV_KWARGS="--gui 0"
 fi
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/pick.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/pick_eval.yaml"
+ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pick.yaml"
+EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pick_eval.yaml"
 train_policy
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/place.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/place_eval.yaml"
+ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/place.yaml"
+EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/place_eval.yaml"
 train_policy
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/pull.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/pull_eval.yaml"
+ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pull.yaml"
+EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pull_eval.yaml"
 train_policy
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/push.yaml"
-EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/20230113/primitives_rl/push_eval.yaml"
+ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/push.yaml"
+EVAL_ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/push_eval.yaml"
 train_policy
