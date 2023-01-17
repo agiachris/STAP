@@ -43,7 +43,7 @@ function train_value {
 }
 
 # Setup.
-DEBUG=1
+DEBUG=0
 output_path="models"
 plots_path="plots"
 
