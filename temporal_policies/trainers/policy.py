@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Mapping, Optional, Type, Union
 import numpy as np
 import torch
 import tqdm
+import pathlib
 
 from temporal_policies import agents, datasets, envs, processors
 from temporal_policies.networks.encoders import IMAGE_ENCODERS
@@ -41,7 +42,7 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         num_train_steps: int = 200000,
         num_eval_episodes: int = 100,
         eval_freq: int = 1000,
-        checkpoint_freq: int = 10000,
+        checkpoint_freq: int = 50000,
         log_freq: int = 1000,
         profile_freq: Optional[int] = None,
         eval_metric: str = "reward",
