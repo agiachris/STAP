@@ -15,7 +15,7 @@ function run_cmd {
 }
 
 function generate_data {
-    args="--exp-name ${EXP_NAME}"
+    args="--config.exp-name ${EXP_NAME}"
     args="${args} --config.split ${SPLIT}"
     args="${args} --config.primitive ${PRIMITIVE}"
     args="${args} --config.symbolic-action-type ${SYMBOLIC_ACTION_TYPE}"
