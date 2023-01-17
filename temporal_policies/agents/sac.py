@@ -70,6 +70,10 @@ class SAC(rl.RLAgent):
         actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)  # type: ignore
 
         critic_class = configs.get_class(critic_class, networks)
+        if critic_kwargs.get("output_act", False):
+            critic_kwargs["output_act"] = configs.get_class(
+                critic_kwargs["output_act"], torch.nn
+            )
         critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)  # type: ignore
 
         target_critic = critic_class(  # type: ignore

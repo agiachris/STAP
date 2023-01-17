@@ -9,12 +9,7 @@ trainer_kwargs:
 
   optimizer_class: Adam
   optimizer_kwargs:
-    actor_optimizer_kwargs:
-      lr: 0.0001
-    critic_optimizer_kwargs:
-      lr: 0.0001
-    log_alpha_optimizer_kwargs:
-      lr: 0.0001
+    lr: 0.0001
 
   num_pretrain_steps: 10000
   num_train_steps: 500000

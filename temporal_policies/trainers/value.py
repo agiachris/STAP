@@ -167,10 +167,6 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     def eval_batches(self) -> Generator[Batch, None, None]:
         return self._eval_batches
 
-    @property.setter
-    def eval_batches(self, batches: Generator[Batch, None, None]):
-        self._eval_batches = batches
-
     def process_batch(self, batch: Batch) -> Batch:
         """Processes replay buffer batch for training.
 
@@ -210,7 +206,7 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 try:
                     batch = next(self.eval_batches)
                 except StopIteration:
-                    self.eval_batches = iter(self.eval_dataloader)
+                    self._eval_batches = iter(self.eval_dataloader)
                     batch = next(self.eval_batches)
 
                 eval_metrics = self.agent.validation_step(batch)

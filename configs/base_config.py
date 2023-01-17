@@ -187,7 +187,7 @@ class PolicyDatasetGenerationConfig:
     """Configuration for generating a dataset of (s, a, s', r) tuples."""
 
     split: str = "train"
-    exp_name: str = "20230113/primitive_dataset"
+    exp_name: str = "20230116/datasets"
     custom_path: Optional[str] = None
     # Trainer configs.
     trainer_config: str = "configs/pybullet/trainers/primitive_dataset.yaml"
