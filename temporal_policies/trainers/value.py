@@ -150,9 +150,6 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
-        else:
-            self.dataset.save()
-            self.eval_dataset.save()
 
         self._eval_dataloader = self.create_dataloader(self.eval_dataset, self.num_data_workers)
         self._eval_batches = iter(self.eval_dataloader)
@@ -169,6 +166,14 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     @property
     def eval_batches(self) -> Generator[Batch, None, None]:
         return self._eval_batches
+
+    def train(self) -> None:
+        """Trains the model."""
+        super().train()
+        if not self.dataset.path.exists():
+            self.dataset.save()
+        if not self.eval_dataset.path.exists():
+            self.eval_dataset.save()
 
     def process_batch(self, batch: Batch) -> Batch:
         """Processes replay buffer batch for training.
