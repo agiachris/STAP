@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional, Tuple, Type, Union
 
 import torch
 import numpy as np
+from copy import deepcopy
 
 from temporal_policies.agents import base as agents
 from temporal_policies.agents import rl
@@ -53,15 +54,20 @@ class SAC(rl.RLAgent):
             actor_update_freq: Actor update frequency.
             target_update_freq: Target update frequency.
         """
-        for mlp_kwargs in [actor_kwargs, critic_kwargs, encoder_kwargs]:
-            for kwarg in ["act", "output_act"]:
-                if mlp_kwargs.get(kwarg, False):
-                    mlp_kwargs[kwarg] = configs.get_class(mlp_kwargs[kwarg], torch.nn)
+        agent_kwargs = {
+            "actor": deepcopy(actor_kwargs),
+            "critic": deepcopy(critic_kwargs),
+            "encoder": deepcopy(encoder_kwargs),
+        }
+        for kwargs in agent_kwargs.values():
+            for key in ["act", "output_act"]:
+                if kwargs.get(key, False):
+                    kwargs[key] = configs.get_class(kwargs[key], torch.nn)
 
         if encoder is None:
-            encoder = encoders.Encoder(env, encoder_class, encoder_kwargs, device)
+            encoder = encoders.Encoder(env, encoder_class, agent_kwargs["encoder"], device)
             target_encoder = encoders.Encoder(
-                env, encoder_class, encoder_kwargs, device
+                env, encoder_class, agent_kwargs["encoder"], device
             )
             target_encoder.network.load_state_dict(encoder.network.state_dict())
         else:
@@ -72,13 +78,13 @@ class SAC(rl.RLAgent):
         target_encoder.eval_mode()
 
         actor_class = configs.get_class(actor_class, networks)
-        actor = actor_class(encoder.state_space, env.action_space, **actor_kwargs)  # type: ignore
+        actor = actor_class(encoder.state_space, env.action_space, **agent_kwargs["actor"])  # type: ignore
         
         critic_class = configs.get_class(critic_class, networks)
-        critic = critic_class(encoder.state_space, env.action_space, **critic_kwargs)  # type: ignore
+        critic = critic_class(encoder.state_space, env.action_space, **agent_kwargs["critic"])  # type: ignore
 
         target_critic = critic_class(  # type: ignore
-            target_encoder.state_space, env.action_space, **critic_kwargs
+            target_encoder.state_space, env.action_space, **agent_kwargs["critic"]
         )
         target_critic.load_state_dict(critic.state_dict())
         for param in target_critic.parameters():
