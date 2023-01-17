@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  gui: 1
+  gui: 0
   name: train_valid_pull_0
   objects:
   - object_kwargs:

@@ -30,7 +30,7 @@ function generate_data {
 }
 
 # Experiments.
-EXP_NAME="20230116/datasets"
+EXP_NAME="20230113/datasets"
 SYMBOLIC_ACTION_TYPE="valid"
 NUM_PRETRAIN_STEPS="100000"
 NUM_ENV_PROCESSES="2"
