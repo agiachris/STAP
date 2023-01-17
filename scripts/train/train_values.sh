@@ -89,33 +89,36 @@ data_checkpoint_path="models/20230116/datasets"
 # done
 
 # Sweeps.
-primitive="place"
+primitives=("place")
 config_path="configs/pybullet/agents/multi_stage/value_sweeps"
 value_sweeps=(
-    "sac_medium"
-    "sac_large"
-    "sac_deep"
-    "sac_deeper"
-    "sac_medium_deep"
-    "sac_large_deep"
-    "sac_medium_deeper"
+    # "sac_medium"
+    # "sac_large"
+    # "sac_deep"
+    # "sac_deeper"
+    # "sac_medium_deep"
+    # "sac_large_deep"
+    # "sac_medium_deeper"
     "sac_large_deeper"
 )
 
-for NAME in "${value_sweeps[@]}"; do
-    AGENT_CONFIG="${config_path}/${NAME}.yaml"
-    ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
+for primitive in "${primitives[@]}"; do
+    for value_name in "${value_sweeps[@]}"; do
+        NAME="${primitive}/${value_name}"
+        AGENT_CONFIG="${config_path}/${NAME}.yaml"
+        ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
 
-    TRAIN_DATA_CHECKPOINTS=""
-    for seed in "${train_seeds[@]}"; do
-        data_path="${data_checkpoint_path}/train_${symbolic_action_type}_${primitive}_${seed}/train_data"
-        TRAIN_DATA_CHECKPOINTS="${TRAIN_DATA_CHECKPOINTS} ${data_path}"
+        TRAIN_DATA_CHECKPOINTS=""
+        for seed in "${train_seeds[@]}"; do
+            data_path="${data_checkpoint_path}/train_${symbolic_action_type}_${primitive}_${seed}/train_data"
+            TRAIN_DATA_CHECKPOINTS="${TRAIN_DATA_CHECKPOINTS} ${data_path}"
+        done
+
+        for seed in "${validation_seeds[@]}"; do
+            data_path="${data_checkpoint_path}/validation_${symbolic_action_type}_${primitive}_${seed}/train_data"
+            EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
+        done
+
+        train_value
     done
-
-    for seed in "${validation_seeds[@]}"; do
-        data_path="${data_checkpoint_path}/validation_${symbolic_action_type}_${primitive}_${seed}/train_data"
-        EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
-    done
-
-    train_value
 done
