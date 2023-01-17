@@ -878,7 +878,7 @@ class TableEnv(PybulletEnv):
         except OSError:
             FONT = ImageFont.load_default()
         draw.multiline_text(
-            (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", font=FONT
+            (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", fill="red", font=FONT
         )
         # text_color = (255, 100, 255)
         # draw.text((20, 10), "Hello World", fill=text_color, font=FONT)

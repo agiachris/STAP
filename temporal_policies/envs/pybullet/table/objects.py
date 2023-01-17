@@ -581,6 +581,11 @@ class PropTestBox(Box):
         self.custom_pose = pose
 
     @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
+
+    @property
     def bbox(self) -> np.ndarray:
         assert self._bbox is not None, "Bbox not set"
         return self._bbox
@@ -599,6 +604,11 @@ class PropTestUrdf(Urdf):
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 
+    @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
+
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
 
@@ -616,6 +626,11 @@ class PropTestRack(Object):
 
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
+
+    @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
 
     @property
     def bbox(self) -> np.ndarray:
@@ -638,6 +653,11 @@ class PropTestNull(Object):
         self.custom_pose = pose
 
     @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
+
+    @property
     def bbox(self) -> np.ndarray:
         assert self._bbox is not None, "Bbox not set"
         return self._bbox
@@ -653,6 +673,11 @@ class PropTestHook(Object):
     def pose(self) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
+
+    @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
 
     @property
     def bbox(self) -> np.ndarray:

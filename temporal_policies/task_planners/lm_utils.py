@@ -12,6 +12,8 @@ from helm.common.request import Request, RequestResult
 from helm.common.authentication import Authentication
 from helm.proxy.services.remote_service import RemoteService
 from helm.proxy.accounts import Account
+from helm.common.request import Token
+
 import numpy as np
 
 import symbolic
@@ -72,15 +74,22 @@ def register_api_key(
         raise ValueError(f"api_type {api_type} not supported")
 
 
-def authenticate(api_type: APIType) -> Optional[Authentication]:
-    if api_type == APIType.OPENAI:
-        raise ValueError("OpenAI API not supported")
-    elif api_type == APIType.HELM:
-        with open("../credentials.json", "r") as f:
-            api_key = json.load(f)["openaiApiKey"]
-        return register_api_key(api_type, api_key)
-    else:
-        raise ValueError("Invalid API type")
+def authenticate(
+    api_type: APIType, key_name: Optional[str] = None
+) -> Optional[Authentication]:
+    assert api_type in [
+        APIType.OPENAI,
+        APIType.HELM,
+    ], f"api_type {api_type} not supported"
+    if key_name is None:
+        if api_type == APIType.OPENAI:
+            key_name = "personal-all"
+        elif api_type == APIType.HELM:
+            key_name == "helm"
+
+    with open("../credentials.json", "r") as f:
+        api_key = json.load(f)[key_name]
+    return register_api_key(api_type, api_key)
 
 
 def generate_current_setting_prompt(
@@ -136,6 +145,14 @@ def gpt3_call(
     if lm_cache is not None and id in lm_cache.keys():
         print("cache hit, returning")
         response = lm_cache[id]
+        raw_tokens = response["choices"][0]["logprobs"]["tokens"]
+        logprobs = response["choices"][0]["logprobs"]["token_logprobs"]
+        # for compatibility with helm api
+        helm_token_list: List[Token] = [
+            Token(text=token, logprob=logprob, top_logprobs=99999)
+            for token, logprob in zip(raw_tokens, logprobs)
+        ]
+        response["tokens"] = helm_token_list
     else:
         if api_type.value == APIType.OPENAI.value:
             response = openai.Completion.create(
@@ -147,6 +164,14 @@ def gpt3_call(
                 max_tokens=max_tokens,
                 stop=stop,
             )
+            raw_tokens = response["choices"][0]["logprobs"]["tokens"]
+            logprobs = response["choices"][0]["logprobs"]["token_logprobs"]
+            # for compatibility with helm api
+            helm_token_list: List[Token] = [
+                Token(text=token, logprob=logprob, top_logprobs=99999)
+                for token, logprob in zip(raw_tokens, logprobs)
+            ]
+            response["tokens"] = helm_token_list
         elif api_type.value == APIType.HELM.value:
             assert auth is not None, "auth must be provided for helm api"
             service = RemoteService("https://crfm-models.stanford.edu")
@@ -192,9 +217,11 @@ def generate_lm_response(
     header_prompt: Optional[InContextExample] = None,
     current_prompt: Optional[CurrentExample] = None,
     examples: Optional[List[InContextExample]] = None,
+    custom_stop_sequence: Optional[List[str]] = None,
     lm_cfg: Optional[LMConfig] = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
+    verbose: bool = False,
 ) -> Tuple[Result, Dict[Tuple, Any]]:
     if lm_cache is None:
         assert lm_cache is not None, "lm_cache must be provided to save queries"
@@ -300,10 +327,12 @@ def generate_lm_response(
 
         stop = [
             SCENE_OBJECT_PROMPT,
-            "\n\n",
+            "Top",
             "```",
             "\nRobot action sequence",
         ]
+        if custom_stop_sequence is not None:
+            stop = custom_stop_sequence
         response, lm_cache = gpt3_call(
             engine=lm_cfg.engine,
             overall_prompt=overall_prompt,
@@ -327,8 +356,8 @@ def generate_lm_response(
         update_result_current_prompt_based_on_response_robot(
             result, current_prompt, response
         )
-
-    print(f"Overall prompt:\n{overall_prompt}\n")
+    if verbose:
+        print(f"Overall prompt:\n{overall_prompt}\n")
     return result, lm_cache
 
 
@@ -400,6 +429,21 @@ def update_result_current_prompt_based_on_response_robot(
         )
         robot_prediction_result_types.append(robot_prediction_result_type)
         predicted_task_plan_descriptions.append(predicted_task_plan_description)
+    elif current_prompt.custom_robot_action_sequence_format == "python_list_with_done":
+        parsed_robot_predicted = result.parsed_robot_predicted
+        (
+            robot_prediction_result_type,
+            predicted_task_plan_description,
+        ) = check_task_plan_result(
+            current_prompt.goal_predicted
+            if current_prompt.use_predicted_goal or current_prompt.goal is None
+            else current_prompt.goal,
+            str(parsed_robot_predicted),
+            current_prompt.pddl_domain_file,
+            current_prompt.pddl_problem_file,
+        )
+        robot_prediction_result_types.append(robot_prediction_result_type)
+        predicted_task_plan_descriptions.append(predicted_task_plan_description)
 
     result.robot_success = any(
         [
@@ -413,9 +457,10 @@ def update_result_current_prompt_based_on_response_robot(
     result.custom_robot_action_sequence_format = (
         current_prompt.custom_robot_action_sequence_format
     )
-    result.tokens_predicted = (
-        response["tokens"] if response.get("tokens", False) else None
-    )
+    if response.get("tokens", False):
+        result.tokens_predicted = response["tokens"]
+    else:
+        result.tokens_predicted = None
 
 
 def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
@@ -431,7 +476,11 @@ def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
             if pathlib.Path(lm_cache_file).stat().st_size == 0:
                 lm_cache = {}
             else:
-                lm_cache = pickle.load(f)
+                try:
+                    lm_cache = json.load(f)
+                except UnicodeDecodeError as e:
+                    print(f"Error loading lm_cache: {e}")
+                    lm_cache = {}
         if lm_cache is None:
             lm_cache = {}
     return lm_cache

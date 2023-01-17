@@ -113,8 +113,7 @@ class LMConfig:
     def __post_init__(self):
         if self.api_type.value == APIType.OPENAI.value:
             engine_dict = {
-                # "davinci": "code-davinci-002",
-                "davinci": "text-davinci-003",
+                "davinci": "code-davinci-002",
                 "text-davinci-003": "text-davinci-003",
                 "text-davinci-002": "text-davinci-002",
                 "curie": "text-curie-001",
