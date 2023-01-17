@@ -28,7 +28,7 @@ function train_value {
     args="${args} --train-data-checkpoints ${TRAIN_DATA_CHECKPOINTS}"
     args="${args} --eval-data-checkpoints ${EVAL_DATA_CHECKPOINTS}"
     args="${args} --seed 0"
-    
+    args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${VALUE_OUTPUT_PATH}_debug"
         args="${args} --overwrite"
