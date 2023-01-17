@@ -181,24 +181,6 @@ if __name__ == "__main__":
     )
     parser.add_argument("--num-train-steps", type=int, help="Number of steps to train")
     parser.add_argument(
-        "--num-actor-only-train-steps",
-        type=int,
-        help="Number of steps to train actor only",
-    )
-    parser.add_argument(
-        "--num-critic-only-train-steps",
-        type=int,
-        help="Number of steps to train critic only",
-    )
-    parser.add_argument(
-        "--num-original-train-steps", type=int, help="Number of steps to train original"
-    )
-    parser.add_argument(
-        "--train-multistage",
-        type=int,
-        help="Perform multistage training (critic, actor, original) or not",
-    )
-    parser.add_argument(
         "--num-eval-episodes", type=int, help="Number of episodes per evaluation"
     )
     parser.add_argument("--num-env-processes", type=int, help="Number of env processes")
