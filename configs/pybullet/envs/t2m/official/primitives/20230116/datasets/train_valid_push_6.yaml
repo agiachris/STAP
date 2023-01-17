@@ -1,0 +1,1254 @@
+env: pybullet.TableEnv
+env_kwargs:
+  gui: 0
+  name: train_valid_push_6
+  objects:
+  - object_kwargs:
+      is_static: true
+      name: table
+      path: configs/pybullet/envs/assets/iprl_table.urdf
+    object_type: Urdf
+  - object_kwargs:
+      color:
+      - 0.4
+      - 0.2
+      - 0.0
+      - 1.0
+      name: rack
+      size:
+      - 0.22
+      - 0.32
+      - 0.16
+    object_type: Rack
+  - object_kwargs:
+      name: hook
+      variants:
+      - object_kwargs:
+          color:
+          - 0.6
+          - 0.6
+          - 0.6
+          - 1.0
+          handle_length: 0.38
+          handle_y: -1.0
+          head_length: 0.2
+          name: _hook
+        object_type: Hook
+      - object_type: null
+    object_type: Variant
+  - object_kwargs:
+      name: salt
+      variants:
+      - configs/pybullet/envs/assets/salt.yaml
+      - object_type: null
+    object_type: Variant
+  - object_kwargs:
+      name: milk
+      variants:
+      - configs/pybullet/envs/assets/milk.yaml
+      - object_type: null
+    object_type: Variant
+  - object_kwargs:
+      name: yogurt
+      variants:
+      - configs/pybullet/envs/assets/yogurt.yaml
+      - object_type: null
+    object_type: Variant
+  - object_kwargs:
+      name: icecream
+      variants:
+      - configs/pybullet/envs/assets/icecream.yaml
+      - object_type: null
+    object_type: Variant
+  primitives:
+  - push
+  robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
+  tasks:
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(icecream, rack)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, table)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(milk, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, table)
+    - on(icecream, rack)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, rack)
+    - on(icecream, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, rack)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, rack)
+    - on(icecream, table)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(yogurt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, rack)
+    - on(icecream, rack)
+    - on(yogurt, table)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(icecream, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(salt, rack)
+    - on(milk, rack)
+    - on(icecream, table)
+    - on(yogurt, rack)
+    - inhand(hook)
+  - action_skeleton:
+    - push(salt, hook, rack)
+    initial_state:
+    - aligned(rack)
+    - poslimit(rack)
+    - beyondworkspace(rack)
+    - on(rack, table)
+    - on(milk, rack)
+    - on(salt, table)
+    - on(icecream, rack)
+    - on(yogurt, rack)
+    - inhand(hook)
