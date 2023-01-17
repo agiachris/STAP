@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you move the blue box under the rack?"
-    - action_skeleton:
+    - instruction: How would you move the blue box under the rack?
+      action_skeleton:
         - pick(blue_box)
         - place(blue_box, table)
         - pick(hook)

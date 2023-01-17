@@ -13,9 +13,14 @@ def main(env_config: str, seed: Optional[int] = None) -> None:
     assert isinstance(env, pybullet.table_env.TableEnv)
 
     while True:
-        obs, info = env.reset(seed=seed)
+        _, info = env.reset(seed=seed)
         seed = None
+
         print("Reset seed:", info["seed"])
+        print("Supported goal predicates:", env.supported_goal_predicates)
+        print("Task instruction:", env.instruction)
+        print("Goal predicates:", env.goal_predicates)
+        print("")
 
         action_skeleton = env.task.action_skeleton
         for step in range(len(action_skeleton)):
@@ -27,13 +32,13 @@ def main(env_config: str, seed: Optional[int] = None) -> None:
 
             # Sample action and step environment
             action = primitive.sample_action()
-            obs, success, _, truncated, _ = env.step(
-                primitive.normalize_action(action.vector)
-            )
+            normalized_action = primitive.normalize_action(action.vector)
+            _, success, _, truncated, _ = env.step(normalized_action)
             print(f"Success {primitive}: {success}")
+            print("Goal state achieved:", env.is_goal_state())
             if truncated:
                 break
-
+        
         input("Done task, continue?\n")
 
 

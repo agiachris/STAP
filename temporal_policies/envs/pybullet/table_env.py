@@ -4,7 +4,7 @@ import multiprocessing
 import multiprocessing.synchronize
 import pathlib
 import random
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union, Type
 
 import gym
 import numpy as np
@@ -47,6 +47,7 @@ class Task:
     initial_state: List[predicates.Predicate]
     prob: float
     goal_predicates: Optional[List[predicates.Predicate]]
+    instruction: Optional[str]
 
     @staticmethod
     def create(
@@ -55,6 +56,7 @@ class Task:
         initial_state: List[str],
         prob: Optional[float] = None,
         goal_predicates: Optional[List[str]] = None,
+        instruction: Optional[str] = None,
     ) -> "Task":
 
         # Primitives.
@@ -65,18 +67,19 @@ class Task:
             primitives.append(primitive)
 
         # Initial state.
-        propositions = [predicates.Predicate.create(prop) for prop in initial_state]
+        initial_propositions = [predicates.Predicate.create(prop) for prop in initial_state]
 
         # Goal predicates.
-        predicates = None
+        goal_propositions = None
         if goal_predicates is not None:
-            predicates = [predicates.Predicate.create(pred) for pred in goal_predicates]
+            goal_propositions = [predicates.Predicate.create(pred) for pred in goal_predicates]
 
         return Task(
             action_skeleton=primitives,
-            initial_state=propositions,
+            initial_state=initial_propositions,
             prob=float("nan") if prob is None else prob,
-            goal_predicates=predicates,
+            goal_predicates=goal_propositions,
+            instruction=instruction,
         )
 
 
@@ -736,9 +739,27 @@ class TableEnv(PybulletEnv):
 
         return obs, reward, terminated, result.truncated, info
 
-    def _is_goal_state(self, sim: bool = True) -> bool:
+    @property
+    def instruction(self) -> Optional[str]:
+        """Return natural language description of the task."""
+        if self.task.instruction is None:
+            raise ValueError("Instruction not declared in task.")
+        return self.task.instruction
+
+    @property
+    def goal_predicates(self) -> Optional[List[predicates.Predicate]]:
+        """Return list of task-specific goal predicates."""
         if self.task.goal_predicates is None:
-            raise ValueError("Goal states not declared for task.")
+            raise ValueError("Goal states not declared in task.")
+        return self.task.goal_predicates
+
+    @property
+    def supported_goal_predicates(self) -> Optional[Type[predicates.Predicate]]:
+        """Return list of supported task-agnostic goal predicates."""
+        return predicates.GOAL_PREDICATES
+
+    def is_goal_state(self, sim: bool = True) -> bool:
+        """Returns True if the goal predicates hold in the current state."""
         return all(
             pred.value(
                 robot=self.robot,
@@ -746,7 +767,7 @@ class TableEnv(PybulletEnv):
                 state=self.task.initial_state,
                 sim=sim,
             )
-            for pred in self.task.goal_predicates
+            for pred in self.goal_predicates
         )
 
     def _is_any_object_below_table(self) -> bool:

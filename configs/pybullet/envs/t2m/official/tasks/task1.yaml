@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you pick the hook up from the rack and place it on the table?"
-    - action_skeleton:
+    - instruction: How would you pick the hook up from the rack and place it on the table?
+      action_skeleton:
         - pick(hook)
         - place(hook, table)
       initial_state:

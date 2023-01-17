@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you use the hook to pull the red box closer, then pick it up?"
-    - action_skeleton:
+    - instruction: How would you use the hook to pull the red box closer, then pick it up?
+      action_skeleton:
         - pick(hook)
         - pull(red_box, hook)
         - place(hook, table)

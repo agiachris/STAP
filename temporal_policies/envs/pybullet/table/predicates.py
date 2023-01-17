@@ -24,12 +24,12 @@ class Predicate:
 
     @property
     def state_req(self) -> bool:
-        "Predicate.value() requires non-null state argument"
+        "super().value() requires non-null state argument"
         return False
 
     @property
     def robot_req(self) -> bool:
-        "Predicate.value() requires non-null robot argument"
+        "super().value() requires non-null robot argument"
         return False
 
     @classmethod
@@ -125,7 +125,7 @@ class Free(Predicate):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
         if not sim:
             raise ValueError("Free.value() can only be evaluated in sim mode.")
 
@@ -324,7 +324,7 @@ class InWorkspace(Predicate, TableBounds):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance((Null, Rack)):  # Rack is in workspace by construction.
@@ -380,7 +380,7 @@ class InCollisionZone(Predicate, TableBounds):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
@@ -429,7 +429,7 @@ class InOperationalZone(Predicate, TableBounds):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
@@ -478,7 +478,7 @@ class InObstructionZone(Predicate, TableBounds):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
@@ -525,7 +525,7 @@ class BeyondWorkspace(Predicate, TableBounds):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
@@ -578,7 +578,7 @@ class InOodZone(Predicate, TableBounds):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
@@ -740,7 +740,7 @@ class Inhand(Predicate):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         obj = self.get_arg_objects(objects)[0]
         if obj.isinstance(Null):
@@ -759,7 +759,7 @@ class Under(Predicate):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
@@ -783,7 +783,7 @@ class InFront(Predicate):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
@@ -838,7 +838,7 @@ class NonBlocking(Predicate):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         target_obj, intersect_obj = self.get_arg_objects(objects)
         if target_obj.isinstance(Null) or intersect_obj.isinstance(Null):
@@ -1007,7 +1007,7 @@ class On(Predicate):
             pose = math.Pose(pos=xyz_world_frame, quat=quat.coeffs)
             child_obj.set_pose(pose)
 
-            if any(not prop.value(robot, objects, state) for prop in propositions):
+            if any(not prop.value(robot=robot, objects=objects, state=state) for prop in propositions):
                 samples += 1
                 continue
             success = True
@@ -1022,7 +1022,7 @@ class On(Predicate):
         state: Optional[Sequence["Predicate"]] = None,
         sim: bool = True,
     ) -> bool:
-        Predicate.value(objects=objects, robot=robot, state=state)
+        super().value(objects=objects, robot=robot, state=state)
 
         child_obj, parent_obj = self.get_arg_objects(objects)
         if child_obj.isinstance(Null):
@@ -1134,3 +1134,6 @@ PREDICATE_HIERARCHY = [
 
 
 assert len(UNARY_PREDICATES) + len(BINARY_PREDICATES) == len(PREDICATE_HIERARCHY)
+
+
+GOAL_PREDICATES = [Inhand, Under, On]

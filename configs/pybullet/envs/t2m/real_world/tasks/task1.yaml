@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you move all of the dairy products to the rack?"
-    - action_skeleton:
+    - instruction: How would you move all of the dairy products to the rack?
+      action_skeleton:
         - pick(red_box)
         - place(red_box, rack)
         - pick(yellow_box)

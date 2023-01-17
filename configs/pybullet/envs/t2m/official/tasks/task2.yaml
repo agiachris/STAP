@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you pick and place the cyan box, then use the hook to push the yellow box under the rack?"
-    - action_skeleton:
+    - instruction: How would you pick and place the cyan box, then use the hook to push the yellow box under the rack?
+      action_skeleton:
         - pick(cyan_box)
         - place(cyan_box, table)
         - pick(hook)

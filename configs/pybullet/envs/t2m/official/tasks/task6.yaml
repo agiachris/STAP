@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you put a prime colored box on the rack?"
-    - action_skeleton:
+    - instruction: How would you put a prime colored box on the rack?
+      action_skeleton:
         - pick(hook)
         - pull(blue_box, hook)
         - place(hook, table)
