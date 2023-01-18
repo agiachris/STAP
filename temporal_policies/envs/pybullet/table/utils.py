@@ -22,7 +22,7 @@ TABLE_CONSTRAINTS = {
     "operational_x_min": 0.50,
     "operational_x_max": 0.60,
     "obstruction_x_min": 0.575,
-    "workspace_radius": 0.7,
+    "workspace_radius": 0.75,
 }
 
 
