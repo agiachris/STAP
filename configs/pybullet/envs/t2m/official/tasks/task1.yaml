@@ -33,9 +33,9 @@ env_kwargs:
         - on(yellow_box, table)
         - on(cyan_box, table)
         - on(blue_box, table)
-      goal_predicates:
+      goal_propositions:
         - on(hook, table)
-      supported_goal_predicates:
+      supported_predicates:
         - under(a, b)
         - on(a, b)
         - inhand(a)

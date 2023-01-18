@@ -32,11 +32,11 @@ env_kwargs:
         - on(red_box, table)
         - on(yellow_box, table)
         - on(cyan_box, table)
-      goal_predicates:
+      goal_propositions:
         - on(red_box, rack)
         - on(yellow_box, rack)
         - on(cyan_box, rack)
-      supported_goal_predicates:
+      supported_predicates:
         - under(a, b)
         - on(a, b)
         - inhand(a)

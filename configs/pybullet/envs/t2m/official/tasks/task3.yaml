@@ -28,9 +28,9 @@ env_kwargs:
         - on(rack, table)
         - on(hook, table)
         - on(blue_box, table)
-      goal_predicates:
+      goal_propositions:
         - under(blue_box, rack)
-      supported_goal_predicates:
+      supported_predicates:
         - under(a, b)
         - on(a, b)
         - inhand(a)
