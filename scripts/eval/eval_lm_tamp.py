@@ -15,7 +15,7 @@ PYTHONPATH=. python scripts/eval/eval_lm_tamp.py
 --seed 0
 --pddl-domain-name hook_reach
 --max-depth 4 --timeout 10 --closed-loop 1 --num-eval 100 
---path plots/2023013/tamp_experiment/hook_reach/tamp0 --verbose 0 --engine davinci
+--path plots/20230116/ --verbose 0 --engine davinci
 --n-examples 5
 """
 
@@ -48,6 +48,7 @@ from temporal_policies.evaluation.utils import (
     get_prop_testing_objs,
     get_task_plan_primitives_instantiated,
     is_satisfy_goal_props,
+    seed_generator,
 )
 from temporal_policies.task_planners.goals import get_goal_from_lm, is_valid_goal_props
 from temporal_policies.task_planners.lm_data_structures import (
@@ -66,43 +67,6 @@ from temporal_policies.task_planners.lm_utils import (
     register_api_key,
     save_lm_cache,
 )
-
-
-def seed_generator(
-    num_eval: int,
-    path_results: Optional[Union[str, pathlib.Path]] = None,
-) -> Generator[
-    Tuple[
-        Optional[int],
-        Optional[Tuple[np.ndarray, planners.PlanningResult, Optional[List[float]]]],
-    ],
-    None,
-    None,
-]:
-    if path_results is not None:
-        npz_files = sorted(
-            pathlib.Path(path_results).glob("results_*.npz"),
-            key=lambda x: int(x.stem.split("_")[-1]),
-        )
-        for npz_file in npz_files:
-            with open(npz_file, "rb") as f:
-                npz = np.load(f, allow_pickle=True)
-                seed: int = npz["seed"].item()
-                rewards = np.array(npz["rewards"])
-                plan = planners.PlanningResult(
-                    actions=np.array(npz["actions"]),
-                    states=np.array(npz["states"]),
-                    p_success=npz["p_success"].item(),
-                    values=np.array(npz["values"]),
-                )
-                t_planner: List[float] = npz["t_planner"].item()
-
-            yield seed, (rewards, plan, t_planner)
-
-    if num_eval is not None:
-        yield 0, None
-        for _ in range(num_eval - 1):
-            yield None, None
 
 
 def scale_actions(
@@ -211,9 +175,6 @@ def eval_lm_tamp(
         torch.manual_seed(seed)
 
     # TODO(klin): load instruction from yaml
-    INSTRUCTION = "Ensure the red block is on the table."  # one of the examples needs to use the hook
-    INSTRUCTION = "Grab the red block."
-    INSTRUCTION = "Stock the red box onto the rack."
     INSTRUCTION = "Put the red box on the rack"
 
     examples = get_examples_from_json_dir(
@@ -293,11 +254,11 @@ def eval_lm_tamp(
             i
         ] = single_primitive_planner.dynamics.network.models[0]
 
-    path = pathlib.Path(path) / pathlib.Path(planner_config).stem
+    path = pathlib.Path(path) / "eval_lm_tamp"
     path.mkdir(parents=True, exist_ok=True)
 
     # Run TAMP.
-    num_success = 0
+    num_successes = 0
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
@@ -368,9 +329,7 @@ def eval_lm_tamp(
             lm_cache=lm_cache,
         )
         save_lm_cache(lm_cache_file, lm_cache)
-        # lm_cfg.engine = "text-davinci-002"
 
-        generated_task_plans = [["pick(hook)", "place(hook, table)"]]
         # convert action_skeleton's elements with the format pick(a) to pick(a, table)
         converted_task_plans = []
         for task_plan in generated_task_plans:
@@ -388,7 +347,6 @@ def eval_lm_tamp(
         action_skeletons_instantiated = get_task_plan_primitives_instantiated(
             generated_task_plans, env
         )
-
         for i, action_skeleton in enumerate(action_skeletons_instantiated):
             if len(action_skeleton) > 7:
                 print(
@@ -423,11 +381,11 @@ def eval_lm_tamp(
                 all_object_relationships.append(object_relationships)
 
             planners.vizualize_predicted_plan(
-                pathlib.Path("eval_lm_tamp") / f"seed{idx_iter}-plan{i}",
+                [str(action) for action in action_skeleton],
                 env,
                 action_skeleton,
                 plan,
-                path,
+                path / str(idx_iter),
                 custom_recording_text=(
                     f"human: {INSTRUCTION}\n"
                     + f"pred-goal: {predicted_goal_props}\n"
@@ -469,12 +427,10 @@ def eval_lm_tamp(
             if len(goal_reaching_task_p_successes) > 0
             else 0
         )
+        if len(goal_reaching_task_p_successes) == 0:
 
-        # best_task_plan = goal_reaching_task_plans[idx_best]
-        # best_motion_plan = goal_reaching_motion_plans[idx_best]
-
-        best_task_plan = task_plans[1]
-        best_motion_plan = motion_plans[1]
+        best_task_plan = goal_reaching_task_plans[idx_best]
+        best_motion_plan = goal_reaching_motion_plans[idx_best]
 
         if closed_loop:
             env.record_start()
@@ -527,12 +483,12 @@ def eval_lm_tamp(
             )
 
         if rewards.prod() > 0:
-            num_success += 1
+            num_successes += 1
         pbar.set_postfix(
             dict(
                 success=rewards.prod(),
                 **{f"r{t}": r for t, r in enumerate(rewards)},
-                num_successes=f"{num_success} / {idx_iter + 1}",
+                num_successes=f"{num_successes} / {idx_iter + 1}",
             )
         )
 
@@ -584,70 +540,71 @@ def eval_lm_tamp(
                     else:
                         print("    -", primitive, action)
             continue
-
-        # Save planning results.
-        with open(path / f"results_{idx_iter}.npz", "wb") as f:
-            save_dict = {
-                "args": {
-                    "planner_config": planner_config,
-                    "env_config": env_config,
-                    "policy_checkpoints": policy_checkpoints,
-                    "dynamics_checkpoint": dynamics_checkpoint,
-                    "device": device,
-                    "num_eval": num_eval,
-                    "path": path,
-                    "pddl_domain": pddl_domain,
-                    "pddl_problem": pddl_problem,
-                    "max_depth": max_depth,
-                    "timeout": timeout,
-                    "seed": seed,
-                    "verbose": verbose,
-                },
-                "observation": observation,
-                "state": state,
-                "action_skeleton": list(map(str, task_plans[idx_best])),
-                "actions": motion_plans[idx_best].actions,
-                "states": motion_plans[idx_best].states,
-                "scaled_actions": scale_actions(
-                    motion_plans[idx_best].actions, env, task_plans[idx_best]
-                ),
-                "p_success": motion_plans[idx_best].p_success,
-                "values": motion_plans[idx_best].values,
-                "rewards": rewards,
-                # "visited_actions": motion_plans[idx_best].visited_actions,
-                # "scaled_visited_actions": scale_actions(
-                #     motion_plans[idx_best].visited_actions, env, action_skeleton
-                # ),
-                # "visited_states": motion_plans[idx_best].visited_states,
-                "p_visited_success": motion_plans[idx_best].p_visited_success,
-                # "visited_values": motion_plans[idx_best].visited_values,
-                # "t_task_planner": t_task_planner,
-                # "t_motion_planner": t_motion_planner,
-                "t_planner": motion_planner_times,
+    print(f"num_successes: {num_successes}")
+    # Save planning results.
+    with open(path / f"results_{idx_iter}.npz", "wb") as f:
+        save_dict = {
+            "args": {
+                "planner_config": planner_config,
+                "env_config": env_config,
+                "policy_checkpoints": policy_checkpoints,
+                "dynamics_checkpoint": dynamics_checkpoint,
+                "device": device,
+                "num_eval": num_eval,
+                "path": path,
+                "pddl_domain": pddl_domain,
+                "pddl_problem": pddl_problem,
+                "max_depth": max_depth,
+                "timeout": timeout,
                 "seed": seed,
-                "discarded": [
-                    {
-                        "action_skeleton": list(map(str, task_plans[i])),
-                        # "actions": motion_plans[i].actions,
-                        # "states": motion_plans[i].states,
-                        # "scaled_actions": scale_actions(
-                        #     motion_plans[i].actions, env, task_plans[i]
-                        # ),
-                        "p_success": motion_plans[i].p_success,
-                        # "values": motion_plans[i].values,
-                        # "visited_actions": motion_plans[i].visited_actions,
-                        # "scaled_visited_actions": scale_actions(
-                        #     motion_plans[i].visited_actions, env, action_skeleton
-                        # ),
-                        # "visited_states": motion_plans[i].visited_states,
-                        "p_visited_success": motion_plans[i].p_visited_success,
-                        # "visited_values": motion_plans[i].visited_values,
-                    }
-                    for i in range(len(task_plans))
-                    if i != idx_best
-                ],
-            }
-            np.savez_compressed(f, **save_dict)  # type: ignore
+                "verbose": verbose,
+            },
+            "observation": observation,
+            "state": state,
+            "action_skeleton": list(map(str, task_plans[idx_best])),
+            "actions": motion_plans[idx_best].actions,
+            "states": motion_plans[idx_best].states,
+            "scaled_actions": scale_actions(
+                motion_plans[idx_best].actions, env, task_plans[idx_best]
+            ),
+            "p_success": motion_plans[idx_best].p_success,
+            "values": motion_plans[idx_best].values,
+            "rewards": rewards,
+            # "visited_actions": motion_plans[idx_best].visited_actions,
+            # "scaled_visited_actions": scale_actions(
+            #     motion_plans[idx_best].visited_actions, env, action_skeleton
+            # ),
+            # "visited_states": motion_plans[idx_best].visited_states,
+            "p_visited_success": motion_plans[idx_best].p_visited_success,
+            # "visited_values": motion_plans[idx_best].visited_values,
+            # "t_task_planner": t_task_planner,
+            # "t_motion_planner": t_motion_planner,
+            "t_planner": motion_planner_times,
+            "seed": seed,
+            "num_successes": num_successes,
+            "discarded": [
+                {
+                    "action_skeleton": list(map(str, task_plans[i])),
+                    # "actions": motion_plans[i].actions,
+                    # "states": motion_plans[i].states,
+                    # "scaled_actions": scale_actions(
+                    #     motion_plans[i].actions, env, task_plans[i]
+                    # ),
+                    "p_success": motion_plans[i].p_success,
+                    # "values": motion_plans[i].values,
+                    # "visited_actions": motion_plans[i].visited_actions,
+                    # "scaled_visited_actions": scale_actions(
+                    #     motion_plans[i].visited_actions, env, action_skeleton
+                    # ),
+                    # "visited_states": motion_plans[i].visited_states,
+                    "p_visited_success": motion_plans[i].p_visited_success,
+                    # "visited_values": motion_plans[i].visited_values,
+                }
+                for i in range(len(task_plans))
+                if i != idx_best
+            ],
+        }
+        np.savez_compressed(f, **save_dict)  # type: ignore
 
 
 def main(args: argparse.Namespace) -> None:
