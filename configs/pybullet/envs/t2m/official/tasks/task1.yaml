@@ -36,9 +36,9 @@ env_kwargs:
       goal_predicates:
         - on(hook, table)
       supported_goal_predicates:
-        - "under"
-        - "on"
-        - "inhand"
+        - under(a, b)
+        - on(a, b)
+        - inhand(a)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 

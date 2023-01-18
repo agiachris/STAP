@@ -766,10 +766,9 @@ class TableEnv(PybulletEnv):
         """Return list of supported task-agnostic goal predicates signatures."""
         if self.task.supported_goal_predicates is None:
             raise ValueError("Supported goal predicates not declared in task.")
-        try:
-            return [predicates.SUPPORTED_GOAL_PREDICATES[pred]["signature"] for pred in self.task.supported_goal_predicates]
-        except KeyError:
-            raise ValueError("Task require unsupported goal predicates.")
+        if not all(pred in predicates.SUPPORTED_GOAL_PREDICATES for pred in self.task.supported_goal_predicates):
+            ValueError("Task require unsupported goal predicates.")
+        return self.task.supported_goal_predicates
 
     def is_goal_state(self, sim: bool = True) -> bool:
         """Returns True if the goal predicates hold in the current state."""
