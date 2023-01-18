@@ -26,13 +26,14 @@ def get_goal_from_lm(
     examples: Optional[List[InContextExample]] = None,
     lm_cfg: Optional[LMConfig] = LMConfig(),
     auth: Optional[Authentication] = None,
+    verbose: bool = False,
 ) -> List[Union[List[str], Dict[str, str]]]:
     # generate header, in context example, and current example prompts
     header_prompt = InContextExample(
         predicates=["on(a, b)", "inhand(a)", "under(a, b)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        # primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
-        use_predicates=True,
+        use_predicates=False,
     )
     object_relationships_str = [str(prop) for prop in object_relationships]
     current_prompt = CurrentExample(
@@ -65,6 +66,7 @@ def get_goal_from_lm(
         lm_cfg=lm_cfg,
         auth=auth,
         lm_cache=lm_cache,
+        verbose=verbose,
     )
 
     return results.parsed_goal_predicted, lm_cache

@@ -316,6 +316,22 @@ def evaluate_plan(
 
     return rewards
 
+def get_printable_object_relationships_str(obj_rels: List[str], max_row_length: int = 60) -> None:
+    """
+    Get printable object relationships string.
+    """
+    overall_str: str = ""
+    curr_line: str = "obj_rel: "
+    # add curr_line to env._recording_text before getting too long
+    # then add "\n" to the front of new curr_line
+    for obj_rel in obj_rels:
+        if len(curr_line) + len(obj_rel) + 1 > max_row_length:
+            overall_str += curr_line + "\n"
+            curr_line = ""
+        curr_line += obj_rel + ", "
+
+    overall_str += curr_line
+    return overall_str
 
 def vizualize_predicted_plan(
     save_path_suffix: Union[int, str],
@@ -337,19 +353,6 @@ def vizualize_predicted_plan(
     recorder = recording.Recorder()
     recorder.start()
 
-    def add_object_relationships(obj_rels: List[str]) -> None:
-        MAX_ROW_LENGTH = 60
-        curr_line = "\nobj_rel: " if env._recording_text != "" else "obj_rel: "
-        # add curr_line to env._recording_text before getting too long
-        # then add "\n" to the front of new curr_line
-        for obj_rel in obj_rels:
-            if len(curr_line) + len(obj_rel) + 1 > MAX_ROW_LENGTH:
-                env._recording_text += curr_line + "\n"
-                curr_line = ""
-            curr_line += obj_rel + ", "
-
-        env._recording_text += curr_line
-
     for i, (primitive, predicted_state, action) in enumerate(
         zip(action_skeleton, plan.states[:-1], plan.actions)
     ):
@@ -367,9 +370,8 @@ def vizualize_predicted_plan(
             )
 
         if object_relationships_list is not None:
-            add_object_relationships(object_relationships_list[i])
+            env._recording_text +=  "\n" + get_printable_object_relationships_str(object_relationships_list[i])
 
-        # recorder.add_frame(frame=env.render())
         env.set_observation(predicted_state)
         recorder.add_frame(frame=env.render())
 
@@ -382,7 +384,7 @@ def vizualize_predicted_plan(
         else:
             env._recording_text = custom_recording_text
     if object_relationships_list is not None:
-        add_object_relationships(object_relationships_list[-1])
+        env._recording_text += get_printable_object_relationships_str(object_relationships_list[-1])
     env.set_observation(plan.states[-1])
     recorder.add_frame(frame=env.render())
 
