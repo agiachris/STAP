@@ -9,7 +9,7 @@ function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
-        sbatch scripts/train/train_juno.sh "${CMD}"
+        sbatch scripts/train/train_juno_cpu.sh "${CMD}"
     elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
         sbatch scripts/train/train_gcp.sh "${CMD}"
     else
