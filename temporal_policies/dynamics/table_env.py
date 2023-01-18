@@ -228,6 +228,9 @@ class TableEnvDynamics(LatentDynamics):
             # TODO(klin) the following moves the EE to an awkward position;
             # may need to do quaternion computation for accurate x-y positions
             if "box" in primitive_str:
+                new_predicted_next_state[
+                    ..., TableEnv.EE_OBSERVATION_IDX, Z_IDX
+                ] = ACTION_CONSTRAINTS["max_lift_height"]
                 target_object_original_state = state[..., target_object_idx, :]
                 new_predicted_next_state[
                     ..., TableEnv.EE_OBSERVATION_IDX, :Z_IDX
@@ -248,7 +251,7 @@ class TableEnvDynamics(LatentDynamics):
             elif "rack" in primitive_str:
                 destination_object_surface_offset = Rack.TOP_THICKNESS
             else:
-                raise ValueError("Unknown destination object")
+                return new_predicted_next_state
 
             # hardcoded object heights
             if "box" in primitive_str:
@@ -256,11 +259,11 @@ class TableEnvDynamics(LatentDynamics):
             elif "hook" in primitive_str:
                 median_object_height = 0.04
             else:
-                raise ValueError("Unknown destination object")
+                return new_predicted_next_state
 
             new_predicted_next_state[..., source_object_idx, 2] = (
                 destination_object_state[..., 2]
-                + destination_object_surface_offset / 2
+                + destination_object_surface_offset
                 + median_object_height / 2
             )
         return new_predicted_next_state
