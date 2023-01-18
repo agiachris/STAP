@@ -63,10 +63,11 @@ fi
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 
 symbolic_action_type="valid"
-primitives=("pick" "place" "pull" "push")
 train_seeds=("0" "1" "2" "3" "4" "5" "6" "7")
 validation_seeds=("8" "9")
 data_checkpoint_path="models/20230116/datasets"
+
+# primitives=("pick" "place" "pull" "push")
 
 # for primitive in "${primitives[@]}"; do
 #     ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
@@ -86,27 +87,27 @@ data_checkpoint_path="models/20230116/datasets"
 # done
 
 # Sweeps
-primitives=("place")
+# primitives=("pick" "push" "pull")
 
-trainer_config_path="configs/pybullet/trainers/value_sweeps"
-trainer_sweeps=(
-    "value_l2-0.0001"
-    "value_l2-0.001"
-    "value_l2-0.01"
-    "value_l2-0.1"
-)
+# trainer_config_path="configs/pybullet/trainers/value_sweeps"
+# trainer_sweeps=(
+    # "value_l2-0.0001"
+    # "value_l2-0.001"
+    # "value_l2-0.01"
+    # "value_l2-0.1"
+# )
 
-agent_config_path="configs/pybullet/agents/multi_stage/value_sweeps"
-agent_sweeps=(
-    "sac_value_hids-2_dims-1024"
-    "sac_value_hids-2_dims-512"
-    "sac_value_hids-3_dims-1024"
-    "sac_value_hids-3_dims-256"
-    "sac_value_hids-3_dims-512"
-    "sac_value_hids-4_dims-1024"
-    "sac_value_hids-4_dims-256"
-    "sac_value_hids-4_dims-512"
-)
+# agent_config_path="configs/pybullet/agents/multi_stage/value_sweeps"
+# agent_sweeps=(
+    # "sac_value_hids-2_dims-1024"
+    # "sac_value_hids-2_dims-512"
+    # "sac_value_hids-3_dims-1024"
+    # "sac_value_hids-3_dims-256"
+    # "sac_value_hids-3_dims-512"
+    # "sac_value_hids-4_dims-1024"
+    # "sac_value_hids-4_dims-256"
+    # "sac_value_hids-4_dims-512"
+# )
 
 for primitive in "${primitives[@]}"; do
     ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
