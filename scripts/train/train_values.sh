@@ -114,7 +114,7 @@ agent_sweeps=(
 for primitive in "${primitives[@]}"; do
     ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
     
-    for trainer_name in "${trainer_sweeps}"; do
+    for trainer_name in "${trainer_sweeps[@]}"; do
         TRAINER_CONFIG="${trainer_config_path}/${trainer_name}.yaml"
     
         for agent_name in "${agent_sweeps[@]}"; do
