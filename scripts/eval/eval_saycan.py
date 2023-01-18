@@ -291,51 +291,50 @@ def eval_saycan(
     all_prior_object_relationships: List[List[str]] = []
     all_executed_actions: List[str] = []
 
-    observation, info = env.reset()
-    done = False
-
-    # get goal props
-    objects = list(env.objects.keys())
-    object_relationships = get_object_relationships(
-        observation, env.objects, available_predicates, use_hand_state=False
-    )
-    object_relationships = [str(prop) for prop in object_relationships]
-    all_prior_object_relationships.append(object_relationships)
-    lm_cfg.engine = "code-davinci-002"
-
-    goal_props_predicted, lm_cache = get_goal_from_lm(
-        env.instruction,
-        objects,
-        object_relationships,
-        pddl_domain,
-        pddl_problem,
-        examples=examples,
-        lm_cfg=lm_cfg,
-        auth=auth,
-        lm_cache=lm_cache,
-        verbose=verbose,
-    )
-    goal_props_ground_truth: List[str] = [str(goal) for goal in env.goal_propositions]
-    save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
-
-    if use_ground_truth_goal_props:
-        goal_props_to_use = goal_props_ground_truth
-    else:
-        goal_props_to_use = goal_props_predicted
-
-    goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
-        goal_props_to_use, possible_props
-    )
-
-    print(colored(f"goal props predicted: {goal_props_predicted}", "blue"))
-    print(colored(f"minimal goal props: {goal_props_ground_truth}", "blue"))
-
     num_successes_on_predicted_goal_props: int = 0
     num_successes_on_ground_truth_goal_props: int = 0
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
     for idx_iter, (seed, loaded_plan) in enumerate(pbar):
+        observation, info = env.reset()
+
+        # get goal props
+        objects = list(env.objects.keys())
+        object_relationships = get_object_relationships(
+            observation, env.objects, available_predicates, use_hand_state=False
+        )
+        object_relationships = [str(prop) for prop in object_relationships]
+        all_prior_object_relationships.append(object_relationships)
+        lm_cfg.engine = "code-davinci-002"
+
+        goal_props_predicted, lm_cache = get_goal_from_lm(
+            env.instruction,
+            objects,
+            object_relationships,
+            pddl_domain,
+            pddl_problem,
+            examples=examples,
+            lm_cfg=lm_cfg,
+            auth=auth,
+            lm_cache=lm_cache,
+            verbose=verbose,
+        )
+        goal_props_ground_truth: List[str] = [str(goal) for goal in env.goal_propositions]
+        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+
+        if use_ground_truth_goal_props:
+            goal_props_to_use = goal_props_ground_truth
+        else:
+            goal_props_to_use = goal_props_predicted
+
+        goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
+            goal_props_to_use, possible_props
+        )
+
+        print(colored(f"goal props predicted: {goal_props_predicted}", "blue"))
+        print(colored(f"minimal goal props: {goal_props_ground_truth}", "blue"))
+
         done: bool = False
         reached_goal_prop: bool = False
 
