@@ -181,44 +181,49 @@ class TableEnv(PybulletEnv):
         """
         super().__init__(name=name, gui=gui)
 
-        # Launch external reset process.
-        if reset_queue_size <= 0 or num_processes <= 1:
-            self._process_pipes: Optional[
-                List[multiprocessing.connection.Connection]
-            ] = None
-            self._seed_queue: Optional[
-                multiprocessing.Queue[Tuple[int, Optional[dict]]]
-            ] = None
-            self._seed_buffer = None
-            self._reset_processes = None
-        else:
-            pipes = [multiprocessing.Pipe() for idx_process in range(num_processes - 1)]
-            self._process_pipes = [pipe[0] for pipe in pipes]
-            self._seed_queue = multiprocessing.Queue()
-            self._seed_buffer = multiprocessing.Semaphore(reset_queue_size)
-            self._reset_processes = [
-                multiprocessing.Process(
-                    target=TableEnv._queue_reset_seeds,
-                    daemon=True,
-                    kwargs={
-                        "process_id": (idx_process, num_processes - 1),
-                        "pipe": pipe[1],
-                        "seed_queue": self._seed_queue,
-                        "seed_buffer": self._seed_buffer,
-                        "name": name,
-                        "primitives": primitives,
-                        "tasks": tasks,
-                        "robot_config": robot_config,
-                        "objects": objects,
-                        "object_groups": object_groups,
-                        "object_tracker_config": object_tracker_config,
-                        "seed": child_process_seed if idx_process == 0 else None,
-                    },
-                )
-                for idx_process, pipe in enumerate(pipes)
-            ]
-            for process in self._reset_processes:
-                process.start()
+        # TODO: Bug-fix multiprocessing stalls.
+        # Launch external reset process. 
+        # if reset_queue_size <= 0 or num_processes <= 1:
+        #     self._process_pipes: Optional[
+        #         List[multiprocessing.connection.Connection]
+        #     ] = None
+        #     self._seed_queue: Optional[
+        #         multiprocessing.Queue[Tuple[int, Optional[dict]]]
+        #     ] = None
+        #     self._seed_buffer = None
+        #     self._reset_processes = None
+        # else:
+        #     pipes = [multiprocessing.Pipe() for idx_process in range(num_processes - 1)]
+        #     self._process_pipes = [pipe[0] for pipe in pipes]
+        #     self._seed_queue = multiprocessing.Queue()
+        #     self._seed_buffer = multiprocessing.Semaphore(reset_queue_size)
+        #     self._reset_processes = [
+        #         multiprocessing.Process(
+        #             target=TableEnv._queue_reset_seeds,
+        #             daemon=True,
+        #             kwargs={
+        #                 "process_id": (idx_process, num_processes - 1),
+        #                 "pipe": pipe[1],
+        #                 "seed_queue": self._seed_queue,
+        #                 "seed_buffer": self._seed_buffer,
+        #                 "name": name,
+        #                 "primitives": primitives,
+        #                 "tasks": tasks,
+        #                 "robot_config": robot_config,
+        #                 "objects": objects,
+        #                 "object_groups": object_groups,
+        #                 "object_tracker_config": object_tracker_config,
+        #                 "seed": child_process_seed if idx_process == 0 else None,
+        #             },
+        #         )
+        #         for idx_process, pipe in enumerate(pipes)
+        #     ]
+        #     for process in self._reset_processes:
+        #         process.start()
+        self._process_pipes: Optional[List[multiprocessing.connection.Connection]] = None
+        self._seed_queue: Optional[multiprocessing.Queue[Tuple[int, Optional[dict]]]] = None
+        self._seed_buffer = None
+        self._reset_processes = None
         self._process_id: Optional[Tuple[int, int]] = None
 
         # Load configs.
