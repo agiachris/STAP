@@ -54,9 +54,6 @@ plots_path="plots"
 exp_name="20230117/value"
 AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_value.yaml"
 
-# exp_name="20230117/value_ens"
-# AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value.yaml"
-
 # Pybullet.
 TRAINER_CONFIG="configs/pybullet/trainers/value.yaml"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
@@ -88,51 +85,51 @@ data_checkpoint_path="models/20230116/datasets"
 #     train_value
 # done
 
-# Sweeps.
-primitives=("place")
+# Sweeps
+# primitives=("place")
 
-trainer_config_path="configs/pybullet/trainers/value_sweeps"
-trainer_sweeps=(
-    "value_l2-0.0001"
-    "value_l2-0.001"
-    "value_l2-0.01"
-    "value_l2-0.1"
-)
+# trainer_config_path="configs/pybullet/trainers/value_sweeps"
+# trainer_sweeps=(
+#     "value_l2-0.0001"
+#     "value_l2-0.001"
+#     "value_l2-0.01"
+#     "value_l2-0.1"
+# )
 
-agent_config_path="configs/pybullet/agents/multi_stage/value_sweeps"
-agent_sweeps=(
-    "sac_value_hids-2_dims-1024"
-    "sac_value_hids-2_dims-512"
-    "sac_value_hids-3_dims-1024"
-    "sac_value_hids-3_dims-256"
-    "sac_value_hids-3_dims-512"
-    "sac_value_hids-4_dims-1024"
-    "sac_value_hids-4_dims-256"
-    "sac_value_hids-4_dims-512"
-)
+# agent_config_path="configs/pybullet/agents/multi_stage/value_sweeps"
+# agent_sweeps=(
+#     "sac_value_hids-2_dims-1024"
+#     "sac_value_hids-2_dims-512"
+#     "sac_value_hids-3_dims-1024"
+#     "sac_value_hids-3_dims-256"
+#     "sac_value_hids-3_dims-512"
+#     "sac_value_hids-4_dims-1024"
+#     "sac_value_hids-4_dims-256"
+#     "sac_value_hids-4_dims-512"
+# )
 
-for primitive in "${primitives[@]}"; do
-    ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
+# for primitive in "${primitives[@]}"; do
+#     ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
     
-    for trainer_name in "${trainer_sweeps[@]}"; do
-        TRAINER_CONFIG="${trainer_config_path}/${trainer_name}.yaml"
+#     for trainer_name in "${trainer_sweeps[@]}"; do
+#         TRAINER_CONFIG="${trainer_config_path}/${trainer_name}.yaml"
     
-        for agent_name in "${agent_sweeps[@]}"; do
-            AGENT_CONFIG="${agent_config_path}/${agent_name}.yaml"
+#         for agent_name in "${agent_sweeps[@]}"; do
+#             AGENT_CONFIG="${agent_config_path}/${agent_name}.yaml"
 
-            TRAIN_DATA_CHECKPOINTS=""
-            for seed in "${train_seeds[@]}"; do
-                data_path="${data_checkpoint_path}/train_${symbolic_action_type}_${primitive}_${seed}/train_data"
-                TRAIN_DATA_CHECKPOINTS="${TRAIN_DATA_CHECKPOINTS} ${data_path}"
-            done
+#             TRAIN_DATA_CHECKPOINTS=""
+#             for seed in "${train_seeds[@]}"; do
+#                 data_path="${data_checkpoint_path}/train_${symbolic_action_type}_${primitive}_${seed}/train_data"
+#                 TRAIN_DATA_CHECKPOINTS="${TRAIN_DATA_CHECKPOINTS} ${data_path}"
+#             done
 
-            for seed in "${validation_seeds[@]}"; do
-                data_path="${data_checkpoint_path}/validation_${symbolic_action_type}_${primitive}_${seed}/train_data"
-                EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
-            done
+#             for seed in "${validation_seeds[@]}"; do
+#                 data_path="${data_checkpoint_path}/validation_${symbolic_action_type}_${primitive}_${seed}/train_data"
+#                 EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
+#             done
 
-            NAME="${primitive}_${trainer_name}_${agent_name}"
-            train_value
-        done
-    done
-done
+#             NAME="${primitive}_${trainer_name}_${agent_name}"
+#             train_value
+#         done
+#     done
+# done
