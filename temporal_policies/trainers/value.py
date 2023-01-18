@@ -39,7 +39,7 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
-        num_train_steps: int = 500000,
+        num_train_steps: int = 1000000,
         num_eval_episodes: int = 1000,
         eval_freq: int = 1000,
         checkpoint_freq: int = 50000,

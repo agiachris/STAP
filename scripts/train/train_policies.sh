@@ -86,29 +86,30 @@ DATA_CHECKPOINT_PATH="models/20230116/datasets"
 
 # Launch primitive jobs.
 PRIMITIVE="pick"
-CRITIC_CHECKPOINT_PATH="models/20230117/value"
+CRITIC_CHECKPOINT_PATH="models/20230118/value"
 CRITIC_CHECKPOINTS=(
     "pick/final_model"
 )
 run_policy
 
 PRIMITIVE="place"
-CRITIC_CHECKPOINT_PATH="models/20230117/value"
+CRITIC_CHECKPOINT_PATH="models/20230118/value"
 CRITIC_CHECKPOINTS=(
     "place/final_model"
     "place_value_l2-0.0001_sac_value_hids-4_dims-512/final_model"
+    "place_value_l2-0.00005_sac_value_hids-4_dims-512/final_model"
 )
 run_policy
 
 PRIMITIVE="pull"
-CRITIC_CHECKPOINT_PATH="models/20230117/value"
+CRITIC_CHECKPOINT_PATH="models/20230118/value"
 CRITIC_CHECKPOINTS=(
     "pull/final_model"
 )
 run_policy
 
 PRIMITIVE="push"
-CRITIC_CHECKPOINT_PATH="models/20230117/value"
+CRITIC_CHECKPOINT_PATH="models/20230118/value"
 CRITIC_CHECKPOINTS=(
     "push/final_model"
 )

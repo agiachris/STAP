@@ -39,7 +39,7 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
-        num_train_steps: int = 500000,
+        num_train_steps: int = 1000000,
         num_eval_episodes: int = 100,
         eval_freq: int = 1000,
         checkpoint_freq: int = 50000,
@@ -146,9 +146,6 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
-            eval_env_config = pathlib.Path(checkpoint).parent / "eval/env_config.yaml"
-            if eval_env_config.exists():
-                eval_env = envs.load(eval_env_config, **env_kwargs)
 
         self._eval_env = self.agent.env if eval_env is None else eval_env
         self._episode_length = 0
