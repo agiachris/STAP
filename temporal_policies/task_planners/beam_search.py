@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from termcolor import colored
+from configs.base_config import LMConfig
 from scripts.eval.eval_saycan import format_saycan_scoring_table
 from torch import Tensor
 
@@ -89,6 +90,10 @@ class Node:
     @property
     def action_sequence_q_product_post_optimization(self):
         return self.motion_plan_post_optimization.values.prod()
+
+    @property
+    def last_action_q_value_post_optimization(self):
+        return self.motion_plan_post_optimization.values[-1]
 
     @property
     def root_node_geometric_state(self) -> np.ndarray:
@@ -217,7 +222,7 @@ class BeamSearchProblem(SearchProblem):
         pddl_domain_file: str,
         pddl_problem_file: str,
         examples: List[Dict[str, Any]],
-        lm_cfg: Dict[str, Any],
+        lm_cfg: LMConfig,
         auth: Optional[Authentication] = None,
         lm_cache: Optional[Dict[str, str]] = None,
         lm_cache_file: Optional[str] = None,
@@ -259,7 +264,8 @@ class BeamSearchProblem(SearchProblem):
         """Returns True if the node is a goal state."""
         print(
             colored(
-                f"Checking if node is end: {node.action_skeleton_as_strings}", "green"
+                f"is_end: {node.action_skeleton_as_strings}",
+                "light_yellow",
             )
         )
         print(f"Action skeleton values: {node.motion_plan_post_optimization.values}")
@@ -339,6 +345,8 @@ class BeamSearchProblem(SearchProblem):
         """Returns num_successors successors of a given node."""
         new_nodes: List[Node] = []
         # TODO(klin) should be able to configure custom things
+        self.lm_cfg.engine = "text-davinci-003"
+        self.lm_cfg.echo = False
         actions, lm_cache = get_next_actions_from_lm(
             self.instruction,
             self.goal_props,
@@ -362,6 +370,8 @@ class BeamSearchProblem(SearchProblem):
             lm_cache=self.lm_cache,
         )
         self.lm_cache = lm_cache
+        self.lm_cfg.echo = True
+        self.lm_cfg.engine = "code-davinci-002"
         save_lm_cache(pathlib.Path(self.lm_cache_file), lm_cache)
 
         env_lst = [self.env] * len(actions)
@@ -407,6 +417,7 @@ class BeamSearchAlgorithm:
         self,
         problem: BeamSearchProblem,
         visualize: bool = False,
+        visualize_path: str = None,
     ) -> List[Node]:
         """
         Solves a given problem using beam search.
@@ -467,7 +478,7 @@ class BeamSearchAlgorithm:
                         node.env,
                         node.action_skeleton_as_primitives,
                         node.motion_plan_post_optimization,
-                        path=pathlib.Path("plots/ilm_tamp/"),
+                        path=visualize_path,
                         object_relationships_list=node.object_relationships_sequence_post_optimization,
                         custom_recording_text=node.custom_recording_text_sequence,
                         file_extensions=["mp4"],
@@ -475,10 +486,21 @@ class BeamSearchAlgorithm:
 
             # check if any of the successors are a solution
             results: List[bool] = [problem.is_end(node) for node in next_beam]
-            if any(results):
+
+            # remove any successors/results with a latest node with action value less than 0.5
+            filtered_results = []
+            filtered_successors = []
+            for (successor, result) in zip(next_beam, results):
+                if successor.action_sequence_q_product_post_optimization > 0.5:
+                    filtered_results.append(result)
+                    filtered_successors.append(successor)
+
+            if any(filtered_results):
                 return [
                     successor
-                    for (successor, result) in zip(successors, results)
+                    for (successor, result) in zip(
+                        filtered_successors, filtered_results
+                    )
                     if result
                 ]
 
