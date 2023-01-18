@@ -2,11 +2,11 @@ trainer: ValueTrainer
 trainer_kwargs:
   dataset_class: ReplayBuffer
   dataset_kwargs:
-    capacity: 800000
+    capacity: 1600000
     batch_size: 128
     sample_strategy: uniform
   eval_dataset_kwargs:
-    capacity: 200000
+    capacity: 400000
     batch_size: 128
     sample_strategy: uniform
 

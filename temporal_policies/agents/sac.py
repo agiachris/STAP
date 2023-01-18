@@ -228,11 +228,33 @@ class SAC(rl.RLAgent):
         Returns:
             Dict of optimizers for all trainable networks.
         """
-        optimizers = {
-            "actor": optimizer_class(self.actor.parameters(), **optimizer_kwargs),
-            "critic": optimizer_class(self.critic.parameters(), **optimizer_kwargs),
-            "log_alpha": optimizer_class([self.log_alpha], **optimizer_kwargs),
-        }
+        keys = ["actor", "critic", "log_alpha"]    
+        if (
+            any(k not in optimizer_kwargs for k in keys)
+            and any(k in optimizer_kwargs for k in keys)
+            ):
+            raise ValueError(f"Must supply general optimizer_kwargs or optimizer_kwargs for each of {keys}")
+
+        optimizers = {}
+        for key in keys:
+            try:
+                kwargs = optimizer_kwargs[key]
+            except KeyError:
+                kwargs = optimizer_kwargs
+            
+            if not hasattr(self, key):
+                raise ValueError(f"SAC does not have attribute self.{key}.")
+            learnable = getattr(self, key)
+
+            if isinstance(learnable, torch.nn.Module):
+                parameters = learnable.parameters()
+            elif isinstance(learnable, torch.Tensor):
+                parameters = [learnable]
+            else:
+                raise ValueError(f"Optimization not supported for {learnable}.")
+
+            optimizers[key] = optimizer_class(parameters, **kwargs)
+            
         return optimizers
 
     def train_step(

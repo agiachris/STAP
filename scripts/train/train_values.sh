@@ -22,16 +22,16 @@ function train_value {
     args="${args} --trainer-config ${TRAINER_CONFIG}"
     args="${args} --agent-config ${AGENT_CONFIG}"
     args="${args} --env-config ${ENV_CONFIG}"
+    args="${args} --train-data-checkpoints ${TRAIN_DATA_CHECKPOINTS}"
+    args="${args} --eval-data-checkpoints ${EVAL_DATA_CHECKPOINTS}"
+    args="${args} --seed 0"
     args="${args} ${ENV_KWARGS}"
     if [ ! -z "${ENCODER_CHECKPOINT}" ]; then
         args="${args} --encoder-checkpoint ${ENCODER_CHECKPOINT}"
     fi
-    args="${args} --train-data-checkpoints ${TRAIN_DATA_CHECKPOINTS}"
-    args="${args} --eval-data-checkpoints ${EVAL_DATA_CHECKPOINTS}"
     if [ ! -z "${NAME}" ]; then
         args="${args} --name ${NAME}"
     fi
-    args="${args} --seed 0"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${VALUE_OUTPUT_PATH}_debug"
         args="${args} --overwrite"
@@ -90,35 +90,49 @@ data_checkpoint_path="models/20230116/datasets"
 
 # Sweeps.
 primitives=("place")
-config_path="configs/pybullet/agents/multi_stage/value_sweeps"
-value_sweeps=(
-    # "sac_medium"
-    # "sac_large"
-    # "sac_deep"
-    # "sac_deeper"
-    # "sac_medium_deep"
-    # "sac_large_deep"
-    # "sac_medium_deeper"
-    "sac_large_deeper"
+
+trainer_config_path="configs/pybullet/trainers/value_sweeps"
+trainer_sweeps=(
+    "value_l2-0.0001"
+    "value_l2-0.001"
+    "value_l2-0.01"
+    "value_l2-0.1"
+)
+
+agent_config_path="configs/pybullet/agents/multi_stage/value_sweeps"
+agent_sweeps=(
+    "sac_value_hids-2_dims-1024"
+    "sac_value_hids-2_dims-512"
+    "sac_value_hids-3_dims-1024"
+    "sac_value_hids-3_dims-256"
+    "sac_value_hids-3_dims-512"
+    "sac_value_hids-4_dims-1024"
+    "sac_value_hids-4_dims-256"
+    "sac_value_hids-4_dims-512"
 )
 
 for primitive in "${primitives[@]}"; do
-    for value_name in "${value_sweeps[@]}"; do
-        NAME="${primitive}/${value_name}"
-        AGENT_CONFIG="${config_path}/${value_name}.yaml"
-        ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
+    ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${primitive}.yaml"
+    
+    for trainer_name in "${trainer_sweeps}"; do
+        TRAINER_CONFIG="${trainer_config_path}/${trainer_name}.yaml"
+    
+        for agent_name in "${agent_sweeps[@]}"; do
+            AGENT_CONFIG="${agent_config_path}/${agent_name}.yaml"
 
-        TRAIN_DATA_CHECKPOINTS=""
-        for seed in "${train_seeds[@]}"; do
-            data_path="${data_checkpoint_path}/train_${symbolic_action_type}_${primitive}_${seed}/train_data"
-            TRAIN_DATA_CHECKPOINTS="${TRAIN_DATA_CHECKPOINTS} ${data_path}"
+            TRAIN_DATA_CHECKPOINTS=""
+            for seed in "${train_seeds[@]}"; do
+                data_path="${data_checkpoint_path}/train_${symbolic_action_type}_${primitive}_${seed}/train_data"
+                TRAIN_DATA_CHECKPOINTS="${TRAIN_DATA_CHECKPOINTS} ${data_path}"
+            done
+
+            for seed in "${validation_seeds[@]}"; do
+                data_path="${data_checkpoint_path}/validation_${symbolic_action_type}_${primitive}_${seed}/train_data"
+                EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
+            done
+
+            NAME="${primitive}/${trainer_name}/${agent_name}"
+            train_value
         done
-
-        for seed in "${validation_seeds[@]}"; do
-            data_path="${data_checkpoint_path}/validation_${symbolic_action_type}_${primitive}_${seed}/train_data"
-            EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
-        done
-
-        train_value
     done
 done

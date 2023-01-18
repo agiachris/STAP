@@ -1,4 +1,4 @@
-trainer: PolicyTrainer
+trainer: ValueTrainer
 trainer_kwargs:
   dataset_class: ReplayBuffer
   dataset_kwargs:
@@ -9,13 +9,19 @@ trainer_kwargs:
     capacity: 400000
     batch_size: 128
     sample_strategy: uniform
-    
-  optimizer_class: Adam
-  optimizer_kwargs:
-    lr: 0.0001
 
-  num_train_steps: 500000
-  num_eval_episodes: 100
+  optimizer_class: Adam
+  optimizer_kwargs:   
+    actor:
+      lr: 0.001
+    critic:
+      lr: 0.001
+      weight_decay: 0.001
+    log_alpha:
+      lr: 0.001
+  
+  num_train_steps: 100000
+  num_eval_episodes: 1000
   eval_freq: 1000
   checkpoint_freq: 50000
   log_freq: 1000
