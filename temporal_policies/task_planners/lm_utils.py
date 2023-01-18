@@ -379,7 +379,7 @@ def generate_lm_response(
 
         overall_prompt += goal
         if result.goal_ground_truth is not None:
-            success = check_goal_predicates_equivalent(
+            success = check_goal_propositions_equivalent(
                 result.goal_ground_truth, result.goal_predicted
             )
             result.goal_success = success
@@ -628,7 +628,7 @@ def predicate_scheme_to_python_syntax(scheme_syntax: str) -> str:
 
 
 # This is more pysymbolic utils i.e. PDDL utils?
-def check_goal_predicates_equivalent(
+def check_goal_propositions_equivalent(
     expected_predicates: List[str], predicted_predicates: str
 ) -> bool:
     """

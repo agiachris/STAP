@@ -573,7 +573,7 @@ class PropTestBox(Box):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 
@@ -600,7 +600,7 @@ class PropTestUrdf(Urdf):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 
@@ -620,7 +620,7 @@ class PropTestRack(Object):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 
@@ -645,7 +645,7 @@ class PropTestNull(Object):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 
@@ -670,7 +670,7 @@ class PropTestHook(Object):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 

@@ -17,10 +17,10 @@ def main(env_config: str, seed: Optional[int] = None) -> None:
         seed = None
 
         print("Reset seed:", info["seed"])
-        print("Supported goal predicates:", env.supported_goal_predicates)
+        print("Supported goal predicates:", env.supported_predicates)
         print("Task instruction:", env.instruction)
-        print("Goal predicates:", env.goal_predicates)
-        print("Supported goal predicates:", env.supported_goal_predicates)
+        print("Goal predicates:", env.goal_propositions)
+        print("Supported goal predicates:", env.supported_predicates)
         print("")
 
         action_skeleton = env.task.action_skeleton

@@ -748,6 +748,19 @@ class Inhand(Predicate):
 
         return utils.is_inhand(obj, sim=sim)
 
+    def value_simple(
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = False,
+    ) -> bool:
+        obj = self.get_arg_objects(objects)[0]
+        if obj.isinstance(Null):
+            return False
+
+        return utils.is_inhand(obj, sim=sim)
+
 
 class Under(Predicate):
     """Unary predicate enforcing that an object be placed underneath another."""
@@ -767,6 +780,23 @@ class Under(Predicate):
 
         if not utils.is_under(child_obj, parent_obj, sim=sim):
             dbprint(f"{self}.value():", False)
+            return False
+
+        return True
+
+    def value_simple(
+        self,
+        objects: Dict[str, Object],
+        robot: Optional[Robot] = None,
+        state: Optional[Sequence["Predicate"]] = None,
+        sim: bool = False,
+    ) -> bool:
+        child_obj, parent_obj = self.get_arg_objects(objects)
+        if child_obj.isinstance(Null):
+            return True
+
+        if not utils.is_under(child_obj, parent_obj, sim=sim):
+            dbprint(f"{self}.value_simple():", False)
             return False
 
         return True
@@ -1007,7 +1037,10 @@ class On(Predicate):
             pose = math.Pose(pos=xyz_world_frame, quat=quat.coeffs)
             child_obj.set_pose(pose)
 
-            if any(not prop.value(robot=robot, objects=objects, state=state) for prop in propositions):
+            if any(
+                not prop.value(robot=robot, objects=objects, state=state)
+                for prop in propositions
+            ):
                 samples += 1
                 continue
             success = True
@@ -1040,6 +1073,13 @@ class On(Predicate):
                 return False
 
         return True
+
+    def value_simple(self, objects: Dict[str, Object], sim: bool = False) -> bool:
+        child_obj, parent_obj = self.get_arg_objects(objects)
+        if child_obj.isinstance(Null):
+            return True
+
+        return utils.is_on(child_obj, parent_obj, sim=sim)
 
     @staticmethod
     def compute_stable_region(

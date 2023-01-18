@@ -47,8 +47,8 @@ class Task:
     initial_state: List[predicates.Predicate]
     prob: float
     instruction: Optional[str]
-    goal_predicates: Optional[List[predicates.Predicate]]
-    supported_goal_predicates: Optional[List[str]]
+    goal_propositions: Optional[List[predicates.Predicate]]
+    supported_predicates: Optional[List[str]]
 
     @staticmethod
     def create(
@@ -57,8 +57,8 @@ class Task:
         initial_state: List[str],
         prob: Optional[float] = None,
         instruction: Optional[str] = None,
-        goal_predicates: Optional[List[str]] = None,
-        supported_goal_predicates: Optional[List[str]] = None,
+        goal_propositions: Optional[List[str]] = None,
+        supported_predicates: Optional[List[str]] = None,
     ) -> "Task":
 
         # Primitives.
@@ -73,16 +73,16 @@ class Task:
 
         # Goal predicates.
         goal_propositions = None
-        if goal_predicates is not None:
-            goal_propositions = [predicates.Predicate.create(pred) for pred in goal_predicates]
+        if goal_propositions is not None:
+            goal_propositions = [predicates.Predicate.create(pred) for pred in goal_propositions]
 
         return Task(
             action_skeleton=primitives,
             initial_state=initial_propositions,
             prob=float("nan") if prob is None else prob,
             instruction=instruction,
-            goal_predicates=goal_propositions,
-            supported_goal_predicates=supported_goal_predicates
+            goal_propositions=goal_propositions,
+            supported_predicates=supported_predicates
         )
 
 
@@ -755,20 +755,20 @@ class TableEnv(PybulletEnv):
         return self.task.instruction
 
     @property
-    def goal_predicates(self) -> List[predicates.Predicate]:
+    def goal_propositions(self) -> List[predicates.Predicate]:
         """Return list of task-specific goal predicates."""
-        if self.task.goal_predicates is None:
+        if self.task.goal_propositions is None:
             raise ValueError("Goal predicates not declared in task.")
-        return self.task.goal_predicates
+        return self.task.goal_propositions
 
     @property
-    def supported_goal_predicates(self) -> List[str]:
+    def supported_predicates(self) -> List[str]:
         """Return list of supported task-agnostic goal predicates signatures."""
-        if self.task.supported_goal_predicates is None:
+        if self.task.supported_predicates is None:
             raise ValueError("Supported goal predicates not declared in task.")
-        if not all(pred in predicates.SUPPORTED_GOAL_PREDICATES for pred in self.task.supported_goal_predicates):
+        if not all(pred in predicates.SUPPORTED_PREDICATES for pred in self.task.supported_predicates):
             ValueError("Task require unsupported goal predicates.")
-        return self.task.supported_goal_predicates
+        return self.task.supported_predicates
 
     def is_goal_state(self, sim: bool = True) -> bool:
         """Returns True if the goal predicates hold in the current state."""
@@ -779,7 +779,7 @@ class TableEnv(PybulletEnv):
                 state=self.task.initial_state,
                 sim=sim,
             )
-            for pred in self.goal_predicates
+            for pred in self.goal_propositions
         )
 
     def _is_any_object_below_table(self) -> bool:
@@ -875,14 +875,15 @@ class TableEnv(PybulletEnv):
         img = Image.fromarray(img_rgb, "RGB")
         draw = ImageDraw.Draw(img)
         try:
-            FONT = ImageFont.truetype("arial.ttf", 15)
-            print(
-                "Could not find arial.ttf (run `apt install msttcorefonts`?). Using default font."
-            )
+            # FONT = ImageFont.truetype("arial.ttf", 15)
+            # print(
+            #     "Could not find arial.ttf (run `apt install msttcorefonts`?). Using default font."
+            # )
+            FONT = ImageFont.load_default()
         except OSError:
             FONT = ImageFont.load_default()
         draw.multiline_text(
-            (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", fill="red", font=FONT
+            (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", fill=(0, 204, 0), font=FONT
         )
         # text_color = (255, 100, 255)
         # draw.text((20, 10), "Hello World", fill=text_color, font=FONT)
