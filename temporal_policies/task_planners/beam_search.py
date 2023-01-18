@@ -491,7 +491,7 @@ class BeamSearchAlgorithm:
             filtered_results = []
             filtered_successors = []
             for (successor, result) in zip(next_beam, results):
-                if successor.action_sequence_q_product_post_optimization > 0.5:
+                if successor.action_sequence_q_product_post_optimization > 0.3:
                     filtered_results.append(result)
                     filtered_successors.append(successor)
 
