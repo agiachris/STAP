@@ -131,7 +131,7 @@ for primitive in "${primitives[@]}"; do
                 EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
             done
 
-            NAME="${primitive}/${trainer_name}/${agent_name}"
+            NAME="${primitive}_${trainer_name}_${agent_name}"
             train_value
         done
     done
