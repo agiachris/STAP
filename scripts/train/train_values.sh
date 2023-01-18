@@ -100,7 +100,6 @@ run_value
 PRIMITIVE="push"
 run_value
 
-
 # Sweeps.
 function run_value_sweep {    
     for trainer_name in "${TRAINER_SWEEPS[@]}"; do
@@ -109,7 +108,7 @@ function run_value_sweep {
         for agent_name in "${AGENT_SWEEPS[@]}"; do
             AGENT_CONFIG="${AGENT_CONFIG_PATH}/${agent_name}.yaml"
 
-            if [[ "${agent_name}" == *dims-256 ]]; then
+            if [[ "${agent_name}" == *dims-256 ]] && [[ "${agent_name}" != *hids-4* ]]; then
                 SBATCH_SLURM="scripts/train/train_juno_cpu.sh"
             else
                 SBATCH_SLURM="scripts/train/train_juno.sh"
@@ -140,7 +139,8 @@ AGENT_SWEEPS=(
     # "sac_value_hids-3_dims-512"
     # "sac_value_hids-4_dims-1024"
     # "sac_value_hids-4_dims-256"
-    "sac_value_hids-4_dims-512"
+    # "sac_value_hids-4_dims-512"
+    "sac_ens_value_hids-4_dims-512"
 )
 
 # Launch primitive sweep jobs.
