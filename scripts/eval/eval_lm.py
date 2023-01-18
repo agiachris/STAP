@@ -92,7 +92,9 @@ def main(config: UnionEvalConfigs) -> None:
             auth=auth,
             lm_cache=lm_cache,
         )
-        result.save_to_json(f"outputs/{config.prompt_cfg.lm_cfg.engine}_eval_lm_goal_results.json")
+        result.save_to_json(
+            f"outputs/{config.prompt_cfg.lm_cfg.engine}_eval_lm_goal_results.json"
+        )
 
         # compare the goal predicted to the expected goal
         if current_prompt.predict_goal:
@@ -104,16 +106,43 @@ def main(config: UnionEvalConfigs) -> None:
 
         if current_prompt.predict_robot:
             # start off with success, then check if success: partial, then check if failure_invalid_symbolic_action, then check if failure_misses_goal
-            print(f"robot_prediction_result_types: {result.robot_prediction_result_types}")
-            if any([robot_prediction_result_type == "success" for robot_prediction_result_type in result.robot_prediction_result_types]):
+            print(
+                f"robot_prediction_result_types: {result.robot_prediction_result_types}"
+            )
+            if any(
+                [
+                    robot_prediction_result_type == "success"
+                    for robot_prediction_result_type in result.robot_prediction_result_types
+                ]
+            ):
                 success += 1
-            elif any([robot_prediction_result_type == "success: partial" for robot_prediction_result_type in result.robot_prediction_result_types]):
+            elif any(
+                [
+                    robot_prediction_result_type == "success: partial"
+                    for robot_prediction_result_type in result.robot_prediction_result_types
+                ]
+            ):
                 success_partial += 1
-            elif any([robot_prediction_result_type == "success: superset" for robot_prediction_result_type in result.robot_prediction_result_types]):
+            elif any(
+                [
+                    robot_prediction_result_type == "success: superset"
+                    for robot_prediction_result_type in result.robot_prediction_result_types
+                ]
+            ):
                 success_superset += 1
-            elif any([robot_prediction_result_type == "failure: invalid symbolic action" for robot_prediction_result_type in result.robot_prediction_result_types]):
+            elif any(
+                [
+                    robot_prediction_result_type == "failure: invalid symbolic action"
+                    for robot_prediction_result_type in result.robot_prediction_result_types
+                ]
+            ):
                 failure_invalid_symbolic_action += 1
-            elif any([robot_prediction_result_type == "failure: misses goal" for robot_prediction_result_type in result.robot_prediction_result_types]):
+            elif any(
+                [
+                    robot_prediction_result_type == "failure: misses goal"
+                    for robot_prediction_result_type in result.robot_prediction_result_types
+                ]
+            ):
                 failure_misses_goal += 1
             else:
                 raise ValueError("robot_prediction_result_type not recognized")
@@ -127,9 +156,8 @@ def main(config: UnionEvalConfigs) -> None:
         total += 1
 
         # save the lm_cache
-        with open(config.lm_cache_file, 'wb') as f:
+        with open(config.lm_cache_file, "wb") as f:
             pickle.dump(lm_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
-
 
     print(f"Success rate: {sucesses}/{total} = {sucesses/total}")
     print(f"Success: {success}")
@@ -138,7 +166,7 @@ def main(config: UnionEvalConfigs) -> None:
     print(f"Failure invalid symbolic action: {failure_invalid_symbolic_action}")
     print(f"Failure misses goal: {failure_misses_goal}")
 
-    # w.r.t goals: failure case is mostly the inhand conundrum --- boosting number of examples doesn't change anything there (7/10) success rate - 
+    # w.r.t goals: failure case is mostly the inhand conundrum --- boosting number of examples doesn't change anything there (7/10) success rate -
     # failures from asking to hold something and it decides to hold and have object on some other object --- 'fixable' by prompt engineering valid predicates
 
 

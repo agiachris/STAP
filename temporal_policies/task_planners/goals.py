@@ -5,8 +5,14 @@ import numpy as np
 
 from helm.common.authentication import Authentication
 from configs.base_config import LMConfig
-from temporal_policies.task_planners.lm_data_structures import CurrentExample, InContextExample
-from temporal_policies.task_planners.lm_utils import generate_lm_response, get_examples_from_json_dir
+from temporal_policies.task_planners.lm_data_structures import (
+    CurrentExample,
+    InContextExample,
+)
+from temporal_policies.task_planners.lm_utils import (
+    generate_lm_response,
+    get_examples_from_json_dir,
+)
 from temporal_policies.envs.pybullet.table import predicates
 
 
@@ -63,17 +69,14 @@ def get_goal_from_lm(
 
     return results.parsed_goal_predicted, lm_cache
 
+
 def is_valid_goal_props(
     predicted_props: List[str],
     possible_props: List[predicates.Predicate],
 ) -> bool:
     possible_props_str = [str(prop) for prop in possible_props]
-    syntactically_valid_goals = [
-        prop in possible_props_str for prop in predicted_props
-    ]
+    syntactically_valid_goals = [prop in possible_props_str for prop in predicted_props]
     if not all(syntactically_valid_goals):
         return False
     else:
         return True
-
-    

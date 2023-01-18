@@ -21,21 +21,24 @@ def main(
     problem_postfix = os.path.split(domain_file)[-1].split("_")[0]
     filenames = os.listdir(root_dir)
 
-    problem_filenames = sorted([os.path.join(root_dir, f) for f in filenames if is_problem_file(f, problem_postfix)])
+    problem_filenames = sorted(
+        [
+            os.path.join(root_dir, f)
+            for f in filenames
+            if is_problem_file(f, problem_postfix)
+        ]
+    )
     if task_id >= 0:
         problem_filenames = [problem_filenames[task_id]]
 
     for problem_file in problem_filenames:
         print(f"---\nDomain file: {domain_file}")
         print(f"Problem file: {problem_file}")
-    
+
         pddl = symbolic.Pddl(domain_file, problem_file)
         planner = symbolic.Planner(pddl, pddl.initial_state)
         bfs = symbolic.BreadthFirstSearch(
-           planner.root, 
-           max_depth=max_depth, 
-           timeout=timeout, 
-           verbose=verbose
+            planner.root, max_depth=max_depth, timeout=timeout, verbose=verbose
         )
 
         plan_count = 0
@@ -46,12 +49,21 @@ def main(
             actions = [node.action for node in plan[1:]]
             print(f"\nPlan {plan_count}: {actions}")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--domain-file", type=str, required=True, help="Path to PDDL domain file.")
-    parser.add_argument("--task-id", type=int, default=-1, help="Task ID number, 0-N, or -1 for all.")
-    parser.add_argument("--max-plans", type=int, default=1, help="Maximum number of solutions to print.")
-    parser.add_argument("--max-depth", type=int, default=10, help="Maximum search depth.")
+    parser.add_argument(
+        "--domain-file", type=str, required=True, help="Path to PDDL domain file."
+    )
+    parser.add_argument(
+        "--task-id", type=int, default=-1, help="Task ID number, 0-N, or -1 for all."
+    )
+    parser.add_argument(
+        "--max-plans", type=int, default=1, help="Maximum number of solutions to print."
+    )
+    parser.add_argument(
+        "--max-depth", type=int, default=10, help="Maximum search depth."
+    )
     parser.add_argument("--timeout", type=float, default=10.0, help="Planning timeout.")
     parser.add_argument("--verbose", type=bool, default=False, help="Verbose planning.")
     args = parser.parse_args()

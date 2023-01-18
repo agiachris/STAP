@@ -26,10 +26,12 @@ def set_current_prompt_attributes(current_prompt, prompt_cfg):
         setattr(current_prompt, attr, value)
     return current_prompt
 
+
 def set_single_example_prompt_attributes(single_example_prompt, prompt_cfg):
     for attr, value in vars(prompt_cfg.single_example_prompt_cfg).items():
         setattr(single_example_prompt, attr, value)
     return single_example_prompt
+
 
 def main(config: Union[GoalEvalConfig, TaskPlanEvalConfig]) -> None:
     random.seed(config.seed)
@@ -56,9 +58,9 @@ def main(config: Union[GoalEvalConfig, TaskPlanEvalConfig]) -> None:
     )
 
     assert (
-            len(examples) + 1 >= config.prompt_cfg.n_examples
-        ), f"Not enough examples to generate prompt with {config.prompt_cfg.n_examples} examples, +1 because we don't want to include the current example in the prompt"
-        
+        len(examples) + 1 >= config.prompt_cfg.n_examples
+    ), f"Not enough examples to generate prompt with {config.prompt_cfg.n_examples} examples, +1 because we don't want to include the current example in the prompt"
+
     # Don't modify examples in place
     for i in range(min(config.n_evals, len(examples) - 1)):
         current_prompt = copy.deepcopy(examples[i])
@@ -75,7 +77,9 @@ def main(config: Union[GoalEvalConfig, TaskPlanEvalConfig]) -> None:
         )
 
         for single_example_prompt in single_example_prompts:
-            set_single_example_prompt_attributes(single_example_prompt, config.prompt_cfg)
+            set_single_example_prompt_attributes(
+                single_example_prompt, config.prompt_cfg
+            )
 
         lm_cfg = config.prompt_cfg.lm_cfg
         lm_cfg.engine = ENGINE
@@ -98,9 +102,8 @@ def main(config: Union[GoalEvalConfig, TaskPlanEvalConfig]) -> None:
         total += 1
 
     # save the lm_cache
-    with open(config.lm_cache_file, 'wb') as f:
+    with open(config.lm_cache_file, "wb") as f:
         pickle.dump(lm_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
-
 
     print(f"Success rate: {sucesses}/{total} = {sucesses/total}")
 

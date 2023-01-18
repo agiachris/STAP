@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you put a prime colored box on the rack?"
-    - action_skeleton:
+    - instruction: How would you put a prime colored box on the rack?
+      action_skeleton:
         - pick(hook)
         - pull(blue_box, hook)
         - place(hook, table)
@@ -33,6 +33,12 @@ env_kwargs:
         - on(hook, table)
         - on(blue_box, table)
         - on(cyan_box, table)
+      goal_predicates:
+        - on(blue_box, rack)
+      supported_goal_predicates:
+        - under(a, b)
+        - on(a, b)
+        - inhand(a)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
