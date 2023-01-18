@@ -210,7 +210,7 @@ def eval_saycan(
     pddl_root_dir: str,
     pddl_domain_name: str,
     pddl_problem: str,  # file path
-    max_depth: int = 5,
+    max_depth: int = 10,
     timeout: float = 10.0,
     verbose: bool = False,
     load_path: Optional[Union[str, pathlib.Path]] = None,
@@ -340,8 +340,7 @@ def eval_saycan(
 
         actions: List[str]
         env.record_start()
-        # TODO(klin) load this from the yaml when ready
-        max_steps = 10
+
         step = 0
         while not done:
             # lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
@@ -469,7 +468,7 @@ def eval_saycan(
             object_relationships = [str(prop) for prop in object_relationships]
             all_executed_actions.append(potential_actions[best_action_idx])
             all_prior_object_relationships.append(object_relationships)
-            if step == max_steps:
+            if step == max_depth:
                 done = True
 
         env.record_stop()
@@ -568,7 +567,7 @@ if __name__ == "__main__":
     parser.add_argument("--pddl-domain", help="Pddl domain")
     parser.add_argument("--pddl-problem", help="Pddl problem")
     parser.add_argument(
-        "--max-depth", type=int, default=4, help="Task planning search depth"
+        "--max-depth", type=int, default=10, help="Task planning search depth"
     )
     parser.add_argument(
         "--timeout", type=float, default=10.0, help="Task planning timeout"
