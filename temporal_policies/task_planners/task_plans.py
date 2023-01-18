@@ -1,6 +1,4 @@
-import ast
 import pathlib
-import random
 from typing import Dict, List, Optional, Union
 import numpy as np
 
@@ -8,28 +6,18 @@ from helm.common.authentication import Authentication
 from helm.common.request import Token
 
 from configs.base_config import LMConfig
-from temporal_policies import envs
 from temporal_policies.envs.pybullet.table.objects import Object
 from temporal_policies.task_planners.lm_data_structures import (
     SCENE_OBJECT_PROMPT,
     CurrentExample,
     InContextExample,
-    OverallPrompt,
 )
 from temporal_policies.task_planners.lm_utils import (
-    APIType,
     generate_lm_response,
-    get_examples_from_json_dir,
     save_lm_cache,
 )
 from temporal_policies.envs.pybullet.table import predicates
 
-from temporal_policies.evaluation.utils import (
-    get_goal_props_instantiated,
-    get_object_relationships,
-    get_possible_props,
-    get_task_plan_primitives_instantiated,
-)
 
 
 def get_task_plans_from_lm(
@@ -163,9 +151,10 @@ def get_next_actions_from_lm(
         custom_stop_sequence=[
             "Executed action: ",
             custom_robot_prompt,
-            "\n",
+            "Top",
             SCENE_OBJECT_PROMPT,
         ],
+        verbose=True,
     )
     return (
         results.parsed_robot_predicted,
@@ -202,7 +191,7 @@ def get_action_logprob(
 #  probably create a class?
 def get_action_scores_from_lm(
     instruction: str,
-    potential_actions: str,
+    potential_actions: List[str],
     goal: List[str],
     objects: List[str],
     object_relationships: List[str],
@@ -316,19 +305,6 @@ def get_action_scores_from_lm(
         )
 
     print(f"softmax_beta: {softmax_beta}")
-    # dynamically compute the width of the columns based on longest data for each column
-    col_widths = [
-        max(
-            len(str(row[i]))
-            for row in [list(softmax_scores.keys()), list(softmax_scores.values())]
-        )
-        for i in range(2)
-    ]
-    format_row = "{:<" + str(col_widths[0]) + "}" + "{:<" + str(col_widths[1]) + "}"
-    # print(format_row.format(logprob_type, "Softmax score"))
-    # for option, softmax_score in softmax_scores.items():
-    #     print(format_row.format(option, np.round(softmax_score, 3)))
-
     action_scores = [
         softmax_scores[
             str(
@@ -339,39 +315,3 @@ def get_action_scores_from_lm(
         for potential_action in potential_actions
     ]
     return action_scores, lm_cache
-
-
-def get_tokenized_action_prompt_start(overall_prompt, goal_prompt, action_prompt_start):
-    """"""
-    # use heuristic that action_prompt start can be something between "goal predicate set: " and then the next ":"
-    # another way is to use the fact that we know how many actions there are in the action sequence
-    # let's just use the goal predicate set hack for now?
-    # should then pass in the custom string used in the action sequence prompt then
-    return List[str]
-
-
-def get_action_sequence_scores_from_lm():
-    # same as above, except ACTION_PROMPT_START is different?
-    # modify the scoring function from above to handle this case too?
-    tokens: List[Token] = results.tokens_predicted
-    tokenized_action_prompt_start = ":"  # first string is GOAL_PREDICATE PROMPT?
-    tokenized_action_prompt_start = get_tokenized_action_prompt_start(
-        results.overall_prompt, goal_prompt
-    )
-    # find the first time that goal_predicate set is called
-
-    # Goal predicate set: ['on(red_box, rack)', 'inhand(blue_box)', 'on(rack, table)']
-    # Executed action: pick(a, b)
-    # New object relationships --- hmm wonder if they'd penalize 'unlikely' new object relationships ... rip hmm
-    # unclear how to 'normalize' across action sequences ... hmmm
-    # conditioning on the new object relationships can boost up the probability of 'good' actions to take hmm
-    # ablate, maybe?
-
-    # could start off prompt with some special prompt 'marker', but that could be annoying ...
-    # maybe end with the last tokens of the goal predicate set prompt?
-    action_logprob = get_action_logprob(
-        tokens, tokenized_goal_predicate_set_action_prompt
-    )
-    # need get_action_logprob that can get tokens up to "goal predicate set: [on(a, b)]\nexecuted_action"
-    # maybe need to tokenize the goal predicate set?
-    action_logprobs.append(action_logprob)
