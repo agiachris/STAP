@@ -72,7 +72,6 @@ class Task:
         initial_propositions = [predicates.Predicate.create(prop) for prop in initial_state]
 
         # Goal predicates.
-        goal_propositions = None
         if goal_propositions is not None:
             goal_propositions = [predicates.Predicate.create(pred) for pred in goal_propositions]
 

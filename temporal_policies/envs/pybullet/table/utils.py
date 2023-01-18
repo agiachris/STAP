@@ -143,7 +143,13 @@ def is_intersecting(obj_a: Object, obj_b: Object, sim: bool = True) -> bool:
 
 
 def is_under(obj_a: Object, obj_b: Object, sim: bool = True) -> bool:
-    """Returns True if object a is underneath object b."""
+    """Returns True if object a is underneath object b. 
+    
+    Returns False if object a is a table."""
+    if "table" in obj_a.name:
+        return False
+    if "rack" in obj_a.name:
+        return False
     if not is_above(obj_a, obj_b, sim=sim) and is_intersecting(obj_a, obj_b, sim=sim):
         return True
     return False
