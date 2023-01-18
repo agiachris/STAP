@@ -11,11 +11,7 @@ from temporal_policies.envs import base as envs
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Rack, Null, Object
-from temporal_policies.envs.pybullet.table import (
-    object_state,
-    utils,
-    primitive_actions,
-)
+from temporal_policies.envs.pybullet.table import object_state, utils, primitive_actions
 
 
 dbprint = lambda *args: None  # noqa

@@ -4,7 +4,7 @@ import multiprocessing
 import multiprocessing.synchronize
 import pathlib
 import random
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union, Type
 
 import gym
 import numpy as np
@@ -46,6 +46,9 @@ class Task:
     action_skeleton: List[Primitive]
     initial_state: List[predicates.Predicate]
     prob: float
+    instruction: Optional[str]
+    goal_predicates: Optional[List[predicates.Predicate]]
+    supported_goal_predicates: Optional[List[str]]
 
     @staticmethod
     def create(
@@ -53,17 +56,33 @@ class Task:
         action_skeleton: List[str],
         initial_state: List[str],
         prob: Optional[float] = None,
+        instruction: Optional[str] = None,
+        goal_predicates: Optional[List[str]] = None,
+        supported_goal_predicates: Optional[List[str]] = None,
     ) -> "Task":
+
+        # Primitives.
         primitives = []
         for action_call in action_skeleton:
             primitive = env.get_primitive_info(action_call=action_call)
             assert isinstance(primitive, Primitive)
             primitives.append(primitive)
-        propositions = [predicates.Predicate.create(prop) for prop in initial_state]
+
+        # Initial state.
+        initial_propositions = [predicates.Predicate.create(prop) for prop in initial_state]
+
+        # Goal predicates.
+        goal_propositions = None
+        if goal_predicates is not None:
+            goal_propositions = [predicates.Predicate.create(pred) for pred in goal_predicates]
+
         return Task(
             action_skeleton=primitives,
-            initial_state=propositions,
+            initial_state=initial_propositions,
             prob=float("nan") if prob is None else prob,
+            instruction=instruction,
+            goal_predicates=goal_propositions,
+            supported_goal_predicates=supported_goal_predicates
         )
 
 
@@ -162,44 +181,49 @@ class TableEnv(PybulletEnv):
         """
         super().__init__(name=name, gui=gui)
 
-        # Launch external reset process.
-        if reset_queue_size <= 0 or num_processes <= 1:
-            self._process_pipes: Optional[
-                List[multiprocessing.connection.Connection]
-            ] = None
-            self._seed_queue: Optional[
-                multiprocessing.Queue[Tuple[int, Optional[dict]]]
-            ] = None
-            self._seed_buffer = None
-            self._reset_processes = None
-        else:
-            pipes = [multiprocessing.Pipe() for idx_process in range(num_processes - 1)]
-            self._process_pipes = [pipe[0] for pipe in pipes]
-            self._seed_queue = multiprocessing.Queue()
-            self._seed_buffer = multiprocessing.Semaphore(reset_queue_size)
-            self._reset_processes = [
-                multiprocessing.Process(
-                    target=TableEnv._queue_reset_seeds,
-                    daemon=True,
-                    kwargs={
-                        "process_id": (idx_process, num_processes - 1),
-                        "pipe": pipe[1],
-                        "seed_queue": self._seed_queue,
-                        "seed_buffer": self._seed_buffer,
-                        "name": name,
-                        "primitives": primitives,
-                        "tasks": tasks,
-                        "robot_config": robot_config,
-                        "objects": objects,
-                        "object_groups": object_groups,
-                        "object_tracker_config": object_tracker_config,
-                        "seed": child_process_seed if idx_process == 0 else None,
-                    },
-                )
-                for idx_process, pipe in enumerate(pipes)
-            ]
-            for process in self._reset_processes:
-                process.start()
+        # TODO: Bug-fix multiprocessing stalls.
+        # Launch external reset process. 
+        # if reset_queue_size <= 0 or num_processes <= 1:
+        #     self._process_pipes: Optional[
+        #         List[multiprocessing.connection.Connection]
+        #     ] = None
+        #     self._seed_queue: Optional[
+        #         multiprocessing.Queue[Tuple[int, Optional[dict]]]
+        #     ] = None
+        #     self._seed_buffer = None
+        #     self._reset_processes = None
+        # else:
+        #     pipes = [multiprocessing.Pipe() for idx_process in range(num_processes - 1)]
+        #     self._process_pipes = [pipe[0] for pipe in pipes]
+        #     self._seed_queue = multiprocessing.Queue()
+        #     self._seed_buffer = multiprocessing.Semaphore(reset_queue_size)
+        #     self._reset_processes = [
+        #         multiprocessing.Process(
+        #             target=TableEnv._queue_reset_seeds,
+        #             daemon=True,
+        #             kwargs={
+        #                 "process_id": (idx_process, num_processes - 1),
+        #                 "pipe": pipe[1],
+        #                 "seed_queue": self._seed_queue,
+        #                 "seed_buffer": self._seed_buffer,
+        #                 "name": name,
+        #                 "primitives": primitives,
+        #                 "tasks": tasks,
+        #                 "robot_config": robot_config,
+        #                 "objects": objects,
+        #                 "object_groups": object_groups,
+        #                 "object_tracker_config": object_tracker_config,
+        #                 "seed": child_process_seed if idx_process == 0 else None,
+        #             },
+        #         )
+        #         for idx_process, pipe in enumerate(pipes)
+        #     ]
+        #     for process in self._reset_processes:
+        #         process.start()
+        self._process_pipes: Optional[List[multiprocessing.connection.Connection]] = None
+        self._seed_queue: Optional[multiprocessing.Queue[Tuple[int, Optional[dict]]]] = None
+        self._seed_buffer = None
+        self._reset_processes = None
         self._process_id: Optional[Tuple[int, int]] = None
 
         # Load configs.
@@ -657,7 +681,11 @@ class TableEnv(PybulletEnv):
                 continue
 
             if all(
-                prop.value(self.robot, self.objects, self.task.initial_state)
+                prop.value(
+                    robot=self.robot,
+                    objects=self.objects,
+                    state=self.task.initial_state,
+                )
                 for prop in self.task.initial_state
             ):
                 # Break if all propositions in the initial state are true.
@@ -718,6 +746,41 @@ class TableEnv(PybulletEnv):
         info = {"policy_args": primitive.get_policy_args()}
 
         return obs, reward, terminated, result.truncated, info
+
+    @property
+    def instruction(self) -> str:
+        """Return natural language description of the task."""
+        if self.task.instruction is None:
+            raise ValueError("Instruction not declared in task.")
+        return self.task.instruction
+
+    @property
+    def goal_predicates(self) -> List[predicates.Predicate]:
+        """Return list of task-specific goal predicates."""
+        if self.task.goal_predicates is None:
+            raise ValueError("Goal predicates not declared in task.")
+        return self.task.goal_predicates
+
+    @property
+    def supported_goal_predicates(self) -> List[str]:
+        """Return list of supported task-agnostic goal predicates signatures."""
+        if self.task.supported_goal_predicates is None:
+            raise ValueError("Supported goal predicates not declared in task.")
+        if not all(pred in predicates.SUPPORTED_GOAL_PREDICATES for pred in self.task.supported_goal_predicates):
+            ValueError("Task require unsupported goal predicates.")
+        return self.task.supported_goal_predicates
+
+    def is_goal_state(self, sim: bool = True) -> bool:
+        """Returns True if the goal predicates hold in the current state."""
+        return all(
+            pred.value(
+                robot=self.robot,
+                objects=self.objects,
+                state=self.task.initial_state,
+                sim=sim,
+            )
+            for pred in self.goal_predicates
+        )
 
     def _is_any_object_below_table(self) -> bool:
         return any(

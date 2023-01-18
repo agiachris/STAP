@@ -13,14 +13,18 @@ PYTHONPATH=. python scripts/eval/eval_ilm_tamp.py
 --pddl-domain configs/pybullet/envs/t2m/official/tasks/symbolic_domain.pddl
 --pddl-problem configs/pybullet/envs/t2m/official/tasks/task0_symbolic.pddl
 --verbose 0 --engine davinci --gui 0 --visualize-planning 1
+--path plots/20230116/ilm_tamp/
+--num-eval 3
 """
 
+import json
 import random
 from scripts.eval.eval_policies import query_policy_actor, query_policy_critic
 from temporal_policies import agents, envs, planners
 from temporal_policies.dynamics.base import Dynamics
 from temporal_policies.envs.pybullet.table.objects import Object
 
+import tqdm
 from termcolor import colored
 import argparse
 import pathlib
@@ -40,6 +44,7 @@ from temporal_policies.evaluation.utils import (
     get_possible_props,
     get_prop_testing_objs,
     is_satisfy_goal_props,
+    seed_generator,
 )
 from temporal_policies.task_planners.goals import get_goal_from_lm, is_valid_goal_props
 
@@ -48,7 +53,6 @@ from temporal_policies.task_planners.lm_utils import (
     authenticate,
     get_examples_from_json_dir,
     load_lm_cache,
-    register_api_key,
     save_lm_cache,
 )
 from temporal_policies.envs.pybullet.table import (
@@ -84,7 +88,7 @@ def eval_ilm_tamp(
     seed: Optional[int] = 0,
     gui: Optional[int] = None,
     lm_cache_file: Optional[Union[str, pathlib.Path]] = None,
-    n_examples: Optional[int] = 1,
+    n_examples: Optional[int] = 5,
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
     custom_in_context_example_robot_format: str = "python_list_of_lists",
     custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
@@ -142,9 +146,54 @@ def eval_ilm_tamp(
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
+    pick_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_pick_20k_good/ckpt_model_20000.pt"
+    place_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_eval_place_only_16_batch_size/ckpt_model_20000.pt"
+    pull_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_eval_pull_only_8_batch_size/ckpt_model_25000.pt"
+    push_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_eval_push_only_4_batch_size/ckpt_model_400.pt"
+
+    pick_planner = planners.load(
+        config=planner_config,
+        env=env,
+        policy_checkpoints=[policy_checkpoints[0]],
+        scod_checkpoints=scod_checkpoints,
+        dynamics_checkpoint=pick_ckpt,
+        device=device,
+    )
+    place_planner = planners.load(
+        config=planner_config,
+        env=env,
+        policy_checkpoints=[policy_checkpoints[1]],
+        scod_checkpoints=scod_checkpoints,
+        dynamics_checkpoint=place_ckpt,
+        device=device,
+    )
+    pull_planner = planners.load(
+        config=planner_config,
+        env=env,
+        policy_checkpoints=[policy_checkpoints[2]],
+        scod_checkpoints=scod_checkpoints,
+        dynamics_checkpoint=pull_ckpt,
+        device=device,
+    )
+    push_planner = planners.load(
+        config=planner_config,
+        env=env,
+        policy_checkpoints=[policy_checkpoints[3]],
+        scod_checkpoints=scod_checkpoints,
+        dynamics_checkpoint=push_ckpt,
+        device=device,
+    )
+
+    for i, single_primitive_planner in enumerate(
+        [pick_planner, place_planner, pull_planner, push_planner]
+    ):
+        planner.dynamics.network.models[
+            i
+        ] = single_primitive_planner.dynamics.network.models[0]
+
+    path = pathlib.Path(path) / env.name
 
     prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
-
     available_predicates: List[str] = ["on", "inhand", "under"]
     possible_props: List[predicates.Predicate] = get_possible_props(
         env.objects, available_predicates
@@ -183,98 +232,148 @@ def eval_ilm_tamp(
     )
     print(f"goal props predicted: {goal_props_predicted}")
 
-    beam_search_algorithm = BeamSearchAlgorithm(
-        max_beam_size=1, max_depth=max_depth, num_successors_per_node=5
+    num_successes: int = 0
+    pbar = tqdm.tqdm(
+        seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
+    for idx_iter, (seed, loaded_plan) in enumerate(pbar):
+        done: bool = False
+        success: bool = False
+        recording_id: Optional[int] = None
 
-    if is_satisfy_goal_props(
-        goal_props_callable, prop_testing_objs, observation, use_hand_state=False
-    ):
-        print(colored("predicted goal props satisfied"), "green")
-        done = True
+        # Initialize environment.
+        observation, info = env.reset(seed=seed)
+        seed = info["seed"]
 
-    recording_id: Optional[int] = None
-    # TODO(klin) load this from the yaml when ready
-    max_steps = 3  # potentially task dependent and loadable from the yaml
-    step = 0
-    while not done:
-        beam_search_problem = BeamSearchProblem(
-            INSTRUCTION,
-            goal_props_predicted,
-            env.get_observation(),
-            planner,
-            env,
-            available_predicates,
-            prop_testing_objs,
-            goal_props_callable,
-            pddl_domain,
-            pddl_problem,
-            examples,
-            lm_cfg,
-            auth,
-            lm_cache,
-            lm_cache_file,
+        beam_search_algorithm = BeamSearchAlgorithm(
+            max_beam_size=1, max_depth=max_depth, num_successors_per_node=5
         )
-        # probably use the set_state function again? unclear if that works for the other variables e.g.
-        # recorder though ... yeah probably not
-        successful_action_nodes: List[Node] = beam_search_algorithm.solve(
-            beam_search_problem, visualize=visualize_planning
-        )
-        idx_best = np.argmax(
-            [
-                node.motion_plan_post_optimization.values.prod()
-                for node in successful_action_nodes
-            ]
-        )
-        successful_action_node = successful_action_nodes[idx_best]
-        best_motion_plan = successful_action_node.motion_plan_post_optimization
-        best_task_plan = successful_action_node.action_skeleton_as_primitives
 
-        # Execute one step.
-        action = best_motion_plan.actions[0]
-        assert isinstance(action, np.ndarray)
-        state = best_motion_plan.states[0]
-        assert isinstance(state, np.ndarray)
-        value = best_motion_plan.values[0]
-        env.set_primitive(best_task_plan[0])
-
-        if recording_id is None:
-            recording_id = env.record_start()
-        else:
-            env.record_start(recording_id)
-        observation, reward, _, _, _ = env.step(
-            action, successful_action_node.custom_recording_text_sequence[0]
-        )
-        env.record_stop(recording_id)
-
-        step += 1
-
-        print(f"action executed: {str(best_task_plan[0])}; reward: {reward}")
         if is_satisfy_goal_props(
             goal_props_callable, prop_testing_objs, observation, use_hand_state=False
         ):
-            print(colored("predicted goal props satisfied"), "green")
+            print(colored("Current state satisfies predicted goal props"), "green")
             done = True
+            success = True
 
-        objects = list(env.objects.keys())
-        object_relationships = get_object_relationships(
-            observation, env.objects, available_predicates, use_hand_state=False
+        # TODO(klin) load this from the yaml when ready
+        max_steps = 3  # potentially task dependent and loadable from the yaml
+        step = 0
+        while not done:
+            beam_search_problem = BeamSearchProblem(
+                INSTRUCTION,
+                goal_props_predicted,
+                observation,
+                planner,
+                env,
+                available_predicates,
+                prop_testing_objs,
+                goal_props_callable,
+                pddl_domain,
+                pddl_problem,
+                examples,
+                lm_cfg,
+                auth,
+                lm_cache,
+                lm_cache_file,
+            )
+            successful_action_nodes: List[Node] = beam_search_algorithm.solve(
+                beam_search_problem,
+                visualize=visualize_planning,
+                visualize_path=path / str(idx_iter),
+            )
+            idx_best = np.argmax(
+                [
+                    node.motion_plan_post_optimization.values.prod()
+                    for node in successful_action_nodes
+                ]
+            )
+            successful_action_node = successful_action_nodes[idx_best]
+            best_motion_plan = successful_action_node.motion_plan_post_optimization
+            best_task_plan = successful_action_node.action_skeleton_as_primitives
+
+            # Execute one step.
+            action = best_motion_plan.actions[0]
+            assert isinstance(action, np.ndarray)
+            state = best_motion_plan.states[0]
+            assert isinstance(state, np.ndarray)
+            value = best_motion_plan.values[0]
+            env.set_primitive(best_task_plan[0])
+
+            if recording_id is None:
+                recording_id = env.record_start()
+            else:
+                env.record_start(recording_id)
+            observation, reward, _, _, _ = env.step(
+                action, successful_action_node.custom_recording_text_sequence[0]
+            )
+            env.record_stop(recording_id)
+
+            step += 1
+
+            print(f"action executed: {str(best_task_plan[0])}; reward: {reward}")
+            if is_satisfy_goal_props(
+                goal_props_callable,
+                prop_testing_objs,
+                observation,
+                use_hand_state=False,
+            ):
+                print(colored("predicted goal props satisfied", "green"))
+                success = True
+                done = True
+                num_successes += 1
+
+            objects = list(env.objects.keys())
+            object_relationships = get_object_relationships(
+                observation, env.objects, available_predicates, use_hand_state=False
+            )
+            object_relationships = [str(prop) for prop in object_relationships]
+            all_executed_actions.append(str(best_task_plan[0]))
+            all_prior_object_relationships.append(object_relationships)
+            if step == max_steps:
+                done = True
+
+        # TODO(klin) test if the "ground truth" goal props are satisfied --- pending update from @cagia
+        gif_path = (
+            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.gif"
         )
-        object_relationships = [str(prop) for prop in object_relationships]
-        all_executed_actions.append(str(best_task_plan[0]))
-        all_prior_object_relationships.append(object_relationships)
-        if step == max_steps:
-            done = True
+        env.record_save(gif_path, reset=False)
+        gif_path = (
+            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.mp4"
+        )
+        env.record_save(gif_path, reset=True)
+        env._recording_text = ""
 
-    # TODO(klin) test if the "ground truth" goal props are satisfied --- pending update from @cagia
-    gif_path = pathlib.Path(path) / f"integrated_beamsize_1_execution_{step}_steps.gif"
-    env.record_save(gif_path, reset=False)
-    gif_path = pathlib.Path(path) / f"integrated_beamsize_1_execution_{step}_steps.mp4"
-    env.record_save(gif_path, reset=True)
+    # Save planning results.
+    with open(path / f"results_seed_{seed}.json", "w") as f:
+        save_dict = {
+            "args": {
+                "planner_config": planner_config,
+                "env_config": env_config,
+                "policy_checkpoints": policy_checkpoints,
+                "dynamics_checkpoint": dynamics_checkpoint,
+                "device": device,
+                "num_eval": num_eval,
+                "path": str(path),
+                "pddl_domain": pddl_domain,
+                "pddl_problem": pddl_problem,
+                "max_depth": max_depth,
+                "timeout": timeout,
+                "seed": seed,
+                "verbose": verbose,
+            },
+            "num_successes": num_successes,
+            "success_rate": (num_successes / num_eval) * 100,
+        }
+        json.dump(save_dict, f, indent=4)
+
+    # Print results.
+    print(colored(f"Success rate: {(num_successes / num_eval) * 100:.2f}%", "green"))
 
 
 def main(args: argparse.Namespace) -> None:
-    auth = authenticate(args.api_type)
+    auth = authenticate(args.api_type, args.key_name)
+    delattr(args, "key_name")
     eval_ilm_tamp(**vars(args), auth=auth)
 
 
@@ -301,7 +400,7 @@ if __name__ == "__main__":
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument("--verbose", type=int, default=1, help="Print debug messages")
     parser.add_argument(
-        "--max-depth", type=int, default=4, help="Task planning search depth"
+        "--max-depth", type=int, default=5, help="Task planning search depth"
     )
     parser.add_argument(
         "--timeout", type=float, default=10.0, help="Task planning timeout"
@@ -342,7 +441,14 @@ if __name__ == "__main__":
     )
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
     parser.add_argument(
-        "--api_type", type=APIType, default=APIType.OPENAI, help="API to use"
+        "--api-type", type=APIType, default=APIType.OPENAI, help="API to use"
+    )
+    parser.add_argument(
+        "--key-name",
+        type=str,
+        choices=["personal-code", "personal-all", "helm"],
+        default="personal-code",
+        help="API key name to use",
     )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")

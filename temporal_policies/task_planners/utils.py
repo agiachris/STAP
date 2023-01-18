@@ -14,37 +14,37 @@ class State:
     Usually, the state would be the current observation of the environment,
     since that would usually be enough to determine the next action to take.
 
-    However, in this case, we need to keep track of 
-    (a) the action sequence that led to this state 
-    (b) the action distribution for the action sequence that leads 
+    However, in this case, we need to keep track of
+    (a) the action sequence that led to this state
+    (b) the action distribution for the action sequence that leads
         to maximum Q product up to the current action primitive
-    (c) the CEM planner, the env, 
+    (c) the CEM planner, the env,
 
     so that we can:
 
-    i) reconstruct the optimal action sequence at the end of the search 
+    i) reconstruct the optimal action sequence at the end of the search
         (a)(b)
-    ii) perform TAPS optimization on the action sequence 
+    ii) perform TAPS optimization on the action sequence
         (b)
-    iii) use the LM to score the action sequence as a whole 
+    iii) use the LM to score the action sequence as a whole
         (a)(c: env to construct the observation as a string)
 
     In our case, the state is really just the sequence of action primitives taken
     up til this particular 'state'. Usually, the state is
     just the actual environment state (i.e. the poses of
     every object) in the scene (rolled forward using a "dynamics" model)
-    
+
     In this case, the search problem would contain the info
     required to get dynamics.  As you implement different types of search problems throughout the assignment,
     think of what `memory` should contain to enable efficient search!
     """
+
     _action_primitve: Primitive
     optimized_action_sequence_observation: str
     _env: Env
     parent: "State"  # awkward to define the state as having a parent
     # since State implies everything required is inside the state?
     #  maybe it's fair to define the state recurisvely
-
 
 
 class SearchProblem:
@@ -130,7 +130,7 @@ class UniformCostSearch(SearchAlgorithm):
 
         # Initialize data structures
         frontier = PriorityQueue()  # Explored states are maintained by the frontier.
-        backpointers = {}           # Map state -> previous state.
+        backpointers = {}  # Map state -> previous state.
 
         # Add the start state
         startState = problem.startState()

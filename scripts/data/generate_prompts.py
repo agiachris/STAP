@@ -17,7 +17,7 @@ def main(config: str):
 
     # Long-horizon Task 2.
     inst = "How would you move the blue box under the rack?"
-    
+
     # Long-horizon Task 1.
     inst = "How would you move all of the boxes to the rack?"
 

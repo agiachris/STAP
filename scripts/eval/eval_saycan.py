@@ -13,15 +13,16 @@ PYTHONPATH=. python scripts/eval/eval_saycan.py
 --pddl-domain configs/pybullet/envs/t2m/official/tasks/symbolic_domain.pddl
 --pddl-problem configs/pybullet/envs/t2m/official/tasks/task0_symbolic.pddl
 --verbose 0 --engine davinci --gui 1
+--path plots/20230117/eval_saycan
 """
 
 import functools
 import random
-from scripts.eval.eval_policies import query_policy_actor, query_policy_critic
 from temporal_policies import agents, envs, planners
 from temporal_policies.dynamics.base import Dynamics
 from temporal_policies.envs.pybullet.table.objects import Object
 
+import tqdm
 import tabulate
 
 tabulate.PRESERVE_WHITESPACE = True
@@ -32,7 +33,6 @@ import argparse
 import pathlib
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 import json
-import symbolic
 
 
 import torch
@@ -44,11 +44,11 @@ from temporal_policies.envs.pybullet.table import predicates
 from temporal_policies.envs.pybullet.table.objects import Object
 from temporal_policies.evaluation.utils import (
     get_callable_goal_props,
-    get_goal_props_instantiated,
     get_object_relationships,
     get_possible_props,
     get_prop_testing_objs,
     is_satisfy_goal_props,
+    seed_generator,
 )
 from temporal_policies.task_planners.goals import get_goal_from_lm, is_valid_goal_props
 
@@ -57,7 +57,6 @@ from temporal_policies.task_planners.lm_utils import (
     authenticate,
     get_examples_from_json_dir,
     load_lm_cache,
-    register_api_key,
     save_lm_cache,
 )
 from temporal_policies.envs.pybullet.table import (
@@ -181,9 +180,6 @@ def format_saycan_scoring_table(
     rounded_overall_scores = [
         x for _, x in sorted(zip(overall_scores, rounded_overall_scores), reverse=True)
     ]
-    # add escape code to format the color of the scores: if the score is closer to 1, set the color closer to green, if the score is closer to 0, set the color closer to red
-    # rounded_lm_action_scores = [f'\033[38;2;{int(255 * (1 - lm_action_score))};{int(255 * lm_action_score)};0m{lm_action_score}\033[0m' for lm_action_score in rounded_lm_action_scores]
-    # rounded_value_action_scores = [f'\033[38;2;{int(255 * (1 - value_action_score))};{int(255 * value_action_score)};0m{value_action_score}\033[0m' for value_action_score in rounded_value_action_scores]
     formatted_table_str = tabulate(
         zip(
             potential_actions_str,
@@ -278,6 +274,8 @@ def eval_saycan(
         device=device,
     )
 
+    path = pathlib.Path(path) / env.name
+
     prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
 
     available_predicates: List[str] = ["on", "inhand", "under"]
@@ -317,142 +315,187 @@ def eval_saycan(
         goal_props_predicted, possible_props
     )
     print(f"goal props predicted: {goal_props_predicted}")
-    actions: List[str]
-    env.record_start()
-    # TODO(klin) load this from the yaml when ready
-    max_steps = 10  # potentially task dependent and loadable from the yaml
-    step = 0
-    while not done:
-        # lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
-        # TODO(klin) overall prompt doesn't include the executed actions
-        actions, lm_cache = get_next_actions_from_lm(
-            INSTRUCTION,
-            goal_props_predicted,
-            objects,
-            object_relationships,
-            all_prior_object_relationships,
-            all_executed_actions,
-            pddl_domain,
-            pddl_problem,
-            custom_in_context_example_robot_prompt="Top robot action sequence: ",
-            custom_robot_prompt="Top 5 valid next actions (python list of primitives): ",
-            examples=examples,
-            lm_cfg=lm_cfg,
-            auth=auth,
-            lm_cache=lm_cache,
-        )
-        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
-        print(
-            colored(
-                f"Executed actions: {[str(action) for action in all_executed_actions]}",
-                "green",
+    num_successes: int = 0
+    pbar = tqdm.tqdm(
+        seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
+    )
+    for idx_iter, (seed, loaded_plan) in enumerate(pbar):
+        done: bool = False
+        success: bool = False
+
+        actions: List[str]
+        env.record_start()
+        # TODO(klin) load this from the yaml when ready
+        max_steps = 10  # potentially task dependent and loadable from the yaml
+        step = 0
+        while not done:
+            # lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
+            # TODO(klin) overall prompt doesn't include the executed actions
+            actions, lm_cache = get_next_actions_from_lm(
+                INSTRUCTION,
+                goal_props_predicted,
+                objects,
+                object_relationships,
+                all_prior_object_relationships,
+                all_executed_actions,
+                pddl_domain,
+                pddl_problem,
+                custom_in_context_example_robot_prompt="Top robot action sequence: ",
+                custom_robot_prompt="Top 5 valid next actions (python list of primitives): ",
+                examples=examples,
+                lm_cfg=lm_cfg,
+                auth=auth,
+                lm_cache=lm_cache,
             )
-        )
-        print(colored(f"Newly generated actions: {actions}", "yellow"))
-        env_lst = [env] * len(actions)
-        potential_actions: List[table_primitives.Primitive] = [
-            env.get_primitive_info(action, env)
-            for (action, env) in zip(actions, env_lst)
-        ]
-        potential_actions_str: List[str] = [
-            str(action).lower() for action in potential_actions
-        ]
-        # lm_cfg.engine = "text-davinci-002"  # 003 isn't really influeced by the incontext examples at all ---- pick(hook) is really low
-        lm_action_scores, lm_cache = get_action_scores_from_lm(
-            INSTRUCTION,
-            potential_actions_str,
-            goal_props_predicted,
-            objects,
-            object_relationships,
-            all_prior_object_relationships,
-            all_executed_actions,
-            pddl_domain,
-            pddl_problem,
-            examples=examples,
-            lm_cfg=lm_cfg,
-            auth=auth,
-            lm_cache=lm_cache,
-            lm_cache_file=lm_cache_file,
-        )
+            save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
-        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
-        policy_actions: np.ndarray = get_policy_actions(
-            observation,
-            potential_actions,
-            planner.policies,
-            planner.dynamics,
-            device=tensors.device(device),
-        )
-        value_action_scores: List[float] = get_values(
-            observation,
-            policy_actions,
-            potential_actions,
-            planner.policies,
-            planner.dynamics,
-            device=tensors.device(device),
-        )
-
-        table_headers = ["Action", "LM", "Value", "Overall"]
-        overall_scores = [
-            lm_action_score * value_action_score
-            for (lm_action_score, value_action_score) in zip(
-                lm_action_scores, value_action_scores
+            print(
+                colored(
+                    f"Executed actions: {[str(action) for action in all_executed_actions]}",
+                    "green",
+                )
             )
-        ]
-        formatted_table_str = format_saycan_scoring_table(
-            table_headers,
-            potential_actions_str,
-            lm_action_scores,
-            value_action_scores,
-            overall_scores,
+            print(colored(f"Newly generated actions: {actions}", "yellow"))
+            env_lst = [env] * len(actions)
+            potential_actions: List[table_primitives.Primitive] = [
+                env.get_primitive_info(action, env)
+                for (action, env) in zip(actions, env_lst)
+            ]
+            potential_actions_str: List[str] = [
+                str(action).lower() for action in potential_actions
+            ]
+            # lm_cfg.engine = "text-davinci-002"  # 003 isn't really influeced by the incontext examples at all ---- pick(hook) is really low
+            lm_action_scores, lm_cache = get_action_scores_from_lm(
+                INSTRUCTION,
+                potential_actions_str,
+                goal_props_predicted,
+                objects,
+                object_relationships,
+                all_prior_object_relationships,
+                all_executed_actions,
+                pddl_domain,
+                pddl_problem,
+                examples=examples,
+                lm_cfg=lm_cfg,
+                auth=auth,
+                lm_cache=lm_cache,
+                lm_cache_file=lm_cache_file,
+            )
+
+            save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+            policy_actions: np.ndarray = get_policy_actions(
+                observation,
+                potential_actions,
+                planner.policies,
+                planner.dynamics,
+                device=tensors.device(device),
+            )
+            value_action_scores: List[float] = get_values(
+                observation,
+                policy_actions,
+                potential_actions,
+                planner.policies,
+                planner.dynamics,
+                device=tensors.device(device),
+            )
+
+            table_headers = ["Action", "LM", "Value", "Overall"]
+            overall_scores = [
+                lm_action_score * value_action_score
+                for (lm_action_score, value_action_score) in zip(
+                    lm_action_scores, value_action_scores
+                )
+            ]
+            formatted_table_str = format_saycan_scoring_table(
+                table_headers,
+                potential_actions_str,
+                lm_action_scores,
+                value_action_scores,
+                overall_scores,
+            )
+            best_action_idx = overall_scores.index(max(overall_scores))
+            env.set_primitive(potential_actions[best_action_idx])
+
+            custom_recording_text: str = f"""human: {INSTRUCTION}\npredicted: {goal_props_predicted}\n{formatted_table_str}"""
+
+            observation, reward, terminated, _, info = env.step(
+                policy_actions[best_action_idx], custom_recording_text
+            )
+            step += 1
+
+            print(
+                f"action executed: {potential_actions[best_action_idx]}; reward: {reward}"
+            )
+
+            if is_satisfy_goal_props(
+                goal_props_callable,
+                prop_testing_objs,
+                observation,
+                use_hand_state=False,
+            ):
+                print("goal props satisfied")
+                done = True
+
+            objects = list(env.objects.keys())
+            object_relationships = get_object_relationships(
+                observation, env.objects, available_predicates, use_hand_state=False
+            )
+            object_relationships = [str(prop) for prop in object_relationships]
+            all_executed_actions.append(potential_actions[best_action_idx])
+            all_prior_object_relationships.append(object_relationships)
+            if step == max_steps:
+                done = True
+
+        env.record_stop()
+        # TODO(klin) test if the "ground truth" goal props are satisfied --- pending update from @cagia
+        gif_path = (
+            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.gif"
         )
-        best_action_idx = overall_scores.index(max(overall_scores))
-        env.set_primitive(potential_actions[best_action_idx])
-
-        custom_recording_text: str = f"""human: {INSTRUCTION}\npredicted: {goal_props_predicted}\n{formatted_table_str}"""
-
-        observation, reward, terminated, _, info = env.step(
-            policy_actions[best_action_idx], custom_recording_text
+        env.record_save(gif_path, reset=False)
+        gif_path = (
+            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.mp4"
         )
-        step += 1
+        env.record_save(gif_path, reset=True)
+        env._recording_text = ""
 
-        print(
-            f"action executed: {potential_actions[best_action_idx]}; reward: {reward}"
-        )
-
-        if is_satisfy_goal_props(
-            goal_props_callable, prop_testing_objs, observation, use_hand_state=False
-        ):
-            print("goal props satisfied")
-            done = True
-
-        objects = list(env.objects.keys())
-        object_relationships = get_object_relationships(
-            observation, env.objects, available_predicates, use_hand_state=False
-        )
-        object_relationships = [str(prop) for prop in object_relationships]
-        all_executed_actions.append(potential_actions[best_action_idx])
-        all_prior_object_relationships.append(object_relationships)
-        if step == max_steps:
-            done = True
-
-    env.record_stop()
-    gif_path = pathlib.Path(path) / f"saycan_execution_{step}_steps.gif"
-    env.record_save(gif_path, reset=False)
-    gif_path = pathlib.Path(path) / f"saycan_execution_{step}_steps.mp4"
-    env.record_save(gif_path, reset=True)
+    # Save planning results.
+    with open(path / f"results_seed_{seed}.json", "w") as f:
+        save_dict = {
+            "args": {
+                "planner_config": planner_config,
+                "env_config": env_config,
+                "policy_checkpoints": policy_checkpoints,
+                "dynamics_checkpoint": dynamics_checkpoint,
+                "device": device,
+                "num_eval": num_eval,
+                "path": str(path),
+                "pddl_domain": pddl_domain,
+                "pddl_problem": pddl_problem,
+                "max_depth": max_depth,
+                "timeout": timeout,
+                "seed": seed,
+                "verbose": verbose,
+            },
+            "num_successes": num_successes,
+            "success_rate": (num_successes / num_eval) * 100,
+        }
+        json.dump(save_dict, f, indent=4)
 
 
 def main(args: argparse.Namespace) -> None:
-    auth = authenticate(args.api_type)
+    auth = authenticate(args.api_type, args.key_name)
+    delattr(args, "key_name")
     eval_saycan(**vars(args), auth=auth)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--planner-config", "--planner", "-c", help="Path to planner config"
+        "--planner-config",
+        "--planner",
+        "-c",
+        help="Path to planner config, used to load value functions (dynamics aren't used for saycan)",
     )
     parser.add_argument("--env-config", "--env", "-e", help="Path to env config")
     parser.add_argument(
@@ -501,7 +544,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-examples",
         type=int,
-        default=1,
+        default=5,
         help="Number of examples to use in in context prompt",
     )
     # LMConfig
@@ -514,6 +557,13 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
     parser.add_argument(
         "--api_type", type=APIType, default=APIType.OPENAI, help="API to use"
+    )
+    parser.add_argument(
+        "--key-name",
+        type=str,
+        choices=["personal-code", "personal-all", "helm"],
+        default="personal-code",
+        help="API key name to use",
     )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")

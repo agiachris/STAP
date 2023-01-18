@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you use the hook to pull the red box closer, then pick it up?"
-    - action_skeleton:
+    - instruction: How would you use the hook to pull the red box closer, then pick it up?
+      action_skeleton:
         - pick(hook)
         - pull(red_box, hook)
         - place(hook, table)
@@ -19,21 +19,21 @@ env_kwargs:
       initial_state:
         - free(hook)
         - free(red_box)
-        - inworkspace(rack)
-        - poslimit(rack)
         - aligned(rack)
+        - poslimit(rack)
+        - inworkspace(rack)
         - inworkspace(hook)
         - beyondworkspace(red_box)
         - nonblocking(red_box, rack)
         - on(rack, table)
         - on(hook, table)
         - on(red_box, table)
-        - beyondworkspace(blue_box)
-        - beyondworkspace(yellow_box)
-        - beyondworkspace(cyan_box)
-        - on(blue_box, table)
-        - on(yellow_box, table)
-        - on(cyan_box, table)
+      goal_predicates:
+        - inhand(red_box)
+      supported_goal_predicates:
+        - under(a, b)
+        - on(a, b)
+        - inhand(a)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
@@ -56,7 +56,3 @@ env_kwargs:
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/milk.yaml
-    - configs/pybullet/envs/assets/salt.yaml
-    - configs/pybullet/envs/assets/icecream.yaml
-    - configs/pybullet/envs/assets/yogurt.yaml
-

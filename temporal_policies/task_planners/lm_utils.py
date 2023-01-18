@@ -124,6 +124,118 @@ def generate_current_setting_prompt(
     )
 
 
+def rate_limited(max_per_min: int = 20):
+    """
+    Rate-limits the decorated function locally, for one process.
+    """
+    min_interval = 60 / float(max_per_min)
+
+    def decorate(func):
+        last_time_called = [0.0]
+
+        def rate_limited_function(*args, **kwargs):
+            elapsed = time.perf_counter() - last_time_called[0]
+            left_to_wait = min_interval - elapsed
+            if left_to_wait > 0:
+                time.sleep(left_to_wait)
+            ret = func(*args, **kwargs)
+            last_time_called[0] = time.perf_counter()
+            return ret
+
+        return rate_limited_function
+
+    return decorate
+
+
+@rate_limited(19)  # 20 per minute at most
+def call_api(
+    engine: str,
+    overall_prompt: str,
+    max_tokens: int,
+    temperature: float,
+    logprobs: int,
+    echo: bool,
+    stop: Optional[Union[List[str], str]] = None,
+    api_type: APIType = APIType.HELM,  # either via helm api or via openai api
+    auth: Optional[Authentication] = None,
+) -> Result:
+    if api_type.value == APIType.OPENAI.value:
+        try:
+            response = openai.Completion.create(
+                engine=engine,
+                prompt=overall_prompt,
+                temperature=temperature,
+                logprobs=logprobs,
+                echo=echo,
+                max_tokens=max_tokens,
+                stop=stop,
+            )
+        except openai.error.RateLimitError as e:
+            print("Rate limit error: ", e)
+            time.sleep(60)
+            return call_api(
+                engine,
+                overall_prompt,
+                max_tokens,
+                temperature,
+                logprobs,
+                echo,
+                stop,
+                api_type,
+                auth,
+            )
+        raw_tokens = response["choices"][0]["logprobs"]["tokens"]
+        logprobs = response["choices"][0]["logprobs"]["token_logprobs"]
+        # for compatibility with helm api
+        helm_token_list: List[Token] = [
+            Token(text=token, logprob=logprob, top_logprobs=99999)
+            for token, logprob in zip(raw_tokens, logprobs)
+        ]
+        # hack to avoid "*** TypeError: Object of type Token is not
+        # JSON serializable" when printing the response directly
+        new_response = {}
+        for key, value in response.items():
+            new_response[key] = value
+        new_response["tokens"] = helm_token_list
+        response = new_response
+    elif api_type.value == APIType.HELM.value:
+        assert auth is not None, "auth must be provided for helm api"
+        service = RemoteService("https://crfm-models.stanford.edu")
+        request = Request(
+            model=f"openai/{engine}",
+            prompt=overall_prompt,
+            echo_prompt=echo,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stop_sequences=stop,
+            top_k_per_token=logprobs,
+        )
+        # print request arguments
+        try:
+            request_result: RequestResult = service.make_request(auth, request)
+        except Exception as e:
+            print(e)
+            print("retrying")
+            time.sleep(5)
+            request_result: RequestResult = service.make_request(auth, request)
+        response: Dict[str, Dict] = {
+            "usage": {
+                "total_tokens": len(request_result.completions[0].tokens),
+            },
+            "choices": [
+                {
+                    "text": request_result.completions[0].text,
+                    "logprobs": request_result.completions[0].logprob,
+                }
+            ],
+        }
+        response["tokens"] = request_result.completions[0].tokens
+    else:
+        raise ValueError(f"api_type {api_type} not supported")
+
+    return response
+
+
 def gpt3_call(
     engine: str,
     overall_prompt: str,
@@ -145,68 +257,18 @@ def gpt3_call(
     if lm_cache is not None and id in lm_cache.keys():
         print("cache hit, returning")
         response = lm_cache[id]
-        raw_tokens = response["choices"][0]["logprobs"]["tokens"]
-        logprobs = response["choices"][0]["logprobs"]["token_logprobs"]
-        # for compatibility with helm api
-        helm_token_list: List[Token] = [
-            Token(text=token, logprob=logprob, top_logprobs=99999)
-            for token, logprob in zip(raw_tokens, logprobs)
-        ]
-        response["tokens"] = helm_token_list
     else:
-        if api_type.value == APIType.OPENAI.value:
-            response = openai.Completion.create(
-                engine=engine,
-                prompt=overall_prompt,
-                temperature=temperature,
-                logprobs=logprobs,
-                echo=echo,
-                max_tokens=max_tokens,
-                stop=stop,
-            )
-            raw_tokens = response["choices"][0]["logprobs"]["tokens"]
-            logprobs = response["choices"][0]["logprobs"]["token_logprobs"]
-            # for compatibility with helm api
-            helm_token_list: List[Token] = [
-                Token(text=token, logprob=logprob, top_logprobs=99999)
-                for token, logprob in zip(raw_tokens, logprobs)
-            ]
-            response["tokens"] = helm_token_list
-        elif api_type.value == APIType.HELM.value:
-            assert auth is not None, "auth must be provided for helm api"
-            service = RemoteService("https://crfm-models.stanford.edu")
-            request = Request(
-                model=f"openai/{engine}",
-                prompt=overall_prompt,
-                echo_prompt=echo,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stop_sequences=stop,
-                top_k_per_token=logprobs,
-            )
-            # print request arguments
-            try:
-                request_result: RequestResult = service.make_request(auth, request)
-            except Exception as e:
-                print(e)
-                print("retrying")
-                time.sleep(5)
-                request_result: RequestResult = service.make_request(auth, request)
-            response: Dict[str, Dict] = {
-                "usage": {
-                    "total_tokens": len(request_result.completions[0].tokens),
-                },
-                "choices": [
-                    {
-                        "text": request_result.completions[0].text,
-                        "logprobs": request_result.completions[0].logprob,
-                    }
-                ],
-            }
-            response["tokens"] = request_result.completions[0].tokens
-        else:
-            raise ValueError(f"api_type {api_type} not supported")
-
+        response = call_api(
+            engine,
+            overall_prompt,
+            max_tokens,
+            temperature,
+            logprobs,
+            echo,
+            stop,
+            api_type,
+            auth,
+        )
         if lm_cache is not None:
             lm_cache[id] = response
 
@@ -353,6 +415,7 @@ def generate_lm_response(
             ipdb.set_trace()
 
         overall_prompt += response["choices"][0]["text"]
+        print(f"response: {response['choices'][0]['text']}")
         update_result_current_prompt_based_on_response_robot(
             result, current_prompt, response
         )
@@ -415,7 +478,13 @@ def update_result_current_prompt_based_on_response_robot(
             robot_prediction_result_types.append(robot_prediction_result_type)
             predicted_task_plan_descriptions.append(predicted_task_plan_description)
     elif current_prompt.custom_robot_action_sequence_format == "python_list":
-        parsed_robot_predicted = result.parsed_robot_predicted
+        try:
+            parsed_robot_predicted = result.parsed_robot_predicted
+        except:
+            import ipdb
+
+            ipdb.set_trace()
+            parsed_robot_predicted = result.parsed_robot_predicted
         (
             robot_prediction_result_type,
             predicted_task_plan_description,
@@ -477,10 +546,11 @@ def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
                 lm_cache = {}
             else:
                 try:
-                    lm_cache = json.load(f)
+                    lm_cache = pickle.load(f)
                 except UnicodeDecodeError as e:
                     print(f"Error loading lm_cache: {e}")
                     lm_cache = {}
+
         if lm_cache is None:
             lm_cache = {}
     return lm_cache
@@ -639,8 +709,10 @@ def check_task_plan_result(
 def save_lm_cache(
     lm_cache_file: Union[str, pathlib.Path], lm_cache: Dict[str, str]
 ) -> None:
+    from atomicwrites import atomic_write
+
     # save the lm_cache
-    with open(lm_cache_file, "wb") as f:
+    with atomic_write(lm_cache_file, mode="wb", overwrite=True) as f:
         print(f"Saving lm_cache to {lm_cache_file}...")
         pickle.dump(lm_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
 
