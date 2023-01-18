@@ -22,11 +22,13 @@ class SAC(rl.RLAgent):
         actor_kwargs: Dict[str, Any],
         critic_class: Union[str, Type[networks.critics.Critic]],
         critic_kwargs: Dict[str, Any],
-        encoder: Optional[encoders.Encoder] = None,
         encoder_class: Union[
             str, Type[networks.encoders.Encoder]
         ] = networks.encoders.NormalizeObservation,
         encoder_kwargs: Dict[str, Any] = {},
+        actor: Optional[networks.actors.Actor] = None,
+        critic: Optional[networks.critics.Critic] = None,
+        encoder: Optional[encoders.Encoder] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
         tau: float = 0.005,
@@ -45,6 +47,9 @@ class SAC(rl.RLAgent):
             critic_kwargs: Critic kwargs.
             encoder_class: Encoder class.
             encoder_kwargs: Encoder kwargs.
+            actor: Custom actor.
+            critic: Custom critic.
+            encoder: Custom encoder.
             checkpoint: Optional policy checkpoint.
             device: Torch device.
             tau: Weighting factor for target update. tau=1.0 replaces the target
@@ -78,10 +83,12 @@ class SAC(rl.RLAgent):
         target_encoder.eval_mode()
 
         actor_class = configs.get_class(actor_class, networks)
-        actor = actor_class(encoder.state_space, env.action_space, **agent_kwargs["actor"])  # type: ignore
+        if actor is None:
+            actor = actor_class(encoder.state_space, env.action_space, **agent_kwargs["actor"])  # type: ignore
         
         critic_class = configs.get_class(critic_class, networks)
-        critic = critic_class(encoder.state_space, env.action_space, **agent_kwargs["critic"])  # type: ignore
+        if critic is None:
+            critic = critic_class(encoder.state_space, env.action_space, **agent_kwargs["critic"])  # type: ignore
 
         target_critic = critic_class(  # type: ignore
             target_encoder.state_space, env.action_space, **agent_kwargs["critic"]

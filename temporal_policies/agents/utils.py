@@ -23,6 +23,8 @@ class AgentFactory(configs.Factory):
         config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
         env: Optional[envs.Env] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        actor_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+        critic_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         scod_checkpoint: Optional[Union[str, pathlib.Path]] = None,
         policy: Optional[agents.Agent] = None,
@@ -38,6 +40,8 @@ class AgentFactory(configs.Factory):
             checkpoint: Policy checkpoint path. Either env or checkpoint must be
                 specified.
             encoder_checkpoint: Encoder checkpoint path.
+            actor_checkpoint: Checkpoint to pretrained actor (RLAgent).
+            critic_checkpoint: Checkpoint to pretrained critic (RLAgent).
             scod_checkpoint: SCOD checkpoint path.
             policy: Optional loaded policy to replace first non-wrapper agent.
             env_kwargs: Kwargs passed to EnvFactory if env is loaded from
@@ -107,6 +111,36 @@ class AgentFactory(configs.Factory):
 
         if issubclass(self.cls, agents.RLAgent):
             self.kwargs["checkpoint"] = checkpoint
+            
+            if issubclass(self.cls, agents.SAC):
+                if critic_checkpoint is not None:
+                    # Update critic config / kwargs.
+                    critic_config = load_config(critic_checkpoint)
+                    for key in ["critic_class", "critic_kwargs"]:
+                        self.kwargs[key] = critic_config["agent_kwargs"][key]
+                        self.config["agent_kwargs"][key] = critic_config["agent_kwargs"][key]
+
+                    self.kwargs["critic"] = agents.load(
+                        checkpoint=critic_checkpoint,
+                        env=env,
+                        encoder_checkpoint=encoder_checkpoint,
+                        device=device,
+                    ).critic
+
+                if actor_checkpoint is not None:
+                    # Update actor config / kwargs.
+                    actor_config = load_config(actor_checkpoint)
+                    for key in ["actor_class", "actor_kwargs"]:
+                        self.kwargs[key] = actor_config["agent_kwargs"][key]
+                        self.config["agent_kwargs"][key] = actor_config["agent_kwargs"][key]
+
+                    self.kwargs["actor"] = agents.load(
+                        checkpoint=actor_checkpoint,
+                        env=env,
+                        encoder_checkpoint=encoder_checkpoint,
+                        device=device,
+                    ).actor
+                 
 
         self.kwargs["env"] = env
         self.kwargs["device"] = device

@@ -83,9 +83,6 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             name = agent.env.name
         path = pathlib.Path(path) / name
 
-        if (train_data_checkpoints == checkpoint) or (eval_data_checkpoints == checkpoint):
-            raise ValueError("Must provide either data checkpoints or ValueTrainer checkpoint.")
-
         # Load training dataset.
         dataset_class = configs.get_class(dataset_class, datasets)
         dataset_kwargs = dict(dataset_kwargs)
@@ -96,9 +93,11 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             action_space=agent.action_space,
             **dataset_kwargs,
         )
-        if train_data_checkpoints is not None:
+        if checkpoint is None and train_data_checkpoints is not None:
             for train_data in train_data_checkpoints:
                 dataset.load(pathlib.Path(train_data))
+        else:
+            raise ValueError("Must provide one of train data checkpoint or trainer checkpoint.")
 
         # Load eval dataset.
         if eval_dataset_kwargs is None:
@@ -111,9 +110,11 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             action_space=agent.action_space,
             **eval_dataset_kwargs,
         )
-        if eval_data_checkpoints is not None:
+        if checkpoint is None and eval_data_checkpoints is not None:
             for eval_data in eval_data_checkpoints:
                 eval_dataset.load(pathlib.Path(eval_data))
+        else:
+            raise ValueError("Must provide one of eval data checkpoint or trainer checkpoint.")
 
         processor_class = configs.get_class(processor_class, processors)
         processor = processor_class(agent.observation_space, **processor_kwargs)
