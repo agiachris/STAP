@@ -13,14 +13,14 @@ trainer_kwargs:
   optimizer_class: Adam
   optimizer_kwargs:   
     actor:
-      lr: 0.001
+      lr: 0.0001
     critic:
-      lr: 0.001
+      lr: 0.0001
       weight_decay: 0.1
     log_alpha:
-      lr: 0.001
+      lr: 0.0001
   
-  num_train_steps: 100000
+  num_train_steps: 500000
   num_eval_episodes: 1000
   eval_freq: 1000
   checkpoint_freq: 50000
