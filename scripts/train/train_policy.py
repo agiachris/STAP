@@ -18,6 +18,8 @@ def train(
     agent_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     eval_env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
+    actor_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    critic_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     eval_recording_path: Optional[Union[str, pathlib.Path]] = None,
     resume: bool = False,
@@ -74,6 +76,8 @@ def train(
         agent_factory = agents.AgentFactory(
             config=agent_config,
             env=env,
+            actor_checkpoint=actor_checkpoint,
+            critic_checkpoint=critic_checkpoint,
             encoder_checkpoint=encoder_checkpoint,
             device=device,
         )
@@ -164,12 +168,14 @@ def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument("--path", "-p", required=True, help="Experiment save path.")
     parser.add_argument("--trainer-config", "--config", "-c", required=True, help="Path to trainer config",)
     parser.add_argument("--agent-config", "-a", required=True, help="Path to agent config")
     parser.add_argument("--env-config", "-e", required=True, help="Path to env config")
     parser.add_argument("--eval-env-config", help="Path to evaluation env config")
+    parser.add_argument("--actor-checkpoint", help="Path to actor checkpoint")
+    parser.add_argument("--critic-checkpoint", help="Path to critic checkpoint")
     parser.add_argument("--encoder-checkpoint", help="Path to encoder checkpoint")
-    parser.add_argument("--path", "-p", required=True, help="Experiment save path.")
     parser.add_argument("--eval-recording-path", help="Path to record final policy.")
     parser.add_argument("--resume", action="store_true", default=False)
     parser.add_argument("--overwrite", action="store_true", default=False)
