@@ -1,9 +1,10 @@
 import itertools
-from typing import Dict, Generator, List, Tuple
+import pathlib
+from typing import Dict, Generator, List, Optional, Tuple, Union
 import numpy as np
 
 import symbolic
-from temporal_policies import envs
+from temporal_policies import envs, planners
 from temporal_policies.envs.pybullet.table import (
     object_state,
     predicates,
@@ -11,6 +12,46 @@ from temporal_policies.envs.pybullet.table import (
 )
 from temporal_policies.envs.pybullet.table.objects import CLS_TO_PROP_TEST_CLS, Object
 from temporal_policies.task_planners.goals import is_valid_goal_props
+
+
+def seed_generator(
+    num_eval: int,
+    path_results: Optional[Union[str, pathlib.Path]] = None,
+) -> Generator[
+    Tuple[
+        Optional[int],
+        Optional[Tuple[np.ndarray, planners.PlanningResult, Optional[List[float]]]],
+    ],
+    None,
+    None,
+]:
+    """
+    Generates seeds for deterministic evaluation for pybullet.TableEnv.
+    """
+    if path_results is not None:
+        npz_files = sorted(
+            pathlib.Path(path_results).glob("results_*.npz"),
+            key=lambda x: int(x.stem.split("_")[-1]),
+        )
+        for npz_file in npz_files:
+            with open(npz_file, "rb") as f:
+                npz = np.load(f, allow_pickle=True)
+                seed: int = npz["seed"].item()
+                rewards = np.array(npz["rewards"])
+                plan = planners.PlanningResult(
+                    actions=np.array(npz["actions"]),
+                    states=np.array(npz["states"]),
+                    p_success=npz["p_success"].item(),
+                    values=np.array(npz["values"]),
+                )
+                t_planner: List[float] = npz["t_planner"].item()
+
+            yield seed, (rewards, plan, t_planner)
+
+    if num_eval is not None:
+        yield 0, None
+        for _ in range(num_eval - 1):
+            yield None, None
 
 
 def get_goal_props_instantiated(
@@ -49,11 +90,14 @@ def get_task_plan_primitives_instantiated(
         if len(task_plan) == 0:
             continue
         else:
-            task_plans_instantiated.append([
-                env.get_primitive_info(action_call=action_call)
-                for action_call in task_plan
-            ])
+            task_plans_instantiated.append(
+                [
+                    env.get_primitive_info(action_call=action_call)
+                    for action_call in task_plan
+                ]
+            )
     return task_plans_instantiated
+
 
 def instantiate_task_plan_primitives(
     task_plan: List[str], env: envs.Env
@@ -64,17 +108,18 @@ def instantiate_task_plan_primitives(
     ["pick(box, table)", "place(box, table)"]
     """
     return [
-        env.get_primitive_info(action_call=action_call)
-        for action_call in task_plan
+        env.get_primitive_info(action_call=action_call) for action_call in task_plan
     ]
 
-def get_callable_goal_props(predicted_goal_props: List[str], possible_props: List[predicates.Predicate]) -> List[predicates.Predicate]:
+
+def get_callable_goal_props(
+    predicted_goal_props: List[str], possible_props: List[predicates.Predicate]
+) -> List[predicates.Predicate]:
     if not is_valid_goal_props(predicted_goal_props, possible_props):
         raise ValueError("Invalid goal props")
 
     parsed_goal_props = [
-        symbolic.problem.parse_proposition(prop)
-        for prop in predicted_goal_props
+        symbolic.problem.parse_proposition(prop) for prop in predicted_goal_props
     ]
     return get_goal_props_instantiated(parsed_goal_props)
 
@@ -120,16 +165,24 @@ def get_prop_testing_objs(env: envs.Env) -> Dict[str, Object]:
         prop_testing_objs[obj_name] = prop_test_obj
     return prop_testing_objs
 
-def is_satisfy_goal_props(props: predicates.Predicate, objects: Dict[str, Object], state: np.ndarray, use_hand_state: bool = False) -> bool:
+
+def is_satisfy_goal_props(
+    props: predicates.Predicate,
+    objects: Dict[str, Object],
+    state: np.ndarray,
+    use_hand_state: bool = False,
+) -> bool:
     """Returns True if all props for hold for the given objects, False otherwise.
-    
+
     Args:
         props: list of predicates to test
         objects: dict of objects in the scene
         state: state (either observation or predicted dynamics state) of the scene
     """
     if not use_hand_state:
-        print(f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)")
+        print(
+            f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)"
+        )
         # cutting out the EE observation means that I probably won't have access to inhand(a)
         state = state[1:]
 
@@ -141,6 +194,7 @@ def is_satisfy_goal_props(props: predicates.Predicate, objects: Dict[str, Object
 
     return success
 
+
 # TODO(klin) unclear if this successfully handles the case proptestobjects were handling
 def get_object_relationships(
     observation: np.ndarray,
@@ -149,7 +203,9 @@ def get_object_relationships(
     use_hand_state: bool = False,
 ) -> List[predicates.Predicate]:
     if not use_hand_state:
-        print(f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)")
+        print(
+            f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)"
+        )
         # cutting out the EE observation means that I probably won't have access to inhand(a)
         observation = observation[1:]
     possible_props = get_possible_props(objects, available_predicates)
