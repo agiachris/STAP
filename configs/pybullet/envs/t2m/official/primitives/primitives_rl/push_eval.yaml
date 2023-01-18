@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: push_eval
+  name: push
   gui: true
 
   primitives:

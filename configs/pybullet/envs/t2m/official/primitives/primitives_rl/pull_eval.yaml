@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: pull_eval
+  name: pull
   gui: true
 
   primitives:

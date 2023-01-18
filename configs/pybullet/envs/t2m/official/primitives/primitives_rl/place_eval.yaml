@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: place_eval
+  name: place
   gui: true
 
   primitives:
