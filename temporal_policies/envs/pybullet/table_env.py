@@ -69,11 +69,15 @@ class Task:
             primitives.append(primitive)
 
         # Initial state.
-        initial_propositions = [predicates.Predicate.create(prop) for prop in initial_state]
+        initial_propositions = [
+            predicates.Predicate.create(prop) for prop in initial_state
+        ]
 
         # Goal predicates.
         if goal_propositions is not None:
-            goal_propositions = [predicates.Predicate.create(pred) for pred in goal_propositions]
+            goal_propositions = [
+                predicates.Predicate.create(pred) for pred in goal_propositions
+            ]
 
         return Task(
             action_skeleton=primitives,
@@ -81,7 +85,7 @@ class Task:
             prob=float("nan") if prob is None else prob,
             instruction=instruction,
             goal_propositions=goal_propositions,
-            supported_predicates=supported_predicates
+            supported_predicates=supported_predicates,
         )
 
 
@@ -181,7 +185,7 @@ class TableEnv(PybulletEnv):
         super().__init__(name=name, gui=gui)
 
         # TODO: Bug-fix multiprocessing stalls.
-        # Launch external reset process. 
+        # Launch external reset process.
         # if reset_queue_size <= 0 or num_processes <= 1:
         #     self._process_pipes: Optional[
         #         List[multiprocessing.connection.Connection]
@@ -219,8 +223,12 @@ class TableEnv(PybulletEnv):
         #     ]
         #     for process in self._reset_processes:
         #         process.start()
-        self._process_pipes: Optional[List[multiprocessing.connection.Connection]] = None
-        self._seed_queue: Optional[multiprocessing.Queue[Tuple[int, Optional[dict]]]] = None
+        self._process_pipes: Optional[
+            List[multiprocessing.connection.Connection]
+        ] = None
+        self._seed_queue: Optional[
+            multiprocessing.Queue[Tuple[int, Optional[dict]]]
+        ] = None
         self._seed_buffer = None
         self._reset_processes = None
         self._process_id: Optional[Tuple[int, int]] = None
@@ -765,7 +773,10 @@ class TableEnv(PybulletEnv):
         """Return list of supported task-agnostic goal predicates signatures."""
         if self.task.supported_predicates is None:
             raise ValueError("Supported goal predicates not declared in task.")
-        if not all(pred in predicates.SUPPORTED_PREDICATES for pred in self.task.supported_predicates):
+        if not all(
+            pred in predicates.SUPPORTED_PREDICATES
+            for pred in self.task.supported_predicates
+        ):
             ValueError("Task require unsupported goal predicates.")
         return self.task.supported_predicates
 
@@ -856,6 +867,8 @@ class TableEnv(PybulletEnv):
         except KeyError:
             camera_view = self._camera_views["front"]
 
+        self.render_mode = "high_res_front"
+
         if "high_res" in self.render_mode:
             width, height = (1620, 1080)
         else:
@@ -874,15 +887,14 @@ class TableEnv(PybulletEnv):
         img = Image.fromarray(img_rgb, "RGB")
         draw = ImageDraw.Draw(img)
         try:
-            # FONT = ImageFont.truetype("arial.ttf", 15)
-            # print(
-            #     "Could not find arial.ttf (run `apt install msttcorefonts`?). Using default font."
-            # )
-            FONT = ImageFont.load_default()
+            FONT = ImageFont.truetype("fonts/nk57-monospace-no-bd.ttf", 30)
         except OSError:
             FONT = ImageFont.load_default()
         draw.multiline_text(
-            (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", fill=(0, 204, 0), font=FONT
+            (10, 10),
+            str(self.get_primitive()) + f"\n{self._recording_text}",
+            fill=(0, 204, 0),
+            font=FONT,
         )
         # text_color = (255, 100, 255)
         # draw.text((20, 10), "Hello World", fill=text_color, font=FONT)
