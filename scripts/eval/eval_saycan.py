@@ -29,7 +29,7 @@ from temporal_policies.planners.utils import get_printable_object_relationships_
 
 tabulate.PRESERVE_WHITESPACE = True
 from tabulate import tabulate
-from symbolic import _and, parse_proposition
+from symbolic import parse_proposition
 
 from termcolor import colored
 import argparse
@@ -53,7 +53,7 @@ from temporal_policies.evaluation.utils import (
     is_satisfy_goal_props,
     seed_generator,
 )
-from temporal_policies.task_planners.goals import get_goal_from_lm, is_valid_goal_props
+from temporal_policies.task_planners.goals import get_goal_from_lm
 
 from temporal_policies.task_planners.lm_data_structures import APIType
 from temporal_policies.task_planners.lm_utils import (
@@ -285,7 +285,9 @@ def eval_saycan(
         env.objects, available_predicates
     )
 
-    num_successes_on_predicted_goal_props: int = 0
+    num_successes_on_used_goal_props: int = (
+        0  # either predicted or ground truth goal props
+    )
     num_successes_on_ground_truth_goal_props: int = 0
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
@@ -298,6 +300,7 @@ def eval_saycan(
         all_executed_actions: List[str] = []
 
         observation, info = env.reset()
+        seed = info["seed"]
 
         # get goal props
         objects = list(env.objects.keys())
@@ -320,8 +323,10 @@ def eval_saycan(
             lm_cache=lm_cache,
             verbose=verbose,
         )
-        goal_props_ground_truth: List[str] = [str(goal) for goal in env.goal_propositions]
         save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+        goal_props_ground_truth: List[str] = [
+            str(goal) for goal in env.goal_propositions
+        ]
 
         if use_ground_truth_goal_props:
             goal_props_to_use = goal_props_ground_truth
@@ -459,6 +464,7 @@ def eval_saycan(
                 print(colored("goal props satisfied", "green"))
                 done = True
                 reached_goal_prop = True
+                num_successes_on_used_goal_props += 1
 
             objects = list(env.objects.keys())
             object_relationships = get_object_relationships(
@@ -475,7 +481,6 @@ def eval_saycan(
         if env.is_goal_state():
             print(colored("ground truth goal props satisfied", "green"))
             num_successes_on_ground_truth_goal_props += 1
-
 
         gif_path = (
             path
@@ -512,9 +517,9 @@ def eval_saycan(
                 "verbose": verbose,
                 "use_ground_truth_goal_props": use_ground_truth_goal_props,
             },
-            "num_successes_on_predicted_goal_props": num_successes_on_predicted_goal_props,
-            "success_rate_on_predicted_goal_props": (
-                num_successes_on_predicted_goal_props / num_eval
+            "num_successes_on_used_goal_props": num_successes_on_used_goal_props,
+            "success_rate_on_used_goal_props": (
+                num_successes_on_used_goal_props / num_eval
             )
             * 100,
             "num_successes_on_ground_truth_goal_props": num_successes_on_ground_truth_goal_props,
