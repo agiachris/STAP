@@ -26,7 +26,7 @@ TABLE_CONSTRAINTS = {
 }
 
 
-EPSILONS = {"aabb": 0.01, "align": 0.99, "twist": 0.001, "tipping": 0.1}
+EPSILONS = {"aabb": 0.05, "align": 0.99, "twist": 0.001, "tipping": 0.1}
 
 
 def compute_margins(obj: Object, sim: bool = True) -> np.ndarray:
@@ -157,22 +157,6 @@ def is_under(obj_a: Object, obj_b: Object, sim: bool = True) -> bool:
     return False
 
 
-def is_on(
-    obj_a: Object, obj_b: Object, on_distance: float = 0.02, sim: bool = True
-) -> bool:
-    """Returns True if object a is on top of object b."""
-    if (
-        is_above(obj_a, obj_b)
-        and is_intersecting(obj_a, obj_b)
-        and not is_inhand(
-            obj_a,
-        )
-        and abs(obj_a.aabb()[0, 2] - obj_b.aabb()[1, 2]) < on_distance
-    ):
-        return True
-    return False
-
-
 def is_inhand(obj: Object) -> bool:
     """Returns True if the object is in the gripper."""
     z_pos = obj.pose().pos[2]
@@ -181,7 +165,7 @@ def is_inhand(obj: Object) -> bool:
 
 
 def is_on(
-    obj_a: Object, obj_b: Object, on_distance: float = 0.02, sim: bool = True
+    obj_a: Object, obj_b: Object, on_distance: float = 0.04, sim: bool = True
 ) -> bool:
     """Returns True if object a is on top of object b."""
     if (
