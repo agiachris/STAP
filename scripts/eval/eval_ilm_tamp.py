@@ -374,6 +374,7 @@ def eval_ilm_tamp(
 
 def main(args: argparse.Namespace) -> None:
     auth = authenticate(args.api_type, args.key_name)
+    assert "code" not in args.key_name, "Please use a non-code only key since get_successors uses text-davinci-003."
     delattr(args, "key_name")
     eval_ilm_tamp(**vars(args), auth=auth)
 
@@ -430,7 +431,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-examples",
         type=int,
-        default=1,
+        default=5,
         help="Number of examples to use in in context prompt",
     )
     # LMConfig
