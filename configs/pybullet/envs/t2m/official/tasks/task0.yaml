@@ -1,7 +1,7 @@
 env: pybullet.TableEnv
 env_kwargs:
   name: structured_language_0
-  gui: true
+  gui: false
 
   primitives:
     - pick
