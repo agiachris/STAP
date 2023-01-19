@@ -23,7 +23,7 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         agent: agents.RLAgent,
         dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
-        eval_dataset_kwargs: Optional[Dict[str, Any]] = None,
+        eval_dataset_kwargs: Dict[str, Any] = {},
         processor_class: Union[
             str, Type[processors.Processor]
         ] = processors.IdentityProcessor,
@@ -100,8 +100,6 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             raise ValueError("Must provide one of train data checkpoint or trainer checkpoint.")
 
         # Load eval dataset.
-        if eval_dataset_kwargs is None:
-            eval_dataset_kwargs = dataset_kwargs
         eval_dataset_kwargs = dict(eval_dataset_kwargs)
         eval_dataset_kwargs["save_frequency"] = None
         eval_dataset_kwargs["path"] = path / "eval_data"

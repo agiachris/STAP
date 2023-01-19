@@ -49,6 +49,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         profile_freq: Optional[int] = None,
         eval_metric: str = "l2_loss",
         num_data_workers: int = 0,
+        name: Optional[str] = None,
     ):
         """Prepares the dynamics trainer for training.
 
@@ -82,8 +83,11 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             profile_freq: Profiling frequency.
             eval_metric: Metric to use for evaluation.
             num_data_workers: Number of workers to use for dataloader.
+            name: Optional trainer name. Uses env name by default.
         """
-        path = pathlib.Path(path) / "dynamics"
+        if name is None:
+            name = "dynamics"
+        path = pathlib.Path(path) / name
 
         # Get agent trainers.
         if agent_trainers is None:
@@ -110,14 +114,6 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                 )
 
                 agent_trainer = agent_trainer_factory(
-                    # hardcoded for now: TODO make configurable
-                    # doing so fixes validation split to these checkpoints
-                    eval_dataset_checkpoints=[
-                        "/juno/u/thankyou/autom/t2m/models/official/pick/eval_data",
-                        "/juno/u/thankyou/autom/t2m/models/official/place/eval_data",
-                        "/juno/u/thankyou/autom/t2m/models/official/push/eval_data",
-                        "/juno/u/thankyou/autom/t2m/models/official/pull/eval_data",
-                    ],
                     dataset_kwargs=dict(
                         agent_trainer_factory.kwargs["dataset_kwargs"],
                         skip_truncated=skip_truncated,
@@ -132,16 +128,12 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                         skip_failed=skip_failed,
                     ),
                 )
-                print(f"skip_truncated: {skip_truncated}, skip_failed: {skip_failed}")
                 assert isinstance(agent_trainer, AgentTrainer)
                 agent_trainers.append(agent_trainer)
 
         dataset_class = configs.get_class(dataset_class, datasets)
         dataset = dataset_class(
             [trainer.dataset for trainer in agent_trainers], **dataset_kwargs
-        )
-        val_dataset = dataset_class(
-            [trainer.val_dataset for trainer in agent_trainers], **dataset_kwargs
         )
         eval_dataset = dataset_class(
             [trainer.eval_dataset for trainer in agent_trainers], **dataset_kwargs
@@ -166,7 +158,6 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             path=path,
             model=dynamics,
             dataset=dataset,
-            val_dataset=val_dataset,
             eval_dataset=eval_dataset,
             processor=processor,
             optimizers=optimizers,
@@ -216,14 +207,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             Eval metrics.
         """
         if self._eval_dataloader is None:
-            # by default, use eval_dataset if provided; TODO(klin)
-            # unclear if code ever hits if statement since
-            # loaded checkpoint always has eval_dataset?
-            if len(self.eval_dataset) == 0:
-                assert len(self.val_dataset) > 0, "No eval or val dataset"
-                self._eval_dataloader = self.create_dataloader(self.val_dataset, 4)
-            else:
-                self._eval_dataloader = self.create_dataloader(self.eval_dataset, 4)
+            self._eval_dataloader = self.create_dataloader(self.eval_dataset, 1)
 
         self.eval_mode()
 

@@ -21,6 +21,7 @@ def train(
     seed: Optional[int] = None,
     gui: Optional[int] = None,
     num_train_steps: Optional[int] = None,
+    name: Optional[str] = None,
 ) -> None:
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
@@ -55,6 +56,8 @@ def train(
         trainer_kwargs = {}
         if num_train_steps is not None:
             trainer_kwargs["num_train_steps"] = num_train_steps
+        if name is not None:
+            trainer_kwargs["name"] = name
 
         print("[scripts.train.train_dynamics] Trainer config:")
         pprint(trainer_factory.config)
@@ -101,5 +104,6 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument("--num-train-steps", type=int, help="Number of steps to train")
+    parser.add_argument("--name", type=str, help="Experiment name")
 
     main(parser.parse_args())

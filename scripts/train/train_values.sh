@@ -123,29 +123,29 @@ function run_value_sweep {
 # Set sweep config paths.
 TRAINER_CONFIG_PATH="configs/pybullet/trainers/value_sweeps"
 TRAINER_SWEEPS=(
-    # "value_l2-0.00005"
-    # "value_l2-0.0001"
-    # "value_l2-0.001"
-    # "value_l2-0.01"
-    # "value_l2-0.1"
-    # "value_lr-0.0001"
-    # "value_lr-0.00005"
-    # "value_lr-0.00001"
+    "value_l2-0.00005"
+    "value_l2-0.0001"
+    "value_l2-0.001"
+    "value_l2-0.01"
+    "value_l2-0.1"
+    "value_lr-0.0001"
+    "value_lr-0.00005"
+    "value_lr-0.00001"
 )
 
 AGENT_CONFIG_PATH="configs/pybullet/agents/multi_stage/value_sweeps"
 AGENT_SWEEPS=(
-    # "sac_value_hids-2_dims-1024"
-    # "sac_value_hids-2_dims-512"
-    # "sac_value_hids-3_dims-1024"
-    # "sac_value_hids-3_dims-256"
-    # "sac_value_hids-3_dims-512"
-    # "sac_value_hids-4_dims-1024"
-    # "sac_value_hids-4_dims-256"
-    # "sac_value_hids-4_dims-512"
-    # "sac_ens_value_hids-4_dims-512"
-    # "sac_value"
-    # "sac_ens_value"
+    "sac_value_hids-2_dims-1024"
+    "sac_value_hids-2_dims-512"
+    "sac_value_hids-3_dims-1024"
+    "sac_value_hids-3_dims-256"
+    "sac_value_hids-3_dims-512"
+    "sac_value_hids-4_dims-1024"
+    "sac_value_hids-4_dims-256"
+    "sac_value_hids-4_dims-512"
+    "sac_ens_value_hids-4_dims-512"
+    "sac_value"
+    "sac_ens_value"
 )
 
 # Launch primitive sweep jobs.

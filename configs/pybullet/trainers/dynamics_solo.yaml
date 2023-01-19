@@ -2,7 +2,7 @@ trainer: DynamicsTrainer
 trainer_kwargs:
   dataset_class: StratifiedReplayBuffer
   dataset_kwargs:
-    batch_size: 512
+    batch_size: 128
   skip_truncated: true
   skip_failed: true
 
