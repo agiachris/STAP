@@ -1,0 +1,63 @@
+[
+    {
+        "predicates": [
+            "on(a, b)",
+            "inhand(a)",
+            "under(a, b)"
+        ],
+        "primitives": [
+            "pick(a)",
+            "place(a, b)",
+            "pull(a, hook)",
+            "push(a, hook, rack)"
+        ],
+        "scene_objects": [
+            "table",
+            "cyan_box",
+            "hook",
+            "red_box",
+            "yellow_box",
+            "rack",
+            "blue_box"
+        ],
+        "scene_object_relationships": [
+            "on(hook, table)",
+            "on(red_box, table)",
+            "on(blue_box, table)",
+            "on(cyan_box, table)",
+            "on(rack, table)",
+            "under(yellow_box, rack)"
+        ],
+        "human": "How would you get the cyan box under the rack and then ensure the hook is on the table?",
+        "explanation": null,
+        "goal": [
+            "under(cyan_box, rack)",
+            "on(hook, table)"
+        ],
+        "robot_action_sequence": [
+            "pick(blue_box",
+            "place(blue_box, table)",
+            "pick(red_box)",
+            "place(red_box, table)",
+            "pick(hook)",
+            "push(cyan_box, hook, rack)",
+            "place(hook, table)"
+        ],
+        "use_primitives": false,
+        "use_predicates": false,
+        "use_scene_objects": false,
+        "use_scene_object_relationships": false,
+        "use_human": false,
+        "use_explanation": false,
+        "use_goal": false,
+        "use_robot": false,
+        "explanation_predicted": null,
+        "goal_predicted": null,
+        "action_predicted": null,
+        "robot_predicted": null,
+        "pddl_domain_file": "configs/pybullet/envs/official/domains/template/tamp0_domain.pddl",
+        "pddl_problem_file": "configs/pybullet/envs/official/domains/hook_reach/new_tamp_problem4.pddl",
+        "custom_robot_prompt": "",
+        "custom_robot_action_sequence_format": "python_list"
+    }
+]

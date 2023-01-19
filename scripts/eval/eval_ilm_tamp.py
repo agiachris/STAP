@@ -109,7 +109,7 @@ def eval_ilm_tamp(
 
     # these would perhaps belong in .../prompts/
     examples = get_examples_from_json_dir(
-        "configs/pybullet/envs/t2m/official/prompts/hook_reach/"
+        "configs/pybullet/envs/t2m/official/prompts/"
     )
 
     for example in examples:
