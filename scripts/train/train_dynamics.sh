@@ -7,8 +7,8 @@ GCP_LOGIN="juno-login-lclbjqwy-001"
 function run_cmd {
     echo ""
     echo "${CMD}"
-    if [[ `hostname` == "sc.stanford.edu" ]]; then
-        sbatch scripts/train/train_juno.sh "${CMD}"
+    if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
+        sbatch "${SBATCH_SLURM}" "${CMD}"
     elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
         sbatch scripts/train/train_gcp.sh "${CMD}"
     else
@@ -26,6 +26,9 @@ function train_dynamics {
     args="${args} --seed 0"
     args="${args} ${ENV_KWARGS}"
 
+    if [ ! -z "${NAME}" ]; then
+        args="${args} --name ${NAME}"
+    fi
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${DYNAMICS_OUTPUT_PATH}_debug"
         args="${args} --overwrite"
@@ -38,56 +41,90 @@ function train_dynamics {
     run_cmd
 }
 
-# Setup.
+function run_dynamics {
+    NAME=""
+    POLICY_CHECKPOINTS=()
+    for primitive in "${PRIMITIVES[@]}"; do
+        POLICY_CHECKPOINTS+=("${POLICY_CHECKPOINT_PATH}/${primitive}/${POLICY_DIRS[${primitive}]}/final_model.pt")
+
+        if [ -z "${NAME}" ]; then
+            NAME="${primitive}"
+        else
+            NAME="${NAME}_${primitive}"
+        fi
+    done
+    NAME="${NAME}_dynamics"
+
+    train_dynamics
+}
+
+### Setup.
+SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
 output_path="models"
 
-# Experiments.
+### Experiments.
 
+## Pybullet.
+exp_name="20230118/dynamics"
+DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}"
 
-# Pybox2d.
-
-# exp_name="20220806/pybox2d"
-# TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
-# DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
-# policy_envs=("placeright" "pushleft")
-# checkpoints=(
-#     "final_model"
-#     # "best_model"
-#     # "ckpt_model_50000"
-#     # "ckpt_model_100000"
-# )
-
-# Pybullet.
-
-exp_name="20230101/complete_q_multistage/"
-TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
-policy_envs=("pick_0" "place_0" "pull_0" "push_0")
-# policy_envs=( "pick_0") # "pull_0" "push_0")
-# policy_envs=( "push_0") # "pull_0" "push_0")
-checkpoints=(
-    # "final_model"
-    # "best_model"
-    # "select_model"
-    # "ckpt_model_50000"
-    # "ckpt_model_100000"
-    # "ckpt_model_150000"
-    # "ckpt_model_200000"
-    "ckpt_model_300000"
-)
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
-ENV_KWARGS="--gui 0"
+# Launch dynamics jobs.
 
-for ckpt in "${checkpoints[@]}"; do
-    POLICY_CHECKPOINTS=()
-    for policy_env in "${policy_envs[@]}"; do
-        POLICY_CHECKPOINTS+=("${output_path}/${exp_name}/${policy_env}/${ckpt}.pt")
-    done
+# Pick dynamics.
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_solo.yaml"
+POLICY_CHECKPOINT_PATH="models/20230118/policy"
+PRIMITIVES=("pick")
+declare -A POLICES=(
+    ["pick"]="final_model"
+)
+run_dynamics
 
-    DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}/${ckpt}"
-    train_dynamics
-done
+# Place dynamics.
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_solo.yaml"
+POLICY_CHECKPOINT_PATH="models/20230118/policy"
+PRIMITIVES=("place")
+declare -A POLICY_DIRS=(
+    ["place"]="final_model"
+)
+run_dynamics
+
+# Pull dynamics.
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_solo.yaml"
+POLICY_CHECKPOINT_PATH="models/20230118/policy"
+PRIMITIVES=("pull")
+declare -A POLICY_DIRS=(
+    ["pull"]="final_model"
+)
+run_dynamics
+
+# Push dynamics.
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_solo.yaml"
+POLICY_CHECKPOINT_PATH="models/20230118/policy"
+PRIMITIVES=("push")
+declare -A POLICY_DIRS=(
+    ["push"]="final_model"
+)
+run_dynamics
+
+# Full suite dynamics.
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
+POLICY_CHECKPOINT_PATH="models/20230118/policy"
+PRIMITIVES=(
+    "pick"
+    "place"
+    "pull"
+    "push"
+)
+declare -A POLICY_DIRS=(
+    ["pick"]="final_model"
+    ["place"]="final_model"
+    ["pull"]="final_model"
+    ["push"]="final_model"
+)
+run_dynamics
