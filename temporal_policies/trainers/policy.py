@@ -99,7 +99,7 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         if checkpoint is None and train_data_checkpoints is not None:
             for train_data in train_data_checkpoints:
                 dataset.load(pathlib.Path(train_data))
-        else:
+        elif checkpoint is None:
             raise ValueError("Must provide either train data checkpoint or trainer checkpoint.")
 
         eval_dataset_kwargs = dict(eval_dataset_kwargs)
@@ -113,7 +113,7 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         if checkpoint is None and eval_data_checkpoints is not None:
             for eval_data in eval_data_checkpoints:
                 eval_dataset.load(pathlib.Path(eval_data))
-        else:
+        elif checkpoint is None:
             raise ValueError("Must provide one of eval data checkpoint or trainer checkpoint.")
 
         processor_class = configs.get_class(processor_class, processors)

@@ -80,7 +80,7 @@ fi
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics_solo.yaml"
 POLICY_CHECKPOINT_PATH="models/20230118/policy"
 PRIMITIVES=("pick")
-declare -A POLICES=(
+declare -A POLICY_DIRS=(
     ["pick"]="final_model"
 )
 run_dynamics
