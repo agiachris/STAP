@@ -26,23 +26,35 @@ function generate_data {
     run_cmd
 }
 
-# Experiments.
-EXP_NAME="20230116/datasets"
-SYMBOLIC_ACTION_TYPE="valid"
-NUM_PRETRAIN_STEPS="100000"
-
-# Pybullet.
-primitives=("pick" "place" "pull" "push")
-train_seeds=("0" "1" "2" "3" "4" "5" "6" "7")
-validation_seeds=("8" "9")
-for PRIMITIVE in "${primitives[@]}"; do
+function run_data_generation {
     SPLIT="train"
-    for SEED in "${train_seeds[@]}"; do
+    for SEED in "${TRAIN_SEEDS[@]}"; do
         generate_data
     done
     
     SPLIT="validation"
-    for SEED in "${validation_seeds[@]}"; do
+    for SEED in "${VALIDATION_SEEDS[@]}"; do
         generate_data
-    done
-done
+    done   
+}
+
+# Experiments.
+EXP_NAME="20230119/datasets"
+SYMBOLIC_ACTION_TYPE="valid"
+NUM_PRETRAIN_STEPS="100000"
+
+# Pybullet.
+TRAIN_SEEDS=("0" "1" "2" "3" "4" "5" "6" "7")
+VALIDATION_SEEDS=("8" "9")
+
+PRIMITIVE="pick"
+run_data_generation
+
+PRIMITIVE="place"
+run_data_generation
+
+PRIMITIVE="pull"
+run_data_generation
+
+PRIMITIVE="push"
+run_data_generation
