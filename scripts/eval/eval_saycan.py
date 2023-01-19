@@ -285,18 +285,18 @@ def eval_saycan(
         env.objects, available_predicates
     )
 
-    goal_props_predicted: List[str]
-    objects: List[str]
-    object_relationships: List[str]
-    all_prior_object_relationships: List[List[str]] = []
-    all_executed_actions: List[str] = []
-
     num_successes_on_predicted_goal_props: int = 0
     num_successes_on_ground_truth_goal_props: int = 0
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
     for idx_iter, (seed, loaded_plan) in enumerate(pbar):
+        goal_props_predicted: List[str]
+        objects: List[str]
+        object_relationships: List[str]
+        all_prior_object_relationships: List[List[str]] = []
+        all_executed_actions: List[str] = []
+
         observation, info = env.reset()
 
         # get goal props

@@ -237,52 +237,65 @@ def get_action_scores_from_lm(
     action_logprobs_dct: Dict[str, float] = {}
 
     logprob_type = f"action sequence" if score_action_sequence else "action"
-    for potential_action in potential_actions:
-        current_prompt = CurrentExample(
-            scene_objects=objects,
-            scene_object_relationships=object_relationships_str,
-            human=instruction,
-            goal_predicted=goal,
-            use_scene_objects=True,
-            use_scene_object_relationships=True,
-            use_human=True,
-            use_goal=True,
-            use_predicted_goal=True,
-            predict_robot=True,
-            custom_robot_prompt=custom_robot_prompt,
-            custom_robot_action_sequence_format=custom_robot_action_sequence_format,
-            pddl_domain_file=pddl_domain_file,
-            pddl_problem_file=pddl_problem_file,
-            use_action_object_relationship_history=True,
-            all_prior_object_relationships=all_prior_object_relationships,
-            all_executed_actions=all_executed_actions,
-            score_action=True,
-            action_to_score=potential_action,
+    current_prompt = CurrentExample(
+        scene_objects=objects,
+        scene_object_relationships=object_relationships_str,
+        human=instruction,
+        goal_predicted=goal,
+        use_scene_objects=True,
+        use_scene_object_relationships=True,
+        use_human=True,
+        use_goal=True,
+        use_predicted_goal=True,
+        predict_robot=True,
+        custom_robot_prompt=custom_robot_prompt,
+        custom_robot_action_sequence_format=custom_robot_action_sequence_format,
+        pddl_domain_file=pddl_domain_file,
+        pddl_problem_file=pddl_problem_file,
+        use_action_object_relationship_history=True,
+        all_prior_object_relationships=all_prior_object_relationships,
+        all_executed_actions=all_executed_actions,
+        score_action=True,
+        actions_to_score=potential_actions,
+    )
+    # generate LM response to the particular prompt (maybe made up of)
+    # then, I need to get scores corresponding
+    results, lm_cache = generate_lm_response(
+        header_prompt,
+        current_prompt,
+        examples,
+        lm_cfg=lm_cfg,
+        auth=auth,
+        lm_cache=lm_cache,
+    )
+
+    assert isinstance(results.tokens_predicted[0], List), (
+        "The LM response is not a list of list of tokens. "
+    )
+    tokens: Optional[List[List[Token]]] = results.tokens_predicted
+    # tokens: Optional[List[Token] = results.tokens_predicted
+
+    if score_action_sequence:
+        # assume the action prompting follows the pattern
+        # "Executed action: ...\nNew object relationships: ...\nNew action: ..."
+        # therefore, we can count the number of ":" tokens to compute the logprobs up to the
+        # beginning of the action sequence
+        n_colon_tokens_to_action_prompt_start = len(all_executed_actions) * 2 + 1
+        action_logprob = get_action_logprob(
+            tokens, n_colon_tokens_to_action_prompt_start
         )
-        # generate LM response to the particular prompt (maybe made up of)
-        # then, I need to get scores corresponding
-        results, lm_cache = generate_lm_response(
-            header_prompt,
-            current_prompt,
-            examples,
-            lm_cfg=lm_cfg,
-            auth=auth,
-            lm_cache=lm_cache,
-        )
-        tokens: List[Token] = results.tokens_predicted
-        if score_action_sequence:
-            # assume the action prompting follows the pattern
-            # "Executed action: ...\nNew object relationships: ...\nNew action: ..."
-            # therefore, we can count the number of ":" tokens to compute the logprobs up to the
-            # beginning of the action sequence
-            n_colon_tokens_to_action_prompt_start = len(all_executed_actions) * 2 + 1
-            action_logprob = get_action_logprob(
-                tokens, n_colon_tokens_to_action_prompt_start
-            )
+    else:
+        if isinstance(tokens[0], List):
+            for token_list in tokens:
+                action_logprob = get_action_logprob(token_list, 1)
+                action_logprobs.append(action_logprob)
         else:
             action_logprob = get_action_logprob(tokens, 1)
             action_logprobs.append(action_logprob)
 
+    for i in range(len(potential_actions)):
+        potential_action = potential_actions[i]
+        action_logprob = action_logprobs[i]
         actions_key = str(
             [str(action).lower() for action in all_executed_actions]
             + [potential_action]
@@ -290,7 +303,7 @@ def get_action_scores_from_lm(
         action_logprobs_dct[actions_key] = action_logprob
         print(f"{logprob_type}: {actions_key}, logprob: {np.round(action_logprob, 3)}")
 
-        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+    save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
     lm_cfg.echo = False
     lm_cfg.max_tokens = original_max_tokens

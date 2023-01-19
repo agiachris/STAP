@@ -196,6 +196,7 @@ def is_satisfy_goal_props(
 
 
 # TODO(klin) unclear if this successfully handles the case proptestobjects were handling
+# Note: it doesn't: TODO(klin)
 def get_object_relationships(
     observation: np.ndarray,
     objects: Dict[str, Object],

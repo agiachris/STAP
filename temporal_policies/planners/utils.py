@@ -384,7 +384,7 @@ def vizualize_predicted_plan(
         else:
             env._recording_text = custom_recording_text
     if object_relationships_list is not None:
-        env._recording_text += get_printable_object_relationships_str(object_relationships_list[-1])
+        env._recording_text += "\n" + get_printable_object_relationships_str(object_relationships_list[-1])
     env.set_observation(plan.states[-1])
     recorder.add_frame(frame=env.render())
 
