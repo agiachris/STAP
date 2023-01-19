@@ -77,7 +77,7 @@ plots_path="plots"
 ### Experiments.
 
 ## Pybullet.
-exp_name="20230118/policy"
+exp_name="20230119/policy"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
@@ -95,28 +95,28 @@ DATA_CHECKPOINT_PATH="models/20230116/datasets"
 
 # Launch primitive jobs.
 PRIMITIVE="pick"
-CRITIC_CHECKPOINT_PATH="models/20230118/value"
+CRITIC_CHECKPOINT_PATH="models/20230119/value"
 CRITIC_CHECKPOINTS=(
     "pick/final_model"
 )
 run_policy
 
 PRIMITIVE="place"
-CRITIC_CHECKPOINT_PATH="models/20230118/value"
+CRITIC_CHECKPOINT_PATH="models/20230119/value"
 CRITIC_CHECKPOINTS=(
-    "place/final_model"
+     "place/final_model"
 )
 run_policy
 
 PRIMITIVE="pull"
-CRITIC_CHECKPOINT_PATH="models/20230118/value"
+CRITIC_CHECKPOINT_PATH="models/20230119/value"
 CRITIC_CHECKPOINTS=(
     "pull/final_model"
 )
 run_policy
 
 PRIMITIVE="push"
-CRITIC_CHECKPOINT_PATH="models/20230118/value"
+CRITIC_CHECKPOINT_PATH="models/20230119/value"
 CRITIC_CHECKPOINTS=(
     "push/final_model"
 )
