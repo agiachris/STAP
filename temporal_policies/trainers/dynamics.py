@@ -217,9 +217,6 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         Returns:
             Eval metrics.
         """
-        if self._eval_dataloader is None:
-            self._eval_dataloader = self.create_dataloader(self.eval_dataset, 1)
-
         self.eval_mode()
 
         with self.profiler.profile("evaluate"):
@@ -235,7 +232,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                     batch = next(self.eval_batches)
                 except StopIteration:
                     self._eval_batches = iter(self.eval_dataloader)
-                    batch = next(self.eval_batches)         
+                    batch = next(self.eval_batches)
             
                 with torch.no_grad():
                     batch = self.process_batch(batch)
