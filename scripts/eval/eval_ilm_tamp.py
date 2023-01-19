@@ -20,9 +20,7 @@ PYTHONPATH=. python scripts/eval/eval_ilm_tamp.py
 
 import json
 import random
-from scripts.eval.eval_policies import query_policy_actor, query_policy_critic
-from temporal_policies import agents, envs, planners
-from temporal_policies.dynamics.base import Dynamics
+from temporal_policies import envs, planners
 from temporal_policies.envs.pybullet.table.objects import Object
 
 import tqdm
@@ -40,14 +38,13 @@ from temporal_policies.envs.pybullet.table import predicates
 from temporal_policies.envs.pybullet.table.objects import Object
 from temporal_policies.evaluation.utils import (
     get_callable_goal_props,
-    get_goal_props_instantiated,
     get_object_relationships,
     get_possible_props,
     get_prop_testing_objs,
     is_satisfy_goal_props,
     seed_generator,
 )
-from temporal_policies.task_planners.goals import get_goal_from_lm, is_valid_goal_props
+from temporal_policies.task_planners.goals import get_goal_from_lm
 
 from temporal_policies.task_planners.lm_data_structures import APIType
 from temporal_policies.task_planners.lm_utils import (
@@ -60,7 +57,6 @@ from temporal_policies.envs.pybullet.table import (
     predicates,
 )
 
-from temporal_policies.utils import tensors
 from temporal_policies.task_planners.beam_search import (
     BeamSearchAlgorithm,
     BeamSearchProblem,
@@ -103,6 +99,7 @@ def eval_ilm_tamp(
     max_tokens: Optional[int] = 100,
     auth: Optional[Authentication] = None,
     visualize_planning: bool = False,
+    use_ground_truth_goal_props: bool = False,
 ):
     # set seeds
     if seed is not None:
@@ -110,7 +107,6 @@ def eval_ilm_tamp(
         np.random.seed(seed)
         torch.manual_seed(seed)
 
-    INSTRUCTION = "Put the red box on the rack"
     # these would perhaps belong in .../prompts/
     examples = get_examples_from_json_dir(
         "configs/pybullet/envs/t2m/official/prompts/hook_reach/"
@@ -200,69 +196,84 @@ def eval_ilm_tamp(
         env.objects, available_predicates
     )
 
-    goal_props_predicted: List[str]
-    objects: List[str]
-    object_relationships: List[str]
-    all_prior_object_relationships: List[List[str]] = []
-    all_executed_actions: List[str] = []
-
-    observation, info = env.reset()
-    done = False
-
-    # get goal props
-    objects = list(env.objects.keys())
-    object_relationships = get_object_relationships(
-        observation, env.objects, available_predicates, use_hand_state=False
+    num_successes_on_used_goal_props: int = (
+        0  # either predicted or ground truth goal props
     )
-    object_relationships = [str(prop) for prop in object_relationships]
-    all_prior_object_relationships.append(object_relationships)
-    goal_props_predicted, lm_cache = get_goal_from_lm(
-        INSTRUCTION,
-        objects,
-        object_relationships,
-        pddl_domain,
-        pddl_problem,
-        examples=examples,
-        lm_cfg=lm_cfg,
-        auth=auth,
-        lm_cache=lm_cache,
-    )
-    save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
-    goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
-        goal_props_predicted, possible_props
-    )
-    print(f"goal props predicted: {goal_props_predicted}")
-
-    num_successes: int = 0
+    num_successes_on_ground_truth_goal_props: int = 0
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
     for idx_iter, (seed, loaded_plan) in enumerate(pbar):
-        done: bool = False
-        success: bool = False
-        recording_id: Optional[int] = None
+        goal_props_predicted: List[str]
+        objects: List[str]
+        object_relationships: List[str]
+        all_prior_object_relationships: List[List[str]] = []
+        all_executed_actions: List[str] = []
 
         # Initialize environment.
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
+
+        # get goal props
+        objects = list(env.objects.keys())
+        object_relationships = get_object_relationships(
+            observation, env.objects, available_predicates, use_hand_state=False
+        )
+        object_relationships = [str(prop) for prop in object_relationships]
+        all_prior_object_relationships.append(object_relationships)
+        goal_props_predicted, lm_cache = get_goal_from_lm(
+            env.instruction,
+            objects,
+            object_relationships,
+            pddl_domain,
+            pddl_problem,
+            examples=examples,
+            lm_cfg=lm_cfg,
+            auth=auth,
+            lm_cache=lm_cache,
+        )
+        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+        goal_props_ground_truth: List[str] = [
+            str(goal) for goal in env.goal_propositions
+        ]
+
+        if use_ground_truth_goal_props:
+            goal_props_to_use = goal_props_ground_truth
+        else:
+            goal_props_to_use = goal_props_predicted
+
+        goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
+            goal_props_to_use, possible_props
+        )
+
+        print(colored(f"goal props predicted: {goal_props_predicted}", "blue"))
+        print(colored(f"minimal goal props: {goal_props_ground_truth}", "blue"))
+
+        done: bool = False
+        recording_id: Optional[int] = None
+        reached_goal_prop: bool = False
 
         beam_search_algorithm = BeamSearchAlgorithm(
             max_beam_size=1, max_depth=max_depth, num_successors_per_node=5
         )
 
         if is_satisfy_goal_props(
-            goal_props_callable, prop_testing_objs, observation, use_hand_state=False
+            goal_props_callable,
+            prop_testing_objs,
+            observation,
+            use_hand_state=False,
         ):
-            print(colored("Current state satisfies predicted goal props"), "green")
+            print(colored("goal props satisfied", "green"))
             done = True
-            success = True
+            reached_goal_prop = True
+            num_successes_on_used_goal_props += 1
 
         # TODO(klin) load this from the yaml when ready
         max_steps = 5  # potentially task dependent and loadable from the yaml
         step = 0
         while not done:
             beam_search_problem = BeamSearchProblem(
-                INSTRUCTION,
+                env.instruction,
                 goal_props_predicted,
                 observation,
                 planner,
@@ -309,6 +320,9 @@ def eval_ilm_tamp(
                 action, successful_action_node.custom_recording_text_sequence[0]
             )
             env.record_stop(recording_id)
+            if env.is_goal_state():
+                print(colored("ground truth goal props satisfied", "green"))
+                num_successes_on_ground_truth_goal_props += 1
 
             step += 1
 
@@ -334,13 +348,18 @@ def eval_ilm_tamp(
             if step == max_steps:
                 done = True
 
-        # TODO(klin) test if the "ground truth" goal props are satisfied --- pending update from @cagia
         gif_path = (
-            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.gif"
+            path
+            / str(idx_iter)
+            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
+            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.gif"
         )
         env.record_save(gif_path, reset=False)
         gif_path = (
-            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.mp4"
+            path
+            / str(idx_iter)
+            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
+            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.mp4"
         )
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
@@ -362,9 +381,18 @@ def eval_ilm_tamp(
                 "timeout": timeout,
                 "seed": seed,
                 "verbose": verbose,
+                "use_ground_truth_goal_props": use_ground_truth_goal_props,
             },
-            "num_successes": num_successes,
-            "success_rate": (num_successes / num_eval) * 100,
+            "num_successes_on_used_goal_props": num_successes_on_used_goal_props,
+            "success_rate_on_used_goal_props": (
+                num_successes_on_used_goal_props / num_eval
+            )
+            * 100,
+            "num_successes_on_ground_truth_goal_props": num_successes_on_ground_truth_goal_props,
+            "success_rate_on_ground_truth_goal_props": (
+                num_successes_on_ground_truth_goal_props / num_eval
+            )
+            * 100,
         }
         json.dump(save_dict, f, indent=4)
 
@@ -374,7 +402,9 @@ def eval_ilm_tamp(
 
 def main(args: argparse.Namespace) -> None:
     auth = authenticate(args.api_type, args.key_name)
-    assert "code" not in args.key_name, "Please use a non-code only key since get_successors uses text-davinci-003."
+    assert (
+        "code" not in args.key_name
+    ), "Please use a non-code only key since get_successors uses text-davinci-003."
     delattr(args, "key_name")
     eval_ilm_tamp(**vars(args), auth=auth)
 

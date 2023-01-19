@@ -22,9 +22,8 @@ PYTHONPATH=. python scripts/eval/eval_lm_tamp.py
 import argparse
 import copy
 import pathlib
-import pickle
 import random
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Union
 
 from termcolor import colored
 import numpy as np
@@ -33,7 +32,7 @@ import symbolic
 import tqdm
 from helm.common.authentication import Authentication
 from configs.base_config import LMConfig
-from symbolic import _and, parse_proposition
+from symbolic import parse_proposition
 
 from temporal_policies import dynamics, envs, planners
 from temporal_policies.envs.pybullet.table import (
@@ -42,7 +41,7 @@ from temporal_policies.envs.pybullet.table import (
 )
 from temporal_policies.envs.pybullet.table.objects import Object
 from temporal_policies.evaluation.utils import (
-    get_goal_props_instantiated,
+    get_callable_goal_props,
     get_object_relationships,
     get_possible_props,
     get_prop_testing_objs,
@@ -50,11 +49,9 @@ from temporal_policies.evaluation.utils import (
     is_satisfy_goal_props,
     seed_generator,
 )
-from temporal_policies.task_planners.goals import get_goal_from_lm, is_valid_goal_props
+from temporal_policies.task_planners.goals import get_goal_from_lm
 from temporal_policies.task_planners.lm_data_structures import (
     APIType,
-    CurrentExample,
-    InContextExample,
 )
 from temporal_policies.task_planners.task_plans import get_task_plans_from_lm
 from temporal_policies.utils import recording, timing
@@ -62,9 +59,7 @@ from temporal_policies.utils import recording, timing
 from temporal_policies.task_planners.lm_utils import (
     authenticate,
     get_examples_from_json_dir,
-    generate_lm_response,
     load_lm_cache,
-    register_api_key,
     save_lm_cache,
 )
 
@@ -167,15 +162,13 @@ def eval_lm_tamp(
     api_type: Optional[APIType] = APIType.HELM,
     max_tokens: Optional[int] = 200,
     auth: Optional[Authentication] = None,
+    use_ground_truth_goal_props: bool = False,
 ) -> None:
     # set seeds
     if seed is not None:
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
-
-    # TODO(klin): load instruction from yaml
-    INSTRUCTION = "Put the red box on the rack"
 
     examples = get_examples_from_json_dir(
         "configs/pybullet/envs/t2m/official/prompts/hook_reach/"
@@ -254,15 +247,31 @@ def eval_lm_tamp(
             i
         ] = single_primitive_planner.dynamics.network.models[0]
 
-    path = pathlib.Path(path) / "eval_lm_tamp"
-    path.mkdir(parents=True, exist_ok=True)
+    path = pathlib.Path(path) / env.name
 
-    # Run TAMP.
-    num_successes = 0
+    prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
+    available_predicates: List[str] = [
+        parse_proposition(prop)[0] for prop in env.supported_predicates
+    ]
+    possible_props: List[predicates.Predicate] = get_possible_props(
+        env.objects, available_predicates
+    )
+
+    num_successes_on_used_goal_props: int = (
+        0  # either predicted or ground truth goal props
+    )
+    num_successes_on_ground_truth_goal_props: int = 0
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
     for idx_iter, (seed, loaded_plan) in enumerate(pbar):
+        goal_props_predicted: List[str]
+        objects: List[str]
+        object_relationships: List[str]
+
+        observation, info = env.reset()
+        seed = info["seed"]
+
         # Initialize environment.
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
@@ -271,8 +280,9 @@ def eval_lm_tamp(
         task_plans = []
         motion_plans = []
         motion_planner_times = []
-        available_predicates = ["on", "inhand", "under"]
-
+        available_predicates: List[str] = [
+            parse_proposition(prop)[0] for prop in env.supported_predicates
+        ]
         objects: List[str] = list(env.objects.keys())
         object_relationships = get_object_relationships(
             observation, env.objects, available_predicates, use_hand_state=False
@@ -281,10 +291,9 @@ def eval_lm_tamp(
             env.objects, available_predicates
         )
 
-        # lm_cfg.engine = "text-davinci-003"
-        predicted_goal_props: List[str]
-        predicted_goal_props, lm_cache = get_goal_from_lm(
-            INSTRUCTION,
+        goal_props_predicted: List[str]
+        goal_props_predicted, lm_cache = get_goal_from_lm(
+            env.instruction,
             objects,
             object_relationships,
             pddl_domain,
@@ -296,25 +305,27 @@ def eval_lm_tamp(
         )
         save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
-        if is_valid_goal_props(predicted_goal_props, possible_props):
-            parsed_goal_props = [
-                symbolic.problem.parse_proposition(prop)
-                for prop in predicted_goal_props
-            ]
-            goal_props_callable: List[
-                predicates.Predicate
-            ] = get_goal_props_instantiated(parsed_goal_props)
-        else:
-            import ipdb
+        goal_props_ground_truth: List[str] = [
+            str(goal) for goal in env.goal_propositions
+        ]
 
-            ipdb.set_trace()
-            raise ValueError("Invalid goal props")
+        if use_ground_truth_goal_props:
+            goal_props_to_use = goal_props_ground_truth
+        else:
+            goal_props_to_use = goal_props_predicted
+
+        goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
+            goal_props_to_use, possible_props
+        )
+
+        print(colored(f"goal props predicted: {goal_props_predicted}", "blue"))
+        print(colored(f"minimal goal props: {goal_props_ground_truth}", "blue"))
 
         # generate prompt from environment observation\
         lm_cfg.max_tokens = 300
         generated_task_plans, lm_cache = get_task_plans_from_lm(
-            INSTRUCTION,
-            predicted_goal_props,
+            env.instruction,
+            goal_props_predicted,
             objects,
             object_relationships,
             pddl_domain,
@@ -343,11 +354,20 @@ def eval_lm_tamp(
             converted_task_plans.append(new_task_plan)
         generated_task_plans = converted_task_plans
 
+        generated_task_plans = [
+            [
+                "pick(hook, table)",
+                "pull(red_box, hook)",
+                "place(hook, rack)",
+                "pick(red_box, table)",
+                "place(red_box, rack))",
+            ]
+        ]
         action_skeletons_instantiated = get_task_plan_primitives_instantiated(
             generated_task_plans, env
         )
         for i, action_skeleton in enumerate(action_skeletons_instantiated):
-            if len(action_skeleton) > 7:
+            if len(action_skeleton) > max_depth:
                 print(
                     f"action_skeleton too long. Skipping {[str(action) for action in action_skeleton]}"
                 )
@@ -386,8 +406,8 @@ def eval_lm_tamp(
                 plan,
                 path / str(idx_iter),
                 custom_recording_text=(
-                    f"human: {INSTRUCTION}\n"
-                    + f"pred-goal: {predicted_goal_props}\n"
+                    f"human: {env.instruction}\n"
+                    + f"pred-goal: {goal_props_predicted}\n"
                     + f"pred-plan: {[str(action) for action in action_skeleton]}\n"
                     + f"value: [{', '.join([f'{v:.2f}' for v in plan.values])}]"
                 ),
@@ -461,7 +481,7 @@ def eval_lm_tamp(
             env.record_stop()
 
             # Save recording.
-            gif_path = path / "eval_lm_tamp" / f"planning_{idx_iter}.gif"
+            gif_path = path / f"planning_{idx_iter}.gif"
             if (rewards == 0.0).any():
                 gif_path = gif_path.parent / f"{gif_path.name}_fail{gif_path.suffix}"
             env.record_save(gif_path, reset=True)
@@ -484,13 +504,25 @@ def eval_lm_tamp(
                 gif_path=path / f"planning_{idx_iter}.gif",
             )
 
-        if rewards.prod() > 0:
-            num_successes += 1
+        if is_satisfy_goal_props(
+            goal_props_callable,
+            prop_testing_objs,
+            observation,
+            use_hand_state=False,
+        ):
+            print(colored("goal props satisfied", "green"))
+            reached_goal_prop = True
+            num_successes_on_used_goal_props += 1
+
+        if env.is_goal_state():
+            print(colored("ground truth goal props satisfied", "green"))
+            num_successes_on_ground_truth_goal_props += 1
+
         pbar.set_postfix(
             dict(
                 success=rewards.prod(),
                 **{f"r{t}": r for t, r in enumerate(rewards)},
-                num_successes=f"{num_successes} / {idx_iter + 1}",
+                num_successes=f"{num_successes_on_used_goal_props} / {idx_iter + 1}",
             )
         )
 
@@ -543,7 +575,28 @@ def eval_lm_tamp(
                         print("    -", primitive, action)
             continue
 
-    print(f"num_successes: {num_successes}")
+        env.record_stop()
+        if env.is_goal_state():
+            print(colored("ground truth goal props satisfied", "green"))
+            num_successes_on_ground_truth_goal_props += 1
+
+        gif_path = (
+            path
+            / str(idx_iter)
+            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
+            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.gif"
+        )
+        env.record_save(gif_path, reset=False)
+        gif_path = (
+            path
+            / str(idx_iter)
+            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
+            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.mp4"
+        )
+        env.record_save(gif_path, reset=True)
+        env._recording_text = ""
+
+    print(f"num_successes_on_used_goal_props: {num_successes_on_used_goal_props}")
     # Save planning results.
     with open(path / f"results_{idx_iter}.npz", "wb") as f:
         save_dict = {
@@ -561,6 +614,7 @@ def eval_lm_tamp(
                 "timeout": timeout,
                 "seed": seed,
                 "verbose": verbose,
+                "use_ground_truth_goal_props": use_ground_truth_goal_props,
             },
             "observation": observation,
             "state": state,
@@ -584,7 +638,7 @@ def eval_lm_tamp(
             # "t_motion_planner": t_motion_planner,
             "t_planner": motion_planner_times,
             "seed": seed,
-            "num_successes": num_successes,
+            "num_successes": num_successes_on_used_goal_props,
             "discarded": [
                 {
                     "action_skeleton": list(map(str, task_plans[i])),
@@ -612,6 +666,10 @@ def eval_lm_tamp(
 
 def main(args: argparse.Namespace) -> None:
     auth = authenticate(args.api_type)
+    assert (
+        "code" not in args.key_name
+    ), "Please use a non-code only key since get_successors uses text-davinci-003."
+    delattr(args, "key_name")
     eval_lm_tamp(**vars(args), auth=auth)
 
 
@@ -667,7 +725,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-examples",
         type=int,
-        default=1,
+        default=5,
         help="Number of examples to use in in context prompt",
     )
     # LMConfig
@@ -680,6 +738,13 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
     parser.add_argument(
         "--api_type", type=APIType, default=APIType.OPENAI, help="API to use"
+    )
+    parser.add_argument(
+        "--key-name",
+        type=str,
+        choices=["personal-code", "personal-all", "helm"],
+        default="personal-code",
+        help="API key name to use",
     )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")

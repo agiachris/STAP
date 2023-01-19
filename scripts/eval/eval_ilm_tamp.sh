@@ -38,15 +38,18 @@ function eval_ilm_tamp {
     args="${args} --max-depth 5"
     args="${args} --timeout 10"
     args="${args} --visualize-planning ${VIZ_PLANNING}"
+    args="${args} --n-examples ${N_INCONTEXT_EXAMPLES}"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 3"
         args="${args} --path ${PLANNER_OUTPUT_PATH}_debug"
         args="${args} --verbose 1"
+        args="${args} --engine curie"
     else
         args="${args} --num-eval 3"
         args="${args} --path ${PLANNER_OUTPUT_PATH}"
         args="${args} --verbose 0"
+        args="${args} --engine davinci"
     fi
     CMD="python scripts/eval/eval_ilm_tamp.py ${args}"
     run_cmd
@@ -74,15 +77,24 @@ function run_planners {
     done
 }
 
+function visualize_tamp {
+    args=""
+    args="${args} --path ${PLANNER_OUTPUT_PATH}"
+    args="${args} --methods ${PLANNERS[@]}"
+    CMD="python scripts/visualize/visualize_planners.py ${args}"
+    run_cmd
+}
+
 # Setup.
 DEBUG=0
 VIZ_PLANNING=1
 input_path="models"
 output_path="plots"
-exp_name="20230118"
+exp_name="20230118/ilm_tamp"
 
-# LLM key
+# LLM
 KEY_NAME="personal-all"
+N_INCONTEXT_EXAMPLES=5
 # Evaluate planners.
 PLANNERS=(
     "policy_cem"

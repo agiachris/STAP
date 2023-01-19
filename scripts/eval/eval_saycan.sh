@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage: PYTHONPATH=. bash scripts/eval/eval_lm_tamp.sh
+# Usage: PYTHONPATH=. bash scripts/eval/eval_saycan.sh 
 
 set -e
 
@@ -18,7 +18,7 @@ function run_cmd {
     fi
 }
 
-function eval_lm_tamp {
+function eval_saycan {
     args=""
     args="${args} --planner-config ${PLANNER_CONFIG}"
     args="${args} --env-config ${ENV_CONFIG}"
@@ -35,21 +35,22 @@ function eval_lm_tamp {
     args="${args} --seed 0"
     args="${args} --pddl-domain ${PDDL_DOMAIN}"
     args="${args} --pddl-problem ${PDDL_PROBLEM}"
+    args="${args} --max-depth 10"
     args="${args} --timeout 10"
     args="${args} --n-examples ${N_INCONTEXT_EXAMPLES}"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
-        args="${args} --num-eval 10"
+        args="${args} --num-eval 3"
         args="${args} --path ${PLANNER_OUTPUT_PATH}_debug"
         args="${args} --verbose 1"
         args="${args} --engine curie"
     else
-        args="${args} --num-eval 100"
+        args="${args} --num-eval 3"
         args="${args} --path ${PLANNER_OUTPUT_PATH}"
         args="${args} --verbose 0"
         args="${args} --engine davinci"
     fi
-    CMD="python scripts/eval/eval_lm_tamp.py ${args}"
+    CMD="python scripts/eval/eval_saycan.py ${args}"
     run_cmd
 }
 
@@ -71,7 +72,7 @@ function run_planners {
             DYNAMICS_CHECKPOINT="models/official/select_model/dynamics/best_model.pt"
         fi
 
-        eval_lm_tamp
+        eval_saycan
     done
 }
 
@@ -85,9 +86,10 @@ function visualize_tamp {
 
 # Setup.
 DEBUG=0
+VIZ_PLANNING=1
 input_path="models"
 output_path="plots"
-exp_name="20230118/lm_tamp"
+exp_name="20230118/saycan"
 
 # LLM
 KEY_NAME="personal-all"
@@ -101,7 +103,9 @@ PLANNERS=(
 
 # Experiments.
 
-PLANNER_CONFIG_PATH="configs/pybullet/planners"
+# Pybullet.
+PLANNER_CONFIG_PATH="configs/pybullet/planners/"
+
 TASK_NUMS=(
     "0"
     "1"
@@ -111,12 +115,7 @@ TASK_NUMS=(
     "5"
     "6"
 )
-POLICY_ENVS=("pick" "place" "pull" "push")
-# CKPT="select_model"
-# CKPT="ckpt_model_10"
-CKPT="best_model"
 
-SCOD_CONFIG="scod"
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
@@ -132,11 +131,10 @@ for task_num in "${TASK_NUMS[@]}"; do
     run_planners
 done
 
-
 # Visualize results.
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [ $DEBUG -ne 0 ]; then
     exit
 fi
 
-PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/tamp_experiment"
+PLANNER_OUTPUT_PATH="${output_path}/${exp_name}"
 visualize_tamp
