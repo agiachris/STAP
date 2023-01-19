@@ -15,7 +15,7 @@ PYTHONPATH=. python scripts/eval/eval_lm_tamp.py
 --seed 0
 --pddl-domain-name hook_reach
 --max-depth 4 --timeout 10 --closed-loop 1 --num-eval 100 
---path plots/20230116/ --verbose 0 --engine davinci
+--path plots/20230117/ --verbose 0 --engine davinci
 --n-examples 5
 """
 
@@ -342,7 +342,6 @@ def eval_lm_tamp(
                     new_task_plan.append(action)
             converted_task_plans.append(new_task_plan)
         generated_task_plans = converted_task_plans
-        print(f"generated task plans: {generated_task_plans}")
 
         action_skeletons_instantiated = get_task_plan_primitives_instantiated(
             generated_task_plans, env
@@ -375,7 +374,7 @@ def eval_lm_tamp(
             for state in plan.states:
                 objects = list(env.objects.keys())
                 object_relationships = get_object_relationships(
-                    state, env.objects, available_predicates, use_hand_state=False
+                    state, prop_testing_objs, available_predicates, use_hand_state=False
                 )
                 object_relationships = [str(prop) for prop in object_relationships]
                 all_object_relationships.append(object_relationships)
@@ -427,7 +426,10 @@ def eval_lm_tamp(
             if len(goal_reaching_task_p_successes) > 0
             else 0
         )
+
         if len(goal_reaching_task_p_successes) == 0:
+            print(colored("No plan reaches the goal", "red"))
+            break
 
         best_task_plan = goal_reaching_task_plans[idx_best]
         best_motion_plan = goal_reaching_motion_plans[idx_best]
@@ -540,6 +542,7 @@ def eval_lm_tamp(
                     else:
                         print("    -", primitive, action)
             continue
+
     print(f"num_successes: {num_successes}")
     # Save planning results.
     with open(path / f"results_{idx_iter}.npz", "wb") as f:

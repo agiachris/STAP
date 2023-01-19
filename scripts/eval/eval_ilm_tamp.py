@@ -13,8 +13,9 @@ PYTHONPATH=. python scripts/eval/eval_ilm_tamp.py
 --pddl-domain configs/pybullet/envs/t2m/official/tasks/symbolic_domain.pddl
 --pddl-problem configs/pybullet/envs/t2m/official/tasks/task0_symbolic.pddl
 --verbose 0 --engine davinci --gui 0 --visualize-planning 1
---path plots/20230116/ilm_tamp/
+--path plots/20230117/ilm_tamp/
 --num-eval 3
+--n-examples 5
 """
 
 import json
@@ -257,7 +258,7 @@ def eval_ilm_tamp(
             success = True
 
         # TODO(klin) load this from the yaml when ready
-        max_steps = 3  # potentially task dependent and loadable from the yaml
+        max_steps = 5  # potentially task dependent and loadable from the yaml
         step = 0
         while not done:
             beam_search_problem = BeamSearchProblem(

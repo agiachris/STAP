@@ -2,7 +2,7 @@ import ast
 from dataclasses import asdict, dataclass
 from enum import Enum
 import pathlib
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 import openai
 import json
 
@@ -254,7 +254,7 @@ class CurrentExample(InContextExample):
 
     # action scoring
     score_action: bool = False
-    action_to_score: Optional[str] = None
+    actions_to_score: Optional[List[str]] = None
 
     def create_from_incontext_example(self, inc_example: InContextExample):
         # create a CurrentExample from an InContextExample
@@ -308,7 +308,7 @@ class Result:
     goal_predicted: Optional[str] = None
     robot_ground_truth: Optional[str] = None
     robot_predicted: Optional[str] = None
-    tokens_predicted: Optional[List[Token]] = None
+    tokens_predicted: Optional[Union[List[Token], List[List[Token]]]] = None
     engine: str = "n/a"
 
     use_predicted_goal: bool = False  # whether to use predicted goal in the prompt or to use the 'ground truth' goal

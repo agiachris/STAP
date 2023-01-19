@@ -1,4 +1,5 @@
 import ast
+from collections import defaultdict
 from enum import Enum
 import pathlib
 import pickle
@@ -124,30 +125,6 @@ def generate_current_setting_prompt(
     )
 
 
-def rate_limited(max_per_min: int = 20):
-    """
-    Rate-limits the decorated function locally, for one process.
-    """
-    min_interval = 60 / float(max_per_min)
-
-    def decorate(func):
-        last_time_called = [0.0]
-
-        def rate_limited_function(*args, **kwargs):
-            elapsed = time.perf_counter() - last_time_called[0]
-            left_to_wait = min_interval - elapsed
-            if left_to_wait > 0:
-                time.sleep(left_to_wait)
-            ret = func(*args, **kwargs)
-            last_time_called[0] = time.perf_counter()
-            return ret
-
-        return rate_limited_function
-
-    return decorate
-
-
-@rate_limited(19)  # 20 per minute at most
 def call_api(
     engine: str,
     overall_prompt: str,
@@ -156,9 +133,15 @@ def call_api(
     logprobs: int,
     echo: bool,
     stop: Optional[Union[List[str], str]] = None,
-    api_type: APIType = APIType.HELM,  # either via helm api or via openai api
+    api_type: APIType = APIType.HELM,
     auth: Optional[Authentication] = None,
 ) -> Result:
+    # proactively sleep to avoid rate limit errors; code has smaller limit
+    if "code" in engine:
+        time.sleep(7)
+    elif "text" in engine:
+        time.sleep(3.5)
+
     if api_type.value == APIType.OPENAI.value:
         try:
             response = openai.Completion.create(
@@ -184,19 +167,20 @@ def call_api(
                 api_type,
                 auth,
             )
-        raw_tokens = response["choices"][0]["logprobs"]["tokens"]
-        logprobs = response["choices"][0]["logprobs"]["token_logprobs"]
-        # for compatibility with helm api
-        helm_token_list: List[Token] = [
-            Token(text=token, logprob=logprob, top_logprobs=99999)
-            for token, logprob in zip(raw_tokens, logprobs)
-        ]
-        # hack to avoid "*** TypeError: Object of type Token is not
-        # JSON serializable" when printing the response directly
-        new_response = {}
-        for key, value in response.items():
-            new_response[key] = value
-        new_response["tokens"] = helm_token_list
+        new_response = defaultdict(list)
+        for i in range(len(response["choices"])):
+            raw_tokens = response["choices"][i]["logprobs"]["tokens"]
+            logprobs = response["choices"][i]["logprobs"]["token_logprobs"]
+            # for compatibility with helm api
+            helm_token_list: List[Token] = [
+                Token(text=token, logprob=logprob, top_logprobs=99999)
+                for token, logprob in zip(raw_tokens, logprobs)
+            ]
+            # hack to avoid "*** TypeError: Object of type Token is not
+            # JSON serializable" when printing the response directly
+            for key, value in response.items():
+                new_response[key] = value
+            new_response["tokens"].append(helm_token_list)
         response = new_response
     elif api_type.value == APIType.HELM.value:
         assert auth is not None, "auth must be provided for helm api"
@@ -238,7 +222,7 @@ def call_api(
 
 def gpt3_call(
     engine: str,
-    overall_prompt: str,
+    overall_prompt: Union[List[str], str],
     max_tokens: int,
     temperature: float,
     logprobs: int,
@@ -249,9 +233,14 @@ def gpt3_call(
     auth: Optional[Authentication] = None,
 ) -> Tuple[Result, Optional[Dict[Tuple, Any]]]:
     assert lm_cache is not None, "lm_cache must be provided"
+    if isinstance(overall_prompt, list):
+        id_overall_prompt = tuple(overall_prompt)
+    else:
+        id_overall_prompt = overall_prompt
     id = tuple(
-        (engine, overall_prompt, max_tokens, temperature, logprobs, echo, str(stop))
+        (engine, id_overall_prompt, max_tokens, temperature, logprobs, echo, str(stop))
     )
+    # TODO(klin) split ID into multiple parts if overall_prompt is a list
     if stop is None:
         stop = []
     if lm_cache is not None and id in lm_cache.keys():
@@ -385,8 +374,16 @@ def generate_lm_response(
             result.goal_success = success
 
     if current_prompt.predict_robot:
-        overall_prompt += get_robot_action_prompt(current_prompt)
-
+        # TODO(klin) update to assume robot action prompt is a list 
+        # (regardles of generation or scoring)
+        robot_action_prompt = get_robot_action_prompt(current_prompt)
+        if isinstance(robot_action_prompt, list):
+            overall_prompts = []
+            for prompt in robot_action_prompt:
+                overall_prompts.append(overall_prompt + prompt)
+            overall_prompt = overall_prompts
+        else:
+            overall_prompt += get_robot_action_prompt(current_prompt)
         stop = [
             SCENE_OBJECT_PROMPT,
             "Top",
@@ -424,7 +421,7 @@ def generate_lm_response(
     return result, lm_cache
 
 
-def get_robot_action_prompt(current_prompt: CurrentExample):
+def get_robot_action_prompt(current_prompt: CurrentExample) -> Union[str, List[str]]:
     """
     Get the robot action prompt for the current situation
     based on current_prompt's settings.
@@ -439,8 +436,15 @@ def get_robot_action_prompt(current_prompt: CurrentExample):
             robot_action_prompt += f"New object relationships: {current_prompt.all_prior_object_relationships[i + 1]}\n"
 
     if current_prompt.score_action:
-        robot_action_prompt += f"Executed action: {current_prompt.action_to_score}"
-        return robot_action_prompt
+        # TODO(klin) set actions_to_score to a list of strings by default
+        if len(current_prompt.actions_to_score) == 1:
+            robot_action_prompt += f"Executed action: {current_prompt.actions_to_score[0]}"
+            return robot_action_prompt
+        else:
+            prompts = []
+            for action in current_prompt.actions_to_score:
+                prompts.append(robot_action_prompt + f"Executed action: {action}")
+            return prompts
 
     if current_prompt.custom_robot_prompt != "":
         robot_action_prompt += current_prompt.custom_robot_prompt

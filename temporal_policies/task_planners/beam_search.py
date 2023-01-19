@@ -6,6 +6,7 @@ import numpy as np
 from termcolor import colored
 from configs.base_config import LMConfig
 from scripts.eval.eval_saycan import format_saycan_scoring_table
+from temporal_policies.envs.pybullet.table.objects import Object
 from torch import Tensor
 
 # helm should be optional
@@ -109,7 +110,7 @@ class Node:
         # parse the initial state to get the object relationships
         return get_object_relationships(
             self.root_node_geometric_state,
-            self.env.objects,
+            self.env.prop_testing_objs,
             self.available_predicates,
             use_hand_state=False,
         )
@@ -173,7 +174,7 @@ class Node:
         for state in self.motion_plan_post_optimization.states:
             object_relationships = get_object_relationships(
                 state,
-                self.env.objects,
+                self.env.prop_testing_objs,
                 self.available_predicates,
                 use_hand_state=False,
             )
@@ -217,7 +218,7 @@ class BeamSearchProblem(SearchProblem):
         planner: planners.Planner,
         env: envs.Env,
         available_predicates: List[str],
-        prop_testing_objs: List[str],
+        prop_testing_objs: List[Object],
         goal_props_callable: Callable[[List[str]], bool],
         pddl_domain_file: str,
         pddl_problem_file: str,
@@ -236,6 +237,7 @@ class BeamSearchProblem(SearchProblem):
         self.prop_testing_objs = (
             prop_testing_objs  # TODO(klin): potential refactor to be in env
         )
+        self.env.prop_testing_objs = prop_testing_objs
         self.goal_props_callable = goal_props_callable
         self.pddl_domain_file = pddl_domain_file  # TODO(klin); this is used for testing task plans' feasibility
         self.pddl_problem_file = pddl_problem_file
@@ -491,7 +493,7 @@ class BeamSearchAlgorithm:
             filtered_results = []
             filtered_successors = []
             for (successor, result) in zip(next_beam, results):
-                if successor.action_sequence_q_product_post_optimization > 0.3:
+                if successor.last_action_q_value_post_optimization > 0.45:
                     filtered_results.append(result)
                     filtered_successors.append(successor)
 
