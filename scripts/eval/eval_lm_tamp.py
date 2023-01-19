@@ -171,7 +171,7 @@ def eval_lm_tamp(
         torch.manual_seed(seed)
 
     examples = get_examples_from_json_dir(
-        "configs/pybullet/envs/t2m/official/prompts/hook_reach/"
+        "configs/pybullet/envs/t2m/official/prompts/"
     )
     examples = random.sample(examples, n_examples)
     lm_cfg = LMConfig(
