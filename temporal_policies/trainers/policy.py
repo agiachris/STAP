@@ -151,11 +151,6 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
-        else:
-            if not self.dataset.path.exists():
-                self.dataset.save()
-            if not self.eval_dataset.path.exists():
-                self.eval_dataset.save()
             
         self._eval_env = self.agent.env if eval_env is None else eval_env
         self._episode_length = 0
@@ -175,6 +170,14 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     def eval_env(self) -> envs.Env:
         """Agent env."""
         return self._eval_env
+
+    def train(self) -> None:
+        """Trains the model."""
+        if not self.dataset.path.exists():
+            self.dataset.save()
+        if not self.eval_dataset.path.exists():
+            self.eval_dataset.save()
+        super().train()
 
     def process_batch(self, batch: Batch) -> Batch:
         """Processes replay buffer batch for training.

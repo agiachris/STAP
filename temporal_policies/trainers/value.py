@@ -168,11 +168,11 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
     def train(self) -> None:
         """Trains the model."""
-        super().train()
         if not self.dataset.path.exists():
             self.dataset.save()
         if not self.eval_dataset.path.exists():
             self.eval_dataset.save()
+        super().train()
 
     def process_batch(self, batch: Batch) -> Batch:
         """Processes replay buffer batch for training.
