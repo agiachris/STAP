@@ -131,7 +131,10 @@ def train(
 
     # Record gifs of the trained policy.
     if eval_recording_path is not None:
-        eval_recording_path = pathlib.Path(eval_recording_path)
+        if name is not None:
+            eval_recording_path = pathlib.Path(eval_recording_path) / name
+        else:
+            eval_recording_path = pathlib.Path(eval_recording_path) / trainer.env.name
 
         trainer.eval_mode()
         pbar = tqdm.tqdm(
@@ -145,12 +148,12 @@ def train(
             suffix = "" if eval_metrics["reward"] > 0.0 else "_fail"
             trainer.eval_env.record_stop()
             trainer.eval_env.record_save(
-                eval_recording_path / trainer.env.name / f"eval_{i}{suffix}.gif",
+                eval_recording_path / f"eval_{i}{suffix}.gif",
                 reset=True,
             )
 
             with open(
-                eval_recording_path / trainer.env.name / f"results_{i}.npz", "wb"
+                eval_recording_path / f"results_{i}.npz", "wb"
             ) as f:
                 save_dict = {
                     "seed": trainer.eval_env._seed,

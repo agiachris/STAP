@@ -24,7 +24,7 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         eval_env: Optional[envs.Env] = None,
         dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
-        eval_dataset_kwargs: Optional[Dict[str, Any]] = None,
+        eval_dataset_kwargs: Dict[str, Any] = {},
         processor_class: Union[
             str, Type[processors.Processor]
         ] = processors.IdentityProcessor,
@@ -36,6 +36,7 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         ] = DummyScheduler,
         scheduler_kwargs: Dict[str, Any] = {},
         train_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
+        eval_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         env_kwargs: Dict[str, Any] = {},
         device: str = "auto",
@@ -66,6 +67,7 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             scheduler_class: Optional optimizer scheduler class.
             scheduler_kwargs: Kwargs for scheduler class.
             train_data_checkpoints: Checkpoints to train data.
+            eval_data_checkpoints: Checkpoints to validation data.
             checkpoint: Optional path to trainer checkpoint.
             env_kwargs: Optional kwargs passed to EnvFactory.
             device: Torch device.
@@ -100,8 +102,6 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         else:
             raise ValueError("Must provide either train data checkpoint or trainer checkpoint.")
 
-        if eval_dataset_kwargs is None:
-            eval_dataset_kwargs = dataset_kwargs
         eval_dataset_kwargs = dict(eval_dataset_kwargs)
         eval_dataset_kwargs["save_frequency"] = None
         eval_dataset_kwargs["path"] = path / "eval_data"
@@ -110,6 +110,11 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             action_space=agent.action_space,
             **eval_dataset_kwargs,
         )
+        if checkpoint is None and eval_data_checkpoints is not None:
+            for eval_data in eval_data_checkpoints:
+                eval_dataset.load(pathlib.Path(eval_data))
+        else:
+            raise ValueError("Must provide one of eval data checkpoint or trainer checkpoint.")
 
         processor_class = configs.get_class(processor_class, processors)
         processor = processor_class(agent.observation_space, **processor_kwargs)
@@ -146,7 +151,12 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
 
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
-
+        else:
+            if not self.dataset.path.exists():
+                self.dataset.save()
+            if not self.eval_dataset.path.exists():
+                self.eval_dataset.save()
+            
         self._eval_env = self.agent.env if eval_env is None else eval_env
         self._episode_length = 0
         self._episode_reward = 0.0
@@ -165,14 +175,6 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
     def eval_env(self) -> envs.Env:
         """Agent env."""
         return self._eval_env
-
-    def train(self) -> None:
-        """Trains the model."""
-        super().train()
-        if not self.dataset.path.exists():
-            self.dataset.save()
-        if not self.eval_dataset.path.exists():
-            self.eval_dataset.save()
 
     def process_batch(self, batch: Batch) -> Batch:
         """Processes replay buffer batch for training.
@@ -213,10 +215,7 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 metrics_list.append(episode_metrics)
                 pbar.set_postfix({self.eval_metric: episode_metrics[self.eval_metric]})
 
-            self.eval_dataset.save()
-
         self.train_mode()
-        self._reset_collect = True
 
         return metrics_list
 
@@ -231,7 +230,6 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             policy_args = info["policy_args"]
         except KeyError:
             policy_args = None
-        self.eval_dataset.add(observation=observation)
 
         step_metrics_list = []
         done = False
@@ -248,15 +246,6 @@ class PolicyTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 action
             )
             done = terminated or truncated
-            self.eval_dataset.add(
-                action=action,
-                reward=reward,
-                next_observation=observation,
-                discount=1.0 - done,
-                terminated=terminated,
-                truncated=truncated,
-                policy_args=policy_args,
-            )
 
             step_metrics = {
                 metric: value

@@ -29,7 +29,7 @@ function train_policy {
     args="${args} --seed 0"
     args="${args} ${ENV_KWARGS}"    
     args="${args} --train-data-checkpoints ${TRAIN_DATA_CHECKPOINTS}"
-
+    args="${args} --eval-data-checkpoints ${EVAL_DATA_CHECKPOINTS}"
     if [ ! -z "${NAME}" ]; then
         args="${args} --name ${NAME}"
     fi
@@ -40,6 +40,7 @@ function train_policy {
         args="${args} --num-eval-episodes 10"
     else
         args="${args} --path ${POLICY_OUTPUT_PATH}"
+        args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
     fi
 
     CMD="python scripts/train/train_policy.py ${args}"
@@ -53,6 +54,11 @@ function run_policy {
         data_path="${DATA_CHECKPOINT_PATH}/train_${SYMBOLIC_ACTION_TYPE}_${PRIMITIVE}_${seed}/train_data"
         TRAIN_DATA_CHECKPOINTS="${TRAIN_DATA_CHECKPOINTS} ${data_path}"
     done
+
+    for seed in "${VALIDATION_SEEDS[@]}"; do
+        data_path="${DATA_CHECKPOINT_PATH}/validation_${SYMBOLIC_ACTION_TYPE}_${PRIMITIVE}_${seed}/train_data"
+        EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
+    done    
 
     for critic_checkpoint in "${CRITIC_CHECKPOINTS}"; do
         CRITIC_CHECKPOINT="${CRITIC_CHECKPOINT_PATH}/${critic_checkpoint}.pt"
@@ -72,6 +78,7 @@ plots_path="plots"
 ## Pybullet.
 exp_name="20230118/policy"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
+EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
 TRAINER_CONFIG="configs/pybullet/trainers/policy.yaml"
 AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_policy.yaml"
@@ -82,6 +89,7 @@ fi
 # Data.
 SYMBOLIC_ACTION_TYPE="valid"
 TRAIN_SEEDS=("0" "1" "2" "3" "4" "5" "6" "7")
+VALIDATION_SEEDS=("8" "9")
 DATA_CHECKPOINT_PATH="models/20230116/datasets"
 
 # Launch primitive jobs.
@@ -96,8 +104,6 @@ PRIMITIVE="place"
 CRITIC_CHECKPOINT_PATH="models/20230118/value"
 CRITIC_CHECKPOINTS=(
     "place/final_model"
-    "place_value_l2-0.0001_sac_value_hids-4_dims-512/final_model"
-    "place_value_l2-0.00005_sac_value_hids-4_dims-512/final_model"
 )
 run_policy
 

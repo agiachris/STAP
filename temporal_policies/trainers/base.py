@@ -237,6 +237,7 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         strict: bool = True,
         dataset_size: Optional[int] = None,
         eval_dataset_size: Optional[int] = None,
+        max_entries_state_dict: bool = False,
     ) -> None:
         """Loads the trainer checkpoint to resume training.
 
@@ -250,9 +251,9 @@ class Trainer(abc.ABC, Generic[ModelType, ModelBatchType, DatasetBatchType]):
         path = pathlib.Path(checkpoint).parent
         self.dataset.path = path / "train_data"
         self.eval_dataset.path = path / "eval_data"
-        if dataset_size is None:
+        if dataset_size is None and max_entries_state_dict:
             dataset_size = state_dict["dataset_size"]
-        if eval_dataset_size is None:
+        if eval_dataset_size is None and max_entries_state_dict:
             eval_dataset_size = state_dict["eval_dataset_size"]
         self.dataset.load(max_entries=dataset_size)
         self.eval_dataset.load(max_entries=eval_dataset_size)
