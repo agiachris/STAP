@@ -88,17 +88,17 @@ VALIDATION_SEEDS=("8" "9")
 DATA_CHECKPOINT_PATH="models/20230116/datasets"
 
 # Launch primitive jobs.
-PRIMITIVE="pick"
-run_value
+# PRIMITIVE="pick"
+# run_value
 
-PRIMITIVE="place"
-run_value
+# PRIMITIVE="place"
+# run_value
 
-PRIMITIVE="pull"
-run_value
+# PRIMITIVE="pull"
+# run_value
 
-PRIMITIVE="push"
-run_value
+# PRIMITIVE="push"
+# run_value
 
 # Sweeps.
 function run_value_sweep {    
@@ -123,11 +123,14 @@ function run_value_sweep {
 # Set sweep config paths.
 TRAINER_CONFIG_PATH="configs/pybullet/trainers/value_sweeps"
 TRAINER_SWEEPS=(
-    "value_l2-0.00005"
-    "value_l2-0.0001"
+    # "value_l2-0.00005"
+    # "value_l2-0.0001"
     # "value_l2-0.001"
     # "value_l2-0.01"
     # "value_l2-0.1"
+    # "value_lr-0.0001"
+    # "value_lr-0.00005"
+    # "value_lr-0.00001"
 )
 
 AGENT_CONFIG_PATH="configs/pybullet/agents/multi_stage/value_sweeps"
@@ -140,15 +143,17 @@ AGENT_SWEEPS=(
     # "sac_value_hids-4_dims-1024"
     # "sac_value_hids-4_dims-256"
     # "sac_value_hids-4_dims-512"
-    "sac_ens_value_hids-4_dims-512"
+    # "sac_ens_value_hids-4_dims-512"
+    # "sac_value"
+    # "sac_ens_value"
 )
 
 # Launch primitive sweep jobs.
 # PRIMITIVE="pick"
 # run_value_sweep
 
-PRIMITIVE="place"
-run_value_sweep
+# PRIMITIVE="place"
+# run_value_sweep
 
 # PRIMITIVE="pull"
 # run_value_sweep
