@@ -1,7 +1,7 @@
 env: pybullet.TableEnv
 env_kwargs:
   name: lifted_1
-  gui: true
+  gui: false
 
   primitives:
     - pick
