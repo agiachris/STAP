@@ -5,6 +5,10 @@ trainer_kwargs:
     capacity: 1600000
     batch_size: 128
     sample_strategy: uniform
+  eval_dataset_kwargs:
+    capacity: 400000
+    batch_size: 128
+    sample_strategy: uniform
     
   optimizer_class: Adam
   optimizer_kwargs:
