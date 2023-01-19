@@ -55,6 +55,7 @@ function run_value {
         TRAIN_DATA_CHECKPOINTS="${TRAIN_DATA_CHECKPOINTS} ${data_path}"
     done
 
+    EVAL_DATA_CHECKPOINTS=""
     for seed in "${VALIDATION_SEEDS[@]}"; do
         data_path="${DATA_CHECKPOINT_PATH}/validation_${SYMBOLIC_ACTION_TYPE}_${PRIMITIVE}_${seed}/train_data"
         EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
