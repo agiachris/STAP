@@ -44,8 +44,10 @@ function train_dynamics {
 function run_dynamics {
     NAME=""
     POLICY_CHECKPOINTS=()
-    for primitive in "${PRIMITIVES[@]}"; do
-        POLICY_CHECKPOINTS+=("${POLICY_CHECKPOINT_PATH}/${primitive}/${POLICY_DIRS[${primitive}]}/final_model.pt")
+    for idx in "${!PRIMITIVES[@]}"; do
+        primitive="${PRIMITIVES[${idx}]}"
+        policy_checkpoint_path="${POLICY_CHECKPOINT_PATHS[${idx}]}"
+        POLICY_CHECKPOINTS+=("${policy_checkpoint_path}/${primitive}/${POLICY_DIRS[${primitive}]}/final_model.pt")
 
         if [ -z "${NAME}" ]; then
             NAME="${primitive}"
@@ -66,7 +68,7 @@ output_path="models"
 ### Experiments.
 
 ## Pybullet.
-exp_name="20230119/dynamics"
+exp_name="20230120/dynamics"
 DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}"
 
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
@@ -76,55 +78,60 @@ fi
 
 # Launch dynamics jobs.
 
-# Pick dynamics.
-TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
-POLICY_CHECKPOINT_PATH="models/20230119/policy"
-PRIMITIVES=("pick")
-declare -A POLICY_DIRS=(
-    ["pick"]="final_model"
-)
-run_dynamics
+# # Pick dynamics.
+# TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+# POLICY_CHECKPOINT_PATHS=("models/20230120/policy")
+# PRIMITIVES=("pick")
+# declare -A POLICY_DIRS=(
+#     ["pick"]="final_model"
+# )
+# run_dynamics
 
-# Place dynamics.
-TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
-POLICY_CHECKPOINT_PATH="models/20230119/policy"
-PRIMITIVES=("place")
-declare -A POLICY_DIRS=(
-    ["place"]="final_model"
-)
-run_dynamics
+# # Place dynamics.
+# TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+# POLICY_CHECKPOINT_PATHS=("models/20230120/policy")
+# PRIMITIVES=("place")
+# declare -A POLICY_DIRS=(
+#     ["place"]="final_model"
+# )
+# run_dynamics
 
 # Pull dynamics.
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
-POLICY_CHECKPOINT_PATH="models/20230119/policy"
-PRIMITIVES=("pull")
+POLICY_CHECKPOINT_PATHS=("models/20230120/policy")
+PRIMITIVES=("pull_value_sched-cos_iter-2M_sac_ens_value")
 declare -A POLICY_DIRS=(
-    ["pull"]="final_model"
+    ["pull_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
 )
 run_dynamics
 
 # Push dynamics.
-TRAINER_CONFIG="configs/pybullet/trainers/dynamics_push.yaml"
-POLICY_CHECKPOINT_PATH="models/20230119/policy"
-PRIMITIVES=("push")
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+POLICY_CHECKPOINT_PATHS=("models/20230120/policy")
+PRIMITIVES=("push_value_sched-cos_iter-2M_sac_ens_value")
 declare -A POLICY_DIRS=(
-    ["push"]="final_model"
+    ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
 )
 run_dynamics
 
 # Full suite dynamics.
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
-POLICY_CHECKPOINT_PATH="models/20230119/policy"
+POLICY_CHECKPOINT_PATHS=(
+    "models/20230120/policy"
+    "models/20230120/policy"
+    "models/20230120/policy"
+    "models/20230120/policy"
+)
 PRIMITIVES=(
     "pick"
     "place"
-    "pull"
-    "push"
+    "push_value_sched-cos_iter-2M_sac_ens_value"
+    "push_value_sched-cos_iter-2M_sac_ens_value"
 )
 declare -A POLICY_DIRS=(
     ["pick"]="final_model"
     ["place"]="final_model"
-    ["pull"]="final_model"
-    ["push"]="final_model"
+    ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
+    ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
 )
 run_dynamics
