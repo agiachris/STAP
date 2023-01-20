@@ -47,11 +47,11 @@ NUM_PRETRAIN_STEPS="100000"
 TRAIN_SEEDS=("0" "1" "2" "3" "4" "5" "6" "7")
 VALIDATION_SEEDS=("8" "9")
 
-# PRIMITIVE="pick"
-# run_data_generation
+PRIMITIVE="pick"
+run_data_generation
 
-# PRIMITIVE="place"
-# run_data_generation
+PRIMITIVE="place"
+run_data_generation
 
 PRIMITIVE="pull"
 run_data_generation
