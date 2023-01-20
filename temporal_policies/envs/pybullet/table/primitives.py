@@ -706,7 +706,11 @@ class Push(Primitive):
         objects = self.env.objects
         allow_collisions = self.ALLOW_COLLISIONS or real_world
         if not allow_collisions:
-            did_non_args_move = self.create_object_movement_check(objects=objects)
+            did_non_args_move = self.create_object_movement_check(
+                non_arg_objects=False,
+                custom_objects=True,
+                objects=[obj for obj in objects.values() if obj.isinstance(Rack)] + self.get_non_arg_objects(objects)
+            )
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             if not allow_collisions and did_non_args_move():
