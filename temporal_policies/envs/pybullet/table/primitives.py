@@ -492,7 +492,7 @@ class Pull(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PullAction.range())
     Action = primitive_actions.PullAction
-    ALLOW_COLLISIONS = True
+    ALLOW_COLLISIONS = False
 
     def execute(
         self, action: np.ndarray, real_world: bool = False, verbose: bool = False
@@ -651,7 +651,7 @@ class Push(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PushAction.range())
     Action = primitive_actions.PushAction
-    ALLOW_COLLISIONS = True
+    ALLOW_COLLISIONS = False
 
     def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
         from temporal_policies.envs.pybullet.table_env import TableEnv
