@@ -73,7 +73,7 @@ plots_path="plots"
 ### Experiments.
 
 ## Pybullet.
-exp_name="20230119/value"
+exp_name="20230120/value"
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 
 TRAINER_CONFIG="configs/pybullet/trainers/value.yaml"
@@ -86,20 +86,23 @@ fi
 SYMBOLIC_ACTION_TYPE="valid"
 TRAIN_SEEDS=("0" "1" "2" "3" "4" "5" "6" "7")
 VALIDATION_SEEDS=("8" "9")
-DATA_CHECKPOINT_PATH="models/20230116/datasets"
 
 # Launch primitive jobs.
-PRIMITIVE="pick"
-run_value
+# DATA_CHECKPOINT_PATH="models/20230116/datasets"
+# PRIMITIVE="pick"
+# run_value
 
-PRIMITIVE="place"
-run_value
+# DATA_CHECKPOINT_PATH="models/20230116/datasets"
+# PRIMITIVE="place"
+# run_value
 
-PRIMITIVE="pull"
-run_value
+# DATA_CHECKPOINT_PATH="models/20230119/datasets"
+# PRIMITIVE="pull"
+# run_value
 
-PRIMITIVE="push"
-run_value
+# DATA_CHECKPOINT_PATH="models/20230119/datasets"
+# PRIMITIVE="push"
+# run_value
 
 # Sweeps.
 function run_value_sweep {    
@@ -132,6 +135,10 @@ TRAINER_SWEEPS=(
     # "value_lr-0.0001"
     # "value_lr-0.00005"
     # "value_lr-0.00001"
+    # "value_sched-cos_iter-2M"
+    # "value_sched-cos_iter-5M"
+    # "value_sched-exp_iter-2M"
+    # "value_iter-5M"
 )
 
 AGENT_CONFIG_PATH="configs/pybullet/agents/multi_stage/value_sweeps"
@@ -150,14 +157,18 @@ AGENT_SWEEPS=(
 )
 
 # Launch primitive sweep jobs.
+# DATA_CHECKPOINT_PATH="models/20230116/datasets"
 # PRIMITIVE="pick"
 # run_value_sweep
 
+# DATA_CHECKPOINT_PATH="models/20230116/datasets"
 # PRIMITIVE="place"
 # run_value_sweep
 
+# DATA_CHECKPOINT_PATH="models/20230119/datasets"
 # PRIMITIVE="pull"
 # run_value_sweep
 
+# DATA_CHECKPOINT_PATH="models/20230119/datasets"
 # PRIMITIVE="push"
 # run_value_sweep

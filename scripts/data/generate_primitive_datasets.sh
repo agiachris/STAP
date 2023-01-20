@@ -35,7 +35,7 @@ function run_data_generation {
     SPLIT="validation"
     for SEED in "${VALIDATION_SEEDS[@]}"; do
         generate_data
-    done   
+    done
 }
 
 # Experiments.
