@@ -94,7 +94,7 @@ exp_name="20230118/ilm_tamp"
 
 # LLM
 KEY_NAME="personal-all"
-N_INCONTEXT_EXAMPLES=5
+N_INCONTEXT_EXAMPLES=10
 # Evaluate planners.
 PLANNERS=(
     "policy_cem"

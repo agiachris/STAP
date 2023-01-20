@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Usage: PYTHONPATH=. bash scripts/eval/eval_saycan.sh 
+# Usage: PYTHONPATH=. bash scripts/eval/eval_saycan.sh <task_num>
 
 set -e
 

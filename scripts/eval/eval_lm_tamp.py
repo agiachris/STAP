@@ -269,13 +269,9 @@ def eval_lm_tamp(
         objects: List[str]
         object_relationships: List[str]
 
-        observation, info = env.reset()
-        seed = info["seed"]
-
-        # Initialize environment.
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
-        env_state = env.get_state()
+        print(f"seed: {seed}")
 
         task_plans = []
         motion_plans = []
@@ -353,16 +349,6 @@ def eval_lm_tamp(
                     new_task_plan.append(action)
             converted_task_plans.append(new_task_plan)
         generated_task_plans = converted_task_plans
-
-        generated_task_plans = [
-            [
-                "pick(hook, table)",
-                "pull(red_box, hook)",
-                "place(hook, rack)",
-                "pick(red_box, table)",
-                "place(red_box, rack))",
-            ]
-        ]
         action_skeletons_instantiated = get_task_plan_primitives_instantiated(
             generated_task_plans, env
         )
@@ -597,6 +583,7 @@ def eval_lm_tamp(
         env._recording_text = ""
 
     print(f"num_successes_on_used_goal_props: {num_successes_on_used_goal_props}")
+    path.mkdir(parents=True, exist_ok=True)
     # Save planning results.
     with open(path / f"results_{idx_iter}.npz", "wb") as f:
         save_dict = {
@@ -617,49 +604,49 @@ def eval_lm_tamp(
                 "use_ground_truth_goal_props": use_ground_truth_goal_props,
             },
             "observation": observation,
-            "state": state,
-            "action_skeleton": list(map(str, task_plans[idx_best])),
-            "actions": motion_plans[idx_best].actions,
-            "states": motion_plans[idx_best].states,
-            "scaled_actions": scale_actions(
-                motion_plans[idx_best].actions, env, task_plans[idx_best]
-            ),
-            "p_success": motion_plans[idx_best].p_success,
-            "values": motion_plans[idx_best].values,
-            "rewards": rewards,
-            # "visited_actions": motion_plans[idx_best].visited_actions,
-            # "scaled_visited_actions": scale_actions(
-            #     motion_plans[idx_best].visited_actions, env, action_skeleton
+            # "state": state,
+            # "action_skeleton": list(map(str, task_plans[idx_best])),
+            # "actions": motion_plans[idx_best].actions,
+            # "states": motion_plans[idx_best].states,
+            # "scaled_actions": scale_actions(
+            #     motion_plans[idx_best].actions, env, task_plans[idx_best]
             # ),
-            # "visited_states": motion_plans[idx_best].visited_states,
-            "p_visited_success": motion_plans[idx_best].p_visited_success,
-            # "visited_values": motion_plans[idx_best].visited_values,
-            # "t_task_planner": t_task_planner,
-            # "t_motion_planner": t_motion_planner,
-            "t_planner": motion_planner_times,
-            "seed": seed,
-            "num_successes": num_successes_on_used_goal_props,
-            "discarded": [
-                {
-                    "action_skeleton": list(map(str, task_plans[i])),
-                    # "actions": motion_plans[i].actions,
-                    # "states": motion_plans[i].states,
-                    # "scaled_actions": scale_actions(
-                    #     motion_plans[i].actions, env, task_plans[i]
-                    # ),
-                    "p_success": motion_plans[i].p_success,
-                    # "values": motion_plans[i].values,
-                    # "visited_actions": motion_plans[i].visited_actions,
-                    # "scaled_visited_actions": scale_actions(
-                    #     motion_plans[i].visited_actions, env, action_skeleton
-                    # ),
-                    # "visited_states": motion_plans[i].visited_states,
-                    "p_visited_success": motion_plans[i].p_visited_success,
-                    # "visited_values": motion_plans[i].visited_values,
-                }
-                for i in range(len(task_plans))
-                if i != idx_best
-            ],
+            # "p_success": motion_plans[idx_best].p_success,
+            # "values": motion_plans[idx_best].values,
+            # "rewards": rewards,
+            # # "visited_actions": motion_plans[idx_best].visited_actions,
+            # # "scaled_visited_actions": scale_actions(
+            # #     motion_plans[idx_best].visited_actions, env, action_skeleton
+            # # ),
+            # # "visited_states": motion_plans[idx_best].visited_states,
+            # "p_visited_success": motion_plans[idx_best].p_visited_success,
+            # # "visited_values": motion_plans[idx_best].visited_values,
+            # # "t_task_planner": t_task_planner,
+            # # "t_motion_planner": t_motion_planner,
+            # "t_planner": motion_planner_times,
+            # "seed": seed,
+            # "num_successes": num_successes_on_used_goal_props,
+            # "discarded": [
+            #     {
+            #         "action_skeleton": list(map(str, task_plans[i])),
+            #         # "actions": motion_plans[i].actions,
+            #         # "states": motion_plans[i].states,
+            #         # "scaled_actions": scale_actions(
+            #         #     motion_plans[i].actions, env, task_plans[i]
+            #         # ),
+            #         "p_success": motion_plans[i].p_success,
+            #         # "values": motion_plans[i].values,
+            #         # "visited_actions": motion_plans[i].visited_actions,
+            #         # "scaled_visited_actions": scale_actions(
+            #         #     motion_plans[i].visited_actions, env, action_skeleton
+            #         # ),
+            #         # "visited_states": motion_plans[i].visited_states,
+            #         "p_visited_success": motion_plans[i].p_visited_success,
+            #         # "visited_values": motion_plans[i].visited_values,
+            #     }
+            #     for i in range(len(task_plans))
+            #     if i != idx_best
+            # ],
         }
         np.savez_compressed(f, **save_dict)  # type: ignore
 

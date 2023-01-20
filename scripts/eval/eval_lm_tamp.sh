@@ -39,12 +39,12 @@ function eval_lm_tamp {
     args="${args} --n-examples ${N_INCONTEXT_EXAMPLES}"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
-        args="${args} --num-eval 10"
+        args="${args} --num-eval 3"
         args="${args} --path ${PLANNER_OUTPUT_PATH}_debug"
         args="${args} --verbose 1"
         args="${args} --engine curie"
     else
-        args="${args} --num-eval 100"
+        args="${args} --num-eval 3"
         args="${args} --path ${PLANNER_OUTPUT_PATH}"
         args="${args} --verbose 0"
         args="${args} --engine davinci"

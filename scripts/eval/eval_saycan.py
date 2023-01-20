@@ -299,9 +299,10 @@ def eval_saycan(
         all_prior_object_relationships: List[List[str]] = []
         all_executed_actions: List[str] = []
 
-        observation, info = env.reset()
+        observation, info = env.reset(seed=seed)
         seed = info["seed"]
-
+        print(f"seed: {seed}")
+    
         # get goal props
         objects = list(env.objects.keys())
         object_relationships = get_object_relationships(
@@ -499,6 +500,7 @@ def eval_saycan(
         env._recording_text = ""
 
     # Save planning results.
+    path.mkdir(parents=True, exist_ok=True)
     with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
             "args": {
