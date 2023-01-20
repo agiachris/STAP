@@ -104,7 +104,7 @@ declare -A POLICY_DIRS=(
 run_dynamics
 
 # Push dynamics.
-TRAINER_CONFIG="configs/pybullet/trainers/dynamics_push.yaml"
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
 POLICY_CHECKPOINT_PATH="models/20230119/policy"
 PRIMITIVES=("push")
 declare -A POLICY_DIRS=(
