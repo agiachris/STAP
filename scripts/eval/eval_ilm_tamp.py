@@ -210,9 +210,9 @@ def eval_ilm_tamp(
         all_prior_object_relationships: List[List[str]] = []
         all_executed_actions: List[str] = []
 
-        # Initialize environment.
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
+        print(f"seed: {seed}")
 
         # get goal props
         objects = list(env.objects.keys())
@@ -365,6 +365,7 @@ def eval_ilm_tamp(
         env._recording_text = ""
 
     # Save planning results.
+    path.mkdir(parents=True, exist_ok=True)
     with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
             "args": {
@@ -397,7 +398,7 @@ def eval_ilm_tamp(
         json.dump(save_dict, f, indent=4)
 
     # Print results.
-    print(colored(f"Success rate: {(num_successes / num_eval) * 100:.2f}%", "green"))
+    print(colored(f"Success rate: {(num_successes_on_used_goal_props / num_eval) * 100:.2f}%", "green"))
 
 
 def main(args: argparse.Namespace) -> None:
