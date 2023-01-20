@@ -492,7 +492,7 @@ class Pull(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PullAction.range())
     Action = primitive_actions.PullAction
-    ALLOW_COLLISIONS = True
+    ALLOW_COLLISIONS = False
 
     def execute(
         self, action: np.ndarray, real_world: bool = False, verbose: bool = False
@@ -651,7 +651,7 @@ class Push(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PushAction.range())
     Action = primitive_actions.PushAction
-    ALLOW_COLLISIONS = True
+    ALLOW_COLLISIONS = False
 
     def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
         from temporal_policies.envs.pybullet.table_env import TableEnv
@@ -706,7 +706,11 @@ class Push(Primitive):
         objects = self.env.objects
         allow_collisions = self.ALLOW_COLLISIONS or real_world
         if not allow_collisions:
-            did_non_args_move = self.create_object_movement_check(objects=objects)
+            did_non_args_move = self.create_object_movement_check(
+                non_arg_objects=False,
+                custom_objects=True,
+                objects=[obj for obj in objects.values() if obj.isinstance(Rack)] + self.get_non_arg_objects(objects)
+            )
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             if not allow_collisions and did_non_args_move():
