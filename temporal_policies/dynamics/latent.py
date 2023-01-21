@@ -173,7 +173,7 @@ class LatentDynamics(Dynamics, Model[DynamicsBatch]):
         # [B, Z], [B, Z] => [B].
         l2_losses = torch.nn.functional.mse_loss(
             next_latent_pred, next_latent, reduction="none"
-        ).sum(dim=-1)
+        ).mean(dim=-1)
 
         # if isinstance(idx_policy, int):
         #     # [B] => [B, P].
