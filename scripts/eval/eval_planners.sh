@@ -3,7 +3,7 @@
 set -e
 
 # GCP_LOGIN="juno-login-lclbjqwy-001"
-GCP_LOGIN="gcp-login-yq0fvtuw-001"
+# GCP_LOGIN="gcp-login-yq0fvtuw-001"
 
 function run_cmd {
     echo ""
@@ -48,6 +48,31 @@ function eval_planner {
     run_cmd
 }
 
+function run_planners {
+    for task in "${TASKS[@]}"; do
+        ENV_CONFIG="${TASK_ROOT}/${task}.yaml"
+
+        for planner in "${PLANNERS[@]}"; do
+            PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
+
+            POLICY_CHECKPOINTS=()
+            for primitive in "${PRIMITIVES[@]}"; do
+                POLICY_CHECKPOINTS+=("${POLICY_CHECKPOINT_PATHS[${primitive}]}")
+            done
+
+            SCOD_CHECKPOINTS=()
+
+            if [[ "${planner}" == *_oracle_*dynamics ]]; then
+                DYNAMICS_CHECKPOINT=""
+            else
+                DYNAMICS_CHECKPOINT="${DYNAMICS_CHECKPOINT_PATH}"
+            fi
+
+            PLANNER_OUTPUT_PATH="${PLANNER_OUTPUT_ROOT}/${task}/${planner}"
+            eval_planner
+        done
+    done
+}
 
 function visualize_results {
     args=""
@@ -63,6 +88,8 @@ SBATCH_SLURM="scripts/eval/eval_planners_juno.sh"
 DEBUG=0
 input_path="models"
 output_path="plots"
+
+### Experiments.
 
 ## Evaluate planners.
 PLANNERS=(
@@ -107,114 +134,69 @@ PLANNERS=(
     # "greedy"
 )
 
-# Experiments.
+## Evaluation tasks.
 
-# Pybullet.
-exp_name="20230121/taps/planners"
-PLANNER_CONFIG_PATH="configs/pybullet/planners"
-ENVS=(
-    ## Domain 1: Hook Reach
+# TAPS
+TASK_ROOT="configs/pybullet/envs/taps/official/domains"
+TASKS=(
+# Domain 1: Hook Reach
     # "hook_reach/task0"
     # "hook_reach/task1"
     # "hook_reach/task2"
-    ## Domain 2: Constrained Packing
+# Domain 2: Constrained Packing
     "constrained_packing/task0"
     "constrained_packing/task1"
     "constrained_packing/task2"
-    ## Domain 3: Rearrangement Push
+# Domain 3: Rearrangement Push
     # "rearrangement_push/task0"
     # "rearrangement_push/task1"
     # "rearrangement_push/task2"
 )
 
-function run_planners {
-    for planner in "${PLANNERS[@]}"; do
-        PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
+# T2M
+# TASK_ROOT="configs/pybullet/envs/t2m/official/tasks"
+# TASKS=(
+#     "task0"
+#     "task1"
+#     "task2"
+#     "task3"
+#     "task4"
+#     "task5"
+#     "task6"
+# )
 
-        POLICY_CHECKPOINTS=()
-        for policy_env in "${POLICY_ENVS[@]}"; do
-            if [[ "${planner}" == daf_* ]]; then
-                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${planner}/${policy_env}/${CKPT}.pt")
-            else
-                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${CKPT}.pt")
-            fi
-        done
+## Pybullet.
+exp_name="20230121/planners/taps"
+PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
 
-        SCOD_CHECKPOINTS=()
-        if [[ "${planner}" == *scod* ]]; then
-            for policy_env in "${POLICY_ENVS[@]}"; do
-                SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${CKPT}/${policy_env}/${SCOD_CONFIG}/final_scod.pt")
-            done
-        fi
-
-        if [[ "${planner}" == *_oracle_*dynamics ]]; then
-            DYNAMICS_CHECKPOINT=""
-        elif [[ "${planner}" == daf_* ]]; then
-            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${planner}/dynamics/final_model.pt"
-        else
-            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CKPT}/dynamics/final_model.pt"
-        fi
-
-        eval_planner
-    done
-}
-
-POLICY_CHECKPOINT_PATHS=(
-    "models/20230120/policy"
-    "models/20230120/policy"
-    "models/20230120/policy"
-    "models/20230120/policy"
-)
-
-PRIMITIVES=(
-    "pick"
-    "place"
-    "push"
-    "push"
-)
-PRIMITIVES=(
-    "pick_value_sched-cos_iter-2M_sac_ens_value"
-    "place_value_sched-cos_iter-5M_sac_ens_value"
-    "push_value_sched-cos_iter-2M_sac_ens_value"
-    "push_value_sched-cos_iter-2M_sac_ens_value"
-)
-declare -A POLICY_DIRS=(
-    ["pick_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
-    ["place_value_sched-cos_iter-5M_sac_ens_value"]="final_model"
-    ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
-    ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
-)
-
-POLICY_ENVS=("pick" "place" "pull" "push")
-checkpoints=(
-    "final_model"
-)
-
+PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
-# Run planners.
-POLICY_INPUT_PATH="${input_path}/${exp_name}"
-# SCOD_INPUT_PATH="${input_path}/${exp_name}"
-# SCOD_CONFIG="scod"
-DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
-for CKPT in "${checkpoints[@]}"; do
-    for env in "${ENVS[@]}"; do
-        ENV_CONFIG="configs/pybullet/envs/official/domains/${env}.yaml"
-        PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${env}"
-        # LOAD_PATH="${PLANNER_OUTPUT_PATH}/policy_cem"
-        run_planners
-    done
-done
+# Model suite.
+PRIMITIVES=(
+    "pick"
+    "place"
+    "pull"
+    "push"
+)
+declare -A POLICY_CHECKPOINT_PATHS=(
+    ["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+    ["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
+    ["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+    ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+)
+DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+run_planners
 
 # Visualize results.
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
     exit
 fi
 
-for ckpt in "${checkpoints[@]}"; do
-    PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${ckpt}"
-    visualize_results
-done
+# for ckpt in "${checkpoints[@]}"; do
+#     PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${ckpt}"
+#     visualize_results
+# done
