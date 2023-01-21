@@ -44,10 +44,8 @@ function train_dynamics {
 function run_dynamics {
     NAME=""
     POLICY_CHECKPOINTS=()
-    for idx in "${!PRIMITIVES[@]}"; do
-        primitive="${PRIMITIVES[${idx}]}"
-        policy_checkpoint_path="${POLICY_CHECKPOINT_PATHS[${idx}]}"
-        POLICY_CHECKPOINTS+=("${policy_checkpoint_path}/${primitive}/${POLICY_DIRS[${primitive}]}/final_model.pt")
+    for primitive in "${PRIMITIVES[@]}"; do
+        POLICY_CHECKPOINTS+=("${POLICY_CHECKPOINT_PATHS[${primitive}]}")
 
         if [ -z "${NAME}" ]; then
             NAME="${primitive}"
@@ -76,62 +74,39 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] |
     ENV_KWARGS="--gui 0"
 fi
 
-# Launch dynamics jobs.
+# Launch primitive dynamics jobs.
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+PRIMITIVES=("pick")
+declare -A POLICY_CHECKPOINT_PATHS=(["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt")
+run_dynamics
 
-# # Pick dynamics.
-# TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
-# POLICY_CHECKPOINT_PATHS=("models/20230120/policy")
-# PRIMITIVES=("pick")
-# declare -A POLICY_DIRS=(
-#     ["pick"]="final_model"
-# )
-# run_dynamics
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+PRIMITIVES=("place")
+declare -A POLICY_CHECKPOINT_PATHS=(["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt")
+run_dynamics
 
-# # Place dynamics.
-# TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
-# POLICY_CHECKPOINT_PATHS=("models/20230120/policy")
-# PRIMITIVES=("place")
-# declare -A POLICY_DIRS=(
-#     ["place"]="final_model"
-# )
-# run_dynamics
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+PRIMITIVES=("pull")
+declare -A POLICY_CHECKPOINT_PATHS=(["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt")
+run_dynamics
 
-# # Pull dynamics.
-# TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
-# POLICY_CHECKPOINT_PATHS=("models/20230120/policy")
-# PRIMITIVES=("pull_value_sched-cos_iter-2M_sac_ens_value")
-# declare -A POLICY_DIRS=(
-#     ["pull_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
-# )
-# run_dynamics
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+PRIMITIVES=("push")
+declare -A POLICY_CHECKPOINT_PATHS=(["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt")
+run_dynamics
 
-# # Push dynamics.
-# TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
-# POLICY_CHECKPOINT_PATHS=("models/20230120/policy")
-# PRIMITIVES=("push_value_sched-cos_iter-2M_sac_ens_value")
-# declare -A POLICY_DIRS=(
-#     ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
-# )
-# run_dynamics
-
-# # Full suite dynamics.
-# TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
-# POLICY_CHECKPOINT_PATHS=(
-#     "models/20230120/policy"
-#     "models/20230120/policy"
-#     "models/20230120/policy"
-#     "models/20230120/policy"
-# )
-# PRIMITIVES=(
-#     "pick_value_sched-cos_iter-2M_sac_ens_value"
-#     "place_value_sched-cos_iter-5M_sac_ens_value"
-#     "push_value_sched-cos_iter-2M_sac_ens_value"
-#     "push_value_sched-cos_iter-2M_sac_ens_value"
-# )
-# declare -A POLICY_DIRS=(
-#     ["pick_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
-#     ["place_value_sched-cos_iter-5M_sac_ens_value"]="final_model"
-#     ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
-#     ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
-# )
-# run_dynamics
+# Launch full suite dynamics jobs.
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
+PRIMITIVES=(
+    "pick"
+    "place"
+    "pull"
+    "push"
+)
+declare -A POLICY_CHECKPOINT_PATHS=(
+    ["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+    ["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
+    ["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+    ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+)
+run_dynamics

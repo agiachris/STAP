@@ -223,6 +223,8 @@ class TableEnvDynamics(LatentDynamics):
         idx_args = policy_args["observation_indices"]
         dynamics_state = self._normalize_state(env_state[..., idx_args, :])
 
+        # TODO: Find non-normalized components.
+        
         # Dynamics state -> dynamics state.
         next_dynamics_state = self.forward(
             dynamics_state, action, primitive.idx_policy, policy_args

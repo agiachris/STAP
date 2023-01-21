@@ -8,8 +8,8 @@ GCP_LOGIN="gcp-login-yq0fvtuw-001"
 function run_cmd {
     echo ""
     echo "${CMD}"
-    if [[ `hostname` == "sc.stanford.edu" ]]; then
-        sbatch scripts/eval/eval_planners_juno.sh "${CMD}"
+    if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
+        sbatch "${SBATCH_SLURM}" "${CMD}"
     elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
         sbatch scripts/eval/eval_gcp.sh "${CMD}"
     else
@@ -48,37 +48,6 @@ function eval_planner {
     run_cmd
 }
 
-function run_planners {
-    for planner in "${PLANNERS[@]}"; do
-        PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
-
-        POLICY_CHECKPOINTS=()
-        for policy_env in "${POLICY_ENVS[@]}"; do
-            if [[ "${planner}" == daf_* ]]; then
-                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${planner}/${policy_env}/${CKPT}.pt")
-            else
-                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${CKPT}.pt")
-            fi
-        done
-
-        SCOD_CHECKPOINTS=()
-        if [[ "${planner}" == *scod* ]]; then
-            for policy_env in "${POLICY_ENVS[@]}"; do
-                SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${CKPT}/${policy_env}/${SCOD_CONFIG}/final_scod.pt")
-            done
-        fi
-
-        if [[ "${planner}" == *_oracle_*dynamics ]]; then
-            DYNAMICS_CHECKPOINT=""
-        elif [[ "${planner}" == daf_* ]]; then
-            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${planner}/dynamics/final_model.pt"
-        else
-            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CKPT}/dynamics/final_model.pt"
-        fi
-
-        eval_planner
-    done
-}
 
 function visualize_results {
     args=""
@@ -89,12 +58,13 @@ function visualize_results {
     run_cmd
 }
 
-# Setup.
+### Setup.
+SBATCH_SLURM="scripts/eval/eval_planners_juno.sh"
 DEBUG=0
 input_path="models"
 output_path="plots"
 
-# Evaluate planners.
+## Evaluate planners.
 PLANNERS=(
 # Q-value / Latent dynamics.
     "policy_cem"
@@ -139,53 +109,91 @@ PLANNERS=(
 
 # Experiments.
 
-# Pybox2d.
-# exp_name="20220727/pybox2d"
-# PLANNER_CONFIG_PATH="configs/pybox2d/planners"
-# ENV_CONFIG_PATH="configs/pybox2d/envs"
-# POLICY_ENVS=("placeright" "pushleft")
-# checkpoints=(
-#     "final_model"
-#     "best_model"
-#     "ckpt_model_50000"
-# )
-
 # Pybullet.
-# exp_name="20230108/test-taps"
-exp_name="official"
+exp_name="20230121/taps/planners"
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 ENVS=(
     ## Domain 1: Hook Reach
-    "hook_reach/task0"
+    # "hook_reach/task0"
     # "hook_reach/task1"
     # "hook_reach/task2"
     ## Domain 2: Constrained Packing
-    # "constrained_packing/task0"
-    # "constrained_packing/task1"
-    # "constrained_packing/task2"
+    "constrained_packing/task0"
+    "constrained_packing/task1"
+    "constrained_packing/task2"
     ## Domain 3: Rearrangement Push
     # "rearrangement_push/task0"
     # "rearrangement_push/task1"
     # "rearrangement_push/task2"
 )
+
+function run_planners {
+    for planner in "${PLANNERS[@]}"; do
+        PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
+
+        POLICY_CHECKPOINTS=()
+        for policy_env in "${POLICY_ENVS[@]}"; do
+            if [[ "${planner}" == daf_* ]]; then
+                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${planner}/${policy_env}/${CKPT}.pt")
+            else
+                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${CKPT}.pt")
+            fi
+        done
+
+        SCOD_CHECKPOINTS=()
+        if [[ "${planner}" == *scod* ]]; then
+            for policy_env in "${POLICY_ENVS[@]}"; do
+                SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${CKPT}/${policy_env}/${SCOD_CONFIG}/final_scod.pt")
+            done
+        fi
+
+        if [[ "${planner}" == *_oracle_*dynamics ]]; then
+            DYNAMICS_CHECKPOINT=""
+        elif [[ "${planner}" == daf_* ]]; then
+            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${planner}/dynamics/final_model.pt"
+        else
+            DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CKPT}/dynamics/final_model.pt"
+        fi
+
+        eval_planner
+    done
+}
+
+POLICY_CHECKPOINT_PATHS=(
+    "models/20230120/policy"
+    "models/20230120/policy"
+    "models/20230120/policy"
+    "models/20230120/policy"
+)
+
+PRIMITIVES=(
+    "pick"
+    "place"
+    "push"
+    "push"
+)
+PRIMITIVES=(
+    "pick_value_sched-cos_iter-2M_sac_ens_value"
+    "place_value_sched-cos_iter-5M_sac_ens_value"
+    "push_value_sched-cos_iter-2M_sac_ens_value"
+    "push_value_sched-cos_iter-2M_sac_ens_value"
+)
+declare -A POLICY_DIRS=(
+    ["pick_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
+    ["place_value_sched-cos_iter-5M_sac_ens_value"]="final_model"
+    ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
+    ["push_value_sched-cos_iter-2M_sac_ens_value"]="final_model"
+)
+
 POLICY_ENVS=("pick" "place" "pull" "push")
 checkpoints=(
-    # "final_model"
-    # "best_model"
-    "select_model"
-    # "ckpt_model_50000"
-    # "ckpt_model_100000"
-    # "ckpt_model_150000"
-    # "ckpt_model_200000"
-    # "select_model"
-    # "selectscod_model"
+    "final_model"
 )
+
 ENV_KWARGS="--closed-loop 1"
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
-
-ENV_KWARGS="--gui 0"
 
 # Run planners.
 POLICY_INPUT_PATH="${input_path}/${exp_name}"
@@ -202,7 +210,7 @@ for CKPT in "${checkpoints[@]}"; do
 done
 
 # Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [ $DEBUG -ne 0 ]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
     exit
 fi
 
