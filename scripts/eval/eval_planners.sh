@@ -50,6 +50,7 @@ function eval_planner {
 
 function run_planners {
     for task in "${TASKS[@]}"; do
+        PLANNER_OUTPUT_PATH="${PLANNER_OUTPUT_ROOT}/${task}"
         ENV_CONFIG="${TASK_ROOT}/${task}.yaml"
 
         for planner in "${PLANNERS[@]}"; do
@@ -67,8 +68,7 @@ function run_planners {
             else
                 DYNAMICS_CHECKPOINT="${DYNAMICS_CHECKPOINT_PATH}"
             fi
-
-            PLANNER_OUTPUT_PATH="${PLANNER_OUTPUT_ROOT}/${task}/${planner}"
+    
             eval_planner
         done
     done

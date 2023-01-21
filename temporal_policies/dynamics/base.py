@@ -108,8 +108,6 @@ class Dynamics(abc.ABC):
             policies = self.policies
             time_index = False
 
-        breakpoint()
-
         state = self.encode(
             observation,
             action_skeleton[0].idx_policy,
