@@ -77,7 +77,7 @@ plots_path="plots"
 ### Experiments.
 
 ## Pybullet.
-exp_name="20230120/policy"
+exp_name="20230121/policy"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
@@ -95,14 +95,14 @@ VALIDATION_SEEDS=("8" "9")
 # Launch primitive jobs.
 # DATA_CHECKPOINT_PATH="models/20230116/datasets"
 # PRIMITIVE="pick"
-# CRITIC_CHECKPOINT_PATH="models/20230119/value"
-# CRITIC_CHECKPOINTS=("pick/final_model")
+# CRITIC_CHECKPOINT_PATH="models/20230120/value"
+# CRITIC_CHECKPOINTS=("pick_value_sched-cos_iter-2M_sac_ens_value/final_model")
 # run_policy
 
 # DATA_CHECKPOINT_PATH="models/20230116/datasets"
 # PRIMITIVE="place"
-# CRITIC_CHECKPOINT_PATH="models/20230119/value"
-# CRITIC_CHECKPOINTS=("place/final_model")
+# CRITIC_CHECKPOINT_PATH="models/20230120/value"
+# CRITIC_CHECKPOINTS=("place_value_sched-cos_iter-5M_sac_ens_value/final_model")
 # run_policy
 
 # DATA_CHECKPOINT_PATH="models/20230119/datasets"
