@@ -10,14 +10,18 @@ agent_configs:
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
+      scale: 0.5
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
+      scale: 0.5
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
+      scale: 0.5
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
+      scale: 0.5
 
 dynamics_config: "{DYNAMICS_CONFIG}"
