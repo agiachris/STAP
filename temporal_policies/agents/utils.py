@@ -314,47 +314,6 @@ def train(config, path, device="auto"):
     return model
 
 
-# def load(
-#     config: Dict[str, Any],
-#     model_path: Union[str, pathlib.Path],
-#     env: Optional[gym.Env] = None,
-#     eval_env: Optional[gym.Env] = None,
-#     device="auto",
-#     strict=True,
-# ):
-#     if isinstance(model_path, str):
-#         model_path = pathlib.Path(model_path)
-#
-#     model = get_model(config, env=env, eval_env=eval_env, device=device)
-#     model.load(model_path, strict=strict)
-#     model.path = model_path.parent
-#     return model
-#
-#
-# def load_from_path(
-#     checkpoint_path: Union[str, pathlib.Path],
-#     env: Optional[gym.Env] = None,
-#     eval_env: Optional[gym.Env] = None,
-#     device="auto",
-#     strict=True,
-# ):
-#     if isinstance(checkpoint_path, str):
-#         checkpoint_path = pathlib.Path(checkpoint_path)
-#
-#     config = load_config(checkpoint_path)
-#     # checkpoint_path = pathlib.Path(checkpoint_path)
-#     # config_path = checkpoint_path.parent / "config.yaml"
-#     # config = Config.load(config_path)
-#     return load(
-#         config,
-#         checkpoint_path,
-#         env=env,
-#         eval_env=eval_env,
-#         device=device,
-#         strict=strict,
-#     )
-
-
 class Config(object):
     def __init__(self):
         # Define the necesary structure for a complete training configuration

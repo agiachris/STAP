@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union, List
 
 import torch
 import numpy as np
@@ -11,6 +11,14 @@ from temporal_policies import encoders, envs, networks
 from temporal_policies.utils import configs
 from temporal_policies.utils.typing import Batch
 
+
+def get_logistics_weight(target_q: torch.Tensor, logistics_weight: torch.Tensor):
+    """Get logistics regression weight."""
+    weight = torch.zeros_like(target_q, dtype=torch.float32).to(target_q.device)
+    weight[target_q == 0] = logistics_weight[0]
+    weight[target_q == 1] = logistics_weight[1]
+    return weight
+    
 
 class SAC(rl.RLAgent):
     """Soft actor critic."""
@@ -36,6 +44,8 @@ class SAC(rl.RLAgent):
         critic_update_freq: int = 1,
         actor_update_freq: int = 2,
         target_update_freq: int = 2,
+        logistics: bool = False,
+        logistics_weight: List[float] = []
     ):
         """Constructs the SAC agent from config parameters.
 
@@ -58,6 +68,8 @@ class SAC(rl.RLAgent):
             critic_update_freq: Critic update frequency.
             actor_update_freq: Actor update frequency.
             target_update_freq: Target update frequency.
+            logistics: Logstics regression loss instead of MSE.
+            logistics_weight: Logistics regression classification weight.
         """
         agent_kwargs = {
             "actor": deepcopy(actor_kwargs),
@@ -118,6 +130,8 @@ class SAC(rl.RLAgent):
         self.critic_update_freq = critic_update_freq
         self.actor_update_freq = actor_update_freq
         self.target_update_freq = target_update_freq
+        self.logistics = logistics
+        self.logistics_weight = torch.tensor(logistics_weight).float().to(self.device) / sum(logistics_weight)
 
     @property
     def log_alpha(self) -> torch.Tensor:
@@ -175,10 +189,17 @@ class SAC(rl.RLAgent):
             target_q = self.target_critic(next_observation, next_action)
             target_q = torch.min(torch.stack(target_q), axis=0).values
             target_v = target_q - self.alpha.detach() * log_prob
-            target_q = reward + discount * target_v
+            target_q: torch.Tensor = reward + discount * target_v
 
         qs = self.critic(observation, action)
-        q_losses = [torch.nn.functional.mse_loss(q, target_q) for q in qs]
+        if self.logistics:
+            target_q = target_q.round().long()
+            if not torch.all(target_q >= 0.0) and torch.all(target_q <= 1.0):
+                raise ValueError("Logistics regression requires [0, 1] targets.")
+            weight = get_logistics_weight(target_q, self.logistics_weight) if len(self.logistics_weight) == 2 else None        
+            q_losses = [torch.nn.functional.binary_cross_entropy(q, target_q, weight=weight) for q in qs]
+        else:
+            q_losses = [torch.nn.functional.mse_loss(q, target_q) for q in qs]
         q_loss = sum(q_losses) / len(q_losses)
 
         metrics = {f"q{i}_loss": q.item() for i, q in enumerate(q_losses)}
