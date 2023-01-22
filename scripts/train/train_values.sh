@@ -73,7 +73,7 @@ plots_path="plots"
 ### Experiments.
 
 ## Pybullet.
-exp_name="20230120/value"
+exp_name="20230122/value"
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 
 TRAINER_CONFIG="configs/pybullet/trainers/value.yaml"
@@ -154,6 +154,7 @@ AGENT_SWEEPS=(
     # "sac_ens_value_hids-4_dims-512"
     # "sac_value"
     # "sac_ens_value"
+    # "sac_ens_value_logistics"
 )
 
 # Launch primitive sweep jobs.
