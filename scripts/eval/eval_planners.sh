@@ -85,15 +85,18 @@ output_path="plots"
 ## Planner configurations.
 PLANNERS=(
 # Q-value / Latent dynamics.
-    "policy_cem"
+    # "policy_cem"
     # "random_cem"
     # "policy_shooting"
     # "random_shooting"
 # Ensemble Q-value / Latent dynamics.
     # "ensemble_policy_cem"
-    "ensemble_policy_cem_scale-0.1"
-    "ensemble_policy_cem_scale-0.5"
-    "ensemble_policy_cem_scale-1.0"
+    # "ensemble_policy_cem_scale-0.1"
+    # "ensemble_policy_cem_scale-0.5"
+    # "ensemble_policy_cem_scale-1.0"
+    # "ensemble_policy_cem_scale-0.1_pessimistic-True"
+    # "ensemble_policy_cem_scale-0.5_pessimistic-True"
+    # "ensemble_policy_cem_scale-1.0_pessimistic-True"
 # SCOD value / Latent dynamics.
     # "policy_cem_var_scod_value"
     # "policy_cem_cvar_scod_value"
@@ -135,9 +138,9 @@ PLANNERS=(
 TASK_ROOT="configs/pybullet/envs/taps/official/domains"
 TASKS=(
 # Domain 1: Hook Reach
-    # "hook_reach/task0"
-    # "hook_reach/task1"
-    # "hook_reach/task2"
+    "hook_reach/task0"
+    "hook_reach/task1"
+    "hook_reach/task2"
 # Domain 2: Constrained Packing
     "constrained_packing/task0"
     "constrained_packing/task1"

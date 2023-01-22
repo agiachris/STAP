@@ -14,6 +14,7 @@ class EnsembleAgent(wrapper.WrapperAgent):
         env: Optional[envs.Env] = None,
         scale: float = 1.0,
         clip: bool = True, 
+        pessimistic: bool = False,
         device: str = "auto",
     ):
         """Constructs the ensemble agent.
@@ -22,6 +23,8 @@ class EnsembleAgent(wrapper.WrapperAgent):
             policy: Main agent with an ensemble of Q-functions.
             env: Policy env (unused, but included for API consistency).
             scale: Lower-confidence bound scale.
+            clip: Clip Q-values between [0, 1]
+            pessimistic: LCB from min(Qi) instead of mean(Qi)
             device: Torch device.
         """
         super().__init__(
@@ -29,7 +32,7 @@ class EnsembleAgent(wrapper.WrapperAgent):
             action_space=policy.action_space,
             observation_space=policy.observation_space,
             actor=policy.actor,
-            critic=networks.critics.ContinuousEnsembleCritic(policy.critic, scale, clip),
+            critic=networks.critics.ContinuousEnsembleCritic(policy.critic, scale, clip, pessimistic),
             encoder=policy.encoder,
             device=device,
         )
