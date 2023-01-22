@@ -1,0 +1,31 @@
+planner: CEMPlanner
+planner_kwargs:
+  num_samples: 10000
+  num_iterations: 10
+  num_elites: 10
+  keep_elites_fraction: 1.0
+  standard_deviation: 0.3
+
+agent_configs:
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scale: 0.1
+      pessimistic: True
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scale: 0.1
+      pessimistic: True
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scale: 0.1
+      pessimistic: True
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      scale: 0.1
+      pessimistic: True
+
+dynamics_config: "{DYNAMICS_CONFIG}"
