@@ -9,6 +9,7 @@ scripts/train/train_juno_cpu.sh
 scripts/eval/eval_planners_juno.sh
 scripts/data/generate_data_juno.sh
 logs/
+figures/paper/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

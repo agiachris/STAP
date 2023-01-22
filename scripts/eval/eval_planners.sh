@@ -135,9 +135,9 @@ PLANNERS=(
 TASK_ROOT="configs/pybullet/envs/taps/official/domains"
 TASKS=(
 # Domain 1: Hook Reach
-    # "hook_reach/task0"
-    # "hook_reach/task1"
-    # "hook_reach/task2"
+    "hook_reach/task0"
+    "hook_reach/task1"
+    "hook_reach/task2"
 # Domain 2: Constrained Packing
     "constrained_packing/task0"
     "constrained_packing/task1"
@@ -196,7 +196,7 @@ function visualize_results {
     args="${args} --path ${PLANNER_OUTPUT_ROOT}"
     args="${args} --envs ${TASKS[@]}"
     args="${args} --methods ${PLANNERS[@]}"
-    CMD="python scripts/visualize/visualize_planners.py ${args}"
+    CMD="python scripts/visualize/generate_planning_figure.py ${args}"
     run_cmd
 }
 
