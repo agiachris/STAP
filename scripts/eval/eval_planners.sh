@@ -74,15 +74,6 @@ function run_planners {
     done
 }
 
-function visualize_results {
-    args=""
-    args="${args} --path ${PLANNER_OUTPUT_PATH}"
-    args="${args} --envs ${ENVS[@]}"
-    args="${args} --methods ${PLANNERS[@]}"
-    CMD="python scripts/visualize/visualize_planners.py ${args}"
-    run_cmd
-}
-
 ### Setup.
 SBATCH_SLURM="scripts/eval/eval_planners_juno.sh"
 DEBUG=0
@@ -94,12 +85,15 @@ output_path="plots"
 ## Planner configurations.
 PLANNERS=(
 # Q-value / Latent dynamics.
-    # "policy_cem"
+    "policy_cem"
     # "random_cem"
     # "policy_shooting"
     # "random_shooting"
 # Ensemble Q-value / Latent dynamics.
-    "ensemble_policy_cem"
+    # "ensemble_policy_cem"
+    "ensemble_policy_cem_scale-0.1"
+    "ensemble_policy_cem_scale-0.5"
+    "ensemble_policy_cem_scale-1.0"
 # SCOD value / Latent dynamics.
     # "policy_cem_var_scod_value"
     # "policy_cem_cvar_scod_value"
@@ -190,4 +184,21 @@ declare -A POLICY_CHECKPOINT_PATHS=(
     ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
 )
 DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
-run_planners
+# run_planners
+
+## Visualize results.
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
+    exit
+fi
+
+function visualize_results {
+    args=""
+    args="${args} --path ${PLANNER_OUTPUT_ROOT}"
+    args="${args} --envs ${TASKS[@]}"
+    args="${args} --methods ${PLANNERS[@]}"
+    CMD="python scripts/visualize/visualize_planners.py ${args}"
+    run_cmd
+}
+
+visualize_results
+

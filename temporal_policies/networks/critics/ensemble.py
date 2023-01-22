@@ -19,7 +19,7 @@ class ContinuousEnsembleCritic(Critic):
             critic: Base Critic.
             scale: Lower-confidence bound scale.
         """
-        assert isinstance(critic, ContinuousMLPCritic) and len(critic.qs > 1)
+        assert isinstance(critic, ContinuousMLPCritic) and len(critic.qs) > 1
         super().__init__()
         self.network = critic
         self.scale = scale
