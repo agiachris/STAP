@@ -119,7 +119,7 @@ class SAC(rl.RLAgent):
         if isinstance(bce_weight, list):
             if len(bce_weight) != 2 or any(w <= 0 for w in bce_weight):
                 raise ValueError("Require non-negative weight for positive and negative classes.")
-            self.bce_weight = torch.tensor(bce_weight).float().to(self.device) / sum(bce_weight)
+            self.bce_weight = torch.tensor(bce_weight).float() / sum(bce_weight)
         else:
             self.bce_weight = None
 

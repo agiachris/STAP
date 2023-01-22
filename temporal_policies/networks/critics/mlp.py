@@ -89,4 +89,4 @@ class ContinuousMLPCritic(Critic):
             Predicted expected value.
         """
         qs = self.forward(state, action)
-        return torch.min(torch.stack(qs), axis=0).values
+        return torch.min(torch.stack(qs), dim=0).values

@@ -1,8 +1,8 @@
 from .base import Agent
 from .constant import ConstantAgent
 
-# from .drqv2 import DRQV2
 from .gaussian import GaussianAgent
+from .ensemble import EnsembleAgent
 from .oracle import OracleAgent
 from .rl import RLAgent
 from .random import RandomAgent

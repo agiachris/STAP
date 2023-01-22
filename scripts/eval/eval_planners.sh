@@ -91,13 +91,15 @@ output_path="plots"
 
 ### Experiments.
 
-## Evaluate planners.
+## Planner configurations.
 PLANNERS=(
 # Q-value / Latent dynamics.
-    "policy_cem"
+    # "policy_cem"
     # "random_cem"
     # "policy_shooting"
     # "random_shooting"
+# Ensemble Q-value / Latent dynamics.
+    "ensemble_policy_cem"
 # SCOD value / Latent dynamics.
     # "policy_cem_var_scod_value"
     # "policy_cem_cvar_scod_value"
@@ -134,9 +136,8 @@ PLANNERS=(
     # "greedy"
 )
 
-## Evaluation tasks.
+## TAPS Evaluation tasks.
 
-# TAPS
 TASK_ROOT="configs/pybullet/envs/taps/official/domains"
 TASKS=(
 # Domain 1: Hook Reach
@@ -148,12 +149,12 @@ TASKS=(
     "constrained_packing/task1"
     "constrained_packing/task2"
 # Domain 3: Rearrangement Push
-    # "rearrangement_push/task0"
-    # "rearrangement_push/task1"
-    # "rearrangement_push/task2"
+    "rearrangement_push/task0"
+    "rearrangement_push/task1"
+    "rearrangement_push/task2"
 )
 
-# T2M
+## T2M Evaluation tasks.
 # TASK_ROOT="configs/pybullet/envs/t2m/official/tasks"
 # TASKS=(
 #     "task0"
@@ -190,13 +191,3 @@ declare -A POLICY_CHECKPOINT_PATHS=(
 )
 DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
 run_planners
-
-# Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
-    exit
-fi
-
-# for ckpt in "${checkpoints[@]}"; do
-#     PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${ckpt}"
-#     visualize_results
-# done
