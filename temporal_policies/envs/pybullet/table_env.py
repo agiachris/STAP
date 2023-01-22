@@ -162,7 +162,7 @@ class TableEnv(PybulletEnv):
         """
         super().__init__(name=name, gui=gui)
 
-        # TODO: Bug-fix multiprocessing stalls.
+        # TODO (Chris Agia): Bug-fix multiprocessing stalls.
         # Launch external reset process. 
         # if reset_queue_size <= 0 or num_processes <= 1:
         #     self._process_pipes: Optional[
