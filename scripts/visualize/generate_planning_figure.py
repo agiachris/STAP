@@ -153,6 +153,7 @@ def create_dataframe(
 def plot_planning_results(
     df_plans: pd.DataFrame,
     path: Union[str, pathlib.Path],
+    name: str,
 ) -> None:
     palette = sns.color_palette()[:5] + sns.color_palette()[6:]
 
@@ -288,45 +289,21 @@ def plot_planning_results(
 
     fig.tight_layout()
     fig.savefig(
-        "figures/paper/test-planning.pdf",
+        f"figures/paper/{name}-planning.pdf",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,
     )
-    # plt.close(fig)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", help="Path for output plots")
-    parser.add_argument("--envs", nargs="+", help="Planning domain subdirectories")
-    parser.add_argument("--methods", nargs="+", help="Method subdirectories")
+    parser.add_argument("--path", help="Path for output plots.")
+    parser.add_argument("--envs", nargs="+", help="Planning domain subdirectories.")
+    parser.add_argument("--methods", nargs="+", help="Method subdirectories.")
+    parser.add_argument("--name", default="test", help="Figure filename.")
     args = parser.parse_args()
-
-    # path = "../../plots/20220914/official/select_model"
-    # envs = [
-    #     "hook_reach/task0",
-    #     "hook_reach/task1",
-    #     "hook_reach/task2",
-    #     "constrained_packing/task0",
-    #     "constrained_packing/task1",
-    #     "constrained_packing/task2",
-    #     "rearrangement_push/task0",
-    #     "rearrangement_push/task1",
-    #     "rearrangement_push/task2",
-    # ]
-    # methods = [
-    #     "policy_cem",
-    #     "policy_shooting",
-    #     "daf_random_cem",
-    #     "train0/daf_random_cem",
-    #     "train1/daf_random_cem",
-    #     "train2/daf_random_cem",
-    #     "random_cem",
-    #     "random_shooting",
-    #     "greedy",
-    # ]
 
     results = load_results(args.path, args.envs, args.methods)
     df_plans = create_dataframe(results)
-    plot_planning_results(df_plans, args.path)
+    plot_planning_results(df_plans, args.path, args.name)
