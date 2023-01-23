@@ -541,12 +541,12 @@ def eval_saycan(
     # Save planning results.
     path.mkdir(parents=True, exist_ok=True)
 
-    num_successes_on_stop_score = (
+    num_successes_on_stop_score = int((
         np.array(steps_to_success_using_stop_score) != -1
-    ).sum()
-    num_successes_on_predicted_goal_props = (
+    ).sum())
+    num_successes_on_predicted_goal_props = int((
         np.array(steps_to_success_using_predicted_goal_props) != -1
-    ).sum()
+    ).sum())
 
     with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
