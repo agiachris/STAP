@@ -10,7 +10,7 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you pick and place the cyan box, then use the hook to push the yellow box under the rack?
+    - instruction: How would you pick and place the cyan box, then use the hook to push the cyan box under the rack?
       action_skeleton:
         - pick(cyan_box)
         - place(cyan_box, table)
@@ -18,32 +18,23 @@ env_kwargs:
         - push(yellow_box, hook, rack)
       initial_state:
         - free(hook)
-        - free(yellow_box)
         - free(cyan_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(hook)
-        - inoperationalzone(yellow_box)
-        - inobstructionzone(cyan_box)
+        - inworkspace(cyan_box)
         - beyondworkspace(rack)
-        - infront(yellow_box, rack)
-        - infront(cyan_box, rack)
         - nonblocking(rack, hook)
         - on(rack, table)
         - on(hook, table)
-        - on(yellow_box, table)
         - on(cyan_box, table)
-        - on(red_box, table)
-        - on(blue_box, table)
-        - nonblocking(blue_box, rack)
-        - nonblocking(red_box, rack)
       goal_propositions:
-        - under(yellow_box, rack)
+        - under(cyan, rack)
       supported_predicates:
         - under(a, b)
         - on(a, b)
         - inhand(a)
-        
+
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   objects:
