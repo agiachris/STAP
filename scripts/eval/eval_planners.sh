@@ -130,7 +130,7 @@ PLANNERS=(
     # "daf_random_shooting"
 # Greedy.
     # "greedy_oracle_dynamics"
-    # "greedy"
+    "greedy"
 )
 
 ## TAPS Evaluation tasks.
@@ -164,7 +164,7 @@ TASKS=(
 # )
 
 ## Pybullet.
-exp_name="20230121/planners/taps"
+exp_name="20230122/planners/taps"
 PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
 
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
@@ -187,7 +187,7 @@ declare -A POLICY_CHECKPOINT_PATHS=(
     ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
 )
 DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
-# run_planners
+run_planners
 
 ## Visualize results.
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
@@ -199,9 +199,13 @@ function visualize_results {
     args="${args} --path ${PLANNER_OUTPUT_ROOT}"
     args="${args} --envs ${TASKS[@]}"
     args="${args} --methods ${PLANNERS[@]}"
+    if [ ! -z "${FIGURE_NAME}" ]; then
+        args="${args} --name ${FIGURE_NAME}"
+    fi
     CMD="python scripts/visualize/generate_planning_figure.py ${args}"
     run_cmd
 }
 
+FIGURE_NAME="improved-dynamics"
 visualize_results
 
