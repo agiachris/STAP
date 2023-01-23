@@ -1,5 +1,5 @@
 import pathlib
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 import numpy as np
 
 from helm.common.authentication import Authentication
@@ -29,18 +29,25 @@ def get_task_plans_from_lm(
     pddl_problem_file: str,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
-    custom_in_context_example_robot_format: str = "python_list_of_lists",
+    custom_in_context_example_robot_format: Literal[
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
+    ] = "python_list",
     custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
     custom_robot_action_sequence_format: str = "python_list_of_lists",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
+    verbose: bool = False,
 ) -> List[Union[List[str], List[List[str]], Dict[str, str]]]:
     header_prompt = InContextExample(
         predicates=["on(a, b)", "inhand(a)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"] + ["stop()"] if custom_in_context_example_robot_format == "python_list_with_stop" else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
+    )
+    assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
+        "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
+        "must be the same for next action prediction"
     )
     object_relationships_str = [str(prop) for prop in object_relationships]
     current_prompt = CurrentExample(
@@ -78,6 +85,7 @@ def get_task_plans_from_lm(
         lm_cfg=lm_cfg,
         auth=auth,
         lm_cache=lm_cache,
+        verbose=verbose,
     )
     return (
         results.parsed_robot_predicted,
@@ -96,18 +104,23 @@ def get_next_actions_from_lm(
     pddl_problem_file: str,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
-    custom_in_context_example_robot_format: str = "python_list",
+    custom_in_context_example_robot_format: Literal["python_list_with_stop", "python_list"] = "python_list",
     custom_robot_prompt: str = "Top 5 next actions (python list): ",
-    custom_robot_action_sequence_format: str = "python_list",
+    custom_robot_action_sequence_format: Literal["python_list_with_stop", "python_list"] = "python_list",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
+    verbose: bool = False,
 ) -> List[Union[List[str], List[List[str]], Dict[str, str]]]:
     header_prompt = InContextExample(
         predicates=["on(a, b)", "inhand(a)", "under(a, b)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"] + ["stop()"] if custom_in_context_example_robot_format == "python_list_with_stop" else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
+    )
+    assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
+        "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
+        "must be the same for next action prediction"
     )
     object_relationships_str = [str(prop) for prop in object_relationships]
     current_prompt = CurrentExample(
@@ -151,10 +164,10 @@ def get_next_actions_from_lm(
         custom_stop_sequence=[
             "Executed action: ",
             custom_robot_prompt,
-            "Top",
+            "```",
             SCENE_OBJECT_PROMPT,
         ],
-        verbose=True,
+        verbose=verbose,
     )
     return (
         results.parsed_robot_predicted,
@@ -202,19 +215,24 @@ def get_action_scores_from_lm(
     score_action_sequence: bool = False,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
-    custom_in_context_example_robot_format: str = "python_list",
+    custom_in_context_example_robot_format: Literal["python_list_with_stop", "python_list"] = "python_list_with_stop",
     custom_robot_prompt: str = "",
     custom_robot_action_sequence_format: str = "",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
     lm_cache_file: Optional[str] = None,
+    verbose: bool = False,
 ) -> List[Union[List[float], Dict[str, str]]]:
     header_prompt = InContextExample(
         predicates=["on(a, b)", "inhand(a)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"] + ["stop()"] if custom_in_context_example_robot_format == "python_list_with_stop" else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
+    )
+    assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
+        "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
+        "must be the same for next action prediction"
     )
     object_relationships_str = [str(prop) for prop in object_relationships]
 
@@ -267,8 +285,9 @@ def get_action_scores_from_lm(
         lm_cfg=lm_cfg,
         auth=auth,
         lm_cache=lm_cache,
+        verbose=verbose,
     )
-
+    # TODO(klin): only works for non-helm api
     assert isinstance(results.tokens_predicted[0], List), (
         "The LM response is not a list of list of tokens. "
     )
