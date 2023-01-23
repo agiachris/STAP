@@ -28,6 +28,7 @@ env_kwargs:
         - on(rack, table)
         - on(hook, table)
         - on(cyan_box, table)
+        - on(yellow_box, table)
       goal_propositions:
         - under(cyan, rack)
       supported_predicates:
@@ -57,6 +58,4 @@ env_kwargs:
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/icecream.yaml
     - configs/pybullet/envs/assets/yogurt.yaml
-    - configs/pybullet/envs/assets/salt.yaml
-    - configs/pybullet/envs/assets/milk.yaml
 

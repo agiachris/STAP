@@ -30,7 +30,7 @@ env_kwargs:
         - on(blue_box, table)
         - on(cyan_box, table)
         - on(yellow_box, table)
-        - beyondworkspace(cyan_box)
+        - inworkspace(cyan_box)
         - beyondworkspace(yellow_box)
       goal_propositions:
         - under(blue_box, rack)
