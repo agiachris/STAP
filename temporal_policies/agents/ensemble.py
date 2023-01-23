@@ -17,7 +17,7 @@ class EnsembleAgent(wrapper.WrapperAgent):
         critic_class: Union[str, Type[critics.ContinuousEnsembleCritic]] = critics.EnsembleLCBCritic,
         pessimistic: bool = True,
         clip: bool = True,
-        lbc_scale: Optional[float] = None,
+        lcb_scale: Optional[float] = None,
         ood_threshold: Optional[float] = None,
         ood_value: Optional[float] = None,
         device: str = "auto",
@@ -29,7 +29,7 @@ class EnsembleAgent(wrapper.WrapperAgent):
             env: Policy env (unused, but included for API consistency).
             pessimistic: Estimated rewards from min(Qi) instead of mean(Qi).
             clip: Clip Q-values between [0, 1].
-            lbc_scale (critics.EnsembleLCBCritic): Lower confidence bound (LCB) scale factor.
+            lcb_scale (critics.EnsembleLCBCritic): Lower confidence bound (LCB) scale factor.
             ood_threshold (critics.EnsembleThresholdCritic): Out-of-distribution threshold on std(Qi).
             ood_value (critics.EnsembleThresholdCritic): Value assignment to out-of-distribution detected sample.
             device: Torch device.
@@ -40,7 +40,7 @@ class EnsembleAgent(wrapper.WrapperAgent):
 
         if issubclass(critic_class, critics.EnsembleLCBCritic):
             critic = critic_class(
-                scale=lbc_scale,
+                scale=lcb_scale,
                 critic=policy.critic,
                 pessimistic=pessimistic,
                 clip=clip

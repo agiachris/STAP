@@ -10,22 +10,26 @@ agent_configs:
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
-      scale: 0.1
-      pessimistic: True
+      critic_class: EnsembleLCBCritic
+      lcb_scale: 0.1
+      pessimistic: true
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
-      scale: 0.1
-      pessimistic: True
+      critic_class: EnsembleLCBCritic
+      lcb_scale: 0.1
+      pessimistic: true
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
-      scale: 0.1
-      pessimistic: True
+      critic_class: EnsembleLCBCritic
+      lcb_scale: 0.1
+      pessimistic: true
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
-      scale: 0.1
-      pessimistic: True
+      critic_class: EnsembleLCBCritic
+      lcb_scale: 0.1
+      pessimistic: true
 
 dynamics_config: "{DYNAMICS_CONFIG}"

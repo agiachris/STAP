@@ -282,7 +282,7 @@ def plot_planning_results(
             label="Sub-goal completion",
         ),
     ]
-    axes[0, -1].legend(handles=patches, loc="upper right")
+    # axes[0, -1].legend(handles=patches, loc="upper right")
 
     path = pathlib.Path(path)
 
