@@ -113,7 +113,7 @@ TASK_NUMS=(
     "3"
     "4"
     "5"
-    "6"
+    # "6"
 )
 
 ENV_KWARGS="--closed-loop 1"

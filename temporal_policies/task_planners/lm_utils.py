@@ -90,7 +90,7 @@ def authenticate(
 
     import socket
     credentials_path: str
-    if "stanford" in socket.gethostname():
+    if "stanford" in socket.gethostname() or "juno" in socket.gethostname():
         credentials_path = "/sailhome/thankyou/credentials.json"
     else:
         credentials_path = "../credentials.json"
