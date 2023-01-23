@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you move all of the dairy products to the rack?"
-    - action_skeleton:
+    - instruction: How would you move all of the dairy products to the rack?
+      action_skeleton:
         - pick(red_box)
         - place(red_box, rack)
         - pick(yellow_box)
@@ -32,6 +32,14 @@ env_kwargs:
         - on(red_box, table)
         - on(yellow_box, table)
         - on(cyan_box, table)
+      goal_propositions:
+        - on(red_box, rack)
+        - on(yellow_box, rack)
+        - on(cyan_box, rack)
+      supported_predicates:
+        - under(a, b)
+        - on(a, b)
+        - inhand(a)
         
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 

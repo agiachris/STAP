@@ -11,11 +11,7 @@ from temporal_policies.envs import base as envs
 from temporal_policies.envs.pybullet.sim import math
 from temporal_policies.envs.pybullet.sim.robot import ControlException, Robot
 from temporal_policies.envs.pybullet.table.objects import Box, Hook, Rack, Null, Object
-from temporal_policies.envs.pybullet.table import (
-    object_state,
-    utils,
-    primitive_actions,
-)
+from temporal_policies.envs.pybullet.table import object_state, utils, primitive_actions
 
 
 dbprint = lambda *args: None  # noqa
@@ -242,6 +238,8 @@ class Primitive(envs.Primitive, abc.ABC):
         assert isinstance(env, TableEnv)
 
         name, arg_names = symbolic.parse_proposition(action_call)
+        if len(arg_names) == 1 and arg_names[0] == "":
+            arg_names = []
         arg_objects = [env.objects[obj_name] for obj_name in arg_names]
 
         primitive_class = globals()[name.capitalize()]
@@ -782,3 +780,26 @@ class Push(Primitive):
         action.theta = 0.125 * np.pi
 
         return action
+
+
+class Stop(Primitive):
+    """Do nothing."""
+
+    def __init__(self, env: envs.Env, arg_objects: Optional[List[str]] = None):
+        self._env = env
+        if arg_objects is None:
+            arg_objects = []
+        self._arg_objects = arg_objects
+
+    def scale_action(
+        self, action: primitive_actions.PrimitiveAction
+    ) -> primitive_actions.PrimitiveAction:
+        return action
+
+    def execute(
+        self, action: primitive_actions.PrimitiveAction, real_world: bool = False
+    ) -> ExecutionResult:
+        return ExecutionResult(success=True, truncated=False)
+
+    def sample_action(self) -> primitive_actions.PrimitiveAction:
+        return np.ones(1)

@@ -236,12 +236,12 @@ def eval_tamp(
             if t_planner is not None:
                 motion_planner_times += t_planner
         else:
-            planner.vizualize_predicted_plan(
+            planners.vizualize_predicted_plan(
                 idx_iter,
                 env,
                 action_skeleton,
                 best_motion_plan,
-                path,
+                path / f"planning_{idx_iter}.gif",
             )
             # Execute plan.
             rewards = planners.evaluate_plan(

@@ -1,4 +1,5 @@
 import ast
+from collections import defaultdict
 from enum import Enum
 import pathlib
 import pickle
@@ -12,6 +13,8 @@ from helm.common.request import Request, RequestResult
 from helm.common.authentication import Authentication
 from helm.proxy.services.remote_service import RemoteService
 from helm.proxy.accounts import Account
+from helm.common.request import Token
+
 import numpy as np
 
 import symbolic
@@ -72,15 +75,29 @@ def register_api_key(
         raise ValueError(f"api_type {api_type} not supported")
 
 
-def authenticate(api_type: APIType) -> Optional[Authentication]:
-    if api_type == APIType.OPENAI:
-        raise ValueError("OpenAI API not supported")
-    elif api_type == APIType.HELM:
-        with open("../credentials.json", "r") as f:
-            api_key = json.load(f)["openaiApiKey"]
-        return register_api_key(api_type, api_key)
+def authenticate(
+    api_type: APIType, key_name: Optional[str] = None
+) -> Optional[Authentication]:
+    assert api_type in [
+        APIType.OPENAI,
+        APIType.HELM,
+    ], f"api_type {api_type} not supported"
+    if key_name is None:
+        if api_type == APIType.OPENAI:
+            key_name = "personal-all"
+        elif api_type == APIType.HELM:
+            key_name == "helm"
+
+    import socket
+    credentials_path: str
+    if "stanford" in socket.gethostname() or "juno" in socket.gethostname():
+        credentials_path = "/sailhome/thankyou/credentials.json"
     else:
-        raise ValueError("Invalid API type")
+        credentials_path = "../credentials.json"
+    with open(credentials_path, "r") as f:
+        api_key = json.load(f)[key_name]
+    return register_api_key(api_type, api_key)
+
 
 
 def generate_current_setting_prompt(
@@ -115,9 +132,104 @@ def generate_current_setting_prompt(
     )
 
 
-def gpt3_call(
+def call_api(
     engine: str,
     overall_prompt: str,
+    max_tokens: int,
+    temperature: float,
+    logprobs: int,
+    echo: bool,
+    stop: Optional[Union[List[str], str]] = None,
+    api_type: APIType = APIType.HELM,
+    auth: Optional[Authentication] = None,
+) -> Result:
+    if api_type.value == APIType.OPENAI.value:
+        try:
+            response = openai.Completion.create(
+                engine=engine,
+                prompt=overall_prompt,
+                temperature=temperature,
+                logprobs=logprobs,
+                echo=echo,
+                max_tokens=max_tokens,
+                stop=stop,
+            )
+        except openai.error.RateLimitError as e:
+            print("Rate limit error: ", e)
+            time.sleep(60)
+            return call_api(
+                engine,
+                overall_prompt,
+                max_tokens,
+                temperature,
+                logprobs,
+                echo,
+                stop,
+                api_type,
+                auth,
+            )
+        new_response = defaultdict(list)
+        for i in range(len(response["choices"])):
+            raw_tokens = response["choices"][i]["logprobs"]["tokens"]
+            logprobs = response["choices"][i]["logprobs"]["token_logprobs"]
+            # for compatibility with helm api
+            helm_token_list: List[Token] = [
+                Token(text=token, logprob=logprob, top_logprobs=99999)
+                for token, logprob in zip(raw_tokens, logprobs)
+            ]
+            # hack to avoid "*** TypeError: Object of type Token is not
+            # JSON serializable" when printing the response directly
+            for key, value in response.items():
+                new_response[key] = value
+            new_response["tokens"].append(helm_token_list)
+        response = new_response
+    elif api_type.value == APIType.HELM.value:
+        assert auth is not None, "auth must be provided for helm api"
+        service = RemoteService("https://crfm-models.stanford.edu")
+        request = Request(
+            model=f"openai/{engine}",
+            prompt=overall_prompt,
+            echo_prompt=echo,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stop_sequences=stop,
+            top_k_per_token=logprobs,
+        )
+        # print request arguments
+        try:
+            request_result: RequestResult = service.make_request(auth, request)
+        except Exception as e:
+            print(e)
+            print("retrying")
+            time.sleep(5)
+            request_result: RequestResult = service.make_request(auth, request)
+        response: Dict[str, Dict] = {
+            "usage": {
+                "total_tokens": len(request_result.completions[0].tokens),
+            },
+            "choices": [
+                {
+                    "text": request_result.completions[0].text,
+                    "logprobs": request_result.completions[0].logprob,
+                }
+            ],
+        }
+        response["tokens"] = request_result.completions[0].tokens
+    else:
+        raise ValueError(f"api_type {api_type} not supported")
+
+    # proactively sleep to avoid rate limit errors; code has smaller limit
+    if "code" in engine:
+        time.sleep(10)
+    elif "text" in engine:
+        time.sleep(4)
+
+    return response
+
+
+def gpt3_call(
+    engine: str,
+    overall_prompt: Union[List[str], str],
     max_tokens: int,
     temperature: float,
     logprobs: int,
@@ -128,60 +240,31 @@ def gpt3_call(
     auth: Optional[Authentication] = None,
 ) -> Tuple[Result, Optional[Dict[Tuple, Any]]]:
     assert lm_cache is not None, "lm_cache must be provided"
+    if isinstance(overall_prompt, list):
+        id_overall_prompt = tuple(overall_prompt)
+    else:
+        id_overall_prompt = overall_prompt
     id = tuple(
-        (engine, overall_prompt, max_tokens, temperature, logprobs, echo, str(stop))
+        (engine, id_overall_prompt, max_tokens, temperature, logprobs, echo, str(stop))
     )
+    # TODO(klin) split ID into multiple parts if overall_prompt is a list
     if stop is None:
         stop = []
     if lm_cache is not None and id in lm_cache.keys():
         print("cache hit, returning")
         response = lm_cache[id]
     else:
-        if api_type.value == APIType.OPENAI.value:
-            response = openai.Completion.create(
-                engine=engine,
-                prompt=overall_prompt,
-                temperature=temperature,
-                logprobs=logprobs,
-                echo=echo,
-                max_tokens=max_tokens,
-                stop=stop,
-            )
-        elif api_type.value == APIType.HELM.value:
-            assert auth is not None, "auth must be provided for helm api"
-            service = RemoteService("https://crfm-models.stanford.edu")
-            request = Request(
-                model=f"openai/{engine}",
-                prompt=overall_prompt,
-                echo_prompt=echo,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stop_sequences=stop,
-                top_k_per_token=logprobs,
-            )
-            # print request arguments
-            try:
-                request_result: RequestResult = service.make_request(auth, request)
-            except Exception as e:
-                print(e)
-                print("retrying")
-                time.sleep(5)
-                request_result: RequestResult = service.make_request(auth, request)
-            response: Dict[str, Dict] = {
-                "usage": {
-                    "total_tokens": len(request_result.completions[0].tokens),
-                },
-                "choices": [
-                    {
-                        "text": request_result.completions[0].text,
-                        "logprobs": request_result.completions[0].logprob,
-                    }
-                ],
-            }
-            response["tokens"] = request_result.completions[0].tokens
-        else:
-            raise ValueError(f"api_type {api_type} not supported")
-
+        response = call_api(
+            engine,
+            overall_prompt,
+            max_tokens,
+            temperature,
+            logprobs,
+            echo,
+            stop,
+            api_type,
+            auth,
+        )
         if lm_cache is not None:
             lm_cache[id] = response
 
@@ -192,9 +275,11 @@ def generate_lm_response(
     header_prompt: Optional[InContextExample] = None,
     current_prompt: Optional[CurrentExample] = None,
     examples: Optional[List[InContextExample]] = None,
+    custom_stop_sequence: Optional[List[str]] = None,
     lm_cfg: Optional[LMConfig] = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
+    verbose: bool = False,
 ) -> Tuple[Result, Dict[Tuple, Any]]:
     if lm_cache is None:
         assert lm_cache is not None, "lm_cache must be provided to save queries"
@@ -290,20 +375,30 @@ def generate_lm_response(
 
         overall_prompt += goal
         if result.goal_ground_truth is not None:
-            success = check_goal_predicates_equivalent(
+            success = check_goal_propositions_equivalent(
                 result.goal_ground_truth, result.goal_predicted
             )
             result.goal_success = success
 
     if current_prompt.predict_robot:
-        overall_prompt += get_robot_action_prompt(current_prompt)
-
+        # TODO(klin) update to assume robot action prompt is a list 
+        # (regardles of generation or scoring)
+        robot_action_prompt = get_robot_action_prompt(current_prompt)
+        if isinstance(robot_action_prompt, list):
+            overall_prompts = []
+            for prompt in robot_action_prompt:
+                overall_prompts.append(overall_prompt + prompt)
+            overall_prompt = overall_prompts
+        else:
+            overall_prompt += get_robot_action_prompt(current_prompt)
         stop = [
             SCENE_OBJECT_PROMPT,
-            "\n\n",
+            "Top",
             "```",
             "\nRobot action sequence",
         ]
+        if custom_stop_sequence is not None:
+            stop = custom_stop_sequence
         response, lm_cache = gpt3_call(
             engine=lm_cfg.engine,
             overall_prompt=overall_prompt,
@@ -323,16 +418,18 @@ def generate_lm_response(
 
             ipdb.set_trace()
 
-        overall_prompt += response["choices"][0]["text"]
+        if not current_prompt.score_action:
+            overall_prompt += response["choices"][0]["text"]
+
         update_result_current_prompt_based_on_response_robot(
             result, current_prompt, response
         )
-
-    print(f"Overall prompt:\n{overall_prompt}\n")
+    if verbose:
+        print(f"Overall prompt:\n{overall_prompt}\n")
     return result, lm_cache
 
 
-def get_robot_action_prompt(current_prompt: CurrentExample):
+def get_robot_action_prompt(current_prompt: CurrentExample) -> Union[str, List[str]]:
     """
     Get the robot action prompt for the current situation
     based on current_prompt's settings.
@@ -347,8 +444,15 @@ def get_robot_action_prompt(current_prompt: CurrentExample):
             robot_action_prompt += f"New object relationships: {current_prompt.all_prior_object_relationships[i + 1]}\n"
 
     if current_prompt.score_action:
-        robot_action_prompt += f"Executed action: {current_prompt.action_to_score}"
-        return robot_action_prompt
+        # TODO(klin) set actions_to_score to a list of strings by default
+        if len(current_prompt.actions_to_score) == 1:
+            robot_action_prompt += f"Executed action: {current_prompt.actions_to_score[0]}"
+            return robot_action_prompt
+        else:
+            prompts = []
+            for action in current_prompt.actions_to_score:
+                prompts.append(robot_action_prompt + f"Executed action: {action}")
+            return prompts
 
     if current_prompt.custom_robot_prompt != "":
         robot_action_prompt += current_prompt.custom_robot_prompt
@@ -369,9 +473,31 @@ def update_result_current_prompt_based_on_response_robot(
     result.robot_ground_truth = current_prompt.robot_action_sequence
 
     robot_prediction_result_types, predicted_task_plan_descriptions = [], []
-    if current_prompt.custom_robot_action_sequence_format == "python_list_of_lists":
-        parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
-        for parsed_robot_predicted in parsed_robot_predicted_lst:
+    if not current_prompt.score_action:
+        if current_prompt.custom_robot_action_sequence_format == "python_list_of_lists":
+            parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
+            for parsed_robot_predicted in parsed_robot_predicted_lst:
+                (
+                    robot_prediction_result_type,
+                    predicted_task_plan_description,
+                ) = check_task_plan_result(
+                    current_prompt.goal_predicted
+                    if current_prompt.use_predicted_goal or current_prompt.goal is None
+                    else current_prompt.goal,
+                    str(parsed_robot_predicted),
+                    current_prompt.pddl_domain_file,
+                    current_prompt.pddl_problem_file,
+                )
+                robot_prediction_result_types.append(robot_prediction_result_type)
+                predicted_task_plan_descriptions.append(predicted_task_plan_description)
+        elif current_prompt.custom_robot_action_sequence_format == "python_list":
+            try:
+                parsed_robot_predicted = result.parsed_robot_predicted
+            except:
+                import ipdb
+
+                ipdb.set_trace()
+                parsed_robot_predicted = result.parsed_robot_predicted
             (
                 robot_prediction_result_type,
                 predicted_task_plan_description,
@@ -385,37 +511,39 @@ def update_result_current_prompt_based_on_response_robot(
             )
             robot_prediction_result_types.append(robot_prediction_result_type)
             predicted_task_plan_descriptions.append(predicted_task_plan_description)
-    elif current_prompt.custom_robot_action_sequence_format == "python_list":
-        parsed_robot_predicted = result.parsed_robot_predicted
-        (
-            robot_prediction_result_type,
-            predicted_task_plan_description,
-        ) = check_task_plan_result(
-            current_prompt.goal_predicted
-            if current_prompt.use_predicted_goal or current_prompt.goal is None
-            else current_prompt.goal,
-            str(parsed_robot_predicted),
-            current_prompt.pddl_domain_file,
-            current_prompt.pddl_problem_file,
-        )
-        robot_prediction_result_types.append(robot_prediction_result_type)
-        predicted_task_plan_descriptions.append(predicted_task_plan_description)
+        elif current_prompt.custom_robot_action_sequence_format == "python_list_with_stop":
+            parsed_robot_predicted = result.parsed_robot_predicted
+            (
+                robot_prediction_result_type,
+                predicted_task_plan_description,
+            ) = check_task_plan_result(
+                current_prompt.goal_predicted
+                if current_prompt.use_predicted_goal or current_prompt.goal is None
+                else current_prompt.goal,
+                str(parsed_robot_predicted),
+                current_prompt.pddl_domain_file,
+                current_prompt.pddl_problem_file,
+            )
+            robot_prediction_result_types.append(robot_prediction_result_type)
+            predicted_task_plan_descriptions.append(predicted_task_plan_description)
 
-    result.robot_success = any(
-        [
-            "success" in robot_prediction_result_type
-            for robot_prediction_result_type in robot_prediction_result_types
-        ]
-    )
-    result.robot_prediction_result_types = robot_prediction_result_types
-    result.predicted_task_plan_descriptions = predicted_task_plan_descriptions
+        result.robot_success = any(
+            [
+                "success" in robot_prediction_result_type
+                for robot_prediction_result_type in robot_prediction_result_types
+            ]
+        )
+
+        result.robot_prediction_result_types = robot_prediction_result_types
+        result.predicted_task_plan_descriptions = predicted_task_plan_descriptions
     result.custom_robot_prompt = current_prompt.custom_robot_prompt
     result.custom_robot_action_sequence_format = (
         current_prompt.custom_robot_action_sequence_format
     )
-    result.tokens_predicted = (
-        response["tokens"] if response.get("tokens", False) else None
-    )
+    if response.get("tokens", False):
+        result.tokens_predicted = response["tokens"]
+    else:
+        result.tokens_predicted = None
 
 
 def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
@@ -431,7 +559,12 @@ def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
             if pathlib.Path(lm_cache_file).stat().st_size == 0:
                 lm_cache = {}
             else:
-                lm_cache = pickle.load(f)
+                try:
+                    lm_cache = pickle.load(f)
+                except UnicodeDecodeError as e:
+                    print(f"Error loading lm_cache: {e}")
+                    lm_cache = {}
+
         if lm_cache is None:
             lm_cache = {}
     return lm_cache
@@ -509,7 +642,7 @@ def predicate_scheme_to_python_syntax(scheme_syntax: str) -> str:
 
 
 # This is more pysymbolic utils i.e. PDDL utils?
-def check_goal_predicates_equivalent(
+def check_goal_propositions_equivalent(
     expected_predicates: List[str], predicted_predicates: str
 ) -> bool:
     """
@@ -590,8 +723,10 @@ def check_task_plan_result(
 def save_lm_cache(
     lm_cache_file: Union[str, pathlib.Path], lm_cache: Dict[str, str]
 ) -> None:
+    from atomicwrites import atomic_write
+
     # save the lm_cache
-    with open(lm_cache_file, "wb") as f:
+    with atomic_write(lm_cache_file, mode="wb", overwrite=True) as f:
         print(f"Saving lm_cache to {lm_cache_file}...")
         pickle.dump(lm_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
 

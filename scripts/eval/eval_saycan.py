@@ -2,32 +2,45 @@
 Usage:
 
 PYTHONPATH=. python scripts/eval/eval_saycan.py
---planner-config configs/pybullet/planners/ablation/policy_cem.yaml 
---env-config configs/pybullet/envs/official/domains/hook_reach/tamp0.yaml 
+--planner-config configs/pybullet/planners/policy_cem.yaml 
+--env-config configs/pybullet/envs/t2m/official/tasks/task0.yaml
 --policy-checkpoints
-    models/20230106/complete_q_multistage/pick_0/ckpt_model_1000000.pt 
-    models/20230101/complete_q_multistage/place_0/best_model.pt 
-    models/20230101/complete_q_multistage/pull_0/best_model.pt
-    models/20230101/complete_q_multistage/push_0/best_model.pt
---dynamics-checkpoint models/official/select_model/dynamics/best_model.pt
---pddl-domain configs/pybullet/envs/official/domains/template/tamp0_domain.pddl 
---pddl-problem configs/pybullet/envs/official/domains/hook_reach/tamp0_problem.pddl
---verbose 0 --engine davinci --gui 1
+    models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt
+    models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt
+    models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt
+    models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt
+--dynamics-checkpoint
+    models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt
+--pddl-domain configs/pybullet/envs/t2m/official/tasks/symbolic_domain.pddl
+--pddl-problem configs/pybullet/envs/t2m/official/tasks/task0_symbolic.pddl
+--verbose 0 --engine davinci --gui 0
+--path plots/20230121-latest-models/eval_saycan
+--key-name personal-all
+--max-depth 7
+--n-examples 10
+--lm-verbose 1
 """
 
 import functools
 import random
-from scripts.eval.eval_policies import query_policy_actor, query_policy_critic
 from temporal_policies import agents, envs, planners
 from temporal_policies.dynamics.base import Dynamics
 from temporal_policies.envs.pybullet.table.objects import Object
+
+import tqdm
+import tabulate
+
+from temporal_policies.planners.utils import get_printable_object_relationships_str
+
+tabulate.PRESERVE_WHITESPACE = True
+from tabulate import tabulate
+from symbolic import parse_proposition
 
 from termcolor import colored
 import argparse
 import pathlib
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 import json
-import symbolic
 
 
 import torch
@@ -39,20 +52,19 @@ from temporal_policies.envs.pybullet.table import predicates
 from temporal_policies.envs.pybullet.table.objects import Object
 from temporal_policies.evaluation.utils import (
     get_callable_goal_props,
-    get_goal_props_instantiated,
     get_object_relationships,
     get_possible_props,
     get_prop_testing_objs,
     is_satisfy_goal_props,
+    seed_generator,
 )
-from temporal_policies.task_planners.goals import get_goal_from_lm, is_valid_goal_props
+from temporal_policies.task_planners.goals import get_goal_from_lm
 
 from temporal_policies.task_planners.lm_data_structures import APIType
 from temporal_policies.task_planners.lm_utils import (
     authenticate,
     get_examples_from_json_dir,
     load_lm_cache,
-    register_api_key,
     save_lm_cache,
 )
 from temporal_policies.envs.pybullet.table import (
@@ -89,10 +101,16 @@ def get_values(
     with torch.no_grad():
         t_observation = tensors.from_numpy(observation, device=device)
         for i in range(len(policy_fns)):
-            policy_state = decode_fns[i](t_observation)
-            q_s_a = value_fns[i].predict(
-                policy_state, tensors.from_numpy(actions[i], device=device)
-            )
+            try:
+                policy_state = decode_fns[i](t_observation)
+                q_s_a = value_fns[i].predict(
+                    policy_state, tensors.from_numpy(actions[i], device=device)
+                )
+                # clip values between 0 and 1
+                q_s_a = torch.clamp(q_s_a, 0, 1)
+            except RuntimeError as e:
+                q_s_a = torch.tensor(0, dtype=torch.float32)
+                print(f"Failed to predict Q for {primitives[i]}, returning Q = 0.")
             values.append(q_s_a.item())
     return values
 
@@ -120,10 +138,69 @@ def get_policy_actions(
     with torch.no_grad():
         t_observation = tensors.from_numpy(observation, device=device)
         for i in range(len(policy_fns)):
-            policy_state = decode_fns[i](t_observation)
-            action = policy_fns[i].actor.predict(policy_state)
+            try:
+                policy_state = decode_fns[i](t_observation)
+                action = policy_fns[i].actor.predict(policy_state)
+            except RuntimeError as e:
+                action = torch.tensor(
+                    policy_fns[i].action_space.sample(), dtype=torch.float32
+                )
+                print(
+                    f"Failed to predict action for {primitives[i]}, using random action instead."
+                )
             actions.append(action.cpu().numpy())
     return actions
+
+
+def format_saycan_scoring_table(
+    table_headers: List[str],
+    potential_actions_str: List[str],
+    lm_action_scores: List[float],
+    value_action_scores: List[float],
+    overall_scores: List[float],
+    action_pad_width: int = 30,
+) -> str:
+    # sort the potential actions by overall score and sort the scores accordingly
+    potential_actions_str = [
+        x for _, x in sorted(zip(overall_scores, potential_actions_str), reverse=True)
+    ]
+    # pad the actions to be the same length
+    potential_actions_str = [
+        action.ljust(action_pad_width) for action in potential_actions_str
+    ]
+    rounded_lm_action_scores = [
+        np.round(lm_action_score, 2) for lm_action_score in lm_action_scores
+    ]
+    rounded_value_action_scores = [
+        np.round(value_action_score, 2) for value_action_score in value_action_scores
+    ]
+    rounded_overall_scores = [
+        np.round(overall_score, 2) for overall_score in overall_scores
+    ]
+    rounded_lm_action_scores = [
+        x
+        for _, x in sorted(zip(overall_scores, rounded_lm_action_scores), reverse=True)
+    ]
+    rounded_value_action_scores = [
+        x
+        for _, x in sorted(
+            zip(overall_scores, rounded_value_action_scores), reverse=True
+        )
+    ]
+    rounded_overall_scores = [
+        x for _, x in sorted(zip(overall_scores, rounded_overall_scores), reverse=True)
+    ]
+    formatted_table_str = tabulate(
+        zip(
+            potential_actions_str,
+            rounded_lm_action_scores,
+            rounded_value_action_scores,
+            rounded_overall_scores,
+        ),
+        headers=table_headers,
+        tablefmt="plain",
+    )
+    return formatted_table_str
 
 
 def eval_saycan(
@@ -140,7 +217,7 @@ def eval_saycan(
     pddl_root_dir: str,
     pddl_domain_name: str,
     pddl_problem: str,  # file path
-    max_depth: int = 5,
+    max_depth: int = 10,
     timeout: float = 10.0,
     verbose: bool = False,
     load_path: Optional[Union[str, pathlib.Path]] = None,
@@ -149,17 +226,21 @@ def eval_saycan(
     lm_cache_file: Optional[Union[str, pathlib.Path]] = None,
     n_examples: Optional[int] = 1,
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
-    custom_in_context_example_robot_format: str = "python_list_of_lists",
+    custom_in_context_example_robot_format: Literal[
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
+    ] = "python_list_with_stop",
     custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
     custom_robot_action_sequence_format: Literal[
-        "python_list_of_lists", "python_list", "saycan_done"
-    ] = "python_list",
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
+    ] = "python_list_with_stop",
     engine: Optional[str] = None,
     temperature: Optional[int] = 0,
     logprobs: Optional[int] = 1,
     api_type: Optional[APIType] = APIType.HELM,
     max_tokens: Optional[int] = 100,
     auth: Optional[Authentication] = None,
+    use_ground_truth_goal_props: bool = False,
+    lm_verbose: bool = False,
 ):
     # set seeds
     if seed is not None:
@@ -167,19 +248,15 @@ def eval_saycan(
         np.random.seed(seed)
         torch.manual_seed(seed)
 
-    INSTRUCTION = "Put the red box on the rack"
+    # these would perhaps belong in .../prompts/
+    examples = get_examples_from_json_dir("configs/pybullet/envs/t2m/official/prompts/")
 
-    examples = get_examples_from_json_dir(pddl_root_dir + "/" + pddl_domain_name)
-    import ipdb
-
-    ipdb.set_trace()
     for example in examples:
         example.custom_robot_action_sequence_format = (
             custom_robot_action_sequence_format
         )
 
     examples = random.sample(examples, n_examples)
-
     lm_cfg: LMConfig = LMConfig(
         engine=engine,
         temperature=temperature,
@@ -188,8 +265,6 @@ def eval_saycan(
         api_type=api_type,
         max_tokens=max_tokens,
     )
-    lm_cfg.engine = "text-davinci-003"
-
     lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
 
     # Load environment.
@@ -208,174 +283,325 @@ def eval_saycan(
         device=device,
     )
 
-    prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
+    path = pathlib.Path(path) / env.name
 
-    available_predicates: List[str] = ["on", "inhand"]
+    prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
+    available_predicates: List[str] = [
+        parse_proposition(prop)[0] for prop in env.supported_predicates
+    ]
     possible_props: List[predicates.Predicate] = get_possible_props(
         env.objects, available_predicates
     )
 
-    goal_props_predicted: List[str]
-    objects: List[str]
-    object_relationships: List[str]
-    all_prior_object_relationships: List[List[str]] = []
-    all_executed_actions: List[str] = []
-
-    observation, info = env.reset()
-    done = False
-    import ipdb
-
-    ipdb.set_trace()
-
-    # get goal props
-    objects = list(env.objects.keys())
-    object_relationships = get_object_relationships(
-        observation, env.objects, available_predicates, use_hand_state=False
-    )
-    object_relationships = [str(prop) for prop in object_relationships]
-    all_prior_object_relationships.append(object_relationships)
-    goal_props_predicted, lm_cache = get_goal_from_lm(
-        INSTRUCTION,
-        objects,
-        object_relationships,
-        pddl_domain,
-        pddl_problem,
-        examples=examples,
-        lm_cfg=lm_cfg,
-        auth=auth,
-        lm_cache=lm_cache,
-    )
-    save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
-    goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
-        goal_props_predicted, possible_props
+    pbar = tqdm.tqdm(
+        seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
 
-    actions: List[str]
-    viz_idx = 0
-    while not done:
-        lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
-        # TODO(klin) overall prompt doesn't include the executed actions
-        actions, lm_cache = get_next_actions_from_lm(
-            INSTRUCTION,
-            goal_props_predicted,
-            objects,
-            object_relationships,
-            all_prior_object_relationships,
-            all_executed_actions,
-            pddl_domain,
-            pddl_problem,
-            custom_in_context_example_robot_prompt="Top robot action sequence: ",
-            custom_robot_prompt="Top 4 valid next actions (python list of primitives): ",
-            examples=examples,
-            lm_cfg=lm_cfg,
-            auth=auth,
-            lm_cache=lm_cache,
-        )
-        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+    # step = -1 if stopped on non-goal prop, else step = num steps to goal
+    steps_to_success_using_predicted_goal_props: List[int] = []
+    steps_to_success_using_stop_score: List[int] = []
 
-        env_lst = [env] * len(actions)
-        potential_actions: List[table_primitives.Primitive] = [
-            env.get_primitive_info(action, env)
-            for (action, env) in zip(actions, env_lst)
-        ]
-        potential_actions_str: List[str] = [
-            str(action).lower() for action in potential_actions
-        ]
-        lm_cfg.engine = "text-davinci-002"  # 003 isn't really influeced by the incontext examples at all ---- pick(hook) is really low
-        lm_action_scores, lm_cache = get_action_scores_from_lm(
-            INSTRUCTION,
-            potential_actions_str,
-            goal_props_predicted,
-            objects,
-            object_relationships,
-            all_prior_object_relationships,
-            all_executed_actions,
-            pddl_domain,
-            pddl_problem,
-            examples=examples,
-            lm_cfg=lm_cfg,
-            auth=auth,
-            lm_cache=lm_cache,
-            lm_cache_file=lm_cache_file,
-        )
+    for idx_iter, (seed, loaded_plan) in enumerate(pbar):
+        goal_props_predicted: List[str]
+        objects: List[str]
+        object_relationships: List[str]
+        all_prior_object_relationships: List[List[str]] = []
+        all_executed_actions: List[str] = []
 
-        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
-        policy_actions: np.ndarray = get_policy_actions(
-            observation,
-            potential_actions,
-            planner.policies,
-            planner.dynamics,
-            device=tensors.device(device),
-        )
-        value_action_scores: List[float] = get_values(
-            observation,
-            policy_actions,
-            potential_actions,
-            planner.policies,
-            planner.dynamics,
-            device=tensors.device(device),
-        )
+        observation, info = env.reset(seed=seed)
+        seed = info["seed"]
+        print(f"seed: {seed}")
 
-        ### Start plotting Values ###
-        table_headers = ["Action sequence", "LM score", "Value score", "Overall score"]
-        format_row = "{:<30}" * 4
-        print(colored(format_row.format(*table_headers), "blue"))
-        for i in range(len(potential_actions)):
-            print(
-                colored(
-                    format_row.format(
-                        str(potential_actions[i]).lower(),
-                        np.round(lm_action_scores[i], 3),
-                        np.round(value_action_scores[i], 3),
-                        np.round(lm_action_scores[i] * value_action_scores[i], 3),
-                    ),
-                    "blue",
-                )
-            )
-        ### End plotting Values ###
-
-        overall_scores: List[float] = [
-            lm_action_scores[i] * value_action_scores[i]
-            for i in range(len(potential_actions))
-        ]  # the 'done' skill seems to have a hard-coded value according to the figures in saycan ...
-        best_action_idx = overall_scores.index(max(overall_scores))
-        env.set_primitive(potential_actions[best_action_idx])
-        env.record_start()
-        observation, reward, terminated, _, info = env.step(
-            policy_actions[best_action_idx]
-        )
-
-        print(f"action: {potential_actions[best_action_idx]}; reward: {reward}")
-
-        if is_satisfy_goal_props(
-            goal_props_callable, prop_testing_objs, observation, use_hand_state=False
-        ):
-            print("goal props satisfied")
-            done = True
-
+        # get goal props
         objects = list(env.objects.keys())
         object_relationships = get_object_relationships(
-            observation, env.objects, available_predicates, use_hand_state=False
+            observation, prop_testing_objs, available_predicates, use_hand_state=False
         )
         object_relationships = [str(prop) for prop in object_relationships]
-        all_executed_actions.append(potential_actions[best_action_idx])
         all_prior_object_relationships.append(object_relationships)
-        viz_idx += 1
-        if viz_idx == 5:
-            env.record_stop()
-            gif_path = path / f"saycan_planning_len{5}.gif"
-            env.record_save(gif_path, reset=True)
+        goal_props_predicted, lm_cache = get_goal_from_lm(
+            env.instruction,
+            objects,
+            object_relationships,
+            pddl_domain,
+            pddl_problem,
+            examples=examples,
+            lm_cfg=lm_cfg,
+            auth=auth,
+            lm_cache=lm_cache,
+            verbose=lm_verbose,
+        )
+        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+        goal_props_ground_truth: List[str] = [
+            str(goal) for goal in env.goal_propositions
+        ]
+
+        if use_ground_truth_goal_props:
+            goal_props_to_use = goal_props_ground_truth
+        else:
+            goal_props_to_use = goal_props_predicted
+
+        goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
+            goal_props_to_use, possible_props
+        )
+
+        print(colored(f"goal props predicted: {goal_props_predicted}", "blue"))
+        print(colored(f"minimal goal props: {goal_props_ground_truth}", "blue"))
+
+        done: bool = False
+
+        actions: List[str]
+        env.record_start()
+
+        step = 0
+        while not done:
+            # lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
+            # for generating possible actions, don't include stop()
+            actions, lm_cache = get_next_actions_from_lm(
+                env.instruction,
+                goal_props_to_use,
+                objects,
+                object_relationships,
+                all_prior_object_relationships,
+                all_executed_actions,
+                pddl_domain,
+                pddl_problem,
+                custom_in_context_example_robot_prompt="Top robot action sequence: ",
+                custom_in_context_example_robot_format="python_list",
+                custom_robot_prompt="Top 5 valid next actions (python list of primitives): ",
+                custom_robot_action_sequence_format="python_list",
+                examples=examples,
+                lm_cfg=lm_cfg,
+                auth=auth,
+                lm_cache=lm_cache,
+                verbose=lm_verbose,
+            )
+            save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+
+            print(
+                colored(
+                    f"Executed actions: {list(map(str, all_executed_actions))}",
+                    "green",
+                )
+            )
+            print(colored(f"Potential actions: {actions}", "yellow"))
+            # remove actions
+            env_lst = [env] * len(actions)
+            potential_actions: List[table_primitives.Primitive] = [
+                env.get_primitive_info(action, env)
+                for (action, env) in zip(actions, env_lst)
+            ]
+            potential_actions_str: List[str] = [
+                str(action).lower() for action in potential_actions
+            ]
+            if custom_robot_action_sequence_format == "python_list_with_stop":
+                potential_actions_str.append("stop()")
+            # 003 isn't really influenced by the in-context examples at all -
+            # --- pick(hook) is really low
+            # for scoring possible actions, include stop()!
+            lm_action_scores, lm_cache = get_action_scores_from_lm(
+                env.instruction,
+                potential_actions_str,
+                goal_props_to_use,
+                objects,
+                object_relationships,
+                all_prior_object_relationships,
+                all_executed_actions,
+                pddl_domain,
+                pddl_problem,
+                examples=examples,
+                custom_in_context_example_robot_format=custom_robot_action_sequence_format,
+                custom_robot_action_sequence_format=custom_robot_action_sequence_format,
+                lm_cfg=lm_cfg,
+                auth=auth,
+                lm_cache=lm_cache,
+                lm_cache_file=lm_cache_file,
+                verbose=lm_verbose,
+            )
+
+            save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+            policy_actions: np.ndarray = get_policy_actions(
+                observation,
+                potential_actions,
+                planner.policies,
+                planner.dynamics,
+                device=tensors.device(device),
+            )
+            value_action_scores: List[float] = get_values(
+                observation,
+                policy_actions,
+                potential_actions,
+                planner.policies,
+                planner.dynamics,
+                device=tensors.device(device),
+            )
+
+            if custom_robot_action_sequence_format == "python_list_with_stop":
+                stop_score = lm_action_scores[-1]
+                policy_actions.append(np.zeros(1))
+                if stop_score == max(lm_action_scores):
+                    value_action_scores.append(10)
+                    done = True
+                    print(colored("Stopping because stop() score is highest", "green"))
+                else:
+                    value_action_scores.append(0.5)
+
+            if is_satisfy_goal_props(
+                goal_props_callable,
+                prop_testing_objs,
+                observation,
+                use_hand_state=False,
+            ):
+                print(colored("used goal props satisfied", "green"))
+                if env.is_goal_state():
+                    print(colored("goal props satisfied", "green"))
+                    steps_to_success_using_predicted_goal_props.append(step)
+                else:
+                    print(colored("goal props not satisfied", "red"))
+                    steps_to_success_using_predicted_goal_props.append(-1)
+
+            table_headers = ["Action", "LM", "Value", "Overall"]
+            overall_scores = [
+                lm_action_score * value_action_score
+                for (lm_action_score, value_action_score) in zip(
+                    lm_action_scores, value_action_scores
+                )
+            ]
+            formatted_table_str = format_saycan_scoring_table(
+                table_headers,
+                potential_actions_str,
+                lm_action_scores,
+                value_action_scores,
+                overall_scores,
+            )
+            print(colored(formatted_table_str, "blue"))
+
+            best_action_idx = overall_scores.index(max(overall_scores))
+            if "stop()" == potential_actions_str[best_action_idx]:
+                env.set_primitive(table_primitives.Stop(env))
+            else:
+                env.set_primitive(potential_actions[best_action_idx])
+
+            custom_recording_text: str = (
+                f"human: {env.instruction}\n"
+                + f"goal_props: {goal_props_to_use}\n"
+                + f"{formatted_table_str}\n"
+            )
+
+            custom_recording_text += get_printable_object_relationships_str(
+                object_relationships, max_row_length=70
+            )
+            observation, reward, terminated, _, info = env.step(
+                policy_actions[best_action_idx], custom_recording_text
+            )
+            step += 1
+
+            print(
+                f"action executed: {potential_actions_str[best_action_idx]}; reward: {reward}"
+            )
+
+            objects = list(env.objects.keys())
+            object_relationships = get_object_relationships(
+                observation,
+                prop_testing_objs,
+                available_predicates,
+                use_hand_state=False,
+            )
+            print(f"object relationships: {object_relationships}")
+            object_relationships = [str(prop) for prop in object_relationships]
+            all_executed_actions.append(potential_actions_str[best_action_idx])
+            all_prior_object_relationships.append(object_relationships)
+            if step == max_depth:
+                done = True
+
+        env.record_stop()
+        success: bool = env.is_goal_state()
+        if success:
+            steps_to_success_using_stop_score.append(
+                step - 1
+            )  # -1 because take extra step at end for rendering
+            print(colored("ground truth goal props satisfied", "green"))
+
+        gif_path = (
+            path
+            / str(idx_iter)
+            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
+            / f"execution_{'reached_goal_prop' if success else 'fail'}.gif"
+        )
+        env.record_save(gif_path, reset=False)
+        gif_path = (
+            path
+            / str(idx_iter)
+            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
+            / f"execution_{'reached_goal_prop' if success else 'fail'}.mp4"
+        )
+        env.record_save(gif_path, reset=True)
+        env._recording_text = ""
+
+    # Save planning results.
+    path.mkdir(parents=True, exist_ok=True)
+
+    num_successes_on_stop_score = int((
+        np.array(steps_to_success_using_stop_score) != -1
+    ).sum())
+    num_successes_on_predicted_goal_props = int((
+        np.array(steps_to_success_using_predicted_goal_props) != -1
+    ).sum())
+
+    with open(path / f"results_seed_{seed}.json", "w") as f:
+        save_dict = {
+            "args": {
+                "planner_config": planner_config,
+                "env_config": env_config,
+                "policy_checkpoints": policy_checkpoints,
+                "dynamics_checkpoint": dynamics_checkpoint,
+                "device": device,
+                "num_eval": num_eval,
+                "path": str(path),
+                "pddl_domain": pddl_domain,
+                "pddl_problem": pddl_problem,
+                "max_depth": max_depth,
+                "timeout": timeout,
+                "seed": seed,
+                "verbose": verbose,
+                "use_ground_truth_goal_props": use_ground_truth_goal_props,
+            },
+            "num_successes_on_stop_score": num_successes_on_stop_score,
+            "steps_to_success_using_stop_score": steps_to_success_using_stop_score,
+            "num_successes_on_used_goal_props": num_successes_on_predicted_goal_props,
+            "steps_to_success_using_predicted_goal_props": steps_to_success_using_predicted_goal_props,
+            "success_rate_on_used_goal_props": num_successes_on_predicted_goal_props
+            / num_eval
+            * 100,
+            "num_successes_on_stop_score": num_successes_on_stop_score,
+            "success_rate_using_stop_score_on_ground_truth_goal_props": num_successes_on_stop_score
+            / num_eval
+            * 100,
+        }
+        json.dump(save_dict, f, indent=4)
+
+    # Print results.
+    print(
+        colored(
+            f"Success rate: {((np.array(steps_to_success_using_stop_score) != -1).sum() / num_eval) * 100:.2f}%",
+            "green",
+        )
+    )
 
 
 def main(args: argparse.Namespace) -> None:
-    auth = authenticate(args.api_type)
+    auth = authenticate(args.api_type, args.key_name)
+    delattr(args, "key_name")
     eval_saycan(**vars(args), auth=auth)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--planner-config", "--planner", "-c", help="Path to planner config"
+        "--planner-config",
+        "--planner",
+        "-c",
+        help="Path to planner config, used to load value functions (dynamics aren't used for saycan)",
     )
     parser.add_argument("--env-config", "--env", "-e", help="Path to env config")
     parser.add_argument(
@@ -387,6 +613,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num-eval", "-n", type=int, default=1, help="Number of eval iterations"
     )
+    parser.add_argument(
+        "--use-ground-truth-goal-props",
+        "-gt-goal",
+        type=int,
+        default=0,
+        help="Whether to use ground truth goal props instead of predicted goal props for termination and prompting",
+    )
     parser.add_argument("--path", default="plots", help="Path for output plots")
     parser.add_argument(
         "--closed-loop", default=1, type=int, help="Run closed-loop planning"
@@ -397,7 +630,7 @@ if __name__ == "__main__":
     parser.add_argument("--pddl-domain", help="Pddl domain")
     parser.add_argument("--pddl-problem", help="Pddl problem")
     parser.add_argument(
-        "--max-depth", type=int, default=4, help="Task planning search depth"
+        "--max-depth", type=int, default=10, help="Task planning search depth"
     )
     parser.add_argument(
         "--timeout", type=float, default=10.0, help="Task planning timeout"
@@ -424,7 +657,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-examples",
         type=int,
-        default=1,
+        default=10,
         help="Number of examples to use in in context prompt",
     )
     # LMConfig
@@ -436,11 +669,32 @@ if __name__ == "__main__":
     )
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
     parser.add_argument(
-        "--api_type", type=APIType, default=APIType.HELM, help="API to use"
+        "--api_type", type=APIType, default=APIType.OPENAI, help="API to use"
+    )
+    parser.add_argument(
+        "--key-name",
+        type=str,
+        choices=["personal-code", "personal-all", "helm"],
+        default="personal-code",
+        help="API key name to use",
     )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")
-
+    parser.add_argument(
+        "--custom_in_context_example_robot_format",
+        type=str,
+        default="python_list_with_stop",
+        help="Custom in context example robot format",
+    )
+    parser.add_argument(
+        "--custom_robot_action_sequence_format",
+        type=str,
+        default="python_list_with_stop",
+        help="Custom in context example human format",
+    )
+    parser.add_argument(
+        "--lm-verbose", type=int, default=0, help="Print out LM verbose flag"
+    )
     args = parser.parse_args()
 
     main(args)

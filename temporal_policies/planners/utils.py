@@ -1,5 +1,16 @@
 import pathlib
-from typing import Any, Dict, Optional, Iterable, List, Sequence, Tuple, Union, Callable
+from typing import (
+    Any,
+    Dict,
+    Literal,
+    Optional,
+    Iterable,
+    List,
+    Sequence,
+    Tuple,
+    Union,
+    Callable,
+)
 
 import numpy as np
 import torch
@@ -8,6 +19,7 @@ import yaml
 from temporal_policies import agents, dynamics, envs, networks, planners
 from temporal_policies.dynamics import Dynamics, LatentDynamics, load as load_dynamics
 from temporal_policies.utils import configs, spaces, tensors, timing, recording
+from temporal_policies.envs.pybullet.table.primitives import Null
 
 
 class PlannerFactory(configs.Factory):
@@ -48,7 +60,9 @@ class PlannerFactory(configs.Factory):
         super().__init__(config, "planner", planners)
 
         if scod_checkpoints is None:
-            scod_checkpoints = [None] * len(self.config["agent_configs"])
+            # allow else statement below to always work because not using scod
+            # scod_checkpoints = [None] * len(self.config["agent_configs"])
+            scod_checkpoints = [None] * len(policy_checkpoints)
         if policy_checkpoints is None:
             policy_checkpoints = [None] * len(self.config["agent_configs"])
         else:
@@ -302,6 +316,22 @@ def evaluate_plan(
 
     return rewards
 
+def get_printable_object_relationships_str(obj_rels: List[str], max_row_length: int = 60) -> None:
+    """
+    Get printable object relationships string.
+    """
+    overall_str: str = ""
+    curr_line: str = "obj_rel: "
+    # add curr_line to env._recording_text before getting too long
+    # then add "\n" to the front of new curr_line
+    for obj_rel in obj_rels:
+        if len(curr_line) + len(obj_rel) + 1 > max_row_length:
+            overall_str += curr_line + "\n"
+            curr_line = ""
+        curr_line += obj_rel + ", "
+
+    overall_str += curr_line
+    return overall_str
 
 def vizualize_predicted_plan(
     save_path_suffix: Union[int, str],
@@ -309,30 +339,63 @@ def vizualize_predicted_plan(
     action_skeleton: Sequence[envs.Primitive],
     plan: planners.PlanningResult,
     path: pathlib.Path,
+    custom_recording_text: Optional[str] = None,
+    object_relationships_list: Optional[List[List[str]]] = None,
+    file_extensions: Optional[List[Literal["gif", "mp4"]]] = None,
 ) -> None:
     """Visualize the predicted trajectory of a task and motion plan."""
-    assert isinstance(env, envs.pybullet.TableEnv)
+    import pybullet as p
+
+    assert isinstance(
+        env, envs.pybullet.TableEnv
+    ), "vizualize_predicted_plan only supports pybullet.TableEnv"
+    state_id: int = p.saveState()
     recorder = recording.Recorder()
     recorder.start()
-    original_state = plan.states[0]
-    for primitive, predicted_state, action in zip(
-        action_skeleton, plan.states[1:], plan.actions
+
+    for i, (primitive, predicted_state, action) in enumerate(
+        zip(action_skeleton, plan.states[:-1], plan.actions)
     ):
         env.set_primitive(primitive)
-        env._recording_text = (
-            "Action: ["
-            + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
-            + "]"
-        )
+        if custom_recording_text is not None:
+            if isinstance(custom_recording_text, list):
+                env._recording_text = custom_recording_text[i]
+            else:
+                env._recording_text = custom_recording_text
+        else:
+            env._recording_text = (
+                "Action: ["
+                + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+                + "]"
+            )
 
-        recorder.add_frame(frame=env.render())
+        if object_relationships_list is not None:
+            env._recording_text +=  "\n" + get_printable_object_relationships_str(object_relationships_list[i])
+
         env.set_observation(predicted_state)
         recorder.add_frame(frame=env.render())
 
-    recorder.stop()
-    recorder.save(path / f"predicted_trajectory_{save_path_suffix}.gif")
+    env._recording_text = ""
+    # add final frame and text
+    env.set_primitive(Null())
+    if custom_recording_text is not None:
+        if isinstance(custom_recording_text, list):
+            env._recording_text = custom_recording_text[-1]
+        else:
+            env._recording_text = custom_recording_text
+    if object_relationships_list is not None:
+        env._recording_text += "\n" + get_printable_object_relationships_str(object_relationships_list[-1])
+    env.set_observation(plan.states[-1])
+    recorder.add_frame(frame=env.render())
 
-    env.set_observation(original_state)
+    recorder.stop()
+    for i, file_extension in enumerate(file_extensions):
+        recorder.save(
+            path / f"predicted_trajectory_{save_path_suffix}.{file_extension}",
+            reset=i == len(file_extensions) - 1,
+        )
+    # prevent visualization from corrupting the env state
+    p.restoreState(state_id)
 
 
 def run_open_loop_planning(

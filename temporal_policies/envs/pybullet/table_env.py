@@ -4,7 +4,7 @@ import multiprocessing
 import multiprocessing.synchronize
 import pathlib
 import random
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union, Type
 
 import gym
 import numpy as np
@@ -46,6 +46,9 @@ class Task:
     action_skeleton: List[Primitive]
     initial_state: List[predicates.Predicate]
     prob: float
+    instruction: Optional[str]
+    goal_propositions: Optional[List[predicates.Predicate]]
+    supported_predicates: Optional[List[str]]
 
     @staticmethod
     def create(
@@ -53,17 +56,36 @@ class Task:
         action_skeleton: List[str],
         initial_state: List[str],
         prob: Optional[float] = None,
+        instruction: Optional[str] = None,
+        goal_propositions: Optional[List[str]] = None,
+        supported_predicates: Optional[List[str]] = None,
     ) -> "Task":
+
+        # Primitives.
         primitives = []
         for action_call in action_skeleton:
             primitive = env.get_primitive_info(action_call=action_call)
             assert isinstance(primitive, Primitive)
             primitives.append(primitive)
-        propositions = [predicates.Predicate.create(prop) for prop in initial_state]
+
+        # Initial state.
+        initial_propositions = [
+            predicates.Predicate.create(prop) for prop in initial_state
+        ]
+
+        # Goal predicates.
+        if goal_propositions is not None:
+            goal_propositions = [
+                predicates.Predicate.create(pred) for pred in goal_propositions
+            ]
+
         return Task(
             action_skeleton=primitives,
-            initial_state=propositions,
+            initial_state=initial_propositions,
             prob=float("nan") if prob is None else prob,
+            instruction=instruction,
+            goal_propositions=goal_propositions,
+            supported_predicates=supported_predicates,
         )
 
 
@@ -665,7 +687,11 @@ class TableEnv(PybulletEnv):
                 continue
 
             if all(
-                prop.value(self.robot, self.objects, self.task.initial_state)
+                prop.value(
+                    robot=self.robot,
+                    objects=self.objects,
+                    state=self.task.initial_state,
+                )
                 for prop in self.task.initial_state
             ):
                 # Break if all propositions in the initial state are true.
@@ -682,7 +708,9 @@ class TableEnv(PybulletEnv):
 
         return self.get_observation(), info
 
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, dict]:
+    def step(
+        self, action: np.ndarray, custom_recording_text: Optional[Dict[str, str]] = None
+    ) -> Tuple[np.ndarray, float, bool, bool, dict]:
         primitive = self.get_primitive()
         assert isinstance(primitive, Primitive)
 
@@ -692,6 +720,8 @@ class TableEnv(PybulletEnv):
                 + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
                 + "]"
             )
+            if custom_recording_text is not None:
+                self._recording_text = custom_recording_text
 
         if isinstance(self.robot.arm, real.arm.Arm):
             input("Continue?")
@@ -722,6 +752,44 @@ class TableEnv(PybulletEnv):
         info = {"policy_args": primitive.get_policy_args()}
 
         return obs, reward, terminated, result.truncated, info
+
+    @property
+    def instruction(self) -> str:
+        """Return natural language description of the task."""
+        if self.task.instruction is None:
+            raise ValueError("Instruction not declared in task.")
+        return self.task.instruction
+
+    @property
+    def goal_propositions(self) -> List[predicates.Predicate]:
+        """Return list of task-specific goal predicates."""
+        if self.task.goal_propositions is None:
+            raise ValueError("Goal predicates not declared in task.")
+        return self.task.goal_propositions
+
+    @property
+    def supported_predicates(self) -> List[str]:
+        """Return list of supported task-agnostic goal predicates signatures."""
+        if self.task.supported_predicates is None:
+            raise ValueError("Supported goal predicates not declared in task.")
+        if not all(
+            pred in predicates.SUPPORTED_PREDICATES
+            for pred in self.task.supported_predicates
+        ):
+            ValueError("Task require unsupported goal predicates.")
+        return self.task.supported_predicates
+
+    def is_goal_state(self, sim: bool = True) -> bool:
+        """Returns True if the goal predicates hold in the current state."""
+        return all(
+            pred.value(
+                robot=self.robot,
+                objects=self.objects,
+                state=self.task.initial_state,
+                sim=sim,
+            )
+            for pred in self.goal_propositions
+        )
 
     def _is_any_object_below_table(self) -> bool:
         return any(
@@ -798,6 +866,8 @@ class TableEnv(PybulletEnv):
         except KeyError:
             camera_view = self._camera_views["front"]
 
+        self.render_mode = "high_res_front"
+
         if "high_res" in self.render_mode:
             width, height = (1620, 1080)
         else:
@@ -816,16 +886,17 @@ class TableEnv(PybulletEnv):
         img = Image.fromarray(img_rgb, "RGB")
         draw = ImageDraw.Draw(img)
         try:
-            FONT = ImageFont.truetype("arial.ttf", 15)
-            print(
-                "Could not find arial.ttf (run `apt install msttcorefonts`?). Using default font."
-            )
+            FONT = ImageFont.truetype("fonts/nk57-monospace-no-bd.ttf", 30)
         except OSError:
             FONT = ImageFont.load_default()
         draw.multiline_text(
-            (10, 10), str(self.get_primitive()) + f"\n{self._recording_text}", font=FONT
+            (10, 10),
+            str(self.get_primitive()) + f"\n{self._recording_text}",
+            fill=(0, 204, 0),
+            font=FONT,
         )
-
+        # text_color = (255, 100, 255)
+        # draw.text((20, 10), "Hello World", fill=text_color, font=FONT)
         return np.array(img)
 
     def record_start(

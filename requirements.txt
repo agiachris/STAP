@@ -8,6 +8,8 @@
 -i https://pypi.org/simple
 -e .
 -e ./third_party/scod-regression
+atomicwrites
+imageio-ffmpeg
 absl-py==1.2.0; python_version >= '3.6'
 async-timeout==4.0.2; python_version >= '3.6'
 box2d-py==2.3.8

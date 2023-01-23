@@ -93,7 +93,9 @@ class Object(body.Body):
     def set_custom_pose(self, pose: math.Pose) -> None:
         self._custom_pose = pose
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = True) -> math.Pose:
+        if not sim:
+            return self._state.pose()
         if self._use_custom_pose:
             assert self._custom_pose is not None, "custom_pose is None"
             return self._custom_pose
@@ -140,12 +142,11 @@ class Object(body.Body):
 
         return self._obj_inertia
 
-    def state(self) -> object_state.ObjectState:
-        pose = self.pose()
+    def state(self, sim: bool = True) -> object_state.ObjectState:
+        pose = self.pose(sim=sim)
         aa = eigen.AngleAxisd(eigen.Quaterniond(pose.quat))
         self._state.pos = pose.pos
         self._state.aa = aa.angle * aa.axis
-
         return self._state
 
     def set_state(self, state: object_state.ObjectState) -> None:
@@ -195,7 +196,7 @@ class Object(body.Body):
         raise NotImplementedError
 
     def convex_hulls(
-        self, world_frame: bool = True, project_2d: bool = False
+        self, world_frame: bool = True, project_2d: bool = False, sim: bool = True
     ) -> List[np.ndarray]:
         """Computes the object's convex hull.
 
@@ -212,12 +213,11 @@ class Object(body.Body):
             List of arrays of shape [_, 3] or [_, 2], where each array is a
             convex hull.
         """
-        pose = self.pose() if world_frame else None
+        pose = self.pose(sim=sim) if world_frame else None
         vertices = compute_bbox_vertices(self.bbox, pose, project_2d)
-
         return [vertices]
 
-    def aabb(self) -> np.ndarray:
+    def aabb(self, sim: bool = True) -> np.ndarray:
         """Computes the axis-aligned bounding box from the object pose and size.
 
         This should be more accurate than `super().aabb()`, which gets the aabb
@@ -227,10 +227,9 @@ class Object(body.Body):
         Returns:
             An array of shape [2, 3] (min/max, x/y/z).
         """
-        vertices = np.concatenate(self.convex_hulls(world_frame=True), axis=0)
+        vertices = np.concatenate(self.convex_hulls(world_frame=True, sim=sim), axis=0)
         xyz_min = vertices.min(axis=0)
         xyz_max = vertices.max(axis=0)
-
         return np.array([xyz_min, xyz_max])
 
     @property
@@ -419,7 +418,10 @@ class Hook(Object):
         return self._bbox
 
     def convex_hulls(
-        self, world_frame: bool = True, project_2d: bool = False
+        self,
+        world_frame: bool = True,
+        project_2d: bool = False,
+        sim: bool = True,
     ) -> List[np.ndarray]:
         """Computes the convex hulls of the handle and head links."""
         handle_pose = self.shapes[1].pose
@@ -442,7 +444,7 @@ class Hook(Object):
             0, 1
         )
 
-        pose = self.pose() if world_frame else None
+        pose = self.pose(sim=sim) if world_frame else None
         vertices = [compute_bbox_vertices(bbox, pose, project_2d) for bbox in bboxes]
 
         return vertices
@@ -571,12 +573,17 @@ class PropTestBox(Box):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
+
+    @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
 
     @property
     def bbox(self) -> np.ndarray:
@@ -593,9 +600,14 @@ class PropTestUrdf(Urdf):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
+
+    @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
 
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
@@ -608,12 +620,17 @@ class PropTestRack(Object):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
+
+    @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
 
     @property
     def bbox(self) -> np.ndarray:
@@ -628,12 +645,17 @@ class PropTestNull(Object):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
+
+    @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
 
     @property
     def bbox(self) -> np.ndarray:
@@ -648,13 +670,42 @@ class PropTestHook(Object):
 
         self.custom_pose: Optional[math.Pose] = None
 
-    def pose(self) -> math.Pose:
+    def pose(self, sim: bool = False) -> math.Pose:
         assert self.custom_pose is not None, "Custom pose not set"
         return self.custom_pose
 
     @property
+    def size(self) -> np.ndarray:
+        assert self._state.box_size is not None, "size not set"
+        return self._state.box_size
+
+    @property
     def bbox(self) -> np.ndarray:
         assert self._bbox is not None, "Bbox not set"
+        return self._bbox
+
+    @property
+    def head_length(self) -> float:
+        return self._state.head_length  # type: ignore
+
+    @property
+    def handle_length(self) -> float:
+        return self._state.handle_length  # type: ignore
+
+    @property
+    def handle_y(self) -> float:
+        return self._state.handle_y  # type: ignore
+
+    @property
+    def radius(self) -> float:
+        return self._radius
+
+    @property
+    def size(self) -> np.ndarray:
+        return self._size
+
+    @property
+    def bbox(self) -> np.ndarray:
         return self._bbox
 
     def set_custom_pose(self, pose: math.Pose) -> None:
@@ -690,8 +741,8 @@ class WrapperObject(Object):
 
     # Object methods.
 
-    def pose(self) -> math.Pose:
-        return self.body.pose()
+    def pose(self, sim: bool = True) -> math.Pose:
+        return self.body.pose(sim=sim)
 
     def set_pose(self, pose: math.Pose) -> None:
         self.body.set_pose(pose)
@@ -700,8 +751,8 @@ class WrapperObject(Object):
     def inertia(self) -> dyn.SpatialInertiad:
         return self.body.inertia
 
-    def state(self) -> object_state.ObjectState:
-        return self.body.state()
+    def state(self, sim: bool = True) -> object_state.ObjectState:
+        return self.body.state(sim=sim)
 
     @property
     def is_static(self) -> bool:  # type: ignore
@@ -716,12 +767,15 @@ class WrapperObject(Object):
         return self.body.bbox
 
     def convex_hulls(
-        self, world_frame: bool = True, project_2d: bool = False
+        self,
+        world_frame: bool = True,
+        project_2d: bool = False,
+        sim: bool = True,
     ) -> List[np.ndarray]:
-        return self.body.convex_hulls(world_frame, project_2d)
+        return self.body.convex_hulls(world_frame, project_2d, sim=sim)
 
-    def aabb(self) -> np.ndarray:
-        return self.body.aabb()
+    def aabb(self, sim: bool = True) -> np.ndarray:
+        return self.body.aabb(sim=sim)
 
     @property
     def shapes(self) -> Sequence[shapes.Shape]:

@@ -1,9 +1,10 @@
 import itertools
-from typing import Dict, Generator, List, Tuple
+import pathlib
+from typing import Dict, Generator, List, Optional, Tuple, Union
 import numpy as np
 
 import symbolic
-from temporal_policies import envs
+from temporal_policies import envs, planners
 from temporal_policies.envs.pybullet.table import (
     object_state,
     predicates,
@@ -11,6 +12,46 @@ from temporal_policies.envs.pybullet.table import (
 )
 from temporal_policies.envs.pybullet.table.objects import CLS_TO_PROP_TEST_CLS, Object
 from temporal_policies.task_planners.goals import is_valid_goal_props
+
+
+def seed_generator(
+    num_eval: int,
+    path_results: Optional[Union[str, pathlib.Path]] = None,
+) -> Generator[
+    Tuple[
+        Optional[int],
+        Optional[Tuple[np.ndarray, planners.PlanningResult, Optional[List[float]]]],
+    ],
+    None,
+    None,
+]:
+    """
+    Generates seeds for deterministic evaluation for pybullet.TableEnv.
+    """
+    if path_results is not None:
+        npz_files = sorted(
+            pathlib.Path(path_results).glob("results_*.npz"),
+            key=lambda x: int(x.stem.split("_")[-1]),
+        )
+        for npz_file in npz_files:
+            with open(npz_file, "rb") as f:
+                npz = np.load(f, allow_pickle=True)
+                seed: int = npz["seed"].item()
+                rewards = np.array(npz["rewards"])
+                plan = planners.PlanningResult(
+                    actions=np.array(npz["actions"]),
+                    states=np.array(npz["states"]),
+                    p_success=npz["p_success"].item(),
+                    values=np.array(npz["values"]),
+                )
+                t_planner: List[float] = npz["t_planner"].item()
+
+            yield seed, (rewards, plan, t_planner)
+
+    if num_eval is not None:
+        yield 0, None
+        for _ in range(num_eval - 1):
+            yield None, None
 
 
 def get_goal_props_instantiated(
@@ -56,6 +97,19 @@ def get_task_plan_primitives_instantiated(
                 ]
             )
     return task_plans_instantiated
+
+
+def instantiate_task_plan_primitives(
+    task_plan: List[str], env: envs.Env
+) -> List[envs.Primitive]:
+    """Converts a task plan (a list of action calls) to a list of primitives.
+
+    task_plan has the form:
+    ["pick(box, table)", "place(box, table)"]
+    """
+    return [
+        env.get_primitive_info(action_call=action_call) for action_call in task_plan
+    ]
 
 
 def get_callable_goal_props(
@@ -134,19 +188,22 @@ def is_satisfy_goal_props(
 
     for obj_name, s in zip(objects, state):
         obj_state = object_state.ObjectState(s)
+        objects[obj_name].enable_custom_pose()
         objects[obj_name].set_custom_pose(obj_state.pose())
-
-    success = all([prop.value_simple(objects) for prop in props])
+    # sim = True to use custom pose
+    success = all([prop.value_simple(objects, sim=True) for prop in props])
 
     return success
 
 
+# TODO(klin) unclear if this successfully handles the case proptestobjects were handling
+# Note: it doesn't: TODO(klin)
 def get_object_relationships(
     observation: np.ndarray,
     objects: Dict[str, Object],
     available_predicates: List[str],
     use_hand_state: bool = False,
-) -> List[str]:
+) -> List[predicates.Predicate]:
     if not use_hand_state:
         print(
             f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)"
@@ -160,8 +217,9 @@ def get_object_relationships(
         objects[obj_name].enable_custom_pose()
         objects[obj_name].set_custom_pose(obj_state.pose())
 
+    # sim = True to use custom pose --- need to update the sim=True code
     initial_object_relationships = [
-        prop for prop in possible_props if prop.value_simple(objects)
+        prop for prop in possible_props if prop.value_simple(objects, sim=True)
     ]
 
     # disable custom pose

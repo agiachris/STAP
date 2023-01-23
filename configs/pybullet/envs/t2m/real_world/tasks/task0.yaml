@@ -10,8 +10,8 @@ env_kwargs:
     - push
 
   tasks:
-    # "How would you use the hook to pull the salt closer, then pick it up and place it on the rack?"
-    - action_skeleton:
+    - instruction: How would you use the hook to pull the salt closer, then pick it up and place it on the rack?
+      action_skeleton:
         - pick(hook)
         - pull(blue_box, hook)
         - place(hook, table)
@@ -20,6 +20,8 @@ env_kwargs:
       initial_state:
         - free(hook)
         - free(blue_box)
+        - aligned(rack)
+        - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(hook)
         - beyondworkspace(blue_box)
@@ -27,6 +29,12 @@ env_kwargs:
         - on(rack, table)
         - on(hook, table)
         - on(blue_box, table)
+      goal_propositions:
+        - on(blue_box, rack)
+      supported_predicates:
+        - under(a, b)
+        - on(a, b)
+        - inhand(a)
 
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 

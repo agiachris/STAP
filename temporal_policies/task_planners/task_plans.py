@@ -1,34 +1,23 @@
-import ast
 import pathlib
-import random
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 import numpy as np
 
 from helm.common.authentication import Authentication
 from helm.common.request import Token
 
 from configs.base_config import LMConfig
-from temporal_policies import envs
 from temporal_policies.envs.pybullet.table.objects import Object
 from temporal_policies.task_planners.lm_data_structures import (
+    SCENE_OBJECT_PROMPT,
     CurrentExample,
     InContextExample,
-    OverallPrompt,
 )
 from temporal_policies.task_planners.lm_utils import (
-    APIType,
     generate_lm_response,
-    get_examples_from_json_dir,
     save_lm_cache,
 )
 from temporal_policies.envs.pybullet.table import predicates
 
-from temporal_policies.evaluation.utils import (
-    get_goal_props_instantiated,
-    get_object_relationships,
-    get_possible_props,
-    get_task_plan_primitives_instantiated,
-)
 
 
 def get_task_plans_from_lm(
@@ -40,18 +29,25 @@ def get_task_plans_from_lm(
     pddl_problem_file: str,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
-    custom_in_context_example_robot_format: str = "python_list_of_lists",
+    custom_in_context_example_robot_format: Literal[
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
+    ] = "python_list",
     custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
     custom_robot_action_sequence_format: str = "python_list_of_lists",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
+    verbose: bool = False,
 ) -> List[Union[List[str], List[List[str]], Dict[str, str]]]:
     header_prompt = InContextExample(
         predicates=["on(a, b)", "inhand(a)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"] + ["stop()"] if custom_in_context_example_robot_format == "python_list_with_stop" else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
+    )
+    assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
+        "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
+        "must be the same for next action prediction"
     )
     object_relationships_str = [str(prop) for prop in object_relationships]
     current_prompt = CurrentExample(
@@ -89,6 +85,7 @@ def get_task_plans_from_lm(
         lm_cfg=lm_cfg,
         auth=auth,
         lm_cache=lm_cache,
+        verbose=verbose,
     )
     return (
         results.parsed_robot_predicted,
@@ -107,18 +104,23 @@ def get_next_actions_from_lm(
     pddl_problem_file: str,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
-    custom_in_context_example_robot_format: str = "python_list",
+    custom_in_context_example_robot_format: Literal["python_list_with_stop", "python_list"] = "python_list",
     custom_robot_prompt: str = "Top 5 next actions (python list): ",
-    custom_robot_action_sequence_format: str = "python_list",
+    custom_robot_action_sequence_format: Literal["python_list_with_stop", "python_list"] = "python_list",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
+    verbose: bool = False,
 ) -> List[Union[List[str], List[List[str]], Dict[str, str]]]:
     header_prompt = InContextExample(
         predicates=["on(a, b)", "inhand(a)", "under(a, b)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"] + ["stop()"] if custom_in_context_example_robot_format == "python_list_with_stop" else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
+    )
+    assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
+        "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
+        "must be the same for next action prediction"
     )
     object_relationships_str = [str(prop) for prop in object_relationships]
     current_prompt = CurrentExample(
@@ -159,6 +161,13 @@ def get_next_actions_from_lm(
         lm_cfg=lm_cfg,
         auth=auth,
         lm_cache=lm_cache,
+        custom_stop_sequence=[
+            "Executed action: ",
+            custom_robot_prompt,
+            "```",
+            SCENE_OBJECT_PROMPT,
+        ],
+        verbose=verbose,
     )
     return (
         results.parsed_robot_predicted,
@@ -195,7 +204,7 @@ def get_action_logprob(
 #  probably create a class?
 def get_action_scores_from_lm(
     instruction: str,
-    potential_actions: str,
+    potential_actions: List[str],
     goal: List[str],
     objects: List[str],
     object_relationships: List[str],
@@ -206,19 +215,24 @@ def get_action_scores_from_lm(
     score_action_sequence: bool = False,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
-    custom_in_context_example_robot_format: str = "python_list",
+    custom_in_context_example_robot_format: Literal["python_list_with_stop", "python_list"] = "python_list_with_stop",
     custom_robot_prompt: str = "",
     custom_robot_action_sequence_format: str = "",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
     lm_cache_file: Optional[str] = None,
+    verbose: bool = False,
 ) -> List[Union[List[float], Dict[str, str]]]:
     header_prompt = InContextExample(
         predicates=["on(a, b)", "inhand(a)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"] + ["stop()"] if custom_in_context_example_robot_format == "python_list_with_stop" else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
+    )
+    assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
+        "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
+        "must be the same for next action prediction"
     )
     object_relationships_str = [str(prop) for prop in object_relationships]
 
@@ -241,50 +255,66 @@ def get_action_scores_from_lm(
     action_logprobs_dct: Dict[str, float] = {}
 
     logprob_type = f"action sequence" if score_action_sequence else "action"
-    for potential_action in potential_actions:
-        current_prompt = CurrentExample(
-            scene_objects=objects,
-            scene_object_relationships=object_relationships_str,
-            human=instruction,
-            goal_predicted=goal,
-            use_scene_objects=True,
-            use_scene_object_relationships=True,
-            use_human=True,
-            use_goal=True,
-            use_predicted_goal=True,
-            predict_robot=True,
-            custom_robot_prompt=custom_robot_prompt,
-            custom_robot_action_sequence_format=custom_robot_action_sequence_format,
-            pddl_domain_file=pddl_domain_file,
-            pddl_problem_file=pddl_problem_file,
-            use_action_object_relationship_history=True,
-            all_prior_object_relationships=all_prior_object_relationships,
-            all_executed_actions=all_executed_actions,
-            score_action=True,
-            action_to_score=potential_action,
+    current_prompt = CurrentExample(
+        scene_objects=objects,
+        scene_object_relationships=object_relationships_str,
+        human=instruction,
+        goal_predicted=goal,
+        use_scene_objects=True,
+        use_scene_object_relationships=True,
+        use_human=True,
+        use_goal=True,
+        use_predicted_goal=True,
+        predict_robot=True,
+        custom_robot_prompt=custom_robot_prompt,
+        custom_robot_action_sequence_format=custom_robot_action_sequence_format,
+        pddl_domain_file=pddl_domain_file,
+        pddl_problem_file=pddl_problem_file,
+        use_action_object_relationship_history=True,
+        all_prior_object_relationships=all_prior_object_relationships,
+        all_executed_actions=all_executed_actions,
+        score_action=True,
+        actions_to_score=potential_actions,
+    )
+    # generate LM response to the particular prompt (maybe made up of)
+    # then, I need to get scores corresponding
+    results, lm_cache = generate_lm_response(
+        header_prompt,
+        current_prompt,
+        examples,
+        lm_cfg=lm_cfg,
+        auth=auth,
+        lm_cache=lm_cache,
+        verbose=verbose,
+    )
+    # TODO(klin): only works for non-helm api
+    assert isinstance(results.tokens_predicted[0], List), (
+        "The LM response is not a list of list of tokens. "
+    )
+    tokens: Optional[List[List[Token]]] = results.tokens_predicted
+    # tokens: Optional[List[Token] = results.tokens_predicted
+
+    if score_action_sequence:
+        # assume the action prompting follows the pattern
+        # "Executed action: ...\nNew object relationships: ...\nNew action: ..."
+        # therefore, we can count the number of ":" tokens to compute the logprobs up to the
+        # beginning of the action sequence
+        n_colon_tokens_to_action_prompt_start = len(all_executed_actions) * 2 + 1
+        action_logprob = get_action_logprob(
+            tokens, n_colon_tokens_to_action_prompt_start
         )
-        results, lm_cache = generate_lm_response(
-            header_prompt,
-            current_prompt,
-            examples,
-            lm_cfg=lm_cfg,
-            auth=auth,
-            lm_cache=lm_cache,
-        )
-        tokens: List[Token] = results.tokens_predicted
-        if score_action_sequence:
-            # assume the action prompting follows the pattern
-            # "Executed action: ...\nNew object relationships: ...\nNew action: ..."
-            # therefore, we can count the number of ":" tokens to compute the logprobs up to the
-            # beginning of the action sequence
-            n_colon_tokens_to_action_prompt_start = len(all_executed_actions) * 2 + 1
-            action_logprob = get_action_logprob(
-                tokens, n_colon_tokens_to_action_prompt_start
-            )
+    else:
+        if isinstance(tokens[0], List):
+            for token_list in tokens:
+                action_logprob = get_action_logprob(token_list, 1)
+                action_logprobs.append(action_logprob)
         else:
             action_logprob = get_action_logprob(tokens, 1)
             action_logprobs.append(action_logprob)
 
+    for i in range(len(potential_actions)):
+        potential_action = potential_actions[i]
+        action_logprob = action_logprobs[i]
         actions_key = str(
             [str(action).lower() for action in all_executed_actions]
             + [potential_action]
@@ -292,7 +322,7 @@ def get_action_scores_from_lm(
         action_logprobs_dct[actions_key] = action_logprob
         print(f"{logprob_type}: {actions_key}, logprob: {np.round(action_logprob, 3)}")
 
-        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+    save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
     lm_cfg.echo = False
     lm_cfg.max_tokens = original_max_tokens
@@ -306,20 +336,7 @@ def get_action_scores_from_lm(
             np.exp(np.array(list(action_logprobs_dct.values())) * softmax_beta)
         )
 
-    # dynamically compute the width of the columns based on longest data for each column
-    col_widths = [
-        max(
-            len(str(row[i]))
-            for row in [list(softmax_scores.keys()), list(softmax_scores.values())]
-        )
-        for i in range(2)
-    ]
-    format_row = "{:<" + str(col_widths[0]) + "}" + "{:<" + str(col_widths[1]) + "}"
     print(f"softmax_beta: {softmax_beta}")
-    print(format_row.format(logprob_type, "Softmax score"))
-    for option, softmax_score in softmax_scores.items():
-        print(format_row.format(option, np.round(softmax_score, 3)))
-
     action_scores = [
         softmax_scores[
             str(
@@ -330,39 +347,3 @@ def get_action_scores_from_lm(
         for potential_action in potential_actions
     ]
     return action_scores, lm_cache
-
-
-def get_tokenized_action_prompt_start(overall_prompt, goal_prompt, action_prompt_start):
-    """"""
-    # use heuristic that action_prompt start can be something between "goal predicate set: " and then the next ":"
-    # another way is to use the fact that we know how many actions there are in the action sequence
-    # let's just use the goal predicate set hack for now?
-    # should then pass in the custom string used in the action sequence prompt then
-    return List[str]
-
-
-def get_action_sequence_scores_from_lm():
-    # same as above, except ACTION_PROMPT_START is different?
-    # modify the scoring function from above to handle this case too?
-    tokens: List[Token] = results.tokens_predicted
-    tokenized_action_prompt_start = ":"  # first string is GOAL_PREDICATE PROMPT?
-    tokenized_action_prompt_start = get_tokenized_action_prompt_start(
-        results.overall_prompt, goal_prompt
-    )
-    # find the first time that goal_predicate set is called
-
-    # Goal predicate set: ['on(red_box, rack)', 'inhand(blue_box)', 'on(rack, table)']
-    # Executed action: pick(a, b)
-    # New object relationships --- hmm wonder if they'd penalize 'unlikely' new object relationships ... rip hmm
-    # unclear how to 'normalize' across action sequences ... hmmm
-    # conditioning on the new object relationships can boost up the probability of 'good' actions to take hmm
-    # ablate, maybe?
-
-    # could start off prompt with some special prompt 'marker', but that could be annoying ...
-    # maybe end with the last tokens of the goal predicate set prompt?
-    action_logprob = get_action_logprob(
-        tokens, tokenized_goal_predicate_set_action_prompt
-    )
-    # need get_action_logprob that can get tokens up to "goal predicate set: [on(a, b)]\nexecuted_action"
-    # maybe need to tokenize the goal predicate set?
-    action_logprobs.append(action_logprob)

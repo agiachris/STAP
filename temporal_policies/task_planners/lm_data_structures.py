@@ -2,7 +2,7 @@ import ast
 from dataclasses import asdict, dataclass
 from enum import Enum
 import pathlib
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 import openai
 import json
 
@@ -75,7 +75,7 @@ class InContextExample:
     # custom prompt engineering configs
     custom_robot_prompt: str = ""
     custom_robot_action_sequence_format: Literal[
-        "python_list", "python_list_of_lists"
+        "python_list", "python_list_of_lists", "python_list_with_stop"
     ] = "python_list"  # use special prompt for robot action sequence in overall_example
 
     @property
@@ -207,12 +207,14 @@ class InContextExample:
                 action_sequence = f"[{self.robot_action_sequence}, ]"
             elif self.custom_robot_action_sequence_format == "python_list":
                 action_sequence = self.robot_action_sequence
+            elif self.custom_robot_action_sequence_format == "python_list_with_stop":
+                action_sequence = self.robot_action_sequence + ["stop()"]
             elif self.custom_robot_action_sequence_format == "saycan_done":
                 action_sequence = ", ".join(
                     [
                         "{}. {}".format(i + 1, action)
                         for i, action in enumerate(
-                            self.robot_action_sequence + ["done()"]
+                            self.robot_action_sequence + ["stop()"]
                         )
                     ]
                 )
@@ -254,7 +256,7 @@ class CurrentExample(InContextExample):
 
     # action scoring
     score_action: bool = False
-    action_to_score: Optional[str] = None
+    actions_to_score: Optional[List[str]] = None
 
     def create_from_incontext_example(self, inc_example: InContextExample):
         # create a CurrentExample from an InContextExample
@@ -308,7 +310,7 @@ class Result:
     goal_predicted: Optional[str] = None
     robot_ground_truth: Optional[str] = None
     robot_predicted: Optional[str] = None
-    tokens_predicted: Optional[List[Token]] = None
+    tokens_predicted: Optional[Union[List[Token], List[List[Token]]]] = None
     engine: str = "n/a"
 
     use_predicted_goal: bool = False  # whether to use predicted goal in the prompt or to use the 'ground truth' goal
