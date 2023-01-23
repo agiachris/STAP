@@ -540,6 +540,14 @@ def eval_saycan(
 
     # Save planning results.
     path.mkdir(parents=True, exist_ok=True)
+
+    num_successes_on_stop_score = (
+        np.array(steps_to_success_using_stop_score) != -1
+    ).sum()
+    num_successes_on_predicted_goal_props = (
+        np.array(steps_to_success_using_predicted_goal_props) != -1
+    ).sum()
+
     with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
             "args": {
@@ -558,24 +566,16 @@ def eval_saycan(
                 "verbose": verbose,
                 "use_ground_truth_goal_props": use_ground_truth_goal_props,
             },
-            "num_successes_on_stop_score": (
-                np.array(steps_to_success_using_stop_score) != -1
-            ).sum(),
+            "num_successes_on_stop_score": num_successes_on_stop_score,
             "steps_to_success_using_stop_score": steps_to_success_using_stop_score,
-            "num_successes_on_used_goal_props": (
-                np.array(steps_to_success_using_stop_score) != -1
-            ).sum(),
+            "num_successes_on_used_goal_props": num_successes_on_predicted_goal_props,
             "steps_to_success_using_predicted_goal_props": steps_to_success_using_predicted_goal_props,
-            "success_rate_on_used_goal_props": (
-                (np.array(steps_to_success_using_stop_score) != -1).sum() / num_eval
-            )
+            "success_rate_on_used_goal_props": num_successes_on_predicted_goal_props
+            / num_eval
             * 100,
-            "num_successes_on_ground_truth_goal_props": (
-                np.array(steps_to_success_using_stop_score) != -1
-            ).sum(),
-            "success_rate_using_stop_score_on_ground_truth_goal_props": (
-                (np.array(steps_to_success_using_stop_score) != -1).sum() / num_eval
-            )
+            "num_successes_on_stop_score": num_successes_on_stop_score,
+            "success_rate_using_stop_score_on_ground_truth_goal_props": num_successes_on_stop_score
+            / num_eval
             * 100,
         }
         json.dump(save_dict, f, indent=4)
