@@ -16,6 +16,7 @@ env_kwargs:
         - pull(red_box, hook)
         - place(hook, table)
         - pick(red_box)
+        - place(red_box, rack)
       initial_state:
         - free(hook)
         - free(red_box)

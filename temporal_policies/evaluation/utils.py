@@ -188,9 +188,10 @@ def is_satisfy_goal_props(
 
     for obj_name, s in zip(objects, state):
         obj_state = object_state.ObjectState(s)
+        objects[obj_name].enable_custom_pose()
         objects[obj_name].set_custom_pose(obj_state.pose())
-
-    success = all([prop.value_simple(objects) for prop in props])
+    # sim = True to use custom pose
+    success = all([prop.value_simple(objects, sim=True) for prop in props])
 
     return success
 
@@ -216,8 +217,9 @@ def get_object_relationships(
         objects[obj_name].enable_custom_pose()
         objects[obj_name].set_custom_pose(obj_state.pose())
 
+    # sim = True to use custom pose --- need to update the sim=True code
     initial_object_relationships = [
-        prop for prop in possible_props if prop.value_simple(objects)
+        prop for prop in possible_props if prop.value_simple(objects, sim=True)
     ]
 
     # disable custom pose
