@@ -160,7 +160,7 @@ def is_under(obj_a: Object, obj_b: Object, sim: bool = True) -> bool:
 def is_inhand(obj: Object) -> bool:
     """Returns True if the object is in the gripper."""
     z_pos = obj.pose().pos[2]
-    z_min = ACTION_CONSTRAINTS["max_lift_height"] - obj.size[2] * 0.5
+    z_min = ACTION_CONSTRAINTS["max_lift_height"] - obj.size[2] * 2
     return z_pos > z_min
 
 

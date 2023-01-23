@@ -75,7 +75,7 @@ class InContextExample:
     # custom prompt engineering configs
     custom_robot_prompt: str = ""
     custom_robot_action_sequence_format: Literal[
-        "python_list", "python_list_of_lists", "python_list_with_done"
+        "python_list", "python_list_of_lists", "python_list_with_stop"
     ] = "python_list"  # use special prompt for robot action sequence in overall_example
 
     @property
@@ -207,12 +207,14 @@ class InContextExample:
                 action_sequence = f"[{self.robot_action_sequence}, ]"
             elif self.custom_robot_action_sequence_format == "python_list":
                 action_sequence = self.robot_action_sequence
+            elif self.custom_robot_action_sequence_format == "python_list_with_stop":
+                action_sequence = self.robot_action_sequence + ["stop()"]
             elif self.custom_robot_action_sequence_format == "saycan_done":
                 action_sequence = ", ".join(
                     [
                         "{}. {}".format(i + 1, action)
                         for i, action in enumerate(
-                            self.robot_action_sequence + ["done()"]
+                            self.robot_action_sequence + ["stop()"]
                         )
                     ]
                 )

@@ -2,18 +2,23 @@
 Usage:
 
 PYTHONPATH=. python scripts/eval/eval_saycan.py
---planner-config configs/pybullet/planners/ablation/policy_cem.yaml 
+--planner-config configs/pybullet/planners/policy_cem.yaml 
 --env-config configs/pybullet/envs/t2m/official/tasks/task0.yaml
 --policy-checkpoints
-    models/20230106/complete_q_multistage/pick_0/ckpt_model_1000000.pt 
-    models/20230101/complete_q_multistage/place_0/best_model.pt 
-    models/20230101/complete_q_multistage/pull_0/best_model.pt
-    models/20230101/complete_q_multistage/push_0/best_model.pt
---dynamics-checkpoint models/official/select_model/dynamics/best_model.pt
+    models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt
+    models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt
+    models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt
+    models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt
+--dynamics-checkpoint
+    models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt
 --pddl-domain configs/pybullet/envs/t2m/official/tasks/symbolic_domain.pddl
 --pddl-problem configs/pybullet/envs/t2m/official/tasks/task0_symbolic.pddl
---verbose 0 --engine davinci --gui 1
---path plots/20230117/eval_saycan
+--verbose 0 --engine davinci --gui 0
+--path plots/20230121-latest-models/eval_saycan
+--key-name personal-all
+--max-depth 7
+--n-examples 10
+--lm-verbose 1
 """
 
 import functools
@@ -101,6 +106,8 @@ def get_values(
                 q_s_a = value_fns[i].predict(
                     policy_state, tensors.from_numpy(actions[i], device=device)
                 )
+                # clip values between 0 and 1
+                q_s_a = torch.clamp(q_s_a, 0, 1)
             except RuntimeError as e:
                 q_s_a = torch.tensor(0, dtype=torch.float32)
                 print(f"Failed to predict Q for {primitives[i]}, returning Q = 0.")
@@ -219,11 +226,13 @@ def eval_saycan(
     lm_cache_file: Optional[Union[str, pathlib.Path]] = None,
     n_examples: Optional[int] = 1,
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
-    custom_in_context_example_robot_format: str = "python_list_of_lists",
+    custom_in_context_example_robot_format: Literal[
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
+    ] = "python_list_with_stop",
     custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
     custom_robot_action_sequence_format: Literal[
-        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_done"
-    ] = "python_list",
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
+    ] = "python_list_with_stop",
     engine: Optional[str] = None,
     temperature: Optional[int] = 0,
     logprobs: Optional[int] = 1,
@@ -231,6 +240,7 @@ def eval_saycan(
     max_tokens: Optional[int] = 100,
     auth: Optional[Authentication] = None,
     use_ground_truth_goal_props: bool = False,
+    lm_verbose: bool = False,
 ):
     # set seeds
     if seed is not None:
@@ -239,9 +249,7 @@ def eval_saycan(
         torch.manual_seed(seed)
 
     # these would perhaps belong in .../prompts/
-    examples = get_examples_from_json_dir(
-        "configs/pybullet/envs/t2m/official/prompts/"
-    )
+    examples = get_examples_from_json_dir("configs/pybullet/envs/t2m/official/prompts/")
 
     for example in examples:
         example.custom_robot_action_sequence_format = (
@@ -285,13 +293,14 @@ def eval_saycan(
         env.objects, available_predicates
     )
 
-    num_successes_on_used_goal_props: int = (
-        0  # either predicted or ground truth goal props
-    )
-    num_successes_on_ground_truth_goal_props: int = 0
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
+
+    # step = -1 if stopped on non-goal prop, else step = num steps to goal
+    steps_to_success_using_predicted_goal_props: List[int] = []
+    steps_to_success_using_stop_score: List[int] = []
+
     for idx_iter, (seed, loaded_plan) in enumerate(pbar):
         goal_props_predicted: List[str]
         objects: List[str]
@@ -302,16 +311,14 @@ def eval_saycan(
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
         print(f"seed: {seed}")
-    
+
         # get goal props
         objects = list(env.objects.keys())
         object_relationships = get_object_relationships(
-            observation, env.objects, available_predicates, use_hand_state=False
+            observation, prop_testing_objs, available_predicates, use_hand_state=False
         )
         object_relationships = [str(prop) for prop in object_relationships]
         all_prior_object_relationships.append(object_relationships)
-        lm_cfg.engine = "code-davinci-002"
-
         goal_props_predicted, lm_cache = get_goal_from_lm(
             env.instruction,
             objects,
@@ -322,7 +329,7 @@ def eval_saycan(
             lm_cfg=lm_cfg,
             auth=auth,
             lm_cache=lm_cache,
-            verbose=verbose,
+            verbose=lm_verbose,
         )
         save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
         goal_props_ground_truth: List[str] = [
@@ -342,7 +349,6 @@ def eval_saycan(
         print(colored(f"minimal goal props: {goal_props_ground_truth}", "blue"))
 
         done: bool = False
-        reached_goal_prop: bool = False
 
         actions: List[str]
         env.record_start()
@@ -350,6 +356,7 @@ def eval_saycan(
         step = 0
         while not done:
             # lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
+            # for generating possible actions, don't include stop()
             actions, lm_cache = get_next_actions_from_lm(
                 env.instruction,
                 goal_props_to_use,
@@ -360,11 +367,14 @@ def eval_saycan(
                 pddl_domain,
                 pddl_problem,
                 custom_in_context_example_robot_prompt="Top robot action sequence: ",
+                custom_in_context_example_robot_format="python_list",
                 custom_robot_prompt="Top 5 valid next actions (python list of primitives): ",
+                custom_robot_action_sequence_format="python_list",
                 examples=examples,
                 lm_cfg=lm_cfg,
                 auth=auth,
                 lm_cache=lm_cache,
+                verbose=lm_verbose,
             )
             save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
@@ -375,6 +385,7 @@ def eval_saycan(
                 )
             )
             print(colored(f"Potential actions: {actions}", "yellow"))
+            # remove actions
             env_lst = [env] * len(actions)
             potential_actions: List[table_primitives.Primitive] = [
                 env.get_primitive_info(action, env)
@@ -383,9 +394,11 @@ def eval_saycan(
             potential_actions_str: List[str] = [
                 str(action).lower() for action in potential_actions
             ]
-            # lm_cfg.engine = "text-davinci-002"
+            if custom_robot_action_sequence_format == "python_list_with_stop":
+                potential_actions_str.append("stop()")
             # 003 isn't really influenced by the in-context examples at all -
             # --- pick(hook) is really low
+            # for scoring possible actions, include stop()!
             lm_action_scores, lm_cache = get_action_scores_from_lm(
                 env.instruction,
                 potential_actions_str,
@@ -397,10 +410,13 @@ def eval_saycan(
                 pddl_domain,
                 pddl_problem,
                 examples=examples,
+                custom_in_context_example_robot_format=custom_robot_action_sequence_format,
+                custom_robot_action_sequence_format=custom_robot_action_sequence_format,
                 lm_cfg=lm_cfg,
                 auth=auth,
                 lm_cache=lm_cache,
                 lm_cache_file=lm_cache_file,
+                verbose=lm_verbose,
             )
 
             save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
@@ -420,6 +436,30 @@ def eval_saycan(
                 device=tensors.device(device),
             )
 
+            if custom_robot_action_sequence_format == "python_list_with_stop":
+                stop_score = lm_action_scores[-1]
+                policy_actions.append(np.zeros(1))
+                if stop_score == max(lm_action_scores):
+                    value_action_scores.append(10)
+                    done = True
+                    print(colored("Stopping because stop() score is highest", "green"))
+                else:
+                    value_action_scores.append(0.5)
+
+            if is_satisfy_goal_props(
+                goal_props_callable,
+                prop_testing_objs,
+                observation,
+                use_hand_state=False,
+            ):
+                print(colored("used goal props satisfied", "green"))
+                if env.is_goal_state():
+                    print(colored("goal props satisfied", "green"))
+                    steps_to_success_using_predicted_goal_props.append(step)
+                else:
+                    print(colored("goal props not satisfied", "red"))
+                    steps_to_success_using_predicted_goal_props.append(-1)
+
             table_headers = ["Action", "LM", "Value", "Overall"]
             overall_scores = [
                 lm_action_score * value_action_score
@@ -434,8 +474,13 @@ def eval_saycan(
                 value_action_scores,
                 overall_scores,
             )
+            print(colored(formatted_table_str, "blue"))
+
             best_action_idx = overall_scores.index(max(overall_scores))
-            env.set_primitive(potential_actions[best_action_idx])
+            if "stop()" == potential_actions_str[best_action_idx]:
+                env.set_primitive(table_primitives.Stop(env))
+            else:
+                env.set_primitive(potential_actions[best_action_idx])
 
             custom_recording_text: str = (
                 f"human: {env.instruction}\n"
@@ -446,61 +491,63 @@ def eval_saycan(
             custom_recording_text += get_printable_object_relationships_str(
                 object_relationships, max_row_length=70
             )
-
             observation, reward, terminated, _, info = env.step(
                 policy_actions[best_action_idx], custom_recording_text
             )
             step += 1
 
             print(
-                f"action executed: {potential_actions[best_action_idx]}; reward: {reward}"
+                f"action executed: {potential_actions_str[best_action_idx]}; reward: {reward}"
             )
-
-            if is_satisfy_goal_props(
-                goal_props_callable,
-                prop_testing_objs,
-                observation,
-                use_hand_state=False,
-            ):
-                print(colored("goal props satisfied", "green"))
-                done = True
-                reached_goal_prop = True
-                num_successes_on_used_goal_props += 1
 
             objects = list(env.objects.keys())
             object_relationships = get_object_relationships(
-                observation, env.objects, available_predicates, use_hand_state=False
+                observation,
+                prop_testing_objs,
+                available_predicates,
+                use_hand_state=False,
             )
             print(f"object relationships: {object_relationships}")
             object_relationships = [str(prop) for prop in object_relationships]
-            all_executed_actions.append(potential_actions[best_action_idx])
+            all_executed_actions.append(potential_actions_str[best_action_idx])
             all_prior_object_relationships.append(object_relationships)
             if step == max_depth:
                 done = True
 
         env.record_stop()
-        if env.is_goal_state():
+        success: bool = env.is_goal_state()
+        if success:
+            steps_to_success_using_stop_score.append(
+                step - 1
+            )  # -1 because take extra step at end for rendering
             print(colored("ground truth goal props satisfied", "green"))
-            num_successes_on_ground_truth_goal_props += 1
 
         gif_path = (
             path
             / str(idx_iter)
             / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
-            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.gif"
+            / f"execution_{'reached_goal_prop' if success else 'fail'}.gif"
         )
         env.record_save(gif_path, reset=False)
         gif_path = (
             path
             / str(idx_iter)
             / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
-            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.mp4"
+            / f"execution_{'reached_goal_prop' if success else 'fail'}.mp4"
         )
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
 
     # Save planning results.
     path.mkdir(parents=True, exist_ok=True)
+
+    num_successes_on_stop_score = int((
+        np.array(steps_to_success_using_stop_score) != -1
+    ).sum())
+    num_successes_on_predicted_goal_props = int((
+        np.array(steps_to_success_using_predicted_goal_props) != -1
+    ).sum())
+
     with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
             "args": {
@@ -519,18 +566,27 @@ def eval_saycan(
                 "verbose": verbose,
                 "use_ground_truth_goal_props": use_ground_truth_goal_props,
             },
-            "num_successes_on_used_goal_props": num_successes_on_used_goal_props,
-            "success_rate_on_used_goal_props": (
-                num_successes_on_used_goal_props / num_eval
-            )
+            "num_successes_on_stop_score": num_successes_on_stop_score,
+            "steps_to_success_using_stop_score": steps_to_success_using_stop_score,
+            "num_successes_on_used_goal_props": num_successes_on_predicted_goal_props,
+            "steps_to_success_using_predicted_goal_props": steps_to_success_using_predicted_goal_props,
+            "success_rate_on_used_goal_props": num_successes_on_predicted_goal_props
+            / num_eval
             * 100,
-            "num_successes_on_ground_truth_goal_props": num_successes_on_ground_truth_goal_props,
-            "success_rate_on_ground_truth_goal_props": (
-                num_successes_on_ground_truth_goal_props / num_eval
-            )
+            "num_successes_on_stop_score": num_successes_on_stop_score,
+            "success_rate_using_stop_score_on_ground_truth_goal_props": num_successes_on_stop_score
+            / num_eval
             * 100,
         }
         json.dump(save_dict, f, indent=4)
+
+    # Print results.
+    print(
+        colored(
+            f"Success rate: {((np.array(steps_to_success_using_stop_score) != -1).sum() / num_eval) * 100:.2f}%",
+            "green",
+        )
+    )
 
 
 def main(args: argparse.Namespace) -> None:
@@ -601,7 +657,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-examples",
         type=int,
-        default=5,
+        default=10,
         help="Number of examples to use in in context prompt",
     )
     # LMConfig
@@ -624,7 +680,21 @@ if __name__ == "__main__":
     )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")
-
+    parser.add_argument(
+        "--custom_in_context_example_robot_format",
+        type=str,
+        default="python_list_with_stop",
+        help="Custom in context example robot format",
+    )
+    parser.add_argument(
+        "--custom_robot_action_sequence_format",
+        type=str,
+        default="python_list_with_stop",
+        help="Custom in context example human format",
+    )
+    parser.add_argument(
+        "--lm-verbose", type=int, default=0, help="Print out LM verbose flag"
+    )
     args = parser.parse_args()
 
     main(args)

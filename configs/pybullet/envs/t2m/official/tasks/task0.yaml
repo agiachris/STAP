@@ -10,32 +10,30 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you use the hook to pull the red box closer, then pick the red box up and place it on the rack?
+    - instruction: How would you use the hook to pull the yellow box closer, then pick the yellow box up and place it on the rack?
       action_skeleton:
-        - pick(hook)
-        - pull(red_box, hook)
+        - pick(hook, table)
+        - pull(yellow_box, hook)
         - place(hook, table)
-        - pick(red_box)
+        - pick(yellow_box, table)
+        - place(yellow_box, rack)
       initial_state:
         - free(hook)
-        - free(red_box)
+        - free(yellow_box)
+        - free(blue_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(hook)
-        - beyondworkspace(red_box)
-        - nonblocking(red_box, rack)
+        - beyondworkspace(yellow_box)
+        - nonblocking(yellow_box, rack)
+        - nonblocking(yellow_box, blue_box)
         - on(rack, table)
         - on(hook, table)
-        - on(red_box, table)
-        - on(blue_box, table)
         - on(yellow_box, table)
-        - on(cyan_box, table)
-        - beyondworkspace(blue_box)
-        - beyondworkspace(yellow_box)
-        - beyondworkspace(cyan_box)
+        - on(blue_box, table)
       goal_propositions:
-        - on(red_box, rack)
+        - on(yellow_box, rack)
       supported_predicates:
         - under(a, b)
         - on(a, b)
@@ -61,7 +59,5 @@ env_kwargs:
         handle_length: 0.38
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
-    - configs/pybullet/envs/assets/milk.yaml
-    - configs/pybullet/envs/assets/yogurt.yaml
-    - configs/pybullet/envs/assets/icecream.yaml
     - configs/pybullet/envs/assets/salt.yaml
+    - configs/pybullet/envs/assets/yogurt.yaml

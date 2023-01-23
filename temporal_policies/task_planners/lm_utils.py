@@ -88,7 +88,13 @@ def authenticate(
         elif api_type == APIType.HELM:
             key_name == "helm"
 
-    with open("../credentials.json", "r") as f:
+    import socket
+    credentials_path: str
+    if "stanford" in socket.gethostname() or "juno" in socket.gethostname():
+        credentials_path = "/sailhome/thankyou/credentials.json"
+    else:
+        credentials_path = "../credentials.json"
+    with open(credentials_path, "r") as f:
         api_key = json.load(f)[key_name]
     return register_api_key(api_type, api_key)
 
@@ -136,12 +142,6 @@ def call_api(
     api_type: APIType = APIType.HELM,
     auth: Optional[Authentication] = None,
 ) -> Result:
-    # proactively sleep to avoid rate limit errors; code has smaller limit
-    if "code" in engine:
-        time.sleep(7)
-    elif "text" in engine:
-        time.sleep(3.5)
-
     if api_type.value == APIType.OPENAI.value:
         try:
             response = openai.Completion.create(
@@ -216,6 +216,12 @@ def call_api(
         response["tokens"] = request_result.completions[0].tokens
     else:
         raise ValueError(f"api_type {api_type} not supported")
+
+    # proactively sleep to avoid rate limit errors; code has smaller limit
+    if "code" in engine:
+        time.sleep(10)
+    elif "text" in engine:
+        time.sleep(4)
 
     return response
 
@@ -411,8 +417,9 @@ def generate_lm_response(
 
             ipdb.set_trace()
 
-        overall_prompt += response["choices"][0]["text"]
-        print(f"response: {response['choices'][0]['text']}")
+        if not current_prompt.score_action:
+            overall_prompt += response["choices"][0]["text"]
+
         update_result_current_prompt_based_on_response_robot(
             result, current_prompt, response
         )
@@ -465,9 +472,31 @@ def update_result_current_prompt_based_on_response_robot(
     result.robot_ground_truth = current_prompt.robot_action_sequence
 
     robot_prediction_result_types, predicted_task_plan_descriptions = [], []
-    if current_prompt.custom_robot_action_sequence_format == "python_list_of_lists":
-        parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
-        for parsed_robot_predicted in parsed_robot_predicted_lst:
+    if not current_prompt.score_action:
+        if current_prompt.custom_robot_action_sequence_format == "python_list_of_lists":
+            parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
+            for parsed_robot_predicted in parsed_robot_predicted_lst:
+                (
+                    robot_prediction_result_type,
+                    predicted_task_plan_description,
+                ) = check_task_plan_result(
+                    current_prompt.goal_predicted
+                    if current_prompt.use_predicted_goal or current_prompt.goal is None
+                    else current_prompt.goal,
+                    str(parsed_robot_predicted),
+                    current_prompt.pddl_domain_file,
+                    current_prompt.pddl_problem_file,
+                )
+                robot_prediction_result_types.append(robot_prediction_result_type)
+                predicted_task_plan_descriptions.append(predicted_task_plan_description)
+        elif current_prompt.custom_robot_action_sequence_format == "python_list":
+            try:
+                parsed_robot_predicted = result.parsed_robot_predicted
+            except:
+                import ipdb
+
+                ipdb.set_trace()
+                parsed_robot_predicted = result.parsed_robot_predicted
             (
                 robot_prediction_result_type,
                 predicted_task_plan_description,
@@ -481,51 +510,31 @@ def update_result_current_prompt_based_on_response_robot(
             )
             robot_prediction_result_types.append(robot_prediction_result_type)
             predicted_task_plan_descriptions.append(predicted_task_plan_description)
-    elif current_prompt.custom_robot_action_sequence_format == "python_list":
-        try:
+        elif current_prompt.custom_robot_action_sequence_format == "python_list_with_stop":
             parsed_robot_predicted = result.parsed_robot_predicted
-        except:
-            import ipdb
+            (
+                robot_prediction_result_type,
+                predicted_task_plan_description,
+            ) = check_task_plan_result(
+                current_prompt.goal_predicted
+                if current_prompt.use_predicted_goal or current_prompt.goal is None
+                else current_prompt.goal,
+                str(parsed_robot_predicted),
+                current_prompt.pddl_domain_file,
+                current_prompt.pddl_problem_file,
+            )
+            robot_prediction_result_types.append(robot_prediction_result_type)
+            predicted_task_plan_descriptions.append(predicted_task_plan_description)
 
-            ipdb.set_trace()
-            parsed_robot_predicted = result.parsed_robot_predicted
-        (
-            robot_prediction_result_type,
-            predicted_task_plan_description,
-        ) = check_task_plan_result(
-            current_prompt.goal_predicted
-            if current_prompt.use_predicted_goal or current_prompt.goal is None
-            else current_prompt.goal,
-            str(parsed_robot_predicted),
-            current_prompt.pddl_domain_file,
-            current_prompt.pddl_problem_file,
+        result.robot_success = any(
+            [
+                "success" in robot_prediction_result_type
+                for robot_prediction_result_type in robot_prediction_result_types
+            ]
         )
-        robot_prediction_result_types.append(robot_prediction_result_type)
-        predicted_task_plan_descriptions.append(predicted_task_plan_description)
-    elif current_prompt.custom_robot_action_sequence_format == "python_list_with_done":
-        parsed_robot_predicted = result.parsed_robot_predicted
-        (
-            robot_prediction_result_type,
-            predicted_task_plan_description,
-        ) = check_task_plan_result(
-            current_prompt.goal_predicted
-            if current_prompt.use_predicted_goal or current_prompt.goal is None
-            else current_prompt.goal,
-            str(parsed_robot_predicted),
-            current_prompt.pddl_domain_file,
-            current_prompt.pddl_problem_file,
-        )
-        robot_prediction_result_types.append(robot_prediction_result_type)
-        predicted_task_plan_descriptions.append(predicted_task_plan_description)
 
-    result.robot_success = any(
-        [
-            "success" in robot_prediction_result_type
-            for robot_prediction_result_type in robot_prediction_result_types
-        ]
-    )
-    result.robot_prediction_result_types = robot_prediction_result_types
-    result.predicted_task_plan_descriptions = predicted_task_plan_descriptions
+        result.robot_prediction_result_types = robot_prediction_result_types
+        result.predicted_task_plan_descriptions = predicted_task_plan_descriptions
     result.custom_robot_prompt = current_prompt.custom_robot_prompt
     result.custom_robot_action_sequence_format = (
         current_prompt.custom_robot_action_sequence_format

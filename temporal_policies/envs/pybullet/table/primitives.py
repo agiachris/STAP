@@ -222,6 +222,8 @@ class Primitive(envs.Primitive, abc.ABC):
         assert isinstance(env, TableEnv)
 
         name, arg_names = symbolic.parse_proposition(action_call)
+        if len(arg_names) == 1 and arg_names[0] == "":
+            arg_names = []
         arg_objects = [env.objects[obj_name] for obj_name in arg_names]
 
         primitive_class = globals()[name.capitalize()]
@@ -757,14 +759,25 @@ class Push(Primitive):
 
         return action
 
-class Null(Primitive):
+
+class Stop(Primitive):
     """Do nothing."""
-    def __init__(self, arg_objects: Optional[List[str]] = None):
+
+    def __init__(self, env: envs.Env, arg_objects: Optional[List[str]] = None):
+        self._env = env
+        if arg_objects is None:
+            arg_objects = []
         self._arg_objects = arg_objects
 
+    def scale_action(
+        self, action: primitive_actions.PrimitiveAction
+    ) -> primitive_actions.PrimitiveAction:
+        return action
 
-    def execute(self, action: primitive_actions.PrimitiveAction) -> ExecutionResult:
+    def execute(
+        self, action: primitive_actions.PrimitiveAction, real_world: bool = False
+    ) -> ExecutionResult:
         return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:
-        return self.Action()
+        return np.ones(1)

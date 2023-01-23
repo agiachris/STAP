@@ -684,6 +684,30 @@ class PropTestHook(Object):
         assert self._bbox is not None, "Bbox not set"
         return self._bbox
 
+    @property
+    def head_length(self) -> float:
+        return self._state.head_length  # type: ignore
+
+    @property
+    def handle_length(self) -> float:
+        return self._state.handle_length  # type: ignore
+
+    @property
+    def handle_y(self) -> float:
+        return self._state.handle_y  # type: ignore
+
+    @property
+    def radius(self) -> float:
+        return self._radius
+
+    @property
+    def size(self) -> np.ndarray:
+        return self._size
+
+    @property
+    def bbox(self) -> np.ndarray:
+        return self._bbox
+
     def set_custom_pose(self, pose: math.Pose) -> None:
         self.custom_pose = pose
 
