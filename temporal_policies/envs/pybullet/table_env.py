@@ -108,6 +108,9 @@ class TableEnv(PybulletEnv):
         high=np.tile(object_state.ObjectState.range()[1], (MAX_NUM_OBJECTS, 1)),
     )
 
+    static_feature_indices = object_state.ObjectState.static_feature_indices()
+    dynamic_feature_indices = object_state.ObjectState.dynamic_feature_indices()
+
     metadata = {
         "render_modes": [
             "default",

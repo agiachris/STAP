@@ -25,6 +25,7 @@ class TableEnvDynamics(LatentDynamics):
         network_class: Union[str, Type[networks.dynamics.PolicyDynamics]],
         network_kwargs: Dict[str, Any],
         env: Optional[envs.pybullet.TableEnv],
+        rigid_body: bool = True,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -35,11 +36,13 @@ class TableEnvDynamics(LatentDynamics):
             network_class: Backend network for decoupled dynamics network.
             network_kwargs: Kwargs for network class.
             env: TableEnv required for planning (not training).
+            rigid_body: Only predict object poses during evaluation.
             checkpoint: Dynamics checkpoint.
             device: Torch device.
         """
         self._env = env
         self._plan_mode = False
+        self._rigid_body = rigid_body
 
         if self.env is None:
             observation_space = policies[0].observation_space
@@ -227,7 +230,7 @@ class TableEnvDynamics(LatentDynamics):
         next_dynamics_state = self.forward(
             dynamics_state, action, primitive.idx_policy, policy_args
         )
-        
+
         # TODO (Chris Agia): WARNING
         # Clipping the dynamics state within [-0.5, 0.5] assumes correct 
         # normalization of the observation. This requires the containment
@@ -238,8 +241,11 @@ class TableEnvDynamics(LatentDynamics):
         # Update env state with new unnormalized observation.
         next_env_state = env_state.clone()
         next_env_state[..., idx_args, :] = self._unnormalize_state(next_dynamics_state)
-
-        # set states of non existent objects to 0
+        if self._rigid_body:
+            idx_feats = self.env.static_feature_indices
+            next_env_state[..., idx_feats] = env_state[..., idx_feats]
+        
+        # Set states of non existent objects to 0.
         non_existent_obj_start_idx = policy_args["shuffle_range"][1]
         next_env_state[..., non_existent_obj_start_idx:, :] = 0
         return next_env_state
