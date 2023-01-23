@@ -279,7 +279,7 @@ class TableEnvDynamics(LatentDynamics):
         state: torch.Tensor,
         action: torch.Tensor,
         primitive: envs.Primitive,
-        use_handcrafted_dynamics_primitives: List[str] = ["pick", "place"],
+        use_handcrafted_dynamics_primitives: Optional[List[str]] = None,
     ) -> torch.Tensor:
         """Predicts the next state for planning.
 
@@ -331,7 +331,11 @@ class TableEnvDynamics(LatentDynamics):
 
         # Apply hand-crafted touch-ups to dynamics.
         if self._hand_crafted:
-            idx_feats = self.env.dynamic_feature_indices            
+            idx_feats = self.env.dynamic_feature_indices
+
+            if use_handcrafted_dynamics_primitives is None:
+                use_handcrafted_dynamics_primitives = ["pick", "place"]
+
             for primitive_name in use_handcrafted_dynamics_primitives:
                 if primitive_name in str(primitive).lower():
                     next_env_state[..., idx_feats] = self._apply_handcrafted_dynamics(
