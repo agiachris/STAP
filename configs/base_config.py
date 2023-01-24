@@ -233,7 +233,3 @@ class PolicyDatasetGenerationConfig:
         if self.custom_path is not None:
             return self.custom_path
         return os.path.join("models", self.exp_name)
-
-    @property
-    def eval_recording_path(self) -> str:
-        return os.path.join("plots", self.exp_name)

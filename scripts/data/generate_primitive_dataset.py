@@ -389,7 +389,6 @@ def main(config: PolicyDatasetGenerationConfig):
         trainer_config=config.trainer_config,
         agent_config=config.agent_config,
         env_config=env_config,
-        eval_recording_path=config.eval_recording_path,
         device=config.device,
         seed=config.seed,
     )

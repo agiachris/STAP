@@ -217,9 +217,6 @@ class PrimitiveDatasetGenerator:
             self.increment_epoch()
             return {"reward": reward, "episode": self.epoch}
 
-    def evaluate(self) -> None:
-        return {}
-
     def log_step(
         self, metrics_list: List[Mapping[str, float]], stage: str = "train"
     ) -> List[Mapping[str, float]]:
