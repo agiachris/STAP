@@ -64,16 +64,16 @@ function run_value {
     train_value
 }
 
-### Setup.
+#### Setup.
 SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
 output_path="models"
 plots_path="plots"
 
-### Experiments.
+#### Experiments.
 
-## Pybullet.
-exp_name="20230122/value"
+### Pybullet.
+exp_name="20230123/value"
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 
 TRAINER_CONFIG="configs/pybullet/trainers/value.yaml"
@@ -82,29 +82,44 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] |
     ENV_KWARGS="--gui 0"
 fi
 
-# Data.
+## Data.
 SYMBOLIC_ACTION_TYPE="valid"
 TRAIN_SEEDS=("0" "1" "2" "3" "4" "5" "6" "7")
 VALIDATION_SEEDS=("8" "9")
 
-# Launch primitive jobs.
+## Launch primitive jobs.
+
+# Pick w/out collisions.
 # DATA_CHECKPOINT_PATH="models/20230116/datasets"
 # PRIMITIVE="pick"
 # run_value
 
+# Place w/out collisions.
 # DATA_CHECKPOINT_PATH="models/20230116/datasets"
 # PRIMITIVE="place"
 # run_value
 
+# Pull w/ collisions.
+# DATA_CHECKPOINT_PATH="models/20230116/datasets"
+# PRIMITIVE="pull"
+# run_value
+
+# Pull w/out collisions.
 # DATA_CHECKPOINT_PATH="models/20230119/datasets"
 # PRIMITIVE="pull"
 # run_value
 
+# Push w/ collisions.
+# DATA_CHECKPOINT_PATH="models/20230116/datasets"
+# PRIMITIVE="push"
+# run_value
+
+# Push w/out collisions.
 # DATA_CHECKPOINT_PATH="models/20230119/datasets"
 # PRIMITIVE="push"
 # run_value
 
-# Sweeps.
+### Sweeps.
 function run_value_sweep {    
     for trainer_name in "${TRAINER_SWEEPS[@]}"; do
         TRAINER_CONFIG="${TRAINER_CONFIG_PATH}/${trainer_name}.yaml"
@@ -157,19 +172,34 @@ AGENT_SWEEPS=(
     # "sac_ens_value_logistics"
 )
 
-# Launch primitive sweep jobs.
+## Launch primitive sweep jobs.
+
+# Pick w/out collisions.
 # DATA_CHECKPOINT_PATH="models/20230116/datasets"
 # PRIMITIVE="pick"
 # run_value_sweep
 
+# Place w/out collisions.
 # DATA_CHECKPOINT_PATH="models/20230116/datasets"
 # PRIMITIVE="place"
 # run_value_sweep
 
+# Pull w/ collisions.
+# DATA_CHECKPOINT_PATH="models/20230116/datasets"
+# PRIMITIVE="pull"
+# run_value_sweep
+
+# Pull w/out collisions.
 # DATA_CHECKPOINT_PATH="models/20230119/datasets"
 # PRIMITIVE="pull"
 # run_value_sweep
 
+# Push w/ collisions.
+# DATA_CHECKPOINT_PATH="models/20230116/datasets"
+# PRIMITIVE="push"
+# run_value_sweep
+
+# Push w/out collisions.
 # DATA_CHECKPOINT_PATH="models/20230119/datasets"
 # PRIMITIVE="push"
 # run_value_sweep
