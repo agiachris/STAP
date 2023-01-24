@@ -130,6 +130,9 @@ class TableEnv(PybulletEnv):
         high=np.tile(object_state.ObjectState.range()[1], (MAX_NUM_OBJECTS, 1)),
     )
 
+    static_feature_indices = object_state.ObjectState.static_feature_indices()
+    dynamic_feature_indices = object_state.ObjectState.dynamic_feature_indices()
+
     metadata = {
         "render_modes": [
             "default",
@@ -184,8 +187,8 @@ class TableEnv(PybulletEnv):
         """
         super().__init__(name=name, gui=gui)
 
-        # TODO: Bug-fix multiprocessing stalls.
-        # Launch external reset process.
+        # TODO (Chris Agia): Bug-fix multiprocessing stalls.
+        # Launch external reset process. 
         # if reset_queue_size <= 0 or num_processes <= 1:
         #     self._process_pipes: Optional[
         #         List[multiprocessing.connection.Connection]
@@ -223,12 +226,8 @@ class TableEnv(PybulletEnv):
         #     ]
         #     for process in self._reset_processes:
         #         process.start()
-        self._process_pipes: Optional[
-            List[multiprocessing.connection.Connection]
-        ] = None
-        self._seed_queue: Optional[
-            multiprocessing.Queue[Tuple[int, Optional[dict]]]
-        ] = None
+        self._process_pipes: Optional[List[multiprocessing.connection.Connection]] = None
+        self._seed_queue: Optional[multiprocessing.Queue[Tuple[int, Optional[dict]]]] = None
         self._seed_buffer = None
         self._reset_processes = None
         self._process_id: Optional[Tuple[int, int]] = None

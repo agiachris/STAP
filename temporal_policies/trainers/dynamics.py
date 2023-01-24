@@ -1,5 +1,5 @@
 import pathlib
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Type, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Type, Union, Generator
 
 import numpy as np
 import torch
@@ -8,6 +8,7 @@ import tqdm
 from temporal_policies import agents, datasets, dynamics, processors
 from temporal_policies.schedulers import DummyScheduler
 from temporal_policies.trainers.agents import AgentTrainer
+from temporal_policies.trainers.policy import PolicyTrainer
 from temporal_policies.trainers.base import Trainer
 from temporal_policies.trainers.utils import TrainerFactory
 from temporal_policies.utils import configs, tensors
@@ -49,6 +50,7 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         profile_freq: Optional[int] = None,
         eval_metric: str = "l2_loss",
         num_data_workers: int = 0,
+        name: Optional[str] = None,
     ):
         """Prepares the dynamics trainer for training.
 
@@ -82,8 +84,11 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             profile_freq: Profiling frequency.
             eval_metric: Metric to use for evaluation.
             num_data_workers: Number of workers to use for dataloader.
+            name: Optional trainer name. Uses env name by default.
         """
-        path = pathlib.Path(path) / "dynamics"
+        if name is None:
+            name = "dynamics"
+        path = pathlib.Path(path) / name
 
         # Get agent trainers.
         if agent_trainers is None:
@@ -110,14 +115,6 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                 )
 
                 agent_trainer = agent_trainer_factory(
-                    # hardcoded for now: TODO make configurable
-                    # doing so fixes validation split to these checkpoints
-                    eval_dataset_checkpoints=[
-                        "/juno/u/thankyou/autom/t2m/models/official/pick/eval_data",
-                        "/juno/u/thankyou/autom/t2m/models/official/place/eval_data",
-                        "/juno/u/thankyou/autom/t2m/models/official/push/eval_data",
-                        "/juno/u/thankyou/autom/t2m/models/official/pull/eval_data",
-                    ],
                     dataset_kwargs=dict(
                         agent_trainer_factory.kwargs["dataset_kwargs"],
                         skip_truncated=skip_truncated,
@@ -132,16 +129,13 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                         skip_failed=skip_failed,
                     ),
                 )
-                print(f"skip_truncated: {skip_truncated}, skip_failed: {skip_failed}")
-                assert isinstance(agent_trainer, AgentTrainer)
+                if not isinstance(agent_trainer, (AgentTrainer, PolicyTrainer)):
+                    raise ValueError("Trainer checkpoint must be AgentTrainer or PolicyTrainer.")
                 agent_trainers.append(agent_trainer)
 
         dataset_class = configs.get_class(dataset_class, datasets)
         dataset = dataset_class(
             [trainer.dataset for trainer in agent_trainers], **dataset_kwargs
-        )
-        val_dataset = dataset_class(
-            [trainer.val_dataset for trainer in agent_trainers], **dataset_kwargs
         )
         eval_dataset = dataset_class(
             [trainer.eval_dataset for trainer in agent_trainers], **dataset_kwargs
@@ -166,7 +160,6 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             path=path,
             model=dynamics,
             dataset=dataset,
-            val_dataset=val_dataset,
             eval_dataset=eval_dataset,
             processor=processor,
             optimizers=optimizers,
@@ -184,12 +177,21 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             num_data_workers=num_data_workers,
         )
 
-        self._eval_dataloader: Optional[torch.utils.data.DataLoader] = None
+        self._eval_dataloader = self.create_dataloader(self.eval_dataset, self.num_data_workers)
+        self._eval_batches = iter(self.eval_dataloader)
 
     @property
     def dynamics(self) -> dynamics.LatentDynamics:
         """Dynamics model being trained."""
         return self.model
+    
+    @property
+    def eval_dataloader(self) -> torch.utils.data.DataLoader:
+        return self._eval_dataloader
+
+    @property
+    def eval_batches(self) -> Generator[WrappedBatch, None, None]:
+        return self._eval_batches
 
     def process_batch(self, batch: WrappedBatch) -> DynamicsBatch:
         """Formats the replay buffer batch for the dynamics model.
@@ -215,34 +217,29 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
         Returns:
             Eval metrics.
         """
-        if self._eval_dataloader is None:
-            # by default, use eval_dataset if provided; TODO(klin)
-            # unclear if code ever hits if statement since
-            # loaded checkpoint always has eval_dataset?
-            if len(self.eval_dataset) == 0:
-                assert len(self.val_dataset) > 0, "No eval or val dataset"
-                self._eval_dataloader = self.create_dataloader(self.val_dataset, 4)
-            else:
-                self._eval_dataloader = self.create_dataloader(self.eval_dataset, 4)
-
         self.eval_mode()
 
-        eval_metrics_list: List[Mapping[str, Union[Scalar, np.ndarray]]] = []
-        pbar = tqdm.tqdm(
-            self._eval_dataloader,
-            desc=f"Eval {self.name}",
-            dynamic_ncols=True,
-        )
-        for eval_step, batch in enumerate(pbar):
-            if eval_step == self.num_eval_steps:
-                break
+        with self.profiler.profile("evaluate"):
+            eval_metrics_list: List[Mapping[str, Union[Scalar, np.ndarray]]] = []
+            pbar = tqdm.tqdm(
+                range(self.num_eval_steps),
+                desc=f"Eval {self.name}",
+                dynamic_ncols=True,
+            )
+            for _ in pbar:
+                
+                try:
+                    batch = next(self.eval_batches)
+                except StopIteration:
+                    self._eval_batches = iter(self.eval_dataloader)
+                    batch = next(self.eval_batches)
+            
+                with torch.no_grad():
+                    batch = self.process_batch(batch)
+                    _, eval_metrics = self.dynamics.compute_loss(**batch)
 
-            with torch.no_grad():
-                batch = self.process_batch(batch)
-                loss, eval_metrics = self.dynamics.compute_loss(**batch)
-
-            pbar.set_postfix({self.eval_metric: eval_metrics[self.eval_metric]})
-            eval_metrics_list.append(eval_metrics)
+                eval_metrics_list.append(eval_metrics)
+                pbar.set_postfix({self.eval_metric: eval_metrics[self.eval_metric]})
 
         self.train_mode()
 

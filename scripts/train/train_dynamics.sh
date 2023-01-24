@@ -7,8 +7,8 @@ GCP_LOGIN="juno-login-lclbjqwy-001"
 function run_cmd {
     echo ""
     echo "${CMD}"
-    if [[ `hostname` == "sc.stanford.edu" ]]; then
-        sbatch scripts/train/train_juno.sh "${CMD}"
+    if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
+        sbatch "${SBATCH_SLURM}" "${CMD}"
     elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
         sbatch scripts/train/train_gcp.sh "${CMD}"
     else
@@ -26,6 +26,9 @@ function train_dynamics {
     args="${args} --seed 0"
     args="${args} ${ENV_KWARGS}"
 
+    if [ ! -z "${NAME}" ]; then
+        args="${args} --name ${NAME}"
+    fi
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --path ${DYNAMICS_OUTPUT_PATH}_debug"
         args="${args} --overwrite"
@@ -38,56 +41,72 @@ function train_dynamics {
     run_cmd
 }
 
-# Setup.
+function run_dynamics {
+    NAME=""
+    POLICY_CHECKPOINTS=()
+    for primitive in "${PRIMITIVES[@]}"; do
+        POLICY_CHECKPOINTS+=("${POLICY_CHECKPOINT_PATHS[${primitive}]}")
+
+        if [ -z "${NAME}" ]; then
+            NAME="${primitive}"
+        else
+            NAME="${NAME}_${primitive}"
+        fi
+    done
+    NAME="${NAME}_dynamics"
+
+    train_dynamics
+}
+
+### Setup.
+SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
 output_path="models"
 
-# Experiments.
+### Experiments.
 
+## Pybullet.
+exp_name="20230121/dynamics"
+DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}"
 
-# Pybox2d.
-
-# exp_name="20220806/pybox2d"
-# TRAINER_CONFIG="configs/pybox2d/trainers/dynamics.yaml"
-# DYNAMICS_CONFIG="configs/pybox2d/dynamics/shared.yaml"
-# policy_envs=("placeright" "pushleft")
-# checkpoints=(
-#     "final_model"
-#     # "best_model"
-#     # "ckpt_model_50000"
-#     # "ckpt_model_100000"
-# )
-
-# Pybullet.
-
-exp_name="20230101/complete_q_multistage/"
-TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
-policy_envs=("pick_0" "place_0" "pull_0" "push_0")
-# policy_envs=( "pick_0") # "pull_0" "push_0")
-# policy_envs=( "push_0") # "pull_0" "push_0")
-checkpoints=(
-    # "final_model"
-    # "best_model"
-    # "select_model"
-    # "ckpt_model_50000"
-    # "ckpt_model_100000"
-    # "ckpt_model_150000"
-    # "ckpt_model_200000"
-    "ckpt_model_300000"
-)
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
-ENV_KWARGS="--gui 0"
+# Launch primitive dynamics jobs.
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+PRIMITIVES=("pick")
+declare -A POLICY_CHECKPOINT_PATHS=(["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt")
+run_dynamics
 
-for ckpt in "${checkpoints[@]}"; do
-    POLICY_CHECKPOINTS=()
-    for policy_env in "${policy_envs[@]}"; do
-        POLICY_CHECKPOINTS+=("${output_path}/${exp_name}/${policy_env}/${ckpt}.pt")
-    done
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+PRIMITIVES=("place")
+declare -A POLICY_CHECKPOINT_PATHS=(["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt")
+run_dynamics
 
-    DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}/${ckpt}"
-    train_dynamics
-done
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+PRIMITIVES=("pull")
+declare -A POLICY_CHECKPOINT_PATHS=(["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt")
+run_dynamics
+
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics_primitive.yaml"
+PRIMITIVES=("push")
+declare -A POLICY_CHECKPOINT_PATHS=(["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt")
+run_dynamics
+
+# Launch full suite dynamics jobs.
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics.yaml"
+PRIMITIVES=(
+    "pick"
+    "place"
+    "pull"
+    "push"
+)
+declare -A POLICY_CHECKPOINT_PATHS=(
+    ["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+    ["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
+    ["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+    ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+)
+run_dynamics

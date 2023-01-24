@@ -3,7 +3,7 @@
 import argparse
 import pathlib
 from pprint import pprint
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, List
 
 import numpy as np
 import tqdm
@@ -18,6 +18,8 @@ def train(
     agent_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
     eval_env_config: Optional[Union[str, pathlib.Path, Dict[str, Any]]] = None,
+    actor_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    critic_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     encoder_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     eval_recording_path: Optional[Union[str, pathlib.Path]] = None,
     resume: bool = False,
@@ -29,12 +31,11 @@ def train(
     num_pretrain_steps: Optional[int] = None,
     num_train_steps: Optional[int] = None,
     num_eval_episodes: Optional[int] = None,
-    num_actor_only_train_steps: Optional[int] = None,
-    num_critic_only_train_steps: Optional[int] = None,
-    num_original_train_steps: Optional[int] = None,
     num_env_processes: Optional[int] = None,
     num_eval_env_processes: Optional[int] = None,
-    train_multistage: bool = False,
+    train_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
+    eval_data_checkpoints: Optional[List[Union[str, pathlib.Path]]] = None,
+    name: Optional[str] = None,
 ) -> None:
 
     if resume:
@@ -75,6 +76,8 @@ def train(
         agent_factory = agents.AgentFactory(
             config=agent_config,
             env=env,
+            actor_checkpoint=actor_checkpoint,
+            critic_checkpoint=critic_checkpoint,
             encoder_checkpoint=encoder_checkpoint,
             device=device,
         )
@@ -94,12 +97,12 @@ def train(
             trainer_kwargs["num_train_steps"] = num_train_steps
         if num_eval_episodes is not None:
             trainer_kwargs["num_eval_episodes"] = num_eval_episodes
-        if num_actor_only_train_steps is not None:
-            trainer_kwargs["num_actor_only_train_steps"] = num_actor_only_train_steps
-        if num_critic_only_train_steps is not None:
-            trainer_kwargs["num_critic_only_train_steps"] = num_critic_only_train_steps
-        if num_original_train_steps is not None:
-            trainer_kwargs["num_original_train_steps"] = num_original_train_steps
+        if train_data_checkpoints is not None:
+            trainer_kwargs["train_data_checkpoints"] = train_data_checkpoints
+        if eval_data_checkpoints is not None:
+            trainer_kwargs["eval_data_checkpoints"] = eval_data_checkpoints
+        if name is not None:
+            trainer_kwargs["name"] = name
 
         print("[scripts.train.train_policy] Trainer config:")
         pprint(trainer_factory.config)
@@ -124,17 +127,14 @@ def train(
             eval_path.mkdir(parents=True, exist_ok=overwrite)
             eval_env_factory.save_config(eval_path)
 
-    if train_multistage:
-        assert hasattr(
-            trainer, "train_multistage"
-        ), "trainer doesn't have method train_multistage()"
-        trainer.train_multistage()
-    else:
-        trainer.train()
+    trainer.train()
 
     # Record gifs of the trained policy.
     if eval_recording_path is not None:
-        eval_recording_path = pathlib.Path(eval_recording_path)
+        if name is not None:
+            eval_recording_path = pathlib.Path(eval_recording_path) / name
+        else:
+            eval_recording_path = pathlib.Path(eval_recording_path) / trainer.env.name
 
         trainer.eval_mode()
         pbar = tqdm.tqdm(
@@ -148,12 +148,12 @@ def train(
             suffix = "" if eval_metrics["reward"] > 0.0 else "_fail"
             trainer.eval_env.record_stop()
             trainer.eval_env.record_save(
-                eval_recording_path / trainer.env.name / f"eval_{i}{suffix}.gif",
+                eval_recording_path / f"eval_{i}{suffix}.gif",
                 reset=True,
             )
 
             with open(
-                eval_recording_path / trainer.env.name / f"results_{i}.npz", "wb"
+                eval_recording_path / f"results_{i}.npz", "wb"
             ) as f:
                 save_dict = {
                     "seed": trainer.eval_env._seed,
@@ -171,55 +171,28 @@ def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--trainer-config",
-        "--config",
-        "-c",
-        required=True,
-        help="Path to trainer config",
-    )
-    parser.add_argument(
-        "--agent-config", "-a", required=True, help="Path to agent config"
-    )
+    parser.add_argument("--path", "-p", required=True, help="Experiment save path.")
+    parser.add_argument("--trainer-config", "--config", "-c", required=True, help="Path to trainer config",)
+    parser.add_argument("--agent-config", "-a", required=True, help="Path to agent config")
     parser.add_argument("--env-config", "-e", required=True, help="Path to env config")
     parser.add_argument("--eval-env-config", help="Path to evaluation env config")
+    parser.add_argument("--actor-checkpoint", help="Path to actor checkpoint")
+    parser.add_argument("--critic-checkpoint", help="Path to critic checkpoint")
     parser.add_argument("--encoder-checkpoint", help="Path to encoder checkpoint")
-    parser.add_argument("--path", "-p", required=True)
-    parser.add_argument("--eval-recording-path")
+    parser.add_argument("--eval-recording-path", help="Path to record final policy.")
     parser.add_argument("--resume", action="store_true", default=False)
     parser.add_argument("--overwrite", action="store_true", default=False)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, help="Random seed")
     parser.add_argument("--gui", type=int, help="Show pybullet gui")
     parser.add_argument("--use-curriculum", type=int, help="Use training curriculum")
-    parser.add_argument(
-        "--num-pretrain-steps", type=int, help="Number of steps to pretrain"
-    )
+    parser.add_argument("--num-pretrain-steps", type=int, help="Number of steps to pretrain")
     parser.add_argument("--num-train-steps", type=int, help="Number of steps to train")
-    parser.add_argument(
-        "--num-actor-only-train-steps",
-        type=int,
-        help="Number of steps to train actor only",
-    )
-    parser.add_argument(
-        "--num-critic-only-train-steps",
-        type=int,
-        help="Number of steps to train critic only",
-    )
-    parser.add_argument(
-        "--num-original-train-steps", type=int, help="Number of steps to train original"
-    )
-    parser.add_argument(
-        "--train-multistage",
-        type=int,
-        help="Perform multistage training (critic, actor, original) or not",
-    )
-    parser.add_argument(
-        "--num-eval-episodes", type=int, help="Number of episodes per evaluation"
-    )
+    parser.add_argument("--num-eval-episodes", type=int, help="Number of episodes per evaluation")
     parser.add_argument("--num-env-processes", type=int, help="Number of env processes")
-    parser.add_argument(
-        "--num-eval-env-processes", type=int, help="Number of eval env processes"
-    )
+    parser.add_argument("--num-eval-env-processes", type=int, help="Number of eval env processes")
+    parser.add_argument("--train-data-checkpoints", nargs="+", help="Paths to train data checkpoints")
+    parser.add_argument("--eval-data-checkpoints", nargs="+", help="Paths to eval data checkpoints")
+    parser.add_argument("--name", type=str, help="Experiment name")
 
     main(parser.parse_args())

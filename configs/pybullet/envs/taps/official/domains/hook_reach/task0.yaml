@@ -18,8 +18,13 @@ env_kwargs:
       initial_state:
         - free(hook)
         - free(blue_box)
+        - aligned(rack)
+        - poslimit(rack)
+        - inworkspace(rack)
         - inworkspace(hook)
         - beyondworkspace(blue_box)
+        - nonblocking(blue_box, rack)
+        - on(rack, table)
         - on(hook, table)
         - on(blue_box, table)
         
@@ -31,6 +36,11 @@ env_kwargs:
         name: table
         path: configs/pybullet/envs/assets/iprl_table.urdf
         is_static: true
+    - object_type: Rack
+      object_kwargs:
+        name: rack
+        size: [0.22, 0.32, 0.16]
+        color: [0.4, 0.2, 0.0, 1.0]
     - object_type: Hook
       object_kwargs:
         name: hook

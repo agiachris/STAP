@@ -1,0 +1,28 @@
+trainer: ValueTrainer
+trainer_kwargs:
+  dataset_class: ReplayBuffer
+  dataset_kwargs:
+    capacity: 1600000
+    batch_size: 128
+    sample_strategy: uniform
+  eval_dataset_kwargs:
+    capacity: 400000
+    batch_size: 128
+    sample_strategy: uniform
+
+  optimizer_class: Adam
+  optimizer_kwargs:   
+    actor:
+      lr: 0.0001
+    critic:
+      lr: 0.0001
+      weight_decay: 0.00005
+    log_alpha:
+      lr: 0.0001
+  
+  num_train_steps: 1500000
+  num_eval_episodes: 1000
+  eval_freq: 10000
+  checkpoint_freq: 100000
+  log_freq: 1000
+  profile_freq: 100

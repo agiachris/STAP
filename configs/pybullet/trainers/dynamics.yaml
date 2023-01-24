@@ -8,11 +8,11 @@ trainer_kwargs:
 
   optimizer_class: Adam
   optimizer_kwargs:
-    lr: 0.001
+    lr: 0.0005
 
-  num_train_steps: 120000
-  num_eval_steps: 100
-  eval_freq: 2000
+  num_train_steps: 500000
+  num_eval_steps: 1000
+  eval_freq: 1000
   checkpoint_freq: 10000
   log_freq: 2000
   profile_freq: 100

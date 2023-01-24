@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 from ctrlutils import eigen
 import numpy as np
@@ -21,6 +21,28 @@ class ObjectState:
         "handle_length": (0.0, 0.5),
         "handle_y": (-1.0, 1.0),
     }
+    FEATURES = {
+        "x": {"dynamic"},
+        "y": {"dynamic"},
+        "z": {"dynamic"},
+        "wx": {"dynamic"},
+        "wy": {"dynamic"},
+        "wz": {"dynamic"},
+        "box_size_x": {"static"},
+        "box_size_y": {"static"},
+        "box_size_z": {"static"},
+        "head_length": {"static"},
+        "handle_length": {"static"},
+        "handle_y": {"static"},
+    }
+
+    @classmethod
+    def dynamic_feature_indices(cls) -> List[int]:
+        return [i for i, f in enumerate(list(cls.FEATURES.values())) if "dynamic" in f]
+        
+    @classmethod
+    def static_feature_indices(cls) -> List[int]:
+        return [i for i, f in enumerate(list(cls.FEATURES.values())) if "static" in f]
 
     def __init__(self, vector: Optional[np.ndarray] = None):
         if vector is None:

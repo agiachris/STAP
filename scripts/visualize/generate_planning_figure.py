@@ -3,6 +3,7 @@
 import pathlib
 from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
+import argparse
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -69,25 +70,52 @@ def create_dataframe(
         elif "daf" in tokens[0]:
             return "DAF Gen"
 
+        uq = tokens[0]
+        if uq in ["ensemble", "scod"]:
+            tokens.pop(0)
+            if uq == "ensemble":
+                uq = "Ens."
+            elif uq == "scod":
+                uq = "SCOD"
+        else:
+            uq = None
+        
         policy = tokens[0]
-        planner = tokens[1]
-        if planner == "cem":
-            planner = planner.upper()
         if policy == "random":
             policy = "rand."
-        if planner == "shooting":
+
+        planner = tokens[1]
+        if planner == "cem":
+            planner = "CEM"
+        elif planner == "shooting":
             planner = "Shoot."
 
-        return f"{policy.capitalize()} {planner}"
+        if len(tokens) > 2:
+            for t in tokens[2:]:
+                p = t.split("-")
+                planner = f"{planner} {p[0][0].upper()}={p[-1]}"
+        
+        if uq is None:
+            return f"{policy.capitalize()} {planner}"
+
+        return f"{uq} {policy.capitalize()} {planner}"
 
     def get_task_label(task: Optional[str]) -> str:
         if task is None:
             return ""
 
         tokens = task.split("/")
-        domain = " ".join([w.capitalize() for w in tokens[0].split("_")])
+        task_name = f"Task {tokens[-1][-1]}"
+        if len(tokens) == 1:
+            # T2M results.
+            return f"Text2Motion: {task_name}"
+        elif len(tokens) == 2:
+            # TAPS results.
+            domain_name = " ".join([w.capitalize() for w in tokens[0].split("_")])
+            return f"{domain_name}: {task_name}"
+        else:
+            raise ValueError("No support for tasks outside of TAPS or T2M.")
 
-        return f"{domain}: TAMP Task"
 
     df_plans: Dict[str, List[Any]] = {
         "Task": [],
@@ -125,8 +153,9 @@ def create_dataframe(
 def plot_planning_results(
     df_plans: pd.DataFrame,
     path: Union[str, pathlib.Path],
+    name: str,
 ) -> None:
-    palette = palette = sns.color_palette()[:5] + sns.color_palette()[6:]
+    palette = sns.color_palette()[:5] + sns.color_palette()[6:]
 
     def barplot(
         ax: plt.Axes,
@@ -213,17 +242,7 @@ def plot_planning_results(
 
     tasks = df_plans["Task"].unique()
     fig, axes = plt.subplots(3, 3, figsize=(10, 7), dpi=300)
-    # ax = axes[0]
-    # barplot(
-    #     ax=ax,
-    #     df_plans=df_plans,
-    #     x="Method",
-    #     y="Task Success",
-    #     hue="Success Type",
-    #     ylim=[0, 1],
-    # )
-    # ax.set_title("Average")
-
+    
     for idx_task, task in enumerate(tasks):
         ax = axes.flatten()[idx_task]
         barplot(
@@ -264,45 +283,27 @@ def plot_planning_results(
             label="Sub-goal completion",
         ),
     ]
-    axes[0, -1].legend(handles=patches, loc="upper right")
+    # axes[0, -1].legend(handles=patches, loc="upper right")
 
     path = pathlib.Path(path)
 
     fig.tight_layout()
     fig.savefig(
-        "5-planning.pdf",
+        f"figures/paper/{name}-planning.pdf",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,
     )
-    # plt.close(fig)
 
 
 if __name__ == "__main__":
-    path = "../../plots/20220914/official/select_model"
-    envs = [
-        "hook_reach/task0",
-        "hook_reach/task1",
-        "hook_reach/task2",
-        "constrained_packing/task0",
-        "constrained_packing/task1",
-        "constrained_packing/task2",
-        "rearrangement_push/task0",
-        "rearrangement_push/task1",
-        "rearrangement_push/task2",
-    ]
-    methods = [
-        "policy_cem",
-        "policy_shooting",
-        "daf_random_cem",
-        "train0/daf_random_cem",
-        "train1/daf_random_cem",
-        "train2/daf_random_cem",
-        "random_cem",
-        "random_shooting",
-        "greedy",
-    ]
-    results = load_results(path, envs, methods)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", help="Path for output plots.")
+    parser.add_argument("--envs", nargs="+", help="Planning domain subdirectories.")
+    parser.add_argument("--methods", nargs="+", help="Method subdirectories.")
+    parser.add_argument("--name", default="test", help="Figure filename.")
+    args = parser.parse_args()
 
+    results = load_results(args.path, args.envs, args.methods)
     df_plans = create_dataframe(results)
-    plot_planning_results(df_plans, path)
+    plot_planning_results(df_plans, args.path, args.name)

@@ -99,6 +99,7 @@ def authenticate(
     return register_api_key(api_type, api_key)
 
 
+
 def generate_current_setting_prompt(
     instruction: str,
     objects: List[str],

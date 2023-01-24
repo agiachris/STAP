@@ -52,8 +52,4 @@ env_kwargs:
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/icecream.yaml
-    # - object_type: Box
-    #   object_kwargs:
-    #     name: cyan_box
-    #     size: [0.06, 0.03, 0.06]
-    #     color: [0.0, 1.0, 1.0, 1.0]
+   

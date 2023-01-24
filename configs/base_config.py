@@ -1,63 +1,71 @@
-from dataclasses import dataclass, field
+from typing import Literal, Optional, Dict
+
+import os
 import dataclasses
+from dataclasses import dataclass, field
 from functools import cached_property
-from typing import Literal, Optional
 
 from temporal_policies.task_planners.lm_data_structures import APIType
 
 
 @dataclass
 class PDDLConfig:
-    pddl_root_dir: str = "configs/pybullet/envs/official/domains"
-    pddl_domain: Literal[
-        "constrained_packing", "hook_reach", "template"
-    ] = "constrained_packing"
-    pddl_problem_prefix: str = "new_tamp_problem"
-    pddl_file_name: str = "tamp0_domain.pddl"
-    _pddl_problem_file: str = ""
-    custom_pddl_domain_file: str = ""
+    domain_dir: str = "configs/pybullet/envs/t2m/official/template"
+    domain_file: str = "template_domain.pddl"
+    problem_dir: Optional[str] = None
+    problem_subdir: Optional[str] = None
+    instruction_dir: Optional[str] = None
+    prompt_dir: Optional[str] = None
+    custom_domain_file: Optional[str] = None
+    _pddl_problem_file: Optional[str] = None
 
     @cached_property
     def pddl_domain_file(self) -> str:
-        if self.custom_pddl_domain_file != "":
-            return self.custom_pddl_domain_file
-        return self.pddl_root_dir + "/" + self.pddl_domain + "/" + self.pddl_file_name
+        if self.custom_domain_file is not None:
+            return self.custom_domain_file
+        return os.path.join(self.domain_dir, self.domain_file)
 
     @property
     def pddl_problem_file(self) -> str:
-        assert self._pddl_problem_file != ""
+        if self._pddl_problem_file is None:
+            raise ValueError("Must set PDDLConfig.pddl_problem_file before calling.")
         return self._pddl_problem_file
 
     @pddl_problem_file.setter
-    def pddl_problem_file(self, value: str) -> None:
-        self._pddl_problem_file = value
+    def pddl_problem_file(self, x: str) -> None:
+        self._pddl_problem_file = x
+
+    @property
+    def pddl_domain_dir(self) -> str:
+        return self.domain_dir
+
+    @property
+    def pddl_problem_dir(self) -> str:
+        if self.problem_dir is None and self.problem_subdir is None:
+            problem_dir = self.domain_dir
+        elif self.problem_dir is None and self.problem_subdir is not None:
+            problem_dir = os.path.join(self.domain_dir, self.problem_subdir)
+        else:
+            problem_dir = self.problem_dir
+        return problem_dir
 
     def get_problem_file(self, problem_name: str) -> str:
-        problem_file = (
-            self.pddl_root_dir + "/" + self.pddl_domain + "/" + problem_name + ".pddl"
-        )
+        problem_dir = self.pddl_problem_dir
+        problem_file = os.path.join(problem_dir, problem_name + ".pddl")
         self.pddl_problem_file = problem_file
         return problem_file
 
     def get_instructions_file(self, problem_name: str) -> str:
-        return (
-            self.pddl_root_dir
-            + "/"
-            + self.pddl_domain
-            + "/"
-            + problem_name
-            + "_instructions.txt"
-        )
+        if self.instruction_dir is not None:
+            return os.path.join(
+                self.instruction_dir, problem_name + "_instructions.txt"
+            )
+        return os.path.join(self.domain_dir, problem_name + "_instructions.txt")
 
     def get_prompt_file(self, problem_name: str) -> str:
-        return (
-            self.pddl_root_dir
-            + "/"
-            + self.pddl_domain
-            + "/"
-            + problem_name
-            + "_prompt.json"
-        )
+        if self.prompt_dir is not None:
+            return os.path.join(self.prompt_dir, problem_name + "_prompt.json")
+        return os.path.join(self.domain_dir, problem_name + "_prompt.json")
 
 
 @dataclass
@@ -175,54 +183,69 @@ class EvaluationConfig:
 
 @dataclass
 class PolicyDatasetGenerationConfig:
-    """
-    Configuration for generating a dataset of (s, a, s', r) tuples
-    for a policy training task.
-    """
+    """Configuration for generating a dataset of (s, a, s', r) tuples."""
 
-    pddl_cfg: PDDLConfig = dataclasses.field(
-        default_factory=lambda: PDDLConfig(pddl_domain="template")
-    )
-    trainer_config: str = "configs/pybullet/trainers/data_collection.yaml"
-    agent_config: str = "configs/pybullet/agents/sac.yaml"
+    split: str = "train"
+    exp_name: str = "20230116/datasets"
+    custom_path: Optional[str] = None
+    # Trainer configs.
+    trainer_config: str = "configs/pybullet/trainers/primitive_dataset.yaml"
+    agent_config: str = "configs/pybullet/agents/single_stage/sac.yaml"
     env_config: str = ""
     eval_env_config: str = ""
     encoder_checkpoint: Optional[str] = None
-    max_num_box_obj: int = 4
-    min_num_box_obj: int = 3
-    exp_name: str = "20230105/dataset_collection"
-    custom_path: str = ""
     resume: str = False
     overwrite: str = False
     device: str = "auto"
     seed: int = 0
     gui: int = 0
     use_curriculum: int = 0
-    num_pretrain_steps: int = 50000
+    num_pretrain_steps: int = 100000
     num_train_steps: int = 0
     num_eval_episodes: int = 0
     num_env_processes: int = 1
-    num_eval_env_processes: int = 1
-    primitive: Literal["pick", "place", "push", "pull"] = "pick"
-    template_yaml_path: str = (
-        "configs/pybullet/envs/official/domains/template/template_env.yaml"
+    num_eval_env_processes: int = 0
+    # Dataset generation configs.
+    pddl_config: PDDLConfig = dataclasses.field(default_factory=lambda: PDDLConfig())
+    template_env_yaml: str = (
+        "configs/pybullet/envs/t2m/official/template/template_env.yaml"
     )
-    symbolic_action_type: Literal[
-        "symbolically_valid_actions", "syntactically_valid_symbolically_invalid_actions"
-    ] = "symbolically_valid_actions"
-    save_primitive_env_config: bool = True
+    primitive: Literal["pick", "place", "push", "pull"] = "pick"
+    symbolic_action_type: Literal["valid", "invalid", "all"] = "valid"
+    save_env_config: bool = True
+    object_types: Dict[str, str] = dataclasses.field(
+        default_factory=lambda: {
+            "table": "unmovable",
+            "rack": "receptacle",
+            "hook": "tool",
+            "milk": "box",
+            "yogurt": "box",
+            "icecream": "box",
+            "salt": "box",
+        }
+    )
 
     @property
-    def save_primitive_env_config_path(self) -> str:
-        return f"configs/pybullet/envs/official/primitives/{self.primitive}_{self.seed}_{self.symbolic_action_type}.yaml"
+    def env_root_dir(self) -> str:
+        path = os.path.join(
+            "configs/pybullet/envs/t2m/official/primitives", self.exp_name
+        )
+        return path
+
+    @property
+    def env_name(self) -> str:
+        return f"{self.split}_{self.symbolic_action_type}_{self.primitive}_{self.seed}"
+
+    @property
+    def env_config_path(self) -> str:
+        return os.path.join(self.env_root_dir, self.env_name + ".yaml")
 
     @property
     def path(self) -> str:
-        if self.custom_path == "":
-            return f"models/{self.exp_name}/min{self.min_num_box_obj}_max{self.max_num_box_obj}_num_box_obj/"
-        else:
+        if self.custom_path is not None:
             return self.custom_path
+        return os.path.join("models", self.exp_name)
 
     @property
     def eval_recording_path(self) -> str:
-        return f"plots/{self.exp_name}"
+        return os.path.join("plots", self.exp_name)

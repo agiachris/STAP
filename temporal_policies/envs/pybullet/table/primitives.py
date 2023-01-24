@@ -1,6 +1,6 @@
 import abc
 import random
-from typing import Callable, Dict, List, Optional, NamedTuple, Type
+from typing import Callable, Dict, List, Optional, NamedTuple, Type, Union
 
 from ctrlutils import eigen
 import gym
@@ -49,7 +49,6 @@ def did_object_move(
 
     delta_xyz = float(np.linalg.norm(T_new_to_old.translation))
     delta_theta = eigen.AngleAxisd(eigen.Quaterniond(T_new_to_old.linear)).angle
-
     return delta_xyz >= max_delta_xyz or delta_theta >= max_delta_theta
 
 
@@ -192,19 +191,36 @@ class Primitive(envs.Primitive, abc.ABC):
             if obj not in self.arg_objects and not obj.isinstance(Null)
         ]
 
-    def create_non_arg_movement_check(
-        self, objects: Dict[str, Object]
+    def create_object_movement_check(
+        self, 
+        non_arg_objects: bool = True,
+        arg_objects: bool = False,
+        custom_objects: bool = False,
+        objects: Optional[Union[List[Object], Dict[str, Object]]] = None,
     ) -> Callable[[], bool]:
         """Returns a function that checks if any non-primitive argument has been significantly perturbed."""
-        # Get non-arg object poses.
-        non_arg_objects = self.get_non_arg_objects(objects)
-        old_poses = [obj.pose() for obj in non_arg_objects]
+        if sum([non_arg_objects, arg_objects, custom_objects]) != 1:
+            raise ValueError("Must specify only one of non_arg_objects, arg_objects, or custom_objects.")
+        
+        # Get specified objects.           
+        if non_arg_objects:
+            if objects is None or not isinstance(objects, dict):
+                raise ValueError("Require dictionary of objects for non-arg object movement check.")
+            objects = self.get_non_arg_objects(objects)
+        elif custom_objects:
+            if objects is None or not isinstance(objects, list):
+                raise ValueError("Require list of objects for custom object movement check.")
+        else:
+            objects = self.arg_objects
+
+        # Get object poses.
+        old_poses = [obj.pose() for obj in objects]
 
         def did_non_args_move() -> bool:
             """Checks if any object has moved significantly from its old pose."""
             return any(
                 did_object_move(obj, old_pose)
-                for obj, old_pose in zip(non_arg_objects, old_poses)
+                for obj, old_pose in zip(objects, old_poses)
             )
 
         return did_non_args_move
@@ -273,7 +289,7 @@ class Pick(Primitive):
         robot = self.env.robot
         allow_collisions = self.ALLOW_COLLISIONS or real_world
         if not allow_collisions:
-            did_non_args_move = self.create_non_arg_movement_check(objects)
+            did_non_args_move = self.create_object_movement_check(objects=objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
             if not allow_collisions and did_non_args_move():
@@ -393,7 +409,7 @@ class Place(Primitive):
         robot = self.env.robot
         allow_collisions = self.ALLOW_COLLISIONS or real_world
         if not allow_collisions:
-            did_non_args_move = self.create_non_arg_movement_check(objects)
+            did_non_args_move = self.create_object_movement_check(objects=objects)
         try:
             robot.goto_pose(pre_pos, command_quat)
             if not allow_collisions and did_non_args_move():
@@ -474,7 +490,7 @@ class Pull(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PullAction.range())
     Action = primitive_actions.PullAction
-    ALLOW_COLLISIONS = True
+    ALLOW_COLLISIONS = False
 
     def execute(
         self, action: np.ndarray, real_world: bool = False, verbose: bool = False
@@ -535,7 +551,7 @@ class Pull(Primitive):
         robot = self.env.robot
         allow_collisions = self.ALLOW_COLLISIONS or real_world
         if not allow_collisions:
-            did_non_args_move = self.create_non_arg_movement_check(objects)
+            did_non_args_move = self.create_object_movement_check(objects=objects)
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             if not self.ALLOW_COLLISIONS and did_non_args_move():
@@ -573,7 +589,7 @@ class Pull(Primitive):
                 )
             if allow_collisions:
                 # No objects should move after lifting the hook.
-                did_non_args_move = self.create_non_arg_movement_check(objects)
+                did_non_args_move = self.create_object_movement_check(objects=objects)
 
             robot.goto_pose(post_pos, command_pose_pull.quat)
             if did_non_args_move():
@@ -633,7 +649,7 @@ class Push(Primitive):
     action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(4,))
     action_scale = gym.spaces.Box(*primitive_actions.PushAction.range())
     Action = primitive_actions.PushAction
-    ALLOW_COLLISIONS = True
+    ALLOW_COLLISIONS = False
 
     def execute(self, action: np.ndarray, real_world: bool = False) -> ExecutionResult:
         from temporal_policies.envs.pybullet.table_env import TableEnv
@@ -688,7 +704,11 @@ class Push(Primitive):
         objects = self.env.objects
         allow_collisions = self.ALLOW_COLLISIONS or real_world
         if not allow_collisions:
-            did_non_args_move = self.create_non_arg_movement_check(objects)
+            did_non_args_move = self.create_object_movement_check(
+                non_arg_objects=False,
+                custom_objects=True,
+                objects=[obj for obj in objects.values() if obj.isinstance(Rack)] + self.get_non_arg_objects(objects)
+            )
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
             if not allow_collisions and did_non_args_move():
@@ -707,8 +727,10 @@ class Push(Primitive):
                 raise ControlException("Target is not upright", target.pose().quat)
             if allow_collisions and not real_world:
                 # Avoid pushing off the rack.
-                did_rack_move = self.create_non_arg_movement_check(
-                    {obj.name: obj for obj in objects.values() if obj.isinstance(Rack)}
+                did_rack_move = self.create_object_movement_check(
+                    non_arg_objects=False,
+                    custom_objects=True,
+                    objects=[obj for obj in objects.values() if obj.isinstance(Rack)]
                 )
 
             robot.goto_pose(
