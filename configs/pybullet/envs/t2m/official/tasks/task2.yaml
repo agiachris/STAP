@@ -30,7 +30,7 @@ env_kwargs:
         - on(cyan_box, table)
         - on(yellow_box, table)
       goal_propositions:
-        - under(cyan, rack)
+        - under(cyan_box, rack)
       supported_predicates:
         - under(a, b)
         - on(a, b)

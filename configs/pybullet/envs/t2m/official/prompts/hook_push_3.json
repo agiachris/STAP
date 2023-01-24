@@ -25,9 +25,7 @@
         "human": "How would you push all the boxes under the rack?",
         "explanation": null,
         "goal": [
-            "on(hook, table)",
-            "on(yellow_box, rack)",
-            "on(rack, table)"
+            "under(yellow_box, rack)"
         ],
         "robot_action_sequence": [
             "pick(hook)",

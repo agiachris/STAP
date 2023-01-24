@@ -29,8 +29,8 @@
         "human": "How would you push all the boxes under the rack?",
         "explanation": null,
         "goal": [
-            "under(blue_box, table)",
-            "under(cyan_box, table)"
+            "under(blue_box, rack)",
+            "under(cyan_box, rack)"
         ],
         "robot_action_sequence": [
             "pick(blue_box)",
