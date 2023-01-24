@@ -17,7 +17,7 @@ class PrimitiveDatasetGenerator:
         self,
         path: Union[str, pathlib.Path],
         agent: agents.RLAgent,
-        dataset_size: int = 100000,
+        dataset_size: int = 50000,
         collection_strategy: str = "uniform",
         min_success_ratio: Optional[float] = None,
         max_failure_ratio: Optional[float] = None,
@@ -178,7 +178,6 @@ class PrimitiveDatasetGenerator:
             Collect metrics.
         """
         with self.profiler.profile("collect"):
-            breakpoint()
             observation, _ = self.env.reset()
             action = self.env.get_primitive().sample()
             next_observation, reward, terminated, truncated, info = self.env.step(action)
