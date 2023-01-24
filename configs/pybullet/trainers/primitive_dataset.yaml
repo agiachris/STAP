@@ -1,4 +1,4 @@
-trainer: AgentTrainer
+trainer: PrimitiveDatasetGenerator
 trainer_kwargs:
   dataset_class: ReplayBuffer
   dataset_kwargs:
@@ -7,14 +7,9 @@ trainer_kwargs:
     sample_strategy: uniform
     save_frequency: 1000
 
-  optimizer_class: Adam
-  optimizer_kwargs:
-    lr: 0.0001
+  dataset_size: 100000
+  collection_strategy: balanced
+  min_success_ratio: 0.4
 
-  num_pretrain_steps: 100000
-  num_train_steps: 0
-  num_eval_episodes: 0
-  eval_freq: 0
-  checkpoint_freq: 10000
   log_freq: 1000
   profile_freq: 1000

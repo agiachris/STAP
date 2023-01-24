@@ -20,7 +20,6 @@ function generate_data {
     args="${args} --config.primitive ${PRIMITIVE}"
     args="${args} --config.symbolic-action-type ${SYMBOLIC_ACTION_TYPE}"
     args="${args} --config.seed ${SEED}"
-    args="${args} --config.num-pretrain-steps ${NUM_PRETRAIN_STEPS}"
     
     CMD="python scripts/data/generate_primitive_dataset.py ${args}"    
     run_cmd
@@ -39,9 +38,8 @@ function run_data_generation {
 }
 
 # Experiments.
-EXP_NAME="20230119/datasets"
+EXP_NAME="20230124/datasets"
 SYMBOLIC_ACTION_TYPE="valid"
-NUM_PRETRAIN_STEPS="100000"
 
 # Pybullet.
 TRAIN_SEEDS=("0" "1" "2" "3" "4" "5" "6" "7")

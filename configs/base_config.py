@@ -186,25 +186,13 @@ class PolicyDatasetGenerationConfig:
     """Configuration for generating a dataset of (s, a, s', r) tuples."""
 
     split: str = "train"
-    exp_name: str = "20230116/datasets"
+    exp_name: str = "20230124/datasets"
     custom_path: Optional[str] = None
     # Trainer configs.
     trainer_config: str = "configs/pybullet/trainers/primitive_dataset.yaml"
     agent_config: str = "configs/pybullet/agents/single_stage/sac.yaml"
-    env_config: str = ""
-    eval_env_config: str = ""
-    encoder_checkpoint: Optional[str] = None
-    resume: str = False
-    overwrite: str = False
     device: str = "auto"
     seed: int = 0
-    gui: int = 0
-    use_curriculum: int = 0
-    num_pretrain_steps: int = 100000
-    num_train_steps: int = 0
-    num_eval_episodes: int = 0
-    num_env_processes: int = 1
-    num_eval_env_processes: int = 0
     # Dataset generation configs.
     pddl_config: PDDLConfig = dataclasses.field(default_factory=lambda: PDDLConfig())
     template_env_yaml: str = (

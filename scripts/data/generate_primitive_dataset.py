@@ -377,7 +377,6 @@ def main(config: PolicyDatasetGenerationConfig):
         states_to_primitives=states_to_primitives,
         template_yaml_path=config.template_env_yaml,
         primitive=config.primitive,
-        gui=config.gui,
         seed=config.seed,
         symbolic_action_type=config.symbolic_action_type,
         save_env_config=config.save_env_config,
@@ -390,20 +389,9 @@ def main(config: PolicyDatasetGenerationConfig):
         trainer_config=config.trainer_config,
         agent_config=config.agent_config,
         env_config=env_config,
-        eval_env_config=None,
-        encoder_checkpoint=config.encoder_checkpoint,
         eval_recording_path=config.eval_recording_path,
-        resume=config.resume,
-        overwrite=config.overwrite,
         device=config.device,
         seed=config.seed,
-        gui=config.gui,
-        use_curriculum=config.use_curriculum,
-        num_pretrain_steps=config.num_pretrain_steps,
-        num_train_steps=config.num_train_steps,
-        num_eval_episodes=config.num_eval_episodes,
-        num_env_processes=config.num_env_processes,
-        num_eval_env_processes=config.num_eval_env_processes,
     )
 
 
