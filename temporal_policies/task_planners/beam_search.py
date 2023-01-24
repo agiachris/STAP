@@ -334,6 +334,8 @@ class BeamSearchProblem(SearchProblem):
             auth=self.auth,
             lm_cache=self.lm_cache,
             lm_cache_file=self.lm_cache_file,
+            custom_in_context_example_robot_format="python_list",
+            custom_robot_action_sequence_format="python_list",
         )
         self.lm_cache = lm_cache
         save_lm_cache(pathlib.Path(self.lm_cache_file), lm_cache)

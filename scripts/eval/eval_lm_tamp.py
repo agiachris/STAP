@@ -5,25 +5,39 @@ PYTHONPATH=. python scripts/eval/eval_lm_tamp.py
 --planner-config configs/pybullet/planners/policy_cem.yaml
 --env-config configs/pybullet/envs/t2m/official/tasks/task0.yaml
 --policy-checkpoints
-    models/20230106/complete_q_multistage/pick_0/ckpt_model_1000000.pt 
-    models/20230101/complete_q_multistage/place_0/best_model.pt 
-    models/20230101/complete_q_multistage/pull_0/best_model.pt
-    models/20230101/complete_q_multistage/push_0/best_model.pt
---dynamics-checkpoint models/official/select_model/dynamics/best_model.pt --seed 0
+    models/20230118/policy/pick/final_model/best_model.pt
+    models/20230118/policy/place/final_model/best_model.pt
+    models/20230118/policy/pull/final_model/best_model.pt
+    models/20230118/policy/push/final_model/best_model.pt
+--dynamics-checkpoint
+    models/20230118/dynamics/pick_place_pull_push_dynamics/best_model.pt
 --pddl-domain configs/pybullet/envs/t2m/official/tasks/symbolic_domain.pddl
 --pddl-problem configs/pybullet/envs/t2m/official/tasks/task0_symbolic.pddl
 --seed 0
 --pddl-domain-name hook_reach
---max-depth 4 --timeout 10 --closed-loop 1 --num-eval 100 
---path plots/20230117/ --verbose 0 --engine davinci
+--max-depth 8 --timeout 10 --closed-loop 1 --num-eval 10
+--path plots/20230120-new-models/eval_lm_tamp/ --verbose 0 --engine davinci
 --n-examples 5
+--key-name personal-all
 """
+# --env-config configs/pybullet/envs/t2m/official/tasks/task0.yaml
+# --policy-checkpoints
+#     models/20230106/complete_q_multistage/pick_0/ckpt_model_1000000.pt 
+#     models/20230101/complete_q_multistage/place_0/best_model.pt 
+#     models/20230101/complete_q_multistage/pull_0/best_model.pt
+#     models/20230101/complete_q_multistage/push_0/best_model.pt
+# --dynamics-checkpoint models/official/select_model/dynamics/best_model.pt --seed 0
+
+# models/20230118/policy/pick/final_model/best_model.pt
+# models/20230118/policy/place/final_model/best_model.pt
+# models/20230118/policy/pull/final_model/best_model.pt
+# models/20230118/policy/push/final_model/best_model.pt
 
 import argparse
 import copy
 import pathlib
 import random
-from typing import Any, Dict, Generator, List, Optional, Sequence, Union
+from typing import Any, Dict, Generator, List, Literal, Optional, Sequence, Union
 
 from termcolor import colored
 import numpy as np
@@ -153,7 +167,9 @@ def eval_lm_tamp(
     lm_cache_file: Optional[Union[str, pathlib.Path]] = None,
     n_examples: Optional[int] = 1,
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
-    custom_in_context_example_robot_format: str = "python_list_of_lists",
+    custom_in_context_example_robot_format: Literal[
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
+    ] = "python_list",
     custom_robot_prompt: str = "Top 4 robot action sequences (python list of lists): ",
     custom_robot_action_sequence_format: str = "python_list_of_lists",
     engine: Optional[str] = None,
@@ -162,7 +178,7 @@ def eval_lm_tamp(
     api_type: Optional[APIType] = APIType.HELM,
     max_tokens: Optional[int] = 200,
     auth: Optional[Authentication] = None,
-    use_ground_truth_goal_props: bool = False,
+    use_ground_truth_goal_props: bool = True,
 ) -> None:
     # set seeds
     if seed is not None:
@@ -203,49 +219,6 @@ def eval_lm_tamp(
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
-    pick_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_pick_20k_good/ckpt_model_20000.pt"
-    place_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_eval_place_only_16_batch_size/ckpt_model_20000.pt"
-    pull_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_eval_pull_only_8_batch_size/ckpt_model_25000.pt"
-    push_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_eval_push_only_4_batch_size/ckpt_model_400.pt"
-
-    pick_planner = planners.load(
-        config=planner_config,
-        env=env,
-        policy_checkpoints=[policy_checkpoints[0]],
-        scod_checkpoints=scod_checkpoints,
-        dynamics_checkpoint=pick_ckpt,
-        device=device,
-    )
-    place_planner = planners.load(
-        config=planner_config,
-        env=env,
-        policy_checkpoints=[policy_checkpoints[1]],
-        scod_checkpoints=scod_checkpoints,
-        dynamics_checkpoint=place_ckpt,
-        device=device,
-    )
-    pull_planner = planners.load(
-        config=planner_config,
-        env=env,
-        policy_checkpoints=[policy_checkpoints[2]],
-        scod_checkpoints=scod_checkpoints,
-        dynamics_checkpoint=pull_ckpt,
-        device=device,
-    )
-    push_planner = planners.load(
-        config=planner_config,
-        env=env,
-        policy_checkpoints=[policy_checkpoints[3]],
-        scod_checkpoints=scod_checkpoints,
-        dynamics_checkpoint=push_ckpt,
-        device=device,
-    )
-    for i, single_primitive_planner in enumerate(
-        [pick_planner, place_planner, pull_planner, push_planner]
-    ):
-        planner.dynamics.network.models[
-            i
-        ] = single_primitive_planner.dynamics.network.models[0]
 
     path = pathlib.Path(path) / env.name
 
@@ -268,10 +241,13 @@ def eval_lm_tamp(
         goal_props_predicted: List[str]
         objects: List[str]
         object_relationships: List[str]
-
+        reached_goal_prop: bool = False
+        
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
         print(f"seed: {seed}")
+
+        env_state = env.get_state()
 
         task_plans = []
         motion_plans = []
@@ -318,7 +294,7 @@ def eval_lm_tamp(
         print(colored(f"minimal goal props: {goal_props_ground_truth}", "blue"))
 
         # generate prompt from environment observation\
-        lm_cfg.max_tokens = 300
+        lm_cfg.max_tokens = 500
         generated_task_plans, lm_cache = get_task_plans_from_lm(
             env.instruction,
             goal_props_predicted,
@@ -335,9 +311,9 @@ def eval_lm_tamp(
             auth=auth,
             lm_cache=lm_cache,
         )
-        save_lm_cache(lm_cache_file, lm_cache)
+        # save_lm_cache(lm_cache_file, lm_cache)
 
-        # convert action_skeleton's elements with the format pick(a) to pick(a, table)
+        # # convert action_skeleton's elements with the format pick(a) to pick(a, table)
         converted_task_plans = []
         for task_plan in generated_task_plans:
             new_task_plan = []
@@ -349,6 +325,7 @@ def eval_lm_tamp(
                     new_task_plan.append(action)
             converted_task_plans.append(new_task_plan)
         generated_task_plans = converted_task_plans
+        # generated_task_plans = [[str(action).lower() for action in env.tasks.tasks[0].action_skeleton]]
         action_skeletons_instantiated = get_task_plan_primitives_instantiated(
             generated_task_plans, env
         )
@@ -408,6 +385,8 @@ def eval_lm_tamp(
         for task_plan, motion_plan in zip(task_plans, motion_plans):
             # find first timestep where the goal is reached
             for i, state in enumerate(motion_plan.states):
+                if i > 2:
+                    continue
                 if is_satisfy_goal_props(
                     goal_props_callable, prop_testing_objs, state, use_hand_state=False
                 ):
@@ -432,14 +411,17 @@ def eval_lm_tamp(
             if len(goal_reaching_task_p_successes) > 0
             else 0
         )
-
+        idx_best= -1
         if len(goal_reaching_task_p_successes) == 0:
             print(colored("No plan reaches the goal", "red"))
+            # TODO(klin) update the logic to fall back to SayCan-like step?
             break
 
         best_task_plan = goal_reaching_task_plans[idx_best]
         best_motion_plan = goal_reaching_motion_plans[idx_best]
 
+        best_task_plan = task_plans[0]
+        best_motion_plan = motion_plans[0]
         if closed_loop:
             env.record_start()
 
@@ -685,7 +667,7 @@ if __name__ == "__main__":
     parser.add_argument("--pddl-domain", help="Pddl domain")
     parser.add_argument("--pddl-problem", help="Pddl problem")
     parser.add_argument(
-        "--max-depth", type=int, default=4, help="Task planning search depth"
+        "--max-depth", type=int, default=6, help="Task planning search depth"
     )
     parser.add_argument(
         "--timeout", type=float, default=10.0, help="Task planning timeout"
@@ -712,7 +694,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--n-examples",
         type=int,
-        default=5,
+        default=10,
         help="Number of examples to use in in context prompt",
     )
     # LMConfig

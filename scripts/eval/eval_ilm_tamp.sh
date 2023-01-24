@@ -35,7 +35,7 @@ function eval_ilm_tamp {
     args="${args} --seed 0"
     args="${args} --pddl-domain ${PDDL_DOMAIN}"
     args="${args} --pddl-problem ${PDDL_PROBLEM}"
-    args="${args} --max-depth 5"
+    args="${args} --max-depth 10"
     args="${args} --timeout 10"
     args="${args} --visualize-planning ${VIZ_PLANNING}"
     args="${args} --n-examples ${N_INCONTEXT_EXAMPLES}"
@@ -46,7 +46,7 @@ function eval_ilm_tamp {
         args="${args} --verbose 1"
         args="${args} --engine curie"
     else
-        args="${args} --num-eval 3"
+        args="${args} --num-eval 10"
         args="${args} --path ${PLANNER_OUTPUT_PATH}"
         args="${args} --verbose 0"
         args="${args} --engine davinci"
@@ -112,7 +112,7 @@ TASK_NUMS=(
     "2"
     "3"
     "4"
-    "5"
+    # "5"
     # "6"
 )
 

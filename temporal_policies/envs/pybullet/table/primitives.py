@@ -782,6 +782,29 @@ class Push(Primitive):
         return action
 
 
+class Null(Primitive):
+    """Null primitive."""
+    
+    def __init__(self, env: Optional[envs.Env] = None, arg_objects: Optional[List[str]] = None):
+        self._env = env
+        if arg_objects is None:
+            arg_objects = []
+        self._arg_objects = arg_objects
+
+    def scale_action(
+        self, action: primitive_actions.PrimitiveAction
+    ) -> primitive_actions.PrimitiveAction:
+        return action
+
+    def execute(
+        self, action: primitive_actions.PrimitiveAction, real_world: bool = False
+    ) -> ExecutionResult:
+        return ExecutionResult(success=True, truncated=False)
+
+    def sample_action(self) -> primitive_actions.PrimitiveAction:
+        return np.ones(1)
+
+
 class Stop(Primitive):
     """Do nothing."""
 

@@ -104,12 +104,12 @@ PLANNERS=(
 
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 TASK_NUMS=(
-    "0"
-    "1"
-    "2"
+    # "0"
+    # "1"
+    # "2"
     "3"
     "4"
-    "5"
+    # "5"
     # "6"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
