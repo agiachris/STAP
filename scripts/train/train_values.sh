@@ -73,53 +73,47 @@ plots_path="plots"
 #### Experiments.
 
 ### Pybullet.
-exp_name="20230123/value"
+exp_name="20230124/value"
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 
-TRAINER_CONFIG="configs/pybullet/trainers/value.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value.yaml"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
 ## Data.
 SYMBOLIC_ACTION_TYPE="valid"
-TRAIN_SEEDS=($(seq 0 7))
-VALIDATION_SEEDS=($(seq 8 9))
-# TRAIN_SEEDS=($(seq 0 15))
-# VALIDATION_SEEDS=($(seq 16 19))
+TRAIN_SEEDS=($(seq 0 15))
+VALIDATION_SEEDS=($(seq 16 19))
 
 ## Launch primitive jobs.
 
-# Pick w/out collisions.
-# DATA_CHECKPOINT_PATH="models/20230116/datasets"
-# PRIMITIVE="pick"
-# run_value
+# Pick w/out collisions, balanced data (40% success min).
+TRAINER_CONFIG="configs/pybullet/trainers/value_iter-2M.yaml"
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
+DATA_CHECKPOINT_PATH="models/20230124/datasets"
+PRIMITIVE="pick"
+run_value
 
-# Place w/out collisions.
-# DATA_CHECKPOINT_PATH="models/20230116/datasets"
-# PRIMITIVE="place"
-# run_value
+# Place w/out collisions, balanced data (40% success min).
+TRAINER_CONFIG="configs/pybullet/trainers/value_iter-5M.yaml"
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
+DATA_CHECKPOINT_PATH="models/20230124/datasets"
+PRIMITIVE="place"
+run_value
 
-# Pull w/ collisions.
-# DATA_CHECKPOINT_PATH="models/20230116/datasets"
-# PRIMITIVE="pull"
-# run_value
+# Pull w/out collisions, balanced data (40% success min).
+TRAINER_CONFIG="configs/pybullet/trainers/value_iter-2M.yaml"
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
+DATA_CHECKPOINT_PATH="models/20230124/datasets"
+PRIMITIVE="pull"
+run_value
 
-# Pull w/out collisions.
-# DATA_CHECKPOINT_PATH="models/20230119/datasets"
-# PRIMITIVE="pull"
-# run_value
-
-# Push w/ collisions.
-# DATA_CHECKPOINT_PATH="models/20230116/datasets"
-# PRIMITIVE="push"
-# run_value
-
-# Push w/out collisions.
-# DATA_CHECKPOINT_PATH="models/20230119/datasets"
-# PRIMITIVE="push"
-# run_value
+# Push w/out collisions, balanced data (40% success min).
+TRAINER_CONFIG="configs/pybullet/trainers/value_iter-2M.yaml"
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
+DATA_CHECKPOINT_PATH="models/20230124/datasets"
+PRIMITIVE="push"
+run_value
 
 ### Sweeps.
 function run_value_sweep {    
@@ -176,32 +170,22 @@ AGENT_SWEEPS=(
 
 ## Launch primitive sweep jobs.
 
-# Pick w/out collisions.
-# DATA_CHECKPOINT_PATH="models/20230116/datasets"
+# Pick w/out collisions, balanced data (40% success).
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
 # PRIMITIVE="pick"
 # run_value_sweep
 
-# Place w/out collisions.
-# DATA_CHECKPOINT_PATH="models/20230116/datasets"
+# Place w/out collisions, balanced data (40% success).
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
 # PRIMITIVE="place"
 # run_value_sweep
 
-# Pull w/ collisions.
-# DATA_CHECKPOINT_PATH="models/20230116/datasets"
+# Pull w/out collisions, balanced data (40% success).
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
 # PRIMITIVE="pull"
 # run_value_sweep
 
-# Pull w/out collisions.
-# DATA_CHECKPOINT_PATH="models/20230119/datasets"
-# PRIMITIVE="pull"
-# run_value_sweep
-
-# Push w/ collisions.
-# DATA_CHECKPOINT_PATH="models/20230116/datasets"
-# PRIMITIVE="push"
-# run_value_sweep
-
-# Push w/out collisions.
-# DATA_CHECKPOINT_PATH="models/20230119/datasets"
+# Push w/out collisions, balanced data (40% success).
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
 # PRIMITIVE="push"
 # run_value_sweep
