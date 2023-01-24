@@ -87,10 +87,12 @@ def eval_ilm_tamp(
     lm_cache_file: Optional[Union[str, pathlib.Path]] = None,
     n_examples: Optional[int] = 5,
     custom_in_context_example_robot_prompt: str = "Top 1 robot action sequences: ",
-    custom_in_context_example_robot_format: str = "python_list_of_lists",
+    custom_in_context_example_robot_format: Literal[
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
+    ] = "python_list",
     custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
     custom_robot_action_sequence_format: Literal[
-        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_done"
+        "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
     ] = "python_list",
     engine: Optional[str] = None,
     temperature: Optional[int] = 0,
@@ -402,6 +404,8 @@ def eval_ilm_tamp(
 
 
 def main(args: argparse.Namespace) -> None:
+    if args.key_name == "helm":
+        args.api_type = APIType.HELM
     auth = authenticate(args.api_type, args.key_name)
     assert (
         "code" not in args.key_name

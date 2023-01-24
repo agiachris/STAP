@@ -45,10 +45,10 @@ def get_task_plans_from_lm(
         use_primitives=True,
         use_predicates=True,
     )
-    assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
-        "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
-        "must be the same for next action prediction"
-    )
+    # assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
+    #     "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
+    #     "must be the same for next action prediction"
+    # )
     object_relationships_str = [str(prop) for prop in object_relationships]
     current_prompt = CurrentExample(
         scene_objects=objects,
@@ -162,10 +162,11 @@ def get_next_actions_from_lm(
         auth=auth,
         lm_cache=lm_cache,
         custom_stop_sequence=[
-            "Executed action: ",
+            # "Executed action: ",
+            "\n",
             custom_robot_prompt,
             "```",
-            SCENE_OBJECT_PROMPT,
+            custom_in_context_example_robot_prompt,
         ],
         verbose=verbose,
     )
@@ -217,7 +218,7 @@ def get_action_scores_from_lm(
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
     custom_in_context_example_robot_format: Literal["python_list_with_stop", "python_list"] = "python_list_with_stop",
     custom_robot_prompt: str = "",
-    custom_robot_action_sequence_format: str = "",
+    custom_robot_action_sequence_format: Literal["python_list_with_stop", "python_list"] = "python_list_with_stop",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
