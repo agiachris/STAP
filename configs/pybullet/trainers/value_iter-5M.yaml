@@ -14,7 +14,11 @@ trainer_kwargs:
   optimizer_kwargs:
     lr: 0.0001
 
-  num_train_steps: 1500000
+  scheduler_class: CosineAnnealingLR
+  scheduler_kwargs:
+    T_max: 5000000
+
+  num_train_steps: 5000000
   num_eval_episodes: 1000
   eval_freq: 10000
   checkpoint_freq: 100000
