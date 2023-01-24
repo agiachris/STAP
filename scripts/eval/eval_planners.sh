@@ -91,12 +91,12 @@ PLANNERS=(
     # "random_shooting"
 # Ensemble Q-value / Latent dynamics.
     # "ensemble_policy_cem"
-    "ensemble_policy_cem_scale-0.1"
-    "ensemble_policy_cem_scale-0.5"
-    "ensemble_policy_cem_scale-1.0"
-    "ensemble_policy_cem_scale-0.1_pessimistic-True"
-    "ensemble_policy_cem_scale-0.5_pessimistic-True"
-    "ensemble_policy_cem_scale-1.0_pessimistic-True"
+    # "ensemble_policy_cem_scale-0.1"
+    # "ensemble_policy_cem_scale-0.5"
+    # "ensemble_policy_cem_scale-1.0"
+    # "ensemble_policy_cem_scale-0.1_pessimistic-True"
+    # "ensemble_policy_cem_scale-0.5_pessimistic-True"
+    # "ensemble_policy_cem_scale-1.0_pessimistic-True"
 # SCOD value / Latent dynamics.
     # "policy_cem_var_scod_value"
     # "policy_cem_cvar_scod_value"
@@ -180,6 +180,7 @@ PRIMITIVES=(
     "pull"
     "push"
 )
+
 # Critics trained with mean squared regression.
 # declare -A POLICY_CHECKPOINT_PATHS=(
 #     ["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
@@ -187,6 +188,8 @@ PRIMITIVES=(
 #     ["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
 #     ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
 # )
+# DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+
 # Critics trained with logistics regression.
 declare -A POLICY_CHECKPOINT_PATHS=(
     ["pick"]="models/20230123/policy/pick_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
