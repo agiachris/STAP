@@ -164,7 +164,7 @@ TASKS=(
 # )
 
 ## Pybullet.
-exp_name="20230122/planners/taps"
+exp_name="20230123/planners/taps"
 PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
 
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
@@ -180,11 +180,19 @@ PRIMITIVES=(
     "pull"
     "push"
 )
+# Critics trained with mean squared regression.
+# declare -A POLICY_CHECKPOINT_PATHS=(
+#     ["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+#     ["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
+#     ["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+#     ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+# )
+# Critics trained with logistics regression.
 declare -A POLICY_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-    ["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
-    ["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-    ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+    ["pick"]="models/20230123/policy/pick_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
+    ["place"]="models/20230123/policy/place_value_sched-cos_iter-5M_sac_ens_value_logistics/final_model/final_model.pt"
+    ["pull"]="models/20230123/policy/pull_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
+    ["push"]="models/20230123/policy/push_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
 )
 DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
 run_planners
@@ -206,6 +214,6 @@ function visualize_results {
     run_cmd
 }
 
-FIGURE_NAME="improved-dynamics"
+FIGURE_NAME="logistics-models-handcrafted-dynamics"
 visualize_results
 
