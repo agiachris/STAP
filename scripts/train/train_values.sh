@@ -84,8 +84,10 @@ fi
 
 ## Data.
 SYMBOLIC_ACTION_TYPE="valid"
-TRAIN_SEEDS=("0" "1" "2" "3" "4" "5" "6" "7")
-VALIDATION_SEEDS=("8" "9")
+TRAIN_SEEDS=($(seq 0 7))
+VALIDATION_SEEDS=($(seq 8 9))
+# TRAIN_SEEDS=($(seq 0 15))
+# VALIDATION_SEEDS=($(seq 16 19))
 
 ## Launch primitive jobs.
 
