@@ -1,7 +1,9 @@
 import ast
 from collections import defaultdict
 from enum import Enum
+import gc
 import pathlib
+import _pickle as cPickle
 import pickle
 import random
 import time
@@ -89,6 +91,7 @@ def authenticate(
             key_name == "helm"
 
     import socket
+
     credentials_path: str
     if "stanford" in socket.gethostname() or "juno" in socket.gethostname():
         credentials_path = "/sailhome/thankyou/credentials.json"
@@ -97,7 +100,6 @@ def authenticate(
     with open(credentials_path, "r") as f:
         api_key = json.load(f)[key_name]
     return register_api_key(api_type, api_key)
-
 
 
 def generate_current_setting_prompt(
@@ -315,7 +317,12 @@ def generate_lm_response(
     if current_prompt.use_scene_objects:
         overall_prompt += f"{SCENE_OBJECT_PROMPT}{current_prompt.scene_objects}\n"
     if current_prompt.use_scene_object_relationships:
-        overall_prompt += f"{SCENE_OBJECT_RELATIONSHIP_PROMPT}{current_prompt.scene_object_relationships}\n"
+        if current_prompt.use_action_object_relationship_history:
+            # bad separation of template: if using action object relationship history,
+            # we need to add the first observation to the overall prompt
+            overall_prompt += f"{SCENE_OBJECT_RELATIONSHIP_PROMPT}{current_prompt.all_prior_object_relationships[0]}\n"
+        else:
+            overall_prompt += f"{SCENE_OBJECT_RELATIONSHIP_PROMPT}{current_prompt.scene_object_relationships}\n"
     if current_prompt.use_human:
         overall_prompt += f"{HUMAN_INSTRUCTION_PROMPT}{current_prompt.human}\n"
     if current_prompt.use_goal:
@@ -355,7 +362,7 @@ def generate_lm_response(
     result.use_predicted_goal = current_prompt.use_predicted_goal
     result.goal_ground_truth = current_prompt.goal
     if current_prompt.predict_goal:
-        overall_prompt += GOAL_PROMPT
+        overall_prompt += "Predicted goal predicate set: "  # GOAL_PROMPT
         stop = [ROBOT_PROMPT, SCENE_OBJECT_PROMPT, SCENE_PRIMITIVE_PROMPT]
         response, lm_cache = gpt3_call(
             engine=lm_cfg.engine,
@@ -381,7 +388,7 @@ def generate_lm_response(
             result.goal_success = success
 
     if current_prompt.predict_robot:
-        # TODO(klin) update to assume robot action prompt is a list 
+        # TODO(klin) update to assume robot action prompt is a list
         # (regardles of generation or scoring)
         robot_action_prompt = get_robot_action_prompt(current_prompt)
         if isinstance(robot_action_prompt, list):
@@ -429,10 +436,15 @@ def generate_lm_response(
     return result, lm_cache
 
 
+# TODO(klin): separation of object relationships and get robot action prompt leads to awkward
+# checking of use_action_object_relationship_history; unify prompting template
 def get_robot_action_prompt(current_prompt: CurrentExample) -> Union[str, List[str]]:
     """
     Get the robot action prompt for the current situation
     based on current_prompt's settings.
+
+    If using action-object relationship history, the prompt
+    does not include the earliest object relationships.
     """
     robot_action_prompt = ""
     if current_prompt.use_action_object_relationship_history:
@@ -446,7 +458,9 @@ def get_robot_action_prompt(current_prompt: CurrentExample) -> Union[str, List[s
     if current_prompt.score_action:
         # TODO(klin) set actions_to_score to a list of strings by default
         if len(current_prompt.actions_to_score) == 1:
-            robot_action_prompt += f"Executed action: {current_prompt.actions_to_score[0]}"
+            robot_action_prompt += (
+                f"Executed action: {current_prompt.actions_to_score[0]}"
+            )
             return robot_action_prompt
         else:
             prompts = []
@@ -511,7 +525,10 @@ def update_result_current_prompt_based_on_response_robot(
             )
             robot_prediction_result_types.append(robot_prediction_result_type)
             predicted_task_plan_descriptions.append(predicted_task_plan_description)
-        elif current_prompt.custom_robot_action_sequence_format == "python_list_with_stop":
+        elif (
+            current_prompt.custom_robot_action_sequence_format
+            == "python_list_with_stop"
+        ):
             parsed_robot_predicted = result.parsed_robot_predicted
             (
                 robot_prediction_result_type,
@@ -553,6 +570,10 @@ def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
         lm_cache_file.touch()
         lm_cache = {}
     else:
+        # disable gc for faster loading
+        # https://stackoverflow.com/questions/26860051/how-to-reduce-the-time-taken-to-load-a-pickle-file-in-python
+        # TODO: move away from pickle if possible
+        gc.disable()
         # If it does exist, load it
         with open(lm_cache_file, "rb") as f:
             # check if the file is empty
@@ -560,11 +581,15 @@ def load_lm_cache(lm_cache_file: pathlib.Path) -> Dict:
                 lm_cache = {}
             else:
                 try:
-                    lm_cache = pickle.load(f)
+                    import time
+
+                    a = time.time()
+                    lm_cache = cPickle.load(f)
+                    print(f"Loaded lm_cache in {time.time() - a} seconds")
                 except UnicodeDecodeError as e:
                     print(f"Error loading lm_cache: {e}")
                     lm_cache = {}
-
+        gc.enable()
         if lm_cache is None:
             lm_cache = {}
     return lm_cache
@@ -725,10 +750,17 @@ def save_lm_cache(
 ) -> None:
     from atomicwrites import atomic_write
 
+    # disable gc for faster loading
+    gc.disable()
     # save the lm_cache
     with atomic_write(lm_cache_file, mode="wb", overwrite=True) as f:
         print(f"Saving lm_cache to {lm_cache_file}...")
-        pickle.dump(lm_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
+        import time
+
+        a = time.time()
+        cPickle.dump(lm_cache, f, protocol=pickle.HIGHEST_PROTOCOL)
+        print(f"Saved lm_cache to {lm_cache_file} in {time.time() - a} seconds")
+    gc.enable()
 
 
 if __name__ == "__main__":
