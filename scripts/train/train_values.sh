@@ -88,32 +88,32 @@ VALIDATION_SEEDS=($(seq 16 19))
 ## Launch primitive jobs.
 
 # Pick w/out collisions, balanced data (40% success min).
-TRAINER_CONFIG="configs/pybullet/trainers/value_iter-2M.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
-DATA_CHECKPOINT_PATH="models/20230124/datasets"
-PRIMITIVE="pick"
-run_value
+# TRAINER_CONFIG="configs/pybullet/trainers/value_iter-2M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="pick"
+# run_value
 
 # Place w/out collisions, balanced data (40% success min).
-TRAINER_CONFIG="configs/pybullet/trainers/value_iter-5M.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
-DATA_CHECKPOINT_PATH="models/20230124/datasets"
-PRIMITIVE="place"
-run_value
+# TRAINER_CONFIG="configs/pybullet/trainers/value_iter-5M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="place"
+# run_value
 
 # Pull w/out collisions, balanced data (40% success min).
-TRAINER_CONFIG="configs/pybullet/trainers/value_iter-2M.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
-DATA_CHECKPOINT_PATH="models/20230124/datasets"
-PRIMITIVE="pull"
-run_value
+# TRAINER_CONFIG="configs/pybullet/trainers/value_iter-2M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="pull"
+# run_value
 
 # Push w/out collisions, balanced data (40% success min).
-TRAINER_CONFIG="configs/pybullet/trainers/value_iter-2M.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
-DATA_CHECKPOINT_PATH="models/20230124/datasets"
-PRIMITIVE="push"
-run_value
+# TRAINER_CONFIG="configs/pybullet/trainers/value_iter-2M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_ens_value_logistics.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="push"
+# run_value
 
 ### Sweeps.
 function run_value_sweep {    
