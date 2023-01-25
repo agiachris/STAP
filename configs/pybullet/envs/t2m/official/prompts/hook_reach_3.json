@@ -27,9 +27,7 @@
         "human": "situate all the boxes above the rack",
         "explanation": null,
         "goal": [
-            "on(hook, rack)",
-            "on(blue_box, rack)",
-            "on(rack, table)"
+            "on(blue_box, rack)"
         ],
         "robot_action_sequence": [
             "pick(hook)",

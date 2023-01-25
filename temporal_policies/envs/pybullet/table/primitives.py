@@ -317,6 +317,7 @@ class Pick(Primitive):
             dbprint("Pick.execute():\n", e)
             return ExecutionResult(success=False, truncated=True)
 
+        self.env.wait_until_stable()  # handle pick failures
         return ExecutionResult(success=True, truncated=False)
 
     def sample_action(self) -> primitive_actions.PrimitiveAction:

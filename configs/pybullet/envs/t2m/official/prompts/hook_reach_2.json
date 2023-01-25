@@ -29,7 +29,6 @@
         "explanation": null,
         "goal": [
             "on(hook, rack)",
-            "on(rack, table)",
             "on(yellow_box, table)",
             "on(cyan_box, rack)"
         ],
