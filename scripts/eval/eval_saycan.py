@@ -19,6 +19,7 @@ PYTHONPATH=. python scripts/eval/eval_saycan.py
 --max-depth 7
 --n-examples 10
 --lm-verbose 1
+--gui 1
 """
 
 import functools
@@ -298,8 +299,8 @@ def eval_saycan(
     )
 
     # step = -1 if stopped on non-goal prop, else step = num steps to goal
-    steps_to_success_using_predicted_goal_props: List[int] = []
-    steps_to_success_using_stop_score: List[int] = []
+    steps_to_success_via_pred_goal_props: List[int] = []
+    steps_to_success_via_stop_score: List[int] = []
 
     for idx_iter, (seed, loaded_plan) in enumerate(pbar):
         goal_props_predicted: List[str]
@@ -332,6 +333,9 @@ def eval_saycan(
             verbose=lm_verbose,
         )
         save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+        import ipdb
+
+        ipdb.set_trace()
         goal_props_ground_truth: List[str] = [
             str(goal) for goal in env.goal_propositions
         ]
@@ -376,7 +380,7 @@ def eval_saycan(
                 lm_cache=lm_cache,
                 verbose=lm_verbose,
             )
-            save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+            # save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
             print(
                 colored(
@@ -455,10 +459,10 @@ def eval_saycan(
                 print(colored("used goal props satisfied", "green"))
                 if env.is_goal_state():
                     print(colored("goal props satisfied", "green"))
-                    steps_to_success_using_predicted_goal_props.append(step)
+                    steps_to_success_via_pred_goal_props.append(step)
                 else:
                     print(colored("goal props not satisfied", "red"))
-                    steps_to_success_using_predicted_goal_props.append(-1)
+                    steps_to_success_via_pred_goal_props.append(-1)
 
             table_headers = ["Action", "LM", "Value", "Overall"]
             overall_scores = [
@@ -479,9 +483,18 @@ def eval_saycan(
             best_action_idx = overall_scores.index(max(overall_scores))
             if "stop()" == potential_actions_str[best_action_idx]:
                 env.set_primitive(table_primitives.Stop(env))
+                done = True
+                env.wait_until_stable()
+                # TODO(klin) debug why the observation isn't correct for the red box's location
+                print(
+                    colored(
+                        "Stopping because stop() lm * value score is highest", "green"
+                    )
+                )
             else:
                 env.set_primitive(potential_actions[best_action_idx])
 
+            observation = env.get_observation()
             custom_recording_text: str = (
                 f"human: {env.instruction}\n"
                 + f"goal_props: {goal_props_to_use}\n"
@@ -517,22 +530,22 @@ def eval_saycan(
         env.record_stop()
         success: bool = env.is_goal_state()
         if success:
-            steps_to_success_using_stop_score.append(
+            steps_to_success_via_stop_score.append(
                 step - 1
             )  # -1 because take extra step at end for rendering
             print(colored("ground truth goal props satisfied", "green"))
+        else:
+            steps_to_success_via_stop_score.append(-1)
 
         gif_path = (
             path
             / str(idx_iter)
-            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
             / f"execution_{'reached_goal_prop' if success else 'fail'}.gif"
         )
         env.record_save(gif_path, reset=False)
         gif_path = (
             path
             / str(idx_iter)
-            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
             / f"execution_{'reached_goal_prop' if success else 'fail'}.mp4"
         )
         env.record_save(gif_path, reset=True)
@@ -541,12 +554,12 @@ def eval_saycan(
     # Save planning results.
     path.mkdir(parents=True, exist_ok=True)
 
-    num_successes_on_stop_score = int((
-        np.array(steps_to_success_using_stop_score) != -1
-    ).sum())
-    num_successes_on_predicted_goal_props = int((
-        np.array(steps_to_success_using_predicted_goal_props) != -1
-    ).sum())
+    num_successes_on_stop_score = int(
+        (np.array(steps_to_success_via_stop_score) != -1).sum()
+    )
+    num_successes_on_predicted_goal_props = int(
+        (np.array(steps_to_success_via_pred_goal_props) != -1).sum()
+    )
 
     with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
@@ -567,13 +580,12 @@ def eval_saycan(
                 "use_ground_truth_goal_props": use_ground_truth_goal_props,
             },
             "num_successes_on_stop_score": num_successes_on_stop_score,
-            "steps_to_success_using_stop_score": steps_to_success_using_stop_score,
+            "steps_to_success_via_stop_score": steps_to_success_via_stop_score,
             "num_successes_on_used_goal_props": num_successes_on_predicted_goal_props,
-            "steps_to_success_using_predicted_goal_props": steps_to_success_using_predicted_goal_props,
+            "steps_to_success_via_pred_goal_props": steps_to_success_via_pred_goal_props,
             "success_rate_on_used_goal_props": num_successes_on_predicted_goal_props
             / num_eval
             * 100,
-            "num_successes_on_stop_score": num_successes_on_stop_score,
             "success_rate_using_stop_score_on_ground_truth_goal_props": num_successes_on_stop_score
             / num_eval
             * 100,
@@ -583,7 +595,7 @@ def eval_saycan(
     # Print results.
     print(
         colored(
-            f"Success rate: {((np.array(steps_to_success_using_stop_score) != -1).sum() / num_eval) * 100:.2f}%",
+            f"Success rate: {((np.array(steps_to_success_via_stop_score) != -1).sum() / num_eval) * 100:.2f}%",
             "green",
         )
     )
