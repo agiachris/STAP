@@ -33,6 +33,7 @@ import torch
 import numpy as np
 from helm.common.authentication import Authentication
 from configs.base_config import LMConfig
+from symbolic import parse_proposition
 
 from temporal_policies.envs.pybullet.table import predicates
 from temporal_policies.envs.pybullet.table.objects import Object
@@ -110,9 +111,7 @@ def eval_ilm_tamp(
         torch.manual_seed(seed)
 
     # these would perhaps belong in .../prompts/
-    examples = get_examples_from_json_dir(
-        "configs/pybullet/envs/t2m/official/prompts/"
-    )
+    examples = get_examples_from_json_dir("configs/pybullet/envs/t2m/official/prompts/")
 
     for example in examples:
         example.custom_robot_action_sequence_format = (
@@ -145,66 +144,28 @@ def eval_ilm_tamp(
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
-    pick_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_pick_20k_good/ckpt_model_20000.pt"
-    place_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_eval_place_only_16_batch_size/ckpt_model_20000.pt"
-    pull_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_eval_pull_only_8_batch_size/ckpt_model_25000.pt"
-    push_ckpt = "models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_eval_push_only_4_batch_size/ckpt_model_400.pt"
-
-    pick_planner = planners.load(
-        config=planner_config,
-        env=env,
-        policy_checkpoints=[policy_checkpoints[0]],
-        scod_checkpoints=scod_checkpoints,
-        dynamics_checkpoint=pick_ckpt,
-        device=device,
-    )
-    place_planner = planners.load(
-        config=planner_config,
-        env=env,
-        policy_checkpoints=[policy_checkpoints[1]],
-        scod_checkpoints=scod_checkpoints,
-        dynamics_checkpoint=place_ckpt,
-        device=device,
-    )
-    pull_planner = planners.load(
-        config=planner_config,
-        env=env,
-        policy_checkpoints=[policy_checkpoints[2]],
-        scod_checkpoints=scod_checkpoints,
-        dynamics_checkpoint=pull_ckpt,
-        device=device,
-    )
-    push_planner = planners.load(
-        config=planner_config,
-        env=env,
-        policy_checkpoints=[policy_checkpoints[3]],
-        scod_checkpoints=scod_checkpoints,
-        dynamics_checkpoint=push_ckpt,
-        device=device,
-    )
-
-    for i, single_primitive_planner in enumerate(
-        [pick_planner, place_planner, pull_planner, push_planner]
-    ):
-        planner.dynamics.network.models[
-            i
-        ] = single_primitive_planner.dynamics.network.models[0]
 
     path = pathlib.Path(path) / env.name
 
     prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
-    available_predicates: List[str] = ["on", "inhand", "under"]
+    available_predicates: List[str] = [
+        parse_proposition(prop)[0] for prop in env.supported_predicates
+    ]
     possible_props: List[predicates.Predicate] = get_possible_props(
         env.objects, available_predicates
     )
 
-    num_successes_on_used_goal_props: int = (
-        0  # either predicted or ground truth goal props
-    )
-    num_successes_on_ground_truth_goal_props: int = 0
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
+
+    # steps to success when stopping search + execution
+    # via the predicted goal props
+    steps_to_success_via_pred_goal_props: List[int] = []
+    # steps to success when stopping search + execution
+    # via asking the LLM to predict the next action and stopping if it predicts stop()
+    steps_to_success_via_stop_prediction: List[int] = []
+
     for idx_iter, (seed, loaded_plan) in enumerate(pbar):
         goal_props_predicted: List[str]
         objects: List[str]
@@ -253,7 +214,6 @@ def eval_ilm_tamp(
 
         done: bool = False
         recording_id: Optional[int] = None
-        reached_goal_prop: bool = False
 
         beam_search_algorithm = BeamSearchAlgorithm(
             max_beam_size=1, max_depth=max_depth, num_successors_per_node=5
@@ -267,11 +227,7 @@ def eval_ilm_tamp(
         ):
             print(colored("goal props satisfied", "green"))
             done = True
-            reached_goal_prop = True
-            num_successes_on_used_goal_props += 1
 
-        # TODO(klin) load this from the yaml when ready
-        max_steps = 5  # potentially task dependent and loadable from the yaml
         step = 0
         while not done:
             beam_search_problem = BeamSearchProblem(
@@ -287,6 +243,8 @@ def eval_ilm_tamp(
                 pddl_problem,
                 examples,
                 lm_cfg,
+                all_prior_object_relationships,
+                all_executed_actions,
                 auth,
                 lm_cache,
                 lm_cache_file,
@@ -322,9 +280,6 @@ def eval_ilm_tamp(
                 action, successful_action_node.custom_recording_text_sequence[0]
             )
             env.record_stop(recording_id)
-            if env.is_goal_state():
-                print(colored("ground truth goal props satisfied", "green"))
-                num_successes_on_ground_truth_goal_props += 1
 
             step += 1
 
@@ -338,7 +293,6 @@ def eval_ilm_tamp(
                 print(colored("predicted goal props satisfied", "green"))
                 success = True
                 done = True
-                num_successes += 1
 
             objects = list(env.objects.keys())
             object_relationships = get_object_relationships(
@@ -347,27 +301,42 @@ def eval_ilm_tamp(
             object_relationships = [str(prop) for prop in object_relationships]
             all_executed_actions.append(str(best_task_plan[0]))
             all_prior_object_relationships.append(object_relationships)
-            if step == max_steps:
+            if step == max_depth:
                 done = True
+
+        success: bool = env.is_goal_state()
+        if success:
+            steps_to_success_via_pred_goal_props.append(
+                step - 1
+            )  # -1 because take extra step at end for rendering
+            print(colored("Success! Ground truth goal props satisfied.", "green"))
+        else:
+            steps_to_success_via_pred_goal_props.append(-1)
 
         gif_path = (
             path
             / str(idx_iter)
-            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
-            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.gif"
+            / f"execution_{'reached_goal_prop' if success else 'fail'}.gif"
         )
         env.record_save(gif_path, reset=False)
         gif_path = (
             path
             / str(idx_iter)
-            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
-            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.mp4"
+            / f"execution_{'reached_goal_prop' if success else 'fail'}.mp4"
         )
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
 
     # Save planning results.
     path.mkdir(parents=True, exist_ok=True)
+
+    num_successes_via_pred_goal_props = int(
+        (np.array(steps_to_success_via_pred_goal_props) != -1).sum()
+    )
+    num_successes_via_pred_stop = int(
+        (np.array(steps_to_success_via_stop_prediction) <= max_depth).sum()
+    )
+
     with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
             "args": {
@@ -386,21 +355,24 @@ def eval_ilm_tamp(
                 "verbose": verbose,
                 "use_ground_truth_goal_props": use_ground_truth_goal_props,
             },
-            "num_successes_on_used_goal_props": num_successes_on_used_goal_props,
-            "success_rate_on_used_goal_props": (
-                num_successes_on_used_goal_props / num_eval
-            )
+            "num_successes_via_pred_stop": num_successes_via_pred_stop,
+            "success_rate_via_pred_stop": (num_successes_via_pred_stop / num_eval)
             * 100,
-            "num_successes_on_ground_truth_goal_props": num_successes_on_ground_truth_goal_props,
-            "success_rate_on_ground_truth_goal_props": (
-                num_successes_on_ground_truth_goal_props / num_eval
+            "num_successes_via_pred_goal_props": num_successes_via_pred_goal_props,
+            "success_rate_via_pred_goal_props": (
+                num_successes_via_pred_goal_props / num_eval
             )
             * 100,
         }
         json.dump(save_dict, f, indent=4)
 
     # Print results.
-    print(colored(f"Success rate: {(num_successes_on_used_goal_props / num_eval) * 100:.2f}%", "green"))
+    print(
+        colored(
+            f"Success rate: {num_successes_via_pred_goal_props / num_eval * 100}",
+            "green",
+        )
+    )
 
 
 def main(args: argparse.Namespace) -> None:
