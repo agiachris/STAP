@@ -67,13 +67,21 @@ def evaluate_values(
     
     # Load pretrained agent.
     if trainer_checkpoint is not None:
-        trainer_factory = trainers.TrainerFactory(checkpoint=trainer_checkpoint, device=device)
+        trainer_factory = trainers.TrainerFactory(
+            checkpoint=trainer_checkpoint, 
+            env_kwargs={"gui": False},
+            device=device
+        )
         trainer: Union[trainers.ValueTrainer, trainers.PolicyTrainer, trainers.AgentTrainer] = trainer_factory()
         agent = trainer.model
     elif agent_checkpoint is not None:
         if seed is not None:
             random.seed(seed)
-        agent_factory = agents.AgentFactory(checkpoint=agent_checkpoint, device=device)
+        agent_factory = agents.AgentFactory(
+            checkpoint=agent_checkpoint, 
+            env_kwargs={"gui": False},
+            device=device
+        )
         agent = agent_factory()
     else:
         raise ValueError("Must provide one of trainer checkpoint or agent checkpoint.")

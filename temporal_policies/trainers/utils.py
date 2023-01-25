@@ -62,7 +62,11 @@ class TrainerFactory(configs.Factory):
             if agent is None:
                 if checkpoint is None:
                     raise ValueError("Either agent or checkpoint must be specified")
-                ckpt_agent = agents.load(checkpoint=checkpoint, device=device)
+                ckpt_agent = agents.load(
+                    checkpoint=checkpoint, 
+                    env_kwargs=env_kwargs,
+                    device=device
+                )
                 if not isinstance(ckpt_agent, agents.RLAgent):
                     raise ValueError("Checkpoint agent must be an RLAgent instance")
                 agent = ckpt_agent
@@ -74,7 +78,11 @@ class TrainerFactory(configs.Factory):
             if agent is None:
                 if checkpoint is None:
                     raise ValueError("Either agent or checkpoint must be specified")
-                ckpt_agent = agents.load(checkpoint=checkpoint, device=device)
+                ckpt_agent = agents.load(
+                    checkpoint=checkpoint, 
+                    env_kwargs=env_kwargs,
+                    device=device
+                )
                 if not isinstance(ckpt_agent, agents.RLAgent):
                     raise ValueError("Checkpoint agent must be an RLAgent instance")
                 agent = ckpt_agent
@@ -84,7 +92,11 @@ class TrainerFactory(configs.Factory):
             if agent is None:
                 if checkpoint is None:
                     raise ValueError("Either agent or checkpoint must be specified")
-                ckpt_agent = agents.load(checkpoint=checkpoint, device=device)
+                ckpt_agent = agents.load(
+                    checkpoint=checkpoint, 
+                    env_kwargs=env_kwargs,
+                    device=device
+                )
                 if not isinstance(ckpt_agent, agents.RLAgent):
                     raise ValueError("Checkpoint agent must be an RLAgent instance")
                 agent = ckpt_agent
