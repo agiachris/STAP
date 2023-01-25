@@ -1,6 +1,5 @@
 from functools import cached_property
-import pathlib
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 
 from termcolor import colored
@@ -45,13 +44,66 @@ class Node:
         motion_planner: Optional[planners.Planner] = None,
         env: Optional[envs.Env] = None,
         available_predicates: Optional[List[predicates.Predicate]] = None,
+        all_ground_truth_prior_object_relationships: List[List[str]] = None,
+        all_ground_truth_executed_actions: List[str] = None,
     ):
+        """
+        Args:
+            parent: parent node
+            action_primitive: action primitive that led to this node; set upon creation
+            geometric_state: geometric state of the environment at this node
+            motion_planner: motion planner used to generate this node
+            env: environment
+            available_predicates: available predicates
+            all_ground_truth_prior_object_relationships: list of object relationships that have
+                actually been seen (as opposed to the object relationships from the dynamics roll-out
+                and then getting parsed) -- only used for the root node
+            all_ground_truth_executed_actions: list of actions that have actually been executed (as
+                opposed to the actions from the dynamics roll-out) --- only used for the root node
+
+        For a given node, there are 2 types of environment observations:
+            1. all ground truth environment observations
+            2. all predicted environment observations (from dynamics roll-out from the root node)
+
+        Information from the POV of the current node:
+
+        gt = ground truth
+        p = predicted
+
+        gto1     gta1    gto2    gta2    gto3    pa1   po1    pa2     po2     pa3    po3
+                                        ^                                   ^
+                                        |                                   |
+                                    root-node                           current-node
+                                                ^
+                                                |
+                                            child-node-0
+                                                                ^
+                                                                |
+                                                        child-node-1
+
+        root node does not have action_primitive
+
+        To generate actions for the current node, we need to know:
+            1. current_object_relationships = po3 (if is root: gt03)
+            2. all_executed_actions = [gta1, gta2, pa1, pa2, pa3] (if is root: [gta1, gta2])
+            3. all_prior_object_relationships = [gto1, gto2, gto3, po1, po2, po3] (if is root: [gto1, gto2, gto3])
+        """
         self.action_primitive = action_primitive
         self.parent = parent
         self._geometric_state = geometric_state
         self._motion_planner = motion_planner
         self._env = env
         self._available_predicates = available_predicates
+        self._all_ground_truth_prior_object_relationships = (
+            all_ground_truth_prior_object_relationships
+            if all_ground_truth_prior_object_relationships is not None
+            else []
+        )
+        self._all_ground_truth_executed_actions = (
+            all_ground_truth_executed_actions
+            if all_ground_truth_executed_actions is not None
+            else []
+        )
         self._action_sequence_score: Optional[float] = None
 
     @property
@@ -72,6 +124,50 @@ class Node:
             return self._motion_planner
         return self.parent.motion_planner
 
+    @cached_property
+    def current_object_relationships(self) -> List[str]:
+        if self.parent is None:
+            root_node_object_relationships = get_object_relationships(
+                self.root_node_geometric_state,
+                self.env.prop_testing_objs,
+                self.available_predicates,
+                use_hand_state=False,
+            )
+            return list(map(str, root_node_object_relationships))
+        return self.object_relationships_sequence_post_optimization[-1]
+
+    @property
+    def all_executed_actions(self) -> List[str]:
+        if self.parent is None:
+            return self._all_ground_truth_executed_actions
+        return self.parent.all_executed_actions + self.action_skeleton_as_strings
+
+    @property
+    def all_ground_truth_prior_object_relationships(self) -> List[str]:
+        if self.parent is None:
+            return self._all_ground_truth_prior_object_relationships
+        return self.parent.all_ground_truth_prior_object_relationships
+
+    @property
+    def all_prior_object_relationships(self) -> List[str]:
+        if self.parent is None:
+            return self.all_ground_truth_prior_object_relationships
+        return (
+            self.all_ground_truth_prior_object_relationships
+            + self.object_relationships_sequence_post_optimization
+        )
+
+    @property
+    def pre_action_current_object_relationships(self) -> List[str]:
+        assert (
+            self.parent is not None
+        ), "pre_action_current_object_relationships is not defined for root node as root node has no action"
+        return self.all_prior_object_relationships[-2]
+
+    @property
+    def pre_action_all_executed_actions(self) -> List[str]:
+        return self.all_executed_actions[:-1]
+
     @property
     def sequence_length(self):
         if self.parent is None:
@@ -83,6 +179,10 @@ class Node:
         if self._action_sequence_score_lm is None:
             raise ValueError("action_sequence_score_lm not set")
         return self._action_sequence_score_lm
+
+    @property
+    def pre_action_all_prior_object_relationships(self) -> List[str]:
+        return self.all_prior_object_relationships[:-1]
 
     @action_sequence_score_lm.setter
     def action_sequence_score_lm(self, value: float):
@@ -103,17 +203,26 @@ class Node:
         return self.parent.root_node_geometric_state
 
     @property
-    def root_node_object_relationships(self) -> List[str]:
-        assert (
-            self.parent is None
-        ), "root_node_object_relationships only defined for root node"
-        # parse the initial state to get the object relationships
-        return get_object_relationships(
-            self.root_node_geometric_state,
-            self.env.prop_testing_objs,
-            self.available_predicates,
-            use_hand_state=False,
-        )
+    def all_ground_truth_prior_object_relationships(self):
+        """
+        Returns:
+            list of object relationships that have actually been seen (as opposed to object
+            relationships parsed from the dynamics roll-out) -- only contained in the root node
+        """
+        if self.parent is None:
+            return self._all_ground_truth_prior_object_relationships
+        return self.parent.all_ground_truth_prior_object_relationships
+
+    @property
+    def all_ground_truth_executed_actions(self):
+        """
+        Returns:
+            list of actions that have actually been executed (as opposed to actions from the
+            dynamics roll-out) -- only contained in the root node
+        """
+        if self.parent is None:
+            return self._all_ground_truth_executed_actions
+        return self.parent.all_ground_truth_executed_actions
 
     @property
     def beam(self) -> List["Node"]:
@@ -143,7 +252,7 @@ class Node:
         return self.parent.custom_recording_text_sequence + [self.custom_recording_text]
 
     @property
-    def action_skeleton_as_strings(self) -> Optional[List[str]]:
+    def action_skeleton_as_strings(self) -> List[str]:
         if self.action_primitive is None:
             return []
         action_skeleton_lst: List[str] = self.parent.action_skeleton_as_strings
@@ -158,6 +267,20 @@ class Node:
         action_skeleton_lst.append(self.action_primitive)
         return action_skeleton_lst
 
+    @property
+    def all_executed_actions(self) -> List[str]:
+        """
+        Returns:
+            list of actions that have actually been executed as well as
+            actions from the dynamics roll-out
+        """
+        if self.parent is None:
+            return self._all_ground_truth_executed_actions
+        return (
+            self.parent.all_ground_truth_executed_actions
+            + self.action_skeleton_as_strings
+        )
+
     @cached_property
     def motion_plan_post_optimization(self) -> planners.PlanningResult:
         """Full motion plan after optimization"""
@@ -166,22 +289,37 @@ class Node:
             instantiate_task_plan_primitives(self.action_skeleton_as_strings, self.env),
         )
 
-    @cached_property
+    @property
     def object_relationships_sequence_post_optimization(self) -> List[List[str]]:
-        """All object relationships in the sequence of actions after optimization"""
+        """All object relationships in the sequence of actions after optimization.
+
+        Does not include the object relationships in the initial state;
+        initial state obj-rels are handled by the root node with its ground truth object relationships.
+
+        If root node, returns empty list as there is no sequence of actions."""
         # for each state in the motion plan, get the object relationships
         object_relationships_sequence: List[List[str]] = []
-        for state in self.motion_plan_post_optimization.states:
+        if self.parent is None:
+            return object_relationships_sequence
+        for state in self.motion_plan_post_optimization.states[1:]:
             object_relationships = get_object_relationships(
                 state,
                 self.env.prop_testing_objs,
                 self.available_predicates,
                 use_hand_state=False,
             )
-            object_relationships_sequence.append(
-                [str(obj_rel) for obj_rel in object_relationships]
-            )
+            object_relationships_sequence.append(list(map(str, object_relationships)))
         return object_relationships_sequence
+
+    @property
+    def all_prior_object_relationships_sequence(self) -> List[List[str]]:
+        """All object relationships in the sequence of actions after optimization.
+
+        ***Also includes all object relationships seen since the start of execution***"""
+        return (
+            self.all_ground_truth_prior_object_relationships
+            + self.object_relationships_sequence_post_optimization
+        )
 
     @property
     def potential_actions_from_lm(self) -> List[str]:
@@ -224,6 +362,8 @@ class BeamSearchProblem(SearchProblem):
         pddl_problem_file: str,
         examples: List[Dict[str, Any]],
         lm_cfg: LMConfig,
+        all_prior_object_relationships: List[List[str]],
+        all_executed_actions: List[str],
         auth: Optional[Authentication] = None,
         lm_cache: Optional[Dict[str, str]] = None,
         lm_cache_file: Optional[str] = None,
@@ -260,6 +400,8 @@ class BeamSearchProblem(SearchProblem):
             motion_planner=planner,
             env=env,
             available_predicates=available_predicates,
+            all_ground_truth_prior_object_relationships=all_prior_object_relationships,
+            all_ground_truth_executed_actions=all_executed_actions,
         )
 
     def is_end(self, node: Node) -> bool:
@@ -306,27 +448,30 @@ class BeamSearchProblem(SearchProblem):
                 action_skeletons[0][:-1] == action_skeleton[:-1]
             ), "Action skeletons are not all the same except for the last action"
 
-        # object relationships from state sequence (includes shouldn't include "prior" object relationship
-        # only include predicted object relationships
-
         # TODO(klin): skip scoring some of the action sequences if we know the Q product is below some threshold
-        # TODO(klin): format this function so that it makes sense
-        # what data does action (sequence) scoring need and what data does action (sequence) generation need?
-        # both need everything so far: the main difference is formatting (with some model selection quirks)
-        # with beam search, we can also include the final observation after the action being considered in the prompt
         potential_actions_str = [str(node.action_primitive).lower() for node in nodes]
+        pre_action_current_object_relationships = nodes[
+            0
+        ].pre_action_current_object_relationships
+        pre_action_all_executed_actions = nodes[0].pre_action_all_executed_actions
+        pre_action_all_prior_object_relationships = nodes[
+            0
+        ].pre_action_all_prior_object_relationships
+        print(
+            f"pre_action_current_object_relationships: {pre_action_current_object_relationships}"
+        )
+        print(f"pre_action_all_executed_actions: {pre_action_all_executed_actions}")
+        print(
+            f"pre_action_all_prior_object_relationships: {pre_action_all_prior_object_relationships}"
+        )
         lm_action_scores, lm_cache = get_action_scores_from_lm(
-            self.instruction,
+            self.env.instruction,
             potential_actions_str,
             self.goal_props,
             list(self.env.objects.keys()),
-            nodes[0].object_relationships_sequence_post_optimization[-1][:-1]
-            if nodes[0].parent is not None
-            else nodes[0].root_node_object_relationships,
-            nodes[0].object_relationships_sequence_post_optimization[:-1]
-            if nodes[0].parent is not None
-            else [nodes[0].root_node_object_relationships],
-            action_skeletons[0][:-1],
+            pre_action_current_object_relationships,
+            pre_action_all_prior_object_relationships,
+            pre_action_all_executed_actions,
             self.pddl_domain_file,
             self.pddl_problem_file,
             examples=self.examples,
@@ -338,7 +483,6 @@ class BeamSearchProblem(SearchProblem):
             custom_robot_action_sequence_format="python_list",
         )
         self.lm_cache = lm_cache
-        save_lm_cache(pathlib.Path(self.lm_cache_file), lm_cache)
 
         for i in range(len(nodes)):
             nodes[i].action_sequence_score_lm = lm_action_scores[i]
@@ -348,35 +492,39 @@ class BeamSearchProblem(SearchProblem):
     def get_successors(self, node: Node, num_successors: int = 5) -> List[Node]:
         """Returns num_successors successors of a given node."""
         new_nodes: List[Node] = []
-        # TODO(klin) should be able to configure custom things
-        self.lm_cfg.engine = "text-davinci-003"
+        current_node_object_relationships = node.current_object_relationships
+        current_node_all_executed_actions = node.all_executed_actions
+        current_node_all_prior_object_relationships = (
+            node.all_prior_object_relationships
+        )
+        print(f"Current node object relationships: {current_node_object_relationships}")
+        print(f"Current node all executed actions: {current_node_all_executed_actions}")
+        print(
+            f"Current node all prior object relationships: {current_node_all_prior_object_relationships}"
+        )
         self.lm_cfg.echo = False
         actions, lm_cache = get_next_actions_from_lm(
             self.instruction,
             self.goal_props,
             list(self.env.objects.keys()),
-            node.object_relationships_sequence_post_optimization[-1]
-            if node.parent is not None
-            else node.root_node_object_relationships,
-            node.object_relationships_sequence_post_optimization
-            if node.parent is not None
-            else [node.root_node_object_relationships],
-            node.action_skeleton_as_strings,
+            current_node_object_relationships,
+            current_node_all_prior_object_relationships,
+            current_node_all_executed_actions,
             self.pddl_domain_file,
             self.pddl_problem_file,
             examples=self.examples,
             custom_in_context_example_robot_prompt="Top robot action sequence: ",
             custom_in_context_example_robot_format="python_list",
-            custom_robot_prompt=f"Top {num_successors} next actions (python list): ",
+            custom_robot_prompt=f"Top {num_successors} next actions (python list; do not use newline): ",
             custom_robot_action_sequence_format="python_list",
             lm_cfg=self.lm_cfg,
             auth=self.auth,
             lm_cache=self.lm_cache,
+            verbose=True,
         )
         self.lm_cache = lm_cache
         self.lm_cfg.echo = True
         self.lm_cfg.engine = "code-davinci-002"
-        save_lm_cache(pathlib.Path(self.lm_cache_file), lm_cache)
 
         env_lst = [self.env] * len(actions)
         potential_action_primitives: List[primitives.Primitive] = [
