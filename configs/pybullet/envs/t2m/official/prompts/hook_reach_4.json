@@ -21,22 +21,18 @@
             "yellow_box"
         ],
         "scene_object_relationships": [
-            "on(hook, table)",
-            "on(red_box, rack)",
-            "on(yellow_box, rack)",
-            "on(blue_box, rack)",
-            "on(cyan_box, rack)",
-            "on(rack, table)"
-        ],
-        "human": "could you move all the boxes onto the rack?",
-        "explanation": null,
-        "goal": [
             "inhand(hook)",
             "on(red_box, rack)",
             "on(yellow_box, table)",
             "on(blue_box, table)",
             "on(cyan_box, rack)",
             "on(rack, table)"
+        ],
+        "human": "could you move all the boxes onto the rack?",
+        "explanation": null,
+        "goal": [
+            "on(yellow_box, rack)",
+            "on(blue_box, rack)"
         ],
         "robot_action_sequence": [
             "pull(yellow_box, hook)",
