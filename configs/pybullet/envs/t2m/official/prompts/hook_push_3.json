@@ -18,7 +18,7 @@
             "yellow_box"
         ],
         "scene_object_relationships": [
-            "on(hook, table)",
+            "inhand(hook)",
             "on(yellow_box, table)",
             "on(rack, table)"
         ],
@@ -28,7 +28,6 @@
             "under(yellow_box, rack)"
         ],
         "robot_action_sequence": [
-            "pick(hook)",
             "push(yellow_box, hook, rack)"
         ],
         "use_primitives": false,

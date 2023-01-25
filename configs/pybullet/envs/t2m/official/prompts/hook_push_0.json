@@ -32,8 +32,10 @@
             "under(red_box, rack)"
         ],
         "robot_action_sequence": [
+            "pick(blue_box)",
+            "place(blue_box, table)",
             "pick(red_box)",
-            "place(red_box, rack)",
+            "place(red_box, table)",
             "pick(hook)",
             "push(red_box, hook)"
         ],

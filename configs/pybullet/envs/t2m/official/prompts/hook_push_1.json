@@ -35,7 +35,7 @@
             "on(hook, table)"
         ],
         "robot_action_sequence": [
-            "pick(blue_box",
+            "pick(blue_box)",
             "place(blue_box, table)",
             "pick(red_box)",
             "place(red_box, table)",
