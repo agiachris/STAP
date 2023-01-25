@@ -95,7 +95,7 @@ def evaluate_values(
         pin_memory=pin_memory,
     )
 
-    metrics = defaultdict(list)
+    metrics: Dict[str, List[np.ndarray]] = defaultdict(list)
     with torch.no_grad():
         for step, batch in enumerate(iter(dataloader)):
             if num_eval_steps is not None and step > num_eval_steps:
@@ -107,14 +107,16 @@ def evaluate_values(
                 t_observation = tensors.rgb_to_cnn(t_observation)
             t_state = agent.encoder.encode(t_observation, batch["policy_args"])
             
+            # Size [B, critic.num_q_functions]
             batch_qs = torch.stack(agent.critic.forward(t_state, batch["action"])).T
-            for qs in batch_qs:
-                metrics["q_mean"].append(qs.mean().item())
-                metrics["q_std"].append(qs.std().item())
-                metrics["q_max"].append(qs.max().item())
-                metrics["q_min"].append(qs.min().item())
+            # Store per-example metrics of size [B,]
+            metrics["q_mean"].append(batch_qs.mean(dim=-1).cpu().numpy())
+            metrics["q_std"].append(batch_qs.std(dim=-1).cpu().numpy())
+            metrics["q_max"].append(torch.max(batch_qs, dim=-1).values.cpu().numpy())
+            metrics["q_min"].append(torch.min(batch_qs, dim=-1).values.cpu().numpy())
 
-    metrics: Dict[str, np.ndarray] = {k: np.array(v) for k, v in metrics.items()}
+    # Concatenate batched metrics.
+    metrics: Dict[str, np.ndarray] = {k: np.concatenate(v) for k, v in metrics.items()}
     with open(path / "metrics.npz", "wb") as f:
         np.save(f, metrics, allow_pickle=True)
 
@@ -136,6 +138,7 @@ def evaluate_values(
     # Plot metrics across bins.
     x_arr = np.arange(num_bins)
     x_ticks = [f"{bins[i]:.1f}-{bins[i+1]:.1f}" for i in range(num_bins)]
+    x_label = " ".join(bin_metric.split("_")).title()
     for k in list(metrics.keys()) + ["q_freq"]:
         metric_name = " ".join(k.split("_")).title()
         barplot(
@@ -145,7 +148,7 @@ def evaluate_values(
             x_arr=x_arr,
             x_ticks=x_ticks,
             title=f"Q-Ensemble Ablation: {name.capitalize()} {metric_name}",
-            x_label="Expected Q-value",
+            x_label=x_label,
             y_label=metric_name,
             color=METRIC_COLORS[k],
         )
