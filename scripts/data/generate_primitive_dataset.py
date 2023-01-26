@@ -378,7 +378,6 @@ def main(config: PolicyDatasetGenerationConfig):
         env_config_path=config.env_config_path,
         env_name=config.env_name,
     )
-    breakpoint()
 
     train_policy.train(
         config.path,
