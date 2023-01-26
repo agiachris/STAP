@@ -21,7 +21,6 @@ env_kwargs:
         - place(cyan_box, rack)
       initial_state:
         - free(hook)
-        - free(red_box)
         - free(yellow_box)
         - free(cyan_box)
         - aligned(rack)
@@ -34,7 +33,8 @@ env_kwargs:
         - nonblocking(cyan_box, rack)
         - on(rack, table)
         - on(hook, table)
-        - on(red_box, rack)
+        - under(red_box, rack)
+        - on(red_box, table)
         - on(yellow_box, table)
         - on(cyan_box, table)
       goal_propositions:
