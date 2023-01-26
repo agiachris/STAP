@@ -515,7 +515,7 @@ class BeamSearchProblem(SearchProblem):
             examples=self.examples,
             custom_in_context_example_robot_prompt="Top robot action sequence: ",
             custom_in_context_example_robot_format="python_list",
-            custom_robot_prompt=f"Top {num_successors} next actions (python list; do not use newline): ",
+            custom_robot_prompt=f"Top {num_successors} next actions (python list using available scene objects; do not use newline): ",
             custom_robot_action_sequence_format="python_list",
             lm_cfg=self.lm_cfg,
             auth=self.auth,
@@ -526,11 +526,16 @@ class BeamSearchProblem(SearchProblem):
         self.lm_cfg.echo = True
         self.lm_cfg.engine = "code-davinci-002"
 
-        env_lst = [self.env] * len(actions)
-        potential_action_primitives: List[primitives.Primitive] = [
-            env.get_primitive_info(action, env)
-            for (action, env) in zip(actions, env_lst)
-        ]
+        # use try except to catch any errors in the action primitives
+        potential_action_primitives: List[primitives.Primitive] = []
+        for action in actions:
+            try:
+                potential_action_primitives.append(
+                    self.env.get_primitive_info(action, self.env)
+                )
+            except Exception as e:
+                print(f"Error in action primitive: {e}")
+                pass
 
         new_nodes = []
         for action_primitive in potential_action_primitives:

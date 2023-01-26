@@ -119,6 +119,7 @@ def eval_ilm_tamp(
         )
 
     examples = random.sample(examples, n_examples)
+    random.shuffle(examples)
     lm_cfg: LMConfig = LMConfig(
         engine=engine,
         temperature=temperature,
@@ -195,7 +196,6 @@ def eval_ilm_tamp(
             auth=auth,
             lm_cache=lm_cache,
         )
-        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
         goal_props_ground_truth: List[str] = [
             str(goal) for goal in env.goal_propositions
         ]
@@ -327,6 +327,7 @@ def eval_ilm_tamp(
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
 
+    save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
     # Save planning results.
     path.mkdir(parents=True, exist_ok=True)
 

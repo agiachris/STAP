@@ -190,6 +190,8 @@ def eval_lm_tamp(
         "configs/pybullet/envs/t2m/official/prompts/"
     )
     examples = random.sample(examples, n_examples)
+    random.shuffle(examples)
+
     lm_cfg = LMConfig(
         engine=engine,
         temperature=temperature,
@@ -274,6 +276,7 @@ def eval_lm_tamp(
             lm_cfg=lm_cfg,
             auth=auth,
             lm_cache=lm_cache,
+            verbose=True
         )
         save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
@@ -311,8 +314,9 @@ def eval_lm_tamp(
             auth=auth,
             lm_cache=lm_cache,
         )
-        # save_lm_cache(lm_cache_file, lm_cache)
+        save_lm_cache(lm_cache_file, lm_cache)
 
+        print(colored(f"generated task plans: {generated_task_plans}", "blue"))
         # # convert action_skeleton's elements with the format pick(a) to pick(a, table)
         converted_task_plans = []
         for task_plan in generated_task_plans:
@@ -325,7 +329,7 @@ def eval_lm_tamp(
                     new_task_plan.append(action)
             converted_task_plans.append(new_task_plan)
         generated_task_plans = converted_task_plans
-        # generated_task_plans = [[str(action).lower() for action in env.tasks.tasks[0].action_skeleton]]
+
         action_skeletons_instantiated = get_task_plan_primitives_instantiated(
             generated_task_plans, env
         )
@@ -385,8 +389,6 @@ def eval_lm_tamp(
         for task_plan, motion_plan in zip(task_plans, motion_plans):
             # find first timestep where the goal is reached
             for i, state in enumerate(motion_plan.states):
-                if i > 2:
-                    continue
                 if is_satisfy_goal_props(
                     goal_props_callable, prop_testing_objs, state, use_hand_state=False
                 ):

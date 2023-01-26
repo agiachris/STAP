@@ -258,6 +258,7 @@ def eval_saycan(
         )
 
     examples = random.sample(examples, n_examples)
+    random.shuffle(examples)
     lm_cfg: LMConfig = LMConfig(
         engine=engine,
         temperature=temperature,
@@ -333,9 +334,6 @@ def eval_saycan(
             verbose=lm_verbose,
         )
         save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
-        import ipdb
-
-        ipdb.set_trace()
         goal_props_ground_truth: List[str] = [
             str(goal) for goal in env.goal_propositions
         ]
@@ -380,7 +378,6 @@ def eval_saycan(
                 lm_cache=lm_cache,
                 verbose=lm_verbose,
             )
-            # save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
             print(
                 colored(
@@ -423,7 +420,6 @@ def eval_saycan(
                 verbose=lm_verbose,
             )
 
-            save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
             policy_actions: np.ndarray = get_policy_actions(
                 observation,
                 potential_actions,
@@ -520,12 +516,14 @@ def eval_saycan(
                 available_predicates,
                 use_hand_state=False,
             )
-            print(f"object relationships: {object_relationships}")
+            print(f"object relationships: {list(map(str, object_relationships))}")
             object_relationships = [str(prop) for prop in object_relationships]
             all_executed_actions.append(potential_actions_str[best_action_idx])
             all_prior_object_relationships.append(object_relationships)
             if step == max_depth:
                 done = True
+
+        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
         env.record_stop()
         success: bool = env.is_goal_state()
