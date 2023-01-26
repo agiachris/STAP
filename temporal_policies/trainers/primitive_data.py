@@ -224,7 +224,15 @@ class PrimitiveDatasetGenerator:
     
             else:
                 self.dataset.add(observation=observation)
-                self.dataset.add(action=action)
+                self.dataset.add(
+                    action=action,
+                    reward=0.0,
+                    next_observation=observation.copy(), 
+                    discount=0.0,
+                    terminate=True,
+                    truncated=True,
+                    policy_args={}
+                )
 
             return collect_metrics
     
