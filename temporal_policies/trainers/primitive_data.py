@@ -21,6 +21,7 @@ class PrimitiveDatasetGenerator:
         collection_strategy: str = "uniform",
         min_success_ratio: Optional[float] = None,
         max_failure_ratio: Optional[float] = None,
+        simulate: bool = True,
         dataset_class: Union[str, Type[datasets.ReplayBuffer]] = datasets.ReplayBuffer,
         dataset_kwargs: Dict[str, Any] = {},
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
@@ -36,9 +37,11 @@ class PrimitiveDatasetGenerator:
         Args:
             path: Training output path.
             agent: Agent to be trained.
+            dataset_size: Number of transitions to collect.
             collection_strategy: Data collection strategy.
             min_success_ratio: Minimum number of successful episodes in the buffer.
             max_failure_ratio: Maximum number of failed episodes in the buffer.
+            simulate: If True, the sampled action is simulated in the environment.
             dataset_class: Dynamics model dataset class or class name.
             dataset_kwargs: Kwargs for dataset class.
             checkpoint: Optional path to trainer checkpoint.
@@ -64,9 +67,8 @@ class PrimitiveDatasetGenerator:
         self._dataset_size = dataset_size
         self._collection_strategy = collection_strategy
         self._min_success_ratio = min_success_ratio
-        self._max_failure_ratio = max_failure_ratio
-        self._num_collected = 0
-        self._num_failure = 0
+        self._max_failure_ratio = max_failure_ratio 
+        self._simulate = simulate
 
         # Trainer parameters.
         self._agent = agent
@@ -87,6 +89,7 @@ class PrimitiveDatasetGenerator:
         self._timer = timing.Timer()
         self._device = tensors.device(device)
 
+        self._num_failure = 0
         self._step = 0
         self._epoch = 0
 
@@ -161,9 +164,11 @@ class PrimitiveDatasetGenerator:
         self.log_freq = min(log_freq, self._dataset_size // 10)
 
         metrics_list = []
-        while self._num_collected < self._dataset_size:
+        while self.step < self._dataset_size:
             collect_metrics = self.collect_step()
-            if collect_metrics:
+            if not self._simulate:
+                self.increment_step()
+            elif self._simulate and collect_metrics:
                 metrics_list.append(collect_metrics)
                 metrics_list = self.log_step(metrics_list, stage="collection")
                 self.increment_step()
@@ -177,45 +182,52 @@ class PrimitiveDatasetGenerator:
         Returns:
             Collect metrics.
         """
+        collect_metrics = {}
         with self.profiler.profile("collect"):
             observation, _ = self.env.reset()
             action = self.env.get_primitive().sample()
-            next_observation, reward, terminated, truncated, info = self.env.step(action)
-            done = terminated or truncated
-            discount = 1.0 - float(done)
-            try:
-                policy_args = info["policy_args"]
-            except KeyError:
-                policy_args = None
 
-            assert done, "Must be in single-step environment."
-            
-            if self._collection_strategy == "balanced":
-                exceeding_max_num_failure = self._num_failure >= self._dataset_size * self._max_failure_ratio
-                violating_min_num_success = self._dataset_size - self._num_failure <= self._dataset_size * self._min_success_ratio
-                if reward == 0.0 and (exceeding_max_num_failure or violating_min_num_success):
-                    return {}
-            elif self._collection_strategy == "uniform":
-                pass
+            if self._simulate:
+                next_observation, reward, terminated, truncated, info = self.env.step(action)
+                done = terminated or truncated
+                discount = 1.0 - float(done)
+                try:
+                    policy_args = info["policy_args"]
+                except KeyError:
+                    policy_args = None
+
+                assert done, "Must be in single-step environment."
+                
+                if self._collection_strategy == "balanced":
+                    exceeding_max_num_failure = self._num_failure >= self._dataset_size * self._max_failure_ratio
+                    violating_min_num_success = self._dataset_size - self._num_failure <= self._dataset_size * self._min_success_ratio
+                    if reward == 0.0 and (exceeding_max_num_failure or violating_min_num_success):
+                        return collect_metrics
+                elif self._collection_strategy == "uniform":
+                    pass
+                else:
+                    raise ValueError(f"Collection strategy {self._collection_strategy} is not supported.")
+
+                self._num_failure += int(reward == 0.0)
+
+                self.dataset.add(observation=observation)
+                self.dataset.add(
+                    action=action,
+                    reward=reward,
+                    next_observation=next_observation,
+                    discount=discount,
+                    terminated=terminated,
+                    truncated=truncated,
+                    policy_args=policy_args,
+                )
+                collect_metrics.update({"reward": reward, "episode": self.epoch})
+    
             else:
-                raise ValueError(f"Collection strategy {self._collection_strategy} is not supported.")
+                self.dataset.add(observation=observation)
+                self.dataset.add(action=action)
 
-            self._num_failure += int(reward == 0.0)
-            self._num_collected += 1
-
-            self.dataset.add(observation=observation)
-            self.dataset.add(
-                action=action,
-                reward=reward,
-                next_observation=next_observation,
-                discount=discount,
-                terminated=terminated,
-                truncated=truncated,
-                policy_args=policy_args,
-            )
-
-            self.increment_epoch()
-            return {"reward": reward, "episode": self.epoch}
+            return collect_metrics
+    
 
     def log_step(
         self, metrics_list: List[Mapping[str, float]], stage: str = "train"

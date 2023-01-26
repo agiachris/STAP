@@ -200,48 +200,43 @@ def get_syntactically_valid_actions(
 
 
 def get_symbolic_actions(
-    config: PolicyDatasetGenerationConfig, state: List[str]
-) -> Tuple[List[str], List[str]]:
-    """Compute valid and invalid symbolic actions in a symbolic state."""
-
+    state: List[str],
+    object_types: Dict[str, str],
+    pddl_config: PDDLConfig,
+) -> List[str]:
+    """Compute symbolically valid actions in a given state."""
     problem_name = str(state)
     _ = generate_pddl_problem(
         problem_name=problem_name,
-        pddl_config=config.pddl_config,
-        object_types=config.object_types,
+        pddl_config=pddl_config,
+        object_types=object_types,
         symbolic_state=state,
         save=True,
     )
-
     pddl = symbolic.Pddl(
-        config.pddl_config.pddl_domain_file,
-        config.pddl_config.get_problem_file(problem_name),
+        pddl_config.pddl_domain_file,
+        pddl_config.get_problem_file(problem_name),
     )
+    actions = pddl.list_valid_actions(pddl.initial_state)
+    return actions
 
-    valid_actions = pddl.list_valid_actions(pddl.initial_state)
-    all_actions = get_syntactically_valid_actions(
-        pddl, list(config.object_types.keys())
-    )
-    invalid_actions = [a for a in all_actions if not a in valid_actions]
-    return valid_actions, invalid_actions
+
+def get_state_object_types(state: List[str], object_types: Dict[str, str]) -> Dict[str, str]:
+    """Return dictionary of objects to object types for objects in state."""
+    state_objects = set()
+    for prop in state:
+        state_objects = state_objects.union(set(symbolic.parse_args(prop)))
+    return {obj: obj_type for obj, obj_type in object_types.items() if obj in state_objects}
 
 
 def get_states_to_primitives(
-    states_to_actions: Dict[str, Dict[str, List[str]]],
-    symbolic_action_type: str,
-    primitive: str,
+    states_to_actions: Dict[str, List[str]], 
+    primitive: str
 ) -> Dict[str, List[str]]:
     """Get mapping from states to specified primitive actions."""
     states_to_primitives: Dict[str, List[str]] = {}
-    for state, action_dict in states_to_actions.items():
-        try:
-            primitives = [
-                a for a in action_dict[symbolic_action_type] if primitive in a
-            ]
-            if len(primitives) > 0:
-                states_to_primitives[state] = primitives
-        except KeyError:
-            pass
+    for state, actions in states_to_actions.items():
+        states_to_primitives[state] = [a for a in actions if primitive in a]
     return states_to_primitives
 
 
@@ -251,7 +246,7 @@ def get_env_config(
     template_yaml_path: str,
     gui: bool = False,
     seed: int = 0,
-    symbolic_action_type: Literal["valid", "invalid", "all"] = "valid",
+    symbolic_action_type: Literal["valid", "invalid"] = "valid",
     save_env_config: bool = True,
     env_config_path: Optional[str] = None,
     env_name: Optional[str] = None,
@@ -301,6 +296,9 @@ def get_env_config(
                     task["prob"] = 0.5 * (1 / num_place_hook_actions)
                 else:
                     task["prob"] = 0.5 * (1 / num_place_box_actions)
+    
+    elif symbolic_action_type == "invalid":
+        pass
 
     else:
         raise ValueError(f"Support for {symbolic_action_type} not implemented.")
@@ -341,22 +339,19 @@ def main(config: PolicyDatasetGenerationConfig):
         os.makedirs(pddl_problem_dir)
 
     # Compute symbolically valid and invalid actions.
-    states_to_actions: Dict[str, Dict[str, List[str]]] = defaultdict(dict)
+    states_to_actions: Dict[str, List[str]] = defaultdict(list)
     for state in generate_symbolic_states(config.object_types):
-        valid_actions, invalid_actions = get_symbolic_actions(config, state)
-        if len(valid_actions) > 0:
-            states_to_actions[str(state)]["valid"] = valid_actions
-        if len(invalid_actions) > 0:
-            states_to_actions[str(state)]["invalid"] = invalid_actions
-        if len(valid_actions) + len(invalid_actions) > 0:
-            states_to_actions[str(state)]["all"] = valid_actions + invalid_actions
+        state_object_types = get_state_object_types(state, config.object_types)
+        actions = get_symbolic_actions(state, state_object_types, config.pddl_config)
+        
+        if len(actions) > 0:
+            states_to_actions[str(state)] = actions
 
     # Delete temporary PDDL problem subdirectory.
     shutil.rmtree(pddl_problem_dir)
 
     states_to_primitives: Dict[str, List[str]] = get_states_to_primitives(
         states_to_actions=states_to_actions,
-        symbolic_action_type=config.symbolic_action_type,
         primitive=config.primitive,
     )
     num_states = len(states_to_primitives.keys())
@@ -383,6 +378,7 @@ def main(config: PolicyDatasetGenerationConfig):
         env_config_path=config.env_config_path,
         env_name=config.env_name,
     )
+    breakpoint()
 
     train_policy.train(
         config.path,
