@@ -112,8 +112,8 @@ class Primitive(envs.Primitive, abc.ABC):
             (success, truncated) 2-tuple.
         """
 
-    def sample(self) -> np.ndarray:
-        if random.random() < 0.9:
+    def sample(self, uniform: bool = False) -> np.ndarray:
+        if not uniform and random.random() < 0.9:
             action = self.normalize_action(self.sample_action().vector)
             action = np.random.normal(loc=action, scale=0.05)
             action = action.astype(np.float32).clip(

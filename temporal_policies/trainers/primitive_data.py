@@ -185,8 +185,8 @@ class PrimitiveDatasetGenerator:
         collect_metrics = {}
         with self.profiler.profile("collect"):
             observation, _ = self.env.reset()
-            action = self.env.get_primitive().sample()
-
+            action = self.env.get_primitive().sample(uniform=not self._simulate)
+            
             if self._simulate:
                 next_observation, reward, terminated, truncated, info = self.env.step(action)
                 done = terminated or truncated
@@ -235,7 +235,6 @@ class PrimitiveDatasetGenerator:
                 )
 
             return collect_metrics
-    
 
     def log_step(
         self, metrics_list: List[Mapping[str, float]], stage: str = "train"
