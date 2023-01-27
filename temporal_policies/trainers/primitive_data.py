@@ -185,9 +185,10 @@ class PrimitiveDatasetGenerator:
         collect_metrics = {}
         with self.profiler.profile("collect"):
             observation, _ = self.env.reset()
-            action = self.env.get_primitive().sample(uniform=not self._simulate)
-            
+            primitive = self.env.get_primitive()
+
             if self._simulate:
+                action = primitive.sample(uniform=False)
                 next_observation, reward, terminated, truncated, info = self.env.step(action)
                 done = terminated or truncated
                 discount = 1.0 - float(done)
@@ -223,6 +224,8 @@ class PrimitiveDatasetGenerator:
                 collect_metrics.update({"reward": reward, "episode": self.epoch})
     
             else:
+                action = primitive.sample(uniform=True)
+                policy_args = primitive.get_policy_args()
                 self.dataset.add(observation=observation)
                 self.dataset.add(
                     action=action,
@@ -231,7 +234,7 @@ class PrimitiveDatasetGenerator:
                     discount=0.0,
                     terminated=True,
                     truncated=True,
-                    policy_args={},
+                    policy_args=policy_args if policy_args is not None else {},
                 )
 
             return collect_metrics
