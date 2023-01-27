@@ -1,0 +1,18 @@
+trainer: DynamicsTrainer
+trainer_kwargs:
+  dataset_class: StratifiedReplayBuffer
+  dataset_kwargs:
+    batch_size: 128
+  skip_truncated: true
+  skip_failed: true
+
+  optimizer_class: Adam
+  optimizer_kwargs:
+    lr: 0.0005
+
+  num_train_steps: 500000
+  num_eval_steps: 1000
+  eval_freq: 1000
+  checkpoint_freq: 10000
+  log_freq: 2000
+  profile_freq: 100
