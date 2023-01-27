@@ -15,6 +15,15 @@ from temporal_policies import agents, trainers, datasets
 from temporal_policies.networks.encoders import IMAGE_ENCODERS
 
 
+PLOT_METRICS = [
+    "q_freq",
+    "q_mean",
+    "q_std",
+    "q_max",
+    "q_min",
+]
+
+
 METRIC_COLORS = {
     "q_freq": "tab:blue",
     "q_mean": "tab:green",
@@ -116,8 +125,10 @@ def evaluate_values(
             t_state = agent.encoder.encode(t_observation, batch["policy_args"])
             
             # Size [B, critic.num_q_functions]
-            batch_qs = torch.stack(agent.critic.forward(t_state, batch["action"])).T
+            batch_qs = torch.stack(agent.critic.forward(t_state, batch["action"])).T            
+            
             # Store per-example metrics of size [B,]
+            metrics["reward"].append(batch["reward"].cpu().numpy())
             metrics["q_mean"].append(batch_qs.mean(dim=-1).cpu().numpy())
             metrics["q_std"].append(batch_qs.std(dim=-1).cpu().numpy())
             metrics["q_max"].append(torch.max(batch_qs, dim=-1).values.cpu().numpy())
@@ -128,11 +139,12 @@ def evaluate_values(
     with open(path / "metrics.npz", "wb") as f:
         np.save(f, metrics, allow_pickle=True)
 
-    # Bin metrics based on mean Q-values.
     num_bins = 10 if num_bins is None else num_bins
     bins = np.linspace(0, 1, num_bins + 1)
-    binned_metrics: List[Dict[str, np.ndarray]] = []
     bin_metric = "q_mean" if expected else "q_min"
+
+    # Bin metrics based on mean or min of ensemble Q-values.
+    binned_metrics: List[Dict[str, np.ndarray]] = []
     for i in range(num_bins):        
         mask = np.logical_and(metrics[bin_metric] >= bins[i], metrics[bin_metric] < bins[i+1])
         q_freq = np.sum(mask)
@@ -143,11 +155,12 @@ def evaluate_values(
             collect_metric.update({k: np.zeros(1) for k in metrics.keys()})
         binned_metrics.append(collect_metric)
     
-    # Plot metrics across bins.
     x_arr = np.arange(num_bins)
     x_ticks = [f"{bins[i]:.1f}-{bins[i+1]:.1f}" for i in range(num_bins)]
     x_label = " ".join(bin_metric.split("_")).title()
-    for k in list(metrics.keys()) + ["q_freq"]:
+    
+    # Plot metrics across bins.
+    for k in PLOT_METRICS:
         metric_name = " ".join(k.split("_")).title()
         barplot(
             path=path / f"{k}_ablation_plot.pdf",
@@ -156,6 +169,36 @@ def evaluate_values(
             x_arr=x_arr,
             x_ticks=x_ticks,
             title=f"Q-Ensemble Ablation: {name.capitalize()} {metric_name}",
+            x_label=x_label,
+            y_label=metric_name,
+            color=METRIC_COLORS[k],
+        )
+
+    # Compute TP / FP / TN / FN
+    rewards = metrics["reward"].astype(bool)
+    binned_confusion: Dict[str, List[float]] = defaultdict(list)
+    for i in range(num_bins): 
+        # [N,] = [T, F, ...]
+        positive_mask = metrics[bin_metric] >= bins[i]
+        true_positive = np.logical_and(positive_mask, rewards).sum()
+        true_negative = np.logical_and(~positive_mask, ~rewards).sum()
+        false_positive = np.logical_and(positive_mask, ~rewards).sum()
+        false_negative = np.logical_and(~positive_mask, rewards).sum()
+        tpr = true_positive / (true_positive + false_positive)
+        tnr = true_negative / (true_negative + false_negative)
+        binned_confusion["true_pos"].append(tpr)
+        binned_confusion["false_pos"].append(1 - tpr)
+        binned_confusion["true_neg"].append(tnr)
+        binned_confusion["false_neg"].append(1 - tnr)
+        
+    for k in binned_confusion.keys():
+        metric_name = " ".join(k.split("_")).title()
+        barplot(
+            path=path / f"{k}_ablation_plot.pdf",
+            y_arr=binned_confusion[k],
+            x_arr=x_arr,
+            x_ticks=x_ticks,
+            title=f"Precision Ablation: {name.capitalize()} {metric_name}",
             x_label=x_label,
             y_label=metric_name,
             color=METRIC_COLORS[k],
