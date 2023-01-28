@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import List, Any, Optional
 
 import abc
 import torch
@@ -116,4 +116,45 @@ class EnsembleThresholdCritic(ContinuousEnsembleCritic):
         qs: torch.Tensor = torch.stack(self.forward(state, action))
         q = torch.min(qs, dim=0).values if self.pessimistic else qs.mean(dim=0)
         q[qs.std(dim=0) > self.threshold] = self.value
+        return torch.clamp(q, 0, 1) if self.clip else q
+
+
+class EnsembleOODCritic(ContinuousEnsembleCritic):
+    def __init__(
+        self,
+        threshold: float,
+        **kwargs: Any
+    ):
+        """Construct EnsembleOODCritic.
+        
+        Args:
+            threshold: Out-of-distribution threshold on std(Qi).
+        """
+        assert isinstance(threshold, float) and threshold >= 0.0
+        super().__init__(**kwargs)
+        self.threshold = threshold
+        self._cached_detections: Optional[torch.Tensor] = None
+
+    @property
+    def detect(self) -> torch.Tensor:
+        """Returns tensor of OOD detections."""
+        if self._cached_detections is None:
+            raise ValueError("Must call EnsembleOODCritic.predict before detect.")
+        detections = self._cached_detections
+        self._cached_detections = None
+        return detections
+
+    def predict(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+        """Predicts the expected value of the given (state, action) pair.
+
+        Args:
+            state: State.
+            action: Action.
+
+        Returns:
+            Q-values.
+        """
+        qs: torch.Tensor = torch.stack(self.forward(state, action))
+        self._cached_detections = (qs.std(dim=0) > self.threshold).bool().detach().cpu()
+        q = torch.min(qs, dim=0).values if self.pessimistic else qs.mean(dim=0)
         return torch.clamp(q, 0, 1) if self.clip else q
