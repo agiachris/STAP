@@ -28,6 +28,8 @@ from termcolor import colored
 import argparse
 import pathlib
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
+from temporal_policies.task_planners.lm_agent import LMPlannerAgent
+from temporal_policies.task_planners.task_plans import get_next_action_str_from_lm
 
 import torch
 import numpy as np
@@ -103,6 +105,7 @@ def eval_ilm_tamp(
     auth: Optional[Authentication] = None,
     visualize_planning: bool = False,
     use_ground_truth_goal_props: bool = False,
+    termination_method: Literal["pred_stop", "goal_prop"] = "pred_stop",
 ):
     # set seeds
     if seed is not None:
@@ -146,6 +149,7 @@ def eval_ilm_tamp(
         device=device,
     )
 
+    path = path + "_" + termination_method
     path = pathlib.Path(path) / env.name
 
     prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
@@ -159,7 +163,7 @@ def eval_ilm_tamp(
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
-
+    run_logs: List[Dict[str, Any]] = []
     # steps to success when stopping search + execution
     # via the predicted goal props
     steps_to_success_via_pred_goal_props: List[int] = []
@@ -171,8 +175,8 @@ def eval_ilm_tamp(
         goal_props_predicted: List[str]
         objects: List[str]
         object_relationships: List[str]
-        all_prior_object_relationships: List[List[str]] = []
-        all_executed_actions: List[str] = []
+        object_relationships_history: List[List[str]] = []
+        executed_actions: List[str] = []
 
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
@@ -183,8 +187,9 @@ def eval_ilm_tamp(
         object_relationships = get_object_relationships(
             observation, env.objects, available_predicates, use_hand_state=False
         )
+        # import ipdb; ipdb.set_trace()
         object_relationships = [str(prop) for prop in object_relationships]
-        all_prior_object_relationships.append(object_relationships)
+        object_relationships_history.append(object_relationships)
         goal_props_predicted, lm_cache = get_goal_from_lm(
             env.instruction,
             objects,
@@ -215,18 +220,41 @@ def eval_ilm_tamp(
         done: bool = False
         recording_id: Optional[int] = None
 
+        lm_agent = LMPlannerAgent(
+            instruction=env.instruction,
+            scene_objects=objects,
+            goal_props_predicted=goal_props_predicted,
+            examples=examples,
+            lm_cfg=lm_cfg,
+            auth=auth,
+            lm_cache=lm_cache,
+            pddl_domain_file=pddl_domain,
+            pddl_problem_file=pddl_problem,
+        )
+
         beam_search_algorithm = BeamSearchAlgorithm(
             max_beam_size=1, max_depth=max_depth, num_successors_per_node=5
         )
-
-        if is_satisfy_goal_props(
-            goal_props_callable,
-            prop_testing_objs,
-            observation,
-            use_hand_state=False,
-        ):
-            print(colored("goal props satisfied", "green"))
-            done = True
+        if termination_method == "goal_prop":
+            if is_satisfy_goal_props(
+                goal_props_callable,
+                prop_testing_objs,
+                observation,
+                use_hand_state=False,
+            ):
+                print(colored("goal props satisfied", "green"))
+                done = True
+        elif termination_method == "pred_stop":
+            next_action_str = lm_agent.get_next_action_str(
+                object_relationships_history,
+                executed_actions,
+            )
+            lm_cache = lm_agent.lm_cache
+            if "stop()" in next_action_str:
+                print(colored("LM predicted stop()", "green"))
+                done = True
+        else:
+            raise NotImplementedError("Unknown termination method")
 
         step = 0
         while not done:
@@ -243,8 +271,8 @@ def eval_ilm_tamp(
                 pddl_problem,
                 examples,
                 lm_cfg,
-                all_prior_object_relationships,
-                all_executed_actions,
+                object_relationships_history,
+                executed_actions,
                 auth,
                 lm_cache,
                 lm_cache_file,
@@ -283,61 +311,76 @@ def eval_ilm_tamp(
 
             step += 1
 
-            print(f"action executed: {str(best_task_plan[0])}; reward: {reward}")
-            if is_satisfy_goal_props(
-                goal_props_callable,
-                prop_testing_objs,
-                observation,
-                use_hand_state=False,
-            ):
-                print(colored("predicted goal props satisfied", "green"))
-                success = True
-                done = True
-
             objects = list(env.objects.keys())
             object_relationships = get_object_relationships(
                 observation, env.objects, available_predicates, use_hand_state=False
             )
             object_relationships = [str(prop) for prop in object_relationships]
-            all_executed_actions.append(str(best_task_plan[0]))
-            all_prior_object_relationships.append(object_relationships)
+            executed_actions.append(str(best_task_plan[0]))
+            object_relationships_history.append(object_relationships)
+
+            print(f"action executed: {str(best_task_plan[0])}; reward: {reward}")
+            if termination_method == "goal_prop":
+                if is_satisfy_goal_props(
+                    goal_props_callable,
+                    prop_testing_objs,
+                    observation,
+                    use_hand_state=False,
+                ):
+                    print(colored("goal props satisfied", "green"))
+                    done = True
+            elif termination_method == "pred_stop":
+                next_action_str = lm_agent.get_next_action_str(
+                    object_relationships_history,
+                    executed_actions,
+                )
+                lm_cache = lm_agent.lm_cache
+                if "stop()" in next_action_str:
+                    print(colored("LM predicted stop()", "green"))
+                    done = True
+            else:
+                raise NotImplementedError("Unknown termination method")
+
             if step == max_depth:
                 done = True
 
         success: bool = env.is_goal_state()
         if success:
-            steps_to_success_via_pred_goal_props.append(
-                step - 1
-            )  # -1 because take extra step at end for rendering
-            print(colored("Success! Ground truth goal props satisfied.", "green"))
+            if termination_method == "goal_prop":
+                steps_to_success_via_pred_goal_props.append(
+                    step - 1
+                )  # -1 because take extra step at end for rendering; not true if terminate at beginning
+                print(colored("Success! Ground truth goal props satisfied.", "green"))
+            elif termination_method == "pred_stop":
+                steps_to_success_via_pred_goal_props.append(step - 1)
         else:
             steps_to_success_via_pred_goal_props.append(-1)
 
         gif_path = (
-            path
-            / str(idx_iter)
-            / f"execution_{'reached_goal_prop' if success else 'fail'}.gif"
+            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.gif"
         )
         env.record_save(gif_path, reset=False)
         gif_path = (
-            path
-            / str(idx_iter)
-            / f"execution_{'reached_goal_prop' if success else 'fail'}.mp4"
+            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.mp4"
         )
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
 
+        run_log = {
+            "seed": seed,
+            "success": success,
+            "num_steps": step,
+            "executed_actions": executed_actions,
+            "object_relationships_history": object_relationships_history,
+        }
+        run_logs.append(run_log)
+
     save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
     # Save planning results.
     path.mkdir(parents=True, exist_ok=True)
+    success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
 
-    num_successes_via_pred_goal_props = int(
-        (np.array(steps_to_success_via_pred_goal_props) != -1).sum()
-    )
-    num_successes_via_pred_stop = int(
-        (np.array(steps_to_success_via_stop_prediction) <= max_depth).sum()
-    )
-
+    # Save planning results.
     with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
             "args": {
@@ -354,26 +397,14 @@ def eval_ilm_tamp(
                 "timeout": timeout,
                 "seed": seed,
                 "verbose": verbose,
-                "use_ground_truth_goal_props": use_ground_truth_goal_props,
+                "termination_method": termination_method,
             },
-            "num_successes_via_pred_stop": num_successes_via_pred_stop,
-            "success_rate_via_pred_stop": (num_successes_via_pred_stop / num_eval)
-            * 100,
-            "num_successes_via_pred_goal_props": num_successes_via_pred_goal_props,
-            "success_rate_via_pred_goal_props": (
-                num_successes_via_pred_goal_props / num_eval
-            )
-            * 100,
+            "task_name": env.name,
+            "task_file": str(pathlib.Path(env_config).name),
+            "success_rate": success_rate,
+            "run_logs": run_logs,
         }
-        json.dump(save_dict, f, indent=4)
-
-    # Print results.
-    print(
-        colored(
-            f"Success rate: {num_successes_via_pred_goal_props / num_eval * 100}",
-            "green",
-        )
-    )
+        json.dump(save_dict, f, indent=2)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -464,6 +495,12 @@ if __name__ == "__main__":
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")
     parser.add_argument(
         "--visualize-planning", type=int, default=0, help="Visualize planning process"
+    )
+    parser.add_argument(
+        "--termination-method",
+        type=str,
+        default="goal_prop",
+        help="Termination condition",
     )
     args = parser.parse_args()
 

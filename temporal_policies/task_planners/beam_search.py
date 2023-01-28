@@ -1,11 +1,12 @@
 from functools import cached_property
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Literal, Optional
 import numpy as np
 
 from termcolor import colored
 from configs.base_config import LMConfig
 from scripts.eval.eval_saycan import format_saycan_scoring_table
 from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.task_planners.lm_agent import LMPlannerAgent
 from torch import Tensor
 
 # helm should be optional
@@ -29,6 +30,7 @@ from temporal_policies.evaluation.utils import (
 )
 from temporal_policies.task_planners.task_plans import (
     get_action_scores_from_lm,
+    get_next_action_str_from_lm,
     get_next_actions_from_lm,
 )
 
@@ -364,9 +366,11 @@ class BeamSearchProblem(SearchProblem):
         lm_cfg: LMConfig,
         all_prior_object_relationships: List[List[str]],
         all_executed_actions: List[str],
+        lm_agent: LMPlannerAgent = LMPlannerAgent,
         auth: Optional[Authentication] = None,
         lm_cache: Optional[Dict[str, str]] = None,
         lm_cache_file: Optional[str] = None,
+        termination_method: Literal["pred_stop", "goal_prop"] = "goal_prop",
     ):
         # TODO(klin) remove when instruction is inside env
         self.instruction: str = instruction
@@ -387,6 +391,8 @@ class BeamSearchProblem(SearchProblem):
         self.auth = auth
         self.lm_cache = lm_cache
         self.lm_cache_file = lm_cache_file
+        self.termination_method = termination_method
+        self.lm_agent = lm_agent
 
         # though maybe this can be hardcoded
         # since it differs for each type of LM call
@@ -413,21 +419,45 @@ class BeamSearchProblem(SearchProblem):
             )
         )
         print(f"Action skeleton values: {node.motion_plan_post_optimization.values}")
+
         print(
             f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
         )
-        if is_satisfy_goal_props(
-            self.goal_props_callable,
-            self.prop_testing_objs,
-            node.motion_plan_post_optimization.states[-1],
-            use_hand_state=False,
-        ):
-            print(colored(f"Success: {node.action_skeleton_as_strings}", "green"))
-            # object relationships
-            print(
-                f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
+        if self.termination_method == "pred_stop":
+            # prompt the LM for the next action to execute
+            # if next action is stop, then we are done
+            # otherwise, we are not done
+            current_node_object_relationships = node.current_object_relationships
+            current_node_all_executed_actions = node.all_executed_actions
+            current_node_all_prior_object_relationships = (
+                node.all_prior_object_relationships
             )
-            return True
+            next_action_str = self.lm_agent.get_next_action_str(
+                current_node_all_prior_object_relationships,
+                current_node_all_executed_actions,
+            )
+            lm_cache = self.lm_agent.lm_cache
+            self.lm_cache = lm_cache
+            if "stop" in next_action_str:
+                print(colored(f"Success: {node.action_skeleton_as_strings}", "green"))
+                # object relationships
+                print(
+                    f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
+                )
+                return True
+        elif self.termination_method == "goal_prop":
+            if is_satisfy_goal_props(
+                self.goal_props_callable,
+                self.prop_testing_objs,
+                node.motion_plan_post_optimization.states[-1],
+                use_hand_state=False,
+            ):
+                print(colored(f"Success: {node.action_skeleton_as_strings}", "green"))
+                # object relationships
+                print(
+                    f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
+                )
+                return True
         return False
 
     def get_node_scores(self, nodes: List[Node]) -> List[float]:
@@ -580,7 +610,7 @@ class BeamSearchAlgorithm:
         Solves a given problem using beam search.
         """
         beam: List[Node] = [problem.start_node]
-
+        # problem.is_end(problem.start_node)
         # Iterate over the depths
         for search_depth in range(self.max_depth + 1):
             # Initialize the next beam

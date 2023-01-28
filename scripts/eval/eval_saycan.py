@@ -298,6 +298,7 @@ def eval_saycan(
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
+    run_logs: List[Dict[str, Any]] = []
 
     # step = -1 if stopped on non-goal prop, else step = num steps to goal
     steps_to_success_via_pred_goal_props: List[int] = []
@@ -307,8 +308,8 @@ def eval_saycan(
         goal_props_predicted: List[str]
         objects: List[str]
         object_relationships: List[str]
-        all_prior_object_relationships: List[List[str]] = []
-        all_executed_actions: List[str] = []
+        object_relationships_history: List[List[str]] = []
+        executed_actions: List[str] = []
 
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
@@ -320,7 +321,7 @@ def eval_saycan(
             observation, prop_testing_objs, available_predicates, use_hand_state=False
         )
         object_relationships = [str(prop) for prop in object_relationships]
-        all_prior_object_relationships.append(object_relationships)
+        object_relationships_history.append(object_relationships)
         goal_props_predicted, lm_cache = get_goal_from_lm(
             env.instruction,
             objects,
@@ -364,8 +365,8 @@ def eval_saycan(
                 goal_props_to_use,
                 objects,
                 object_relationships,
-                all_prior_object_relationships,
-                all_executed_actions,
+                object_relationships_history,
+                executed_actions,
                 pddl_domain,
                 pddl_problem,
                 custom_in_context_example_robot_prompt="Top robot action sequence: ",
@@ -381,7 +382,7 @@ def eval_saycan(
 
             print(
                 colored(
-                    f"Executed actions: {list(map(str, all_executed_actions))}",
+                    f"Executed actions: {list(map(str, executed_actions))}",
                     "green",
                 )
             )
@@ -406,8 +407,8 @@ def eval_saycan(
                 goal_props_to_use,
                 objects,
                 object_relationships,
-                all_prior_object_relationships,
-                all_executed_actions,
+                object_relationships_history,
+                executed_actions,
                 pddl_domain,
                 pddl_problem,
                 examples=examples,
@@ -518,8 +519,8 @@ def eval_saycan(
             )
             print(f"object relationships: {list(map(str, object_relationships))}")
             object_relationships = [str(prop) for prop in object_relationships]
-            all_executed_actions.append(potential_actions_str[best_action_idx])
-            all_prior_object_relationships.append(object_relationships)
+            executed_actions.append(potential_actions_str[best_action_idx])
+            object_relationships_history.append(object_relationships)
             if step == max_depth:
                 done = True
 
@@ -549,16 +550,23 @@ def eval_saycan(
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
 
+        run_log = {
+            "seed": seed,
+            "success": success,
+            "num_steps": step,
+            "executed_actions": executed_actions,
+            "object_relationships_history": object_relationships_history,
+        }
+        run_logs.append(run_log)
+
     # Save planning results.
     path.mkdir(parents=True, exist_ok=True)
 
-    num_successes_on_stop_score = int(
-        (np.array(steps_to_success_via_stop_score) != -1).sum()
-    )
-    num_successes_on_predicted_goal_props = int(
-        (np.array(steps_to_success_via_pred_goal_props) != -1).sum()
-    )
+    # Save planning results.
+    path.mkdir(parents=True, exist_ok=True)
+    success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
 
+    # Save planning results.
     with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
             "args": {
@@ -575,29 +583,14 @@ def eval_saycan(
                 "timeout": timeout,
                 "seed": seed,
                 "verbose": verbose,
-                "use_ground_truth_goal_props": use_ground_truth_goal_props,
+                "termination_method": "saycan_scoring",
             },
-            "num_successes_on_stop_score": num_successes_on_stop_score,
-            "steps_to_success_via_stop_score": steps_to_success_via_stop_score,
-            "num_successes_on_used_goal_props": num_successes_on_predicted_goal_props,
-            "steps_to_success_via_pred_goal_props": steps_to_success_via_pred_goal_props,
-            "success_rate_on_used_goal_props": num_successes_on_predicted_goal_props
-            / num_eval
-            * 100,
-            "success_rate_using_stop_score_on_ground_truth_goal_props": num_successes_on_stop_score
-            / num_eval
-            * 100,
+            "task_name": env.name,
+            "task_file": str(pathlib.Path(env_config).name),
+            "success_rate": success_rate,
+            "run_logs": run_logs,
         }
-        json.dump(save_dict, f, indent=4)
-
-    # Print results.
-    print(
-        colored(
-            f"Success rate: {((np.array(steps_to_success_via_stop_score) != -1).sum() / num_eval) * 100:.2f}%",
-            "green",
-        )
-    )
-
+        json.dump(save_dict, f, indent=2)
 
 def main(args: argparse.Namespace) -> None:
     auth = authenticate(args.api_type, args.key_name)
