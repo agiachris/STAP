@@ -10,7 +10,7 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you put a prime colored box on the rack?
+    - instruction: How would you put a primary colored box on the rack?
       action_skeleton:
         - pick(hook)
         - pull(blue_box, hook)

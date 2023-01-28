@@ -10,36 +10,37 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you add an even number of boxes onto the rack?
+    - instruction: How would ensure there's an odd number (greater than one) of boxes on the rack?
       action_skeleton:
         - pick(yellow_box)
         - place(yellow_box, rack)
         - pick(hook)
-        - pull(cyan_box, hook)
+        - pull(red_box, hook)
         - place(hook, table)
-        - pick(cyan_box)
-        - place(cyan_box, rack)
+        - pick(red_box)
+        - place(red_box, rack)
       initial_state:
         - free(hook)
         - free(yellow_box)
-        - free(cyan_box)
+        - free(red_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(hook)
-        - inworkspace(red_box)
+        - inworkspace(cyan_box)
         - inworkspace(yellow_box)
-        - beyondworkspace(cyan_box)
-        - nonblocking(cyan_box, rack)
+        - beyondworkspace(red_box)
+        - nonblocking(red_box, rack)
         - on(rack, table)
         - on(hook, table)
-        - under(red_box, rack)
-        - on(red_box, table)
-        - on(yellow_box, table)
+        - under(cyan_box, rack)
         - on(cyan_box, table)
+        - on(yellow_box, table)
+        - on(red_box, table)
+        - on(blue_box, rack)
       goal_propositions:
         - on(yellow_box, rack)
-        - on(cyan_box, rack)
+        - on(red_box, rack)
       supported_predicates:
         - under(a, b)
         - on(a, b)
@@ -68,3 +69,4 @@ env_kwargs:
     - configs/pybullet/envs/assets/yogurt.yaml
     - configs/pybullet/envs/assets/milk.yaml
     - configs/pybullet/envs/assets/icecream.yaml
+    - configs/pybullet/envs/assets/salt.yaml

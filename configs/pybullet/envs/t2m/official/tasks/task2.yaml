@@ -10,10 +10,10 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you pick and place the cyan box, then use the hook to push the cyan box under the rack?
+    - instruction: How would you pick and place the yellow box and blue box onto the table, then use the hook to push the cyan box under the rack?
       action_skeleton:
-        - pick(cyan_box)
-        - place(cyan_box, table)
+        - pick(yellow_box)
+        - place(yellow_box, table)
         - pick(hook)
         - push(yellow_box, hook, rack)
       initial_state:
@@ -22,13 +22,20 @@ env_kwargs:
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(hook)
-        - inworkspace(cyan_box)
         - beyondworkspace(rack)
-        - nonblocking(rack, hook)
+        - nonblocking(rack, cyan_box)
+        - nonblocking(rack, yellow_box)
+        - inobstructionzone(yellow_box)
+        - inobstructionzone(blue_box)
+        - infront(yellow_box, rack)
+        - infront(blue_box, rack)
+        - inoperationalzone(cyan_box)
+        - infront(cyan_box, rack)
         - on(rack, table)
         - on(hook, table)
         - on(cyan_box, table)
         - on(yellow_box, table)
+        - on(blue_box, table)
       goal_propositions:
         - under(cyan_box, rack)
       supported_predicates:
@@ -58,4 +65,4 @@ env_kwargs:
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/icecream.yaml
     - configs/pybullet/envs/assets/yogurt.yaml
-
+    - configs/pybullet/envs/assets/salt.yaml
