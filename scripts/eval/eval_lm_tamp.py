@@ -20,27 +20,22 @@ PYTHONPATH=. python scripts/eval/eval_lm_tamp.py
 --n-examples 5
 --key-name personal-all
 """
-# --env-config configs/pybullet/envs/t2m/official/tasks/task0.yaml
-# --policy-checkpoints
-#     models/20230106/complete_q_multistage/pick_0/ckpt_model_1000000.pt 
-#     models/20230101/complete_q_multistage/place_0/best_model.pt 
-#     models/20230101/complete_q_multistage/pull_0/best_model.pt
-#     models/20230101/complete_q_multistage/push_0/best_model.pt
-# --dynamics-checkpoint models/official/select_model/dynamics/best_model.pt --seed 0
-
-# models/20230118/policy/pick/final_model/best_model.pt
-# models/20230118/policy/place/final_model/best_model.pt
-# models/20230118/policy/pull/final_model/best_model.pt
-# models/20230118/policy/push/final_model/best_model.pt
 
 import argparse
 import copy
+import json
 import pathlib
 import random
 from typing import Any, Dict, Generator, List, Literal, Optional, Sequence, Union
 
 from termcolor import colored
 import numpy as np
+from scripts.eval.eval_saycan import (
+    format_saycan_scoring_table,
+    get_policy_actions,
+    get_values,
+)
+from temporal_policies.planners.utils import get_printable_object_relationships_str
 import torch
 import symbolic
 import tqdm
@@ -67,8 +62,12 @@ from temporal_policies.task_planners.goals import get_goal_from_lm
 from temporal_policies.task_planners.lm_data_structures import (
     APIType,
 )
-from temporal_policies.task_planners.task_plans import get_task_plans_from_lm
-from temporal_policies.utils import recording, timing
+from temporal_policies.task_planners.lm_agent import LMPlannerAgent
+from temporal_policies.task_planners.task_plans import (
+    get_action_scores_from_lm,
+    get_next_actions_from_lm,
+)
+from temporal_policies.utils import recording, tensors, timing
 
 from temporal_policies.task_planners.lm_utils import (
     authenticate,
@@ -76,72 +75,6 @@ from temporal_policies.task_planners.lm_utils import (
     load_lm_cache,
     save_lm_cache,
 )
-
-
-def scale_actions(
-    actions: np.ndarray,
-    env: envs.Env,
-    action_skeleton: Sequence[envs.Primitive],
-) -> np.ndarray:
-    scaled_actions = actions.copy()
-    for t, primitive in enumerate(action_skeleton):
-        action_dims = primitive.action_space.shape[0]
-        scaled_actions[..., t, :action_dims] = primitive.scale_action(
-            actions[..., t, :action_dims]
-        )
-
-    return scaled_actions
-
-
-def task_plan(
-    pddl: symbolic.Pddl,
-    env: envs.Env,
-    max_depth: int = 5,
-    timeout: float = 10.0,
-    verbose: bool = False,
-) -> Generator[List[envs.Primitive], None, None]:
-    planner = symbolic.Planner(pddl, pddl.initial_state)
-    bfs = symbolic.BreadthFirstSearch(
-        planner.root, max_depth=max_depth, timeout=timeout, verbose=False
-    )
-    for plan in bfs:
-        action_skeleton = [
-            env.get_primitive_info(action_call=str(node.action)) for node in plan[1:]
-        ]
-        yield action_skeleton
-
-
-def evaluate_plan(
-    idx_iter: int,
-    env: envs.Env,
-    planner: planners.Planner,
-    action_skeleton: Sequence[envs.Primitive],
-    plan: planners.PlanningResult,
-    rewards: np.ndarray,
-    path: pathlib.Path,
-    grid_resolution: Optional[int] = None,
-) -> Dict[str, Any]:
-    assert isinstance(env, envs.pybullet.TableEnv)
-    recorder = recording.Recorder()
-    recorder.start()
-    recorder.add_frame(frame=env.render())
-    for primitive, predicted_state, action in zip(
-        action_skeleton, plan.states[1:], plan.actions
-    ):
-        env.set_primitive(primitive)
-        env._recording_text = (
-            "Action: ["
-            + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
-            + "]"
-        )
-
-        recorder.add_frame(frame=env.render())
-        env.set_observation(predicted_state)
-        recorder.add_frame(frame=env.render())
-    recorder.stop()
-    recorder.save(path / f"predicted_trajectory_{idx_iter}.gif")
-
-    return {}
 
 
 def eval_lm_tamp(
@@ -170,7 +103,7 @@ def eval_lm_tamp(
     custom_in_context_example_robot_format: Literal[
         "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
     ] = "python_list",
-    custom_robot_prompt: str = "Top 4 robot action sequences (python list of lists): ",
+    custom_robot_prompt: str = "Top 5 robot action sequences (python list of lists): ",
     custom_robot_action_sequence_format: str = "python_list_of_lists",
     engine: Optional[str] = None,
     temperature: Optional[int] = 0,
@@ -178,7 +111,8 @@ def eval_lm_tamp(
     api_type: Optional[APIType] = APIType.HELM,
     max_tokens: Optional[int] = 200,
     auth: Optional[Authentication] = None,
-    use_ground_truth_goal_props: bool = True,
+    termination_method: Literal["goal_prop", "pred_stop"] = "pred_stop",
+    use_ground_truth_goal_props: bool = False,
 ) -> None:
     # set seeds
     if seed is not None:
@@ -186,9 +120,7 @@ def eval_lm_tamp(
         np.random.seed(seed)
         torch.manual_seed(seed)
 
-    examples = get_examples_from_json_dir(
-        "configs/pybullet/envs/t2m/official/prompts/"
-    )
+    examples = get_examples_from_json_dir("configs/pybullet/envs/t2m/official/prompts/")
     examples = random.sample(examples, n_examples)
     random.shuffle(examples)
 
@@ -221,7 +153,8 @@ def eval_lm_tamp(
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
-
+    # first append the termination_method to the end of the path with making a subdirectory
+    path = path + "_" + termination_method
     path = pathlib.Path(path) / env.name
 
     prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
@@ -236,15 +169,24 @@ def eval_lm_tamp(
         0  # either predicted or ground truth goal props
     )
     num_successes_on_ground_truth_goal_props: int = 0
+    
+    goal_props_predicted: List[str] = None
+    goal_props_ground_truth: List[str] = [
+        str(goal) for goal in env.goal_propositions
+    ]
+
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
+    run_logs: List[Dict[str, Any]] = []
     for idx_iter, (seed, loaded_plan) in enumerate(pbar):
         goal_props_predicted: List[str]
         objects: List[str]
         object_relationships: List[str]
-        reached_goal_prop: bool = False
-        
+        object_relationships_history: List[List[str]] = []
+        executed_actions: List[str] = []
+        done: bool = False
+
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
         print(f"seed: {seed}")
@@ -261,292 +203,502 @@ def eval_lm_tamp(
         object_relationships = get_object_relationships(
             observation, env.objects, available_predicates, use_hand_state=False
         )
+        object_relationships_history.append(object_relationships)
         possible_props: List[predicates.Predicate] = get_possible_props(
             env.objects, available_predicates
         )
 
-        goal_props_predicted: List[str]
-        goal_props_predicted, lm_cache = get_goal_from_lm(
-            env.instruction,
-            objects,
-            object_relationships,
-            pddl_domain,
-            pddl_problem,
-            examples=examples,
-            lm_cfg=lm_cfg,
-            auth=auth,
-            lm_cache=lm_cache,
-            verbose=True
-        )
-        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+        if goal_props_predicted is None:
+            goal_props_predicted, lm_cache = get_goal_from_lm(
+                env.instruction,
+                objects,
+                object_relationships,
+                pddl_domain,
+                pddl_problem,
+                examples=examples,
+                lm_cfg=lm_cfg,
+                auth=auth,
+                lm_cache=lm_cache,
+                verbose=True,
+            )
+            goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
+                goal_props_predicted, possible_props
+            )
 
-        goal_props_ground_truth: List[str] = [
-            str(goal) for goal in env.goal_propositions
-        ]
-
-        if use_ground_truth_goal_props:
-            goal_props_to_use = goal_props_ground_truth
-        else:
-            goal_props_to_use = goal_props_predicted
-
-        goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
-            goal_props_to_use, possible_props
-        )
+        # TODO(klin): check if satisfies goal at first timestep
 
         print(colored(f"goal props predicted: {goal_props_predicted}", "blue"))
         print(colored(f"minimal goal props: {goal_props_ground_truth}", "blue"))
 
-        # generate prompt from environment observation\
+        recording_id: int = 100
+
         lm_cfg.max_tokens = 500
-        generated_task_plans, lm_cache = get_task_plans_from_lm(
-            env.instruction,
-            goal_props_predicted,
-            objects,
-            object_relationships,
-            pddl_domain,
-            pddl_problem,
+        lm_agent = LMPlannerAgent(
+            instruction=env.instruction,
+            scene_objects=objects,
+            goal_props_predicted=goal_props_predicted,
             examples=examples,
-            custom_in_context_example_robot_prompt=custom_in_context_example_robot_prompt,
-            custom_in_context_example_robot_format=custom_in_context_example_robot_format,
-            custom_robot_prompt=custom_robot_prompt,
-            custom_robot_action_sequence_format=custom_robot_action_sequence_format,
             lm_cfg=lm_cfg,
             auth=auth,
             lm_cache=lm_cache,
+            pddl_domain_file=pddl_domain,
+            pddl_problem_file=pddl_problem,
         )
-        save_lm_cache(lm_cache_file, lm_cache)
 
-        print(colored(f"generated task plans: {generated_task_plans}", "blue"))
-        # # convert action_skeleton's elements with the format pick(a) to pick(a, table)
-        converted_task_plans = []
-        for task_plan in generated_task_plans:
-            new_task_plan = []
-            for action in task_plan:
-                primitive, args = parse_proposition(action)
-                if "pick" == primitive:
-                    new_task_plan.append(f"pick({args[0]}, table)")
-                else:
-                    new_task_plan.append(action)
-            converted_task_plans.append(new_task_plan)
-        generated_task_plans = converted_task_plans
-
-        action_skeletons_instantiated = get_task_plan_primitives_instantiated(
-            generated_task_plans, env
-        )
-        for i, action_skeleton in enumerate(action_skeletons_instantiated):
-            if len(action_skeleton) > max_depth:
-                print(
-                    f"action_skeleton too long. Skipping {[str(action) for action in action_skeleton]}"
-                )
-                continue
-            print(f"action_skeleton: {[str(action) for action in action_skeleton]}")
-
-            timer.tic("motion_planner")
-            env.set_primitive(action_skeleton[0])
-            plan = planner.plan(env.get_observation(), action_skeleton)
-            t_motion_planner = timer.toc("motion_planner")
-
-            task_plans.append(action_skeleton)
-            motion_plans.append(plan)
-            motion_planner_times.append(t_motion_planner)
-
-            # Reset env for oracle value/dynamics.
-            if isinstance(planner.dynamics, dynamics.OracleDynamics):
-                env.set_state(env_state)
-
-            if "greedy" in str(planner_config):
-                break
-
-            all_object_relationships: List[List[str]] = []
-            for state in plan.states:
-                objects = list(env.objects.keys())
-                object_relationships = get_object_relationships(
-                    state, prop_testing_objs, available_predicates, use_hand_state=False
-                )
-                object_relationships = [str(prop) for prop in object_relationships]
-                all_object_relationships.append(object_relationships)
-
-            planners.vizualize_predicted_plan(
-                [str(action) for action in action_skeleton],
-                env,
-                action_skeleton,
-                plan,
-                path / str(idx_iter),
-                custom_recording_text=(
-                    f"human: {env.instruction}\n"
-                    + f"pred-goal: {goal_props_predicted}\n"
-                    + f"pred-plan: {[str(action) for action in action_skeleton]}\n"
-                    + f"value: [{', '.join([f'{v:.2f}' for v in plan.values])}]"
-                ),
-                object_relationships_list=all_object_relationships,
-                file_extensions=["gif", "mp4"],
+        step: int = 0
+        while not done:
+            fallback_to_scoring: bool = True
+            generated_task_plans = lm_agent.get_task_plans(
+                object_relationships_history=object_relationships_history,
+                executed_actions=executed_actions,
+                custom_in_context_example_robot_prompt=custom_in_context_example_robot_prompt,
+                custom_in_context_example_robot_format=custom_in_context_example_robot_format,
+                custom_robot_prompt=custom_robot_prompt,
+                custom_robot_action_sequence_format=custom_robot_action_sequence_format,
+            )
+            print(colored(f"generated task plans: {generated_task_plans}", "blue"))
+            action_skeletons_instantiated = get_task_plan_primitives_instantiated(
+                generated_task_plans, env
             )
 
-        # Filter out plans that do not reach the goal.
-        goal_reaching_task_plans = []
-        goal_reaching_motion_plans = []
-        goal_reaching_task_p_successes = []
-        for task_plan, motion_plan in zip(task_plans, motion_plans):
-            # find first timestep where the goal is reached
-            for i, state in enumerate(motion_plan.states):
-                if is_satisfy_goal_props(
-                    goal_props_callable, prop_testing_objs, state, use_hand_state=False
-                ):
-                    goal_reaching_task_plans.append(task_plan[:i])
-                    shortened_motion_plan = copy.deepcopy(motion_plan)
-                    shortened_motion_plan.actions = motion_plan.actions[:i]
-                    goal_reaching_motion_plans.append(shortened_motion_plan)
-                    # probability of success is the probability of success (i.e. value)
-                    # at each timestep multiplied together
-                    p_success = np.prod([value for value in motion_plan.values[:i]])
+            print(
+                f"len(action_skeletons_instantiated): {len(action_skeletons_instantiated)}"
+            )
+            for i, action_skeleton in enumerate(action_skeletons_instantiated):
+                print(f"action_skeleton: {[str(action) for action in action_skeleton]}")
+                if len(action_skeleton) > max_depth:
+                    print(f"action_skeleton too long. Skipping ...")
+                    continue
+
+                timer.tic("motion_planner")
+                env.set_primitive(action_skeleton[0])
+                plan = planner.plan(env.get_observation(), action_skeleton)
+                t_motion_planner = timer.toc("motion_planner")
+
+                task_plans.append(action_skeleton)
+                motion_plans.append(plan)
+                motion_planner_times.append(t_motion_planner)
+
+                # Reset env for oracle value/dynamics.
+                if isinstance(planner.dynamics, dynamics.OracleDynamics):
+                    env.set_state(env_state)
+
+                if "greedy" in str(planner_config):
+                    break
+
+            # Filter out plans that do not reach the goal.
+            goal_reaching_task_plans = []
+            goal_reaching_motion_plans = []
+            goal_reaching_task_p_successes = []
+            for task_plan, motion_plan in zip(task_plans, motion_plans):
+                # find first timestep where the goal is reached for the current TAMP
+                plan_object_relationships_history = [
+                    list(x) for x in object_relationships_history
+                ]
+                plan_executed_actions = copy.deepcopy(executed_actions)
+                for i in range(len(motion_plan.actions)):
+                    new_state = motion_plan.states[i + 1]
+                    assert not np.isnan(new_state).any()
+                    new_object_relationships = get_object_relationships(
+                        new_state,
+                        env.objects,
+                        available_predicates,
+                        use_hand_state=False,
+                    )
+                    plan_object_relationships_history.append(new_object_relationships)
+                    plan_executed_actions.append(str(task_plan[i]).lower())
+                    next_action_str = lm_agent.get_next_action_str(
+                        plan_object_relationships_history,
+                        plan_executed_actions,
+                    )
+                    lm_cache = lm_agent.lm_cache
+                    if termination_method == "pred_stop":
+                        is_end_lm: bool = "stop" in next_action_str[: len("stop()") + 5]
+                    elif termination_method == "goal_prop":
+                        is_end_lm: bool = is_satisfy_goal_props(
+                            goal_props_callable,
+                            prop_testing_objs,
+                            env.get_observation(),  # not the last state, which is nan
+                            use_hand_state=False,
+                        )
+                    else:
+                        raise NotImplementedError("Unknown termination method")
+
+                    is_geom_feasible: bool = all(
+                        value > 0.45 for value in motion_plan.values[:i]
+                    )
+                    if is_end_lm and is_geom_feasible:
+                        print(f'next_action_str: "{next_action_str}"')
+                        goal_reaching_task_plans.append(task_plan[: i + 1])
+                        shortened_motion_plan = copy.deepcopy(motion_plan)
+                        shortened_motion_plan.actions = motion_plan.actions[: i + 1]
+                        goal_reaching_motion_plans.append(shortened_motion_plan)
+                        p_success = np.prod(
+                            [value for value in motion_plan.values[: i + 1]]
+                        )
+                        goal_reaching_task_p_successes.append(p_success)
+                        print(
+                            colored(
+                                f"Plan reaches goal at action {i} with probability {p_success}",
+                                "green",
+                            )
+                        )
+                        print(
+                            f"task_plan: {[str(action) for action in task_plan[:i + 1]]}"
+                        )
+                        print(
+                            colored(
+                                "Found a plan with each primitive p_success > 0.5",
+                                "green",
+                            )
+                        )
+                        fallback_to_scoring = False
+                        break
+                    elif not is_geom_feasible:
+                        print(
+                            f"Could not find a plan with each primitive p_success > 0.5"
+                        )
+                        break
+
+            save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+
+            idx_best = (
+                np.argmax(goal_reaching_task_p_successes)
+                if len(goal_reaching_task_p_successes) > 0
+                else 0
+            )
+            if len(goal_reaching_task_p_successes) > 0:
+                best_task_plan = goal_reaching_task_plans[idx_best]
+                best_motion_plan = goal_reaching_motion_plans[idx_best]
+
+                # Execute one step.
+                action = best_motion_plan.actions[0]
+                assert isinstance(action, np.ndarray)
+                state = best_motion_plan.states[0]
+                assert isinstance(state, np.ndarray)
+                p_success = best_motion_plan.p_success
+                value = best_motion_plan.values[0]
+                env.set_primitive(best_task_plan[0])
+
+                env.record_start(recording_id)
+                _, reward, _, _, _ = env.step(action)
+
+                # Run closed-loop planning on the rest.
+                rewards, plan, t_planner = planners.run_closed_loop_planning(
+                    env, best_task_plan[1:], planner, timer
+                )
+                env.record_stop(recording_id)
+                step += len(best_task_plan)
+
+                rewards = np.append(reward, rewards)
+                plan = planners.PlanningResult(
+                    actions=np.concatenate((action[None, ...], plan.actions), axis=0),
+                    states=np.concatenate((state[None, ...], plan.states), axis=0),
+                    p_success=p_success * plan.p_success,
+                    values=np.append(value, plan.values),
+                )
+                # Save recording.
+                gif_path = path / f"planning_{idx_iter}.gif"
+                if (rewards == 0.0).any():
+                    gif_path = (
+                        gif_path.parent / f"{gif_path.name}_fail{gif_path.suffix}"
+                    )
+                env.record_save(gif_path, reset=False)
+
+                executed_actions.extend(
+                    [str(action).lower() for action in best_task_plan]
+                )
+                object_relationships_history.extend(
+                    [
+                        get_object_relationships(
+                            state,
+                            prop_testing_objs,
+                            available_predicates,
+                            use_hand_state=False,
+                        )
+                        for state in plan.states[1:]
+                    ]
+                )  # skip the first plan.states since that observation is already in the history
+                print(f"executed_actions: {len(executed_actions)}")
+                print(
+                    f"object_relationships_history: {len(object_relationships_history)}"
+                )
+
+                if t_planner is not None:
+                    motion_planner_times += t_planner
+
+                if termination_method == "pred_stop":
+                    done = "stop" in next_action_str[: len("stop()") + 5]
+                    if done:
+                        fallback_to_scoring = False
+                        print(
+                            colored("Stopping because stop() is next action", "green")
+                        )
+                elif termination_method == "goal_prop":
+                    done = is_satisfy_goal_props(
+                        goal_props_callable,
+                        prop_testing_objs,
+                        env.get_observation(),  # not the last state, which is nan
+                        use_hand_state=False,
+                    )
+                    if done:
+                        fallback_to_scoring = False
+                        print(
+                            colored(
+                                "Stopping because states satisfies predicted goal props",
+                                "green",
+                            )
+                        )
+                else:
+                    raise NotImplementedError(
+                        f"Unknown termination method: {termination_method}"
+                    )
+
+                # after doing closed loop planning, we still need to check if the goal is reached
+                # however, for the sake of evaluation, we will not do this check since
+                # it's likely that re-planning will exceed max depth anyway
+                done = True
+                fallback_to_scoring = False
+
+            if fallback_to_scoring:
+                print(colored("No plan reaches the goal", "red"))
+                # TODO(klin) update the logic to fall back to SayCan-like step?
+                # implement SayCan-like step here
+                actions, lm_cache = get_next_actions_from_lm(
+                    env.instruction,
+                    goal_props_predicted,
+                    objects,
+                    object_relationships,
+                    object_relationships_history,
+                    executed_actions,
+                    pddl_domain,
+                    pddl_problem,
+                    custom_in_context_example_robot_prompt="Top robot action sequence: ",
+                    custom_in_context_example_robot_format="python_list",
+                    custom_robot_prompt="Top 5 valid next actions (python list of primitives): ",
+                    custom_robot_action_sequence_format="python_list",
+                    examples=examples,
+                    lm_cfg=lm_cfg,
+                    auth=auth,
+                    lm_cache=lm_cache,
+                    verbose=False,
+                )
+                env_lst = [env] * len(actions)
+                potential_actions: List[table_primitives.Primitive] = [
+                    env.get_primitive_info(action, env)
+                    for (action, env) in zip(actions, env_lst)
+                ]
+                potential_actions_str: List[str] = [
+                    str(action).lower() for action in potential_actions
+                ]
+                lm_action_scores, lm_cache = get_action_scores_from_lm(
+                    env.instruction,
+                    potential_actions_str,
+                    goal_props_predicted,
+                    objects,
+                    object_relationships,
+                    object_relationships_history,
+                    executed_actions,
+                    pddl_domain,
+                    pddl_problem,
+                    examples=examples,
+                    custom_in_context_example_robot_format="python_list_with_stop",
+                    custom_robot_action_sequence_format="python_list_with_stop",
+                    lm_cfg=lm_cfg,
+                    auth=auth,
+                    lm_cache=lm_cache,
+                    lm_cache_file=lm_cache_file,
+                    verbose=True,
+                )
+
+                policy_actions: np.ndarray = get_policy_actions(
+                    observation,
+                    potential_actions,
+                    planner.policies,
+                    planner.dynamics,
+                    device=tensors.device(device),
+                )
+                value_action_scores: List[float] = get_values(
+                    observation,
+                    policy_actions,
+                    potential_actions,
+                    planner.policies,
+                    planner.dynamics,
+                    device=tensors.device(device),
+                )
+
+                if custom_robot_action_sequence_format == "python_list_with_stop":
+                    stop_score = lm_action_scores[-1]
+                    policy_actions.append(np.zeros(1))
+                    if stop_score == max(lm_action_scores):
+                        value_action_scores.append(10)
+                        done = True
+                        print(
+                            colored("Stopping because stop() score is highest", "green")
+                        )
+                    else:
+                        value_action_scores.append(0.5)
+
+                table_headers = ["Action", "LM", "Value", "Overall"]
+                overall_scores = [
+                    lm_action_score * value_action_score
+                    for (lm_action_score, value_action_score) in zip(
+                        lm_action_scores, value_action_scores
+                    )
+                ]
+                formatted_table_str = format_saycan_scoring_table(
+                    table_headers,
+                    potential_actions_str,
+                    lm_action_scores,
+                    value_action_scores,
+                    overall_scores,
+                )
+                print(colored(formatted_table_str, "blue"))
+
+                best_action_idx = overall_scores.index(max(overall_scores))
+                if "stop()" == potential_actions_str[best_action_idx]:
+                    env.set_primitive(table_primitives.Stop(env))
+                    done = True
+                    env.wait_until_stable()
                     print(
                         colored(
-                            f"Plan reaches goal at timestep {i} with probability {p_success}",
+                            "Stopping because stop() lm * value score is highest",
                             "green",
                         )
                     )
-                    print(f"task_plan: {[str(action) for action in task_plan[:i]]}")
-                    goal_reaching_task_p_successes.append(p_success)
-
-        idx_best = (
-            np.argmax(goal_reaching_task_p_successes)
-            if len(goal_reaching_task_p_successes) > 0
-            else 0
-        )
-        idx_best= -1
-        if len(goal_reaching_task_p_successes) == 0:
-            print(colored("No plan reaches the goal", "red"))
-            # TODO(klin) update the logic to fall back to SayCan-like step?
-            break
-
-        best_task_plan = goal_reaching_task_plans[idx_best]
-        best_motion_plan = goal_reaching_motion_plans[idx_best]
-
-        best_task_plan = task_plans[0]
-        best_motion_plan = motion_plans[0]
-        if closed_loop:
-            env.record_start()
-
-            # Execute one step.
-            action = best_motion_plan.actions[0]
-            assert isinstance(action, np.ndarray)
-            state = best_motion_plan.states[0]
-            assert isinstance(state, np.ndarray)
-            p_success = best_motion_plan.p_success
-            value = best_motion_plan.values[0]
-            env.set_primitive(best_task_plan[0])
-            _, reward, _, _, _ = env.step(action)
-
-            # Run closed-loop planning on the rest.
-            rewards, plan, t_planner = planners.run_closed_loop_planning(
-                env, best_task_plan[1:], planner, timer
-            )
-            rewards = np.append(reward, rewards)
-            plan = planners.PlanningResult(
-                actions=np.concatenate((action[None, ...], plan.actions), axis=0),
-                states=np.concatenate((state[None, ...], plan.states), axis=0),
-                p_success=p_success * plan.p_success,
-                values=np.append(value, plan.values),
-            )
-            env.record_stop()
-
-            # Save recording.
-            gif_path = path / f"planning_{idx_iter}.gif"
-            if (rewards == 0.0).any():
-                gif_path = gif_path.parent / f"{gif_path.name}_fail{gif_path.suffix}"
-            env.record_save(gif_path, reset=True)
-
-            if t_planner is not None:
-                motion_planner_times += t_planner
-        else:
-            planners.vizualize_predicted_plan(
-                idx_iter,
-                env,
-                action_skeleton,
-                best_motion_plan,
-                path,
-            )
-            # Execute plan.
-            rewards = planners.evaluate_plan(
-                env,
-                task_plans[idx_best],
-                motion_plans[idx_best].actions,
-                gif_path=path / f"planning_{idx_iter}.gif",
-            )
-
-        if is_satisfy_goal_props(
-            goal_props_callable,
-            prop_testing_objs,
-            observation,
-            use_hand_state=False,
-        ):
-            print(colored("goal props satisfied", "green"))
-            reached_goal_prop = True
-            num_successes_on_used_goal_props += 1
-
-        if env.is_goal_state():
-            print(colored("ground truth goal props satisfied", "green"))
-            num_successes_on_ground_truth_goal_props += 1
-
-        pbar.set_postfix(
-            dict(
-                success=rewards.prod(),
-                **{f"r{t}": r for t, r in enumerate(rewards)},
-                num_successes=f"{num_successes_on_used_goal_props} / {idx_iter + 1}",
-            )
-        )
-
-        # Print planning results.
-        if verbose:
-            print("success:", rewards.prod(), rewards)
-            print(
-                "predicted success:",
-                motion_plans[idx_best].p_success,
-                motion_plans[idx_best].values,
-            )
-            if closed_loop:
-                print(
-                    "visited predicted success:",
-                    motion_plans[idx_best].p_visited_success,
-                    motion_plans[idx_best].visited_values,
-                )
-            for primitive, action in zip(
-                task_plans[idx_best], motion_plans[idx_best].actions
-            ):
-                if isinstance(primitive, table_primitives.Primitive):
-                    primitive_action = str(primitive.Action(action))
-                    primitive_action = primitive_action.replace("\n", "\n  ")
-                    print(
-                        "-", primitive, primitive_action[primitive_action.find("{") :]
-                    )
                 else:
-                    print("-", primitive, action)
-            print("discarded plans:")
-            for idx_plan in range(len(task_plans)):
-                if idx_plan == idx_best:
-                    continue
-                print(
-                    "  - predicted success:",
-                    motion_plans[idx_plan].p_success,
-                    motion_plans[idx_plan].values,
+                    env.set_primitive(potential_actions[best_action_idx])
+
+                observation = env.get_observation()
+                custom_recording_text: str = (
+                    f"human: {env.instruction}\n"
+                    + f"goal_props: {goal_props_predicted}\n"
+                    + f"{formatted_table_str}\n"
                 )
+
+                custom_recording_text += get_printable_object_relationships_str(
+                    object_relationships, max_row_length=70
+                )
+                env.record_start(recording_id)
+                observation, reward, terminated, _, info = env.step(
+                    policy_actions[best_action_idx], custom_recording_text
+                )
+                env.record_stop(recording_id)
+
+                step += 1
+
+                print(
+                    f"action executed: {potential_actions_str[best_action_idx]}; reward: {reward}"
+                )
+
+                objects = list(env.objects.keys())
+                object_relationships = get_object_relationships(
+                    observation,
+                    prop_testing_objs,
+                    available_predicates,
+                    use_hand_state=False,
+                )
+                print(f"object relationships: {list(map(str, object_relationships))}")
+                object_relationships = [str(prop) for prop in object_relationships]
+                executed_actions.append(potential_actions_str[best_action_idx])
+                object_relationships_history.append(object_relationships)
+
+                next_action_str = lm_agent.get_next_action_str(
+                    object_relationships_history,
+                    executed_actions,
+                )
+                lm_cache = lm_agent.lm_cache
+                save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+
+                if termination_method == "pred_stop":
+                    done = "stop" in next_action_str[: len("stop()") + 5]
+                    if done:
+                        print(
+                            colored("Stopping because stop() is next action", "green")
+                        )
+                elif termination_method == "goal_prop":
+                    done = is_satisfy_goal_props(
+                        goal_props_callable,
+                        prop_testing_objs,
+                        env.get_observation(),  # not the last state, which is nan
+                        use_hand_state=False,
+                    )
+                    if done:
+                        print(
+                            colored(
+                                "Stopping because states satisfies predicted goal props",
+                                "green",
+                            )
+                        )
+                else:
+                    raise NotImplementedError(
+                        f"Unknown termination method: {termination_method}"
+                    )
+
+                if step == max_depth:
+                    done = True
+                    print(colored("Stopping because max depth reached", "orange"))
+
+            if env.is_goal_state():
+                print(colored("ground truth goal props satisfied", "green"))
+                num_successes_on_ground_truth_goal_props += 1
+
+            # Print planning results.
+            if verbose:
+                print("success:", rewards.prod(), rewards)
+                print(
+                    "predicted success:",
+                    motion_plans[idx_best].p_success,
+                    motion_plans[idx_best].values,
+                )
+                if closed_loop:
+                    print(
+                        "visited predicted success:",
+                        motion_plans[idx_best].p_visited_success,
+                        motion_plans[idx_best].visited_values,
+                    )
                 for primitive, action in zip(
-                    task_plans[idx_plan], motion_plans[idx_plan].actions
+                    task_plans[idx_best], motion_plans[idx_best].actions
                 ):
                     if isinstance(primitive, table_primitives.Primitive):
                         primitive_action = str(primitive.Action(action))
-                        primitive_action = primitive_action.replace("\n", "\n      ")
+                        primitive_action = primitive_action.replace("\n", "\n  ")
                         print(
-                            "    -",
+                            "-",
                             primitive,
                             primitive_action[primitive_action.find("{") :],
                         )
                     else:
-                        print("    -", primitive, action)
-            continue
+                        print("-", primitive, action)
+                print("discarded plans:")
+                for idx_plan in range(len(task_plans)):
+                    if idx_plan == idx_best:
+                        continue
+                    print(
+                        "  - predicted success:",
+                        motion_plans[idx_plan].p_success,
+                        motion_plans[idx_plan].values,
+                    )
+                    for primitive, action in zip(
+                        task_plans[idx_plan], motion_plans[idx_plan].actions
+                    ):
+                        if isinstance(primitive, table_primitives.Primitive):
+                            primitive_action = str(primitive.Action(action))
+                            primitive_action = primitive_action.replace(
+                                "\n", "\n      "
+                            )
+                            print(
+                                "    -",
+                                primitive,
+                                primitive_action[primitive_action.find("{") :],
+                            )
+                        else:
+                            print("    -", primitive, action)
+                continue
 
         env.record_stop()
-        if env.is_goal_state():
+        success = env.is_goal_state()
+        if success:
             print(colored("ground truth goal props satisfied", "green"))
             num_successes_on_ground_truth_goal_props += 1
 
@@ -554,22 +706,34 @@ def eval_lm_tamp(
             path
             / str(idx_iter)
             / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
-            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.gif"
+            / f"execution_{'success' if success else 'fail'}.gif"
         )
         env.record_save(gif_path, reset=False)
         gif_path = (
             path
             / str(idx_iter)
             / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
-            / f"execution_{'reached_goal_prop' if reached_goal_prop else 'fail'}.mp4"
+            / f"execution_{'success' if success else 'fail'}.mp4"
         )
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
+        run_log = {
+            "seed": seed,
+            "success": success,
+            "num_steps": step,
+            "executed_actions": executed_actions,
+            "object_relationships_history": object_relationships_history,
+        }
+        run_logs.append(run_log)
+
+    # compute success rate but summing up the number of successes inside run_logs
+    # and dividing by the number of runs
+    success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
 
     print(f"num_successes_on_used_goal_props: {num_successes_on_used_goal_props}")
     path.mkdir(parents=True, exist_ok=True)
     # Save planning results.
-    with open(path / f"results_{idx_iter}.npz", "wb") as f:
+    with open(path / f"results_{idx_iter}.json", "w") as f:
         save_dict = {
             "args": {
                 "planner_config": planner_config,
@@ -578,61 +742,22 @@ def eval_lm_tamp(
                 "dynamics_checkpoint": dynamics_checkpoint,
                 "device": device,
                 "num_eval": num_eval,
-                "path": path,
+                "path": str(path),
                 "pddl_domain": pddl_domain,
                 "pddl_problem": pddl_problem,
                 "max_depth": max_depth,
                 "timeout": timeout,
                 "seed": seed,
                 "verbose": verbose,
-                "use_ground_truth_goal_props": use_ground_truth_goal_props,
+                "termination_method": termination_method,
             },
-            "observation": observation,
-            # "state": state,
-            # "action_skeleton": list(map(str, task_plans[idx_best])),
-            # "actions": motion_plans[idx_best].actions,
-            # "states": motion_plans[idx_best].states,
-            # "scaled_actions": scale_actions(
-            #     motion_plans[idx_best].actions, env, task_plans[idx_best]
-            # ),
-            # "p_success": motion_plans[idx_best].p_success,
-            # "values": motion_plans[idx_best].values,
-            # "rewards": rewards,
-            # # "visited_actions": motion_plans[idx_best].visited_actions,
-            # # "scaled_visited_actions": scale_actions(
-            # #     motion_plans[idx_best].visited_actions, env, action_skeleton
-            # # ),
-            # # "visited_states": motion_plans[idx_best].visited_states,
-            # "p_visited_success": motion_plans[idx_best].p_visited_success,
-            # # "visited_values": motion_plans[idx_best].visited_values,
-            # # "t_task_planner": t_task_planner,
-            # # "t_motion_planner": t_motion_planner,
-            # "t_planner": motion_planner_times,
-            # "seed": seed,
-            # "num_successes": num_successes_on_used_goal_props,
-            # "discarded": [
-            #     {
-            #         "action_skeleton": list(map(str, task_plans[i])),
-            #         # "actions": motion_plans[i].actions,
-            #         # "states": motion_plans[i].states,
-            #         # "scaled_actions": scale_actions(
-            #         #     motion_plans[i].actions, env, task_plans[i]
-            #         # ),
-            #         "p_success": motion_plans[i].p_success,
-            #         # "values": motion_plans[i].values,
-            #         # "visited_actions": motion_plans[i].visited_actions,
-            #         # "scaled_visited_actions": scale_actions(
-            #         #     motion_plans[i].visited_actions, env, action_skeleton
-            #         # ),
-            #         # "visited_states": motion_plans[i].visited_states,
-            #         "p_visited_success": motion_plans[i].p_visited_success,
-            #         # "visited_values": motion_plans[i].visited_values,
-            #     }
-            #     for i in range(len(task_plans))
-            #     if i != idx_best
-            # ],
+            "task_name": env.name,
+            "task_file": str(pathlib.Path(env_config).name),
+            "success_rate": success_rate,
+            "run_logs": run_logs,
         }
-        np.savez_compressed(f, **save_dict)  # type: ignore
+        json.dump(save_dict, f, indent=2)
+
 
 
 def main(args: argparse.Namespace) -> None:
@@ -708,7 +833,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
     parser.add_argument(
-        "--api_type", type=APIType, default=APIType.OPENAI, help="API to use"
+        "--api_type", type=APIType, default=APIType.HELM, help="API to use"
     )
     parser.add_argument(
         "--key-name",
@@ -719,7 +844,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")
-
+    parser.add_argument(
+        "--termination_method",
+        type=str,
+        default="pred_stop",
+        help="LM termination method",
+        choices=["pred_stop", "goal_prop"],
+    )
     args = parser.parse_args()
 
     main(args)

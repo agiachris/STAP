@@ -6,10 +6,12 @@ import numpy as np
 from helm.common.authentication import Authentication
 from configs.base_config import LMConfig
 from temporal_policies.task_planners.lm_data_structures import (
+    APIType,
     CurrentExample,
     InContextExample,
 )
 from temporal_policies.task_planners.lm_utils import (
+    authenticate,
     generate_lm_response,
     get_examples_from_json_dir,
 )
@@ -56,6 +58,9 @@ def get_goal_from_lm(
         example.use_predicates = False
         example.use_primitives = False
 
+    authenticate(APIType.OPENAI, "personal-all")
+    lm_cfg.api_type = APIType.OPENAI
+    lm_cfg.engine = "code-davinci-002"
     # generate goal from LM
     results, lm_cache = generate_lm_response(
         header_prompt,

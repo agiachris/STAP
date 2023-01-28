@@ -85,13 +85,12 @@ def authenticate(
         APIType.HELM,
     ], f"api_type {api_type} not supported"
     if key_name is None:
-        if api_type == APIType.OPENAI:
+        if api_type.name == APIType.OPENAI.name:
             key_name = "personal-all"
-        elif api_type == APIType.HELM:
-            key_name == "helm"
+        elif api_type.name == APIType.HELM.name:
+            key_name = "helm"
 
     import socket
-
     credentials_path: str
     if "stanford" in socket.gethostname() or "juno" in socket.gethostname():
         credentials_path = "/sailhome/thankyou/credentials.json"
@@ -308,7 +307,7 @@ def generate_lm_response(
 
     if examples is not None:
         for example in examples:
-            overall_prompt += example.overall_example
+            overall_prompt += example.overall_example + "\n"
 
     if current_prompt.use_predicates:
         overall_prompt += f"{SCENE_PREDICATE_PROMPT}{current_prompt.predicates}\n"
@@ -327,12 +326,12 @@ def generate_lm_response(
         overall_prompt += f"{HUMAN_INSTRUCTION_PROMPT}{current_prompt.human}\n"
     if current_prompt.use_goal:
         overall_prompt += (
-            f"{GOAL_PROMPT}{current_prompt.goal_predicted}\n"
+            f"{'Predicted goal predicate set: '}{current_prompt.goal_predicted}\n"
             if (
                 current_prompt.use_predicted_goal
                 and current_prompt.goal_predicted != ""
             )
-            else f"{GOAL_PROMPT}{current_prompt.goal}\n"
+            else f"{'Predicted goal predicate set: '}{current_prompt.goal}\n"
         )
 
     if current_prompt.predict_explanation:
@@ -421,9 +420,6 @@ def generate_lm_response(
         if response["usage"]["total_tokens"] == lm_cfg.max_tokens:
             print("max tokens reached")
             print(f"text is: {response['choices'][0]['text']}")
-            import ipdb
-
-            ipdb.set_trace()
 
         if not current_prompt.score_action:
             overall_prompt += response["choices"][0]["text"]
@@ -489,7 +485,12 @@ def update_result_current_prompt_based_on_response_robot(
     robot_prediction_result_types, predicted_task_plan_descriptions = [], []
     if not current_prompt.score_action:
         if current_prompt.custom_robot_action_sequence_format == "python_list_of_lists":
-            parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
+            try:
+                parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
+            except Exception as e:
+                print(f"Unable to parse robot action sequence: {result.robot_predicted}")
+                print(f"Error: {e}")
+                parsed_robot_predicted_lst = []
             for parsed_robot_predicted in parsed_robot_predicted_lst:
                 (
                     robot_prediction_result_type,
@@ -525,6 +526,8 @@ def update_result_current_prompt_based_on_response_robot(
             )
             robot_prediction_result_types.append(robot_prediction_result_type)
             predicted_task_plan_descriptions.append(predicted_task_plan_description)
+        elif current_prompt.custom_robot_action_sequence_format == "str":
+            return
         elif (
             current_prompt.custom_robot_action_sequence_format
             == "python_list_with_stop"

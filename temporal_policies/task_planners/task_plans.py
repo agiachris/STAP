@@ -9,15 +9,16 @@ from configs.base_config import LMConfig
 from temporal_policies.envs.pybullet.table.objects import Object
 from temporal_policies.task_planners.lm_data_structures import (
     SCENE_OBJECT_PROMPT,
+    APIType,
     CurrentExample,
     InContextExample,
 )
 from temporal_policies.task_planners.lm_utils import (
+    authenticate,
     generate_lm_response,
     save_lm_cache,
 )
 from temporal_policies.envs.pybullet.table import predicates
-
 
 
 def get_task_plans_from_lm(
@@ -25,6 +26,8 @@ def get_task_plans_from_lm(
     goal: List[str],  # predicted or "ground truth" goal?
     objects: List[str],
     object_relationships: List[str],
+    object_relationships_history: List[List[str]],
+    executed_actions: List[str],
     pddl_domain_file: str,
     pddl_problem_file: str,
     examples: Optional[List[InContextExample]] = None,
@@ -32,7 +35,7 @@ def get_task_plans_from_lm(
     custom_in_context_example_robot_format: Literal[
         "python_list_of_lists", "python_list", "saycan_done", "python_list_with_stop"
     ] = "python_list",
-    custom_robot_prompt: str = "Top 2 robot action sequences (python list of lists): ",
+    custom_robot_prompt: str = "Top 4 robot action sequences (python list of lists): ",
     custom_robot_action_sequence_format: str = "python_list_of_lists",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
@@ -41,7 +44,10 @@ def get_task_plans_from_lm(
 ) -> List[Union[List[str], List[List[str]], Dict[str, str]]]:
     header_prompt = InContextExample(
         predicates=["on(a, b)", "inhand(a)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"] + ["stop()"] if custom_in_context_example_robot_format == "python_list_with_stop" else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"]
+        + ["stop()"]
+        if custom_in_context_example_robot_format == "python_list_with_stop"
+        else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
     )
@@ -52,11 +58,14 @@ def get_task_plans_from_lm(
     object_relationships_str = [str(prop) for prop in object_relationships]
     current_prompt = CurrentExample(
         scene_objects=objects,
-        scene_object_relationships=object_relationships_str,
+        scene_object_relationships=object_relationships_str,  # the scene object relationships to be added at the beginning of the prompt
         human=instruction,
         goal_predicted=goal,
         use_scene_objects=True,
         use_scene_object_relationships=True,
+        all_prior_object_relationships=object_relationships_history,
+        all_executed_actions=executed_actions,
+        use_action_object_relationship_history=True,
         use_human=True,
         use_goal=True,
         use_predicted_goal=True,
@@ -66,7 +75,6 @@ def get_task_plans_from_lm(
         pddl_domain_file=pddl_domain_file,
         pddl_problem_file=pddl_problem_file,
     )
-
     for example in examples:
         example.use_scene_objects = True
         example.use_scene_object_relationships = True
@@ -77,16 +85,36 @@ def get_task_plans_from_lm(
         example.custom_robot_action_sequence_format = (
             custom_in_context_example_robot_format
         )
-
-    results, lm_cache = generate_lm_response(
-        header_prompt,
-        current_prompt,
-        examples,
-        lm_cfg=lm_cfg,
-        auth=auth,
-        lm_cache=lm_cache,
-        verbose=verbose,
-    )
+    lm_cfg.engine = "text-davinci-003"
+    lm_cfg.api_type = APIType.HELM
+    try:
+        results, lm_cache = generate_lm_response(
+            header_prompt,
+            current_prompt,
+            examples,
+            lm_cfg=lm_cfg,
+            auth=auth,
+            lm_cache=lm_cache,
+            verbose=verbose,
+            custom_stop_sequence=[
+                "Executed action: ",
+                "```",
+                custom_in_context_example_robot_prompt,
+                "New",
+            ],
+        )
+    except Exception as e:
+        print("error", e)
+        results, lm_cache = generate_lm_response(
+            header_prompt,
+            current_prompt,
+            examples,
+            lm_cfg=lm_cfg,
+            auth=auth,
+            lm_cache=lm_cache,
+            verbose=verbose,
+        )
+    lm_cfg.engine = "code-davinci-002"
     return (
         results.parsed_robot_predicted,
         lm_cache,
@@ -104,9 +132,13 @@ def get_next_actions_from_lm(
     pddl_problem_file: str,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
-    custom_in_context_example_robot_format: Literal["python_list_with_stop", "python_list"] = "python_list",
+    custom_in_context_example_robot_format: Literal[
+        "python_list_with_stop", "python_list"
+    ] = "python_list",
     custom_robot_prompt: str = "Top 5 next actions (python list): ",
-    custom_robot_action_sequence_format: Literal["python_list_with_stop", "python_list"] = "python_list",
+    custom_robot_action_sequence_format: Literal[
+        "python_list_with_stop", "python_list"
+    ] = "python_list",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
@@ -114,11 +146,16 @@ def get_next_actions_from_lm(
 ) -> List[Union[List[str], List[List[str]], Dict[str, str]]]:
     header_prompt = InContextExample(
         predicates=["on(a, b)", "inhand(a)", "under(a, b)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"] + ["stop()"] if custom_in_context_example_robot_format == "python_list_with_stop" else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"]
+        + ["stop()"]
+        if custom_in_context_example_robot_format == "python_list_with_stop"
+        else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
     )
-    assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
+    assert (
+        custom_in_context_example_robot_format == custom_robot_action_sequence_format
+    ), (
         "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
         "must be the same for next action prediction"
     )
@@ -154,6 +191,9 @@ def get_next_actions_from_lm(
             custom_in_context_example_robot_format
         )
 
+    authenticate(APIType.OPENAI, "personal-all")
+    lm_cfg.api_type = APIType.OPENAI
+    lm_cfg.engine = "code-davinci-002"
     results, lm_cache = generate_lm_response(
         header_prompt,
         current_prompt,
@@ -216,9 +256,13 @@ def get_action_scores_from_lm(
     score_action_sequence: bool = False,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
-    custom_in_context_example_robot_format: Literal["python_list_with_stop", "python_list"] = "python_list_with_stop",
+    custom_in_context_example_robot_format: Literal[
+        "python_list_with_stop", "python_list"
+    ] = "python_list_with_stop",
     custom_robot_prompt: str = "",
-    custom_robot_action_sequence_format: Literal["python_list_with_stop", "python_list"] = "python_list_with_stop",
+    custom_robot_action_sequence_format: Literal[
+        "python_list_with_stop", "python_list"
+    ] = "python_list_with_stop",
     lm_cfg: LMConfig = LMConfig(),
     auth: Optional[Authentication] = None,
     lm_cache: Optional[Dict[str, str]] = None,
@@ -226,12 +270,17 @@ def get_action_scores_from_lm(
     verbose: bool = False,
 ) -> List[Union[List[float], Dict[str, str]]]:
     header_prompt = InContextExample(
-        predicates=["on(a, b)", "inhand(a)"],
-        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"] + ["stop()"] if custom_in_context_example_robot_format == "python_list_with_stop" else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        predicates=["on(a, b)", "inhand(a)", "under(a, b)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"]
+        + ["stop()"]
+        if custom_in_context_example_robot_format == "python_list_with_stop"
+        else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
         use_primitives=True,
         use_predicates=True,
     )
-    assert custom_in_context_example_robot_format == custom_robot_action_sequence_format, (
+    assert (
+        custom_in_context_example_robot_format == custom_robot_action_sequence_format
+    ), (
         "custom_in_context_example_robot_format and custom_robot_action_sequence_format "
         "must be the same for next action prediction"
     )
@@ -279,6 +328,9 @@ def get_action_scores_from_lm(
     )
     # generate LM response to the particular prompt (maybe made up of)
     # then, I need to get scores corresponding
+    authenticate(APIType.OPENAI, "personal-all")
+    lm_cfg.api_type = APIType.OPENAI
+    lm_cfg.engine = "code-davinci-002"
     results, lm_cache = generate_lm_response(
         header_prompt,
         current_prompt,
@@ -286,12 +338,12 @@ def get_action_scores_from_lm(
         lm_cfg=lm_cfg,
         auth=auth,
         lm_cache=lm_cache,
-        verbose=verbose,
+        verbose=False,
     )
     # TODO(klin): only works for non-helm api
-    assert isinstance(results.tokens_predicted[0], List), (
-        "The LM response is not a list of list of tokens. "
-    )
+    assert isinstance(
+        results.tokens_predicted[0], List
+    ), "The LM response is not a list of list of tokens. "
     tokens: Optional[List[List[Token]]] = results.tokens_predicted
     # tokens: Optional[List[Token] = results.tokens_predicted
 
@@ -348,3 +400,93 @@ def get_action_scores_from_lm(
         for potential_action in potential_actions
     ]
     return action_scores, lm_cache
+
+
+def get_next_action_str_from_lm(
+    instruction: str,
+    goal: List[str],
+    objects: List[str],
+    initial_object_relationships: List[str],
+    all_prior_object_relationships: List[List[str]],
+    all_executed_actions: List[str],
+    pddl_domain_file: str,
+    pddl_problem_file: str,
+    score_action_sequence: bool = False,
+    examples: Optional[List[InContextExample]] = None,
+    custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
+    custom_in_context_example_robot_format: Literal[
+        "python_list_with_stop", "python_list"
+    ] = "python_list_with_stop",
+    custom_robot_prompt: str = "Executed action (single primitive action string only):",
+    custom_robot_action_sequence_format: Literal[
+        "python_list_with_stop", "python_list", "str"
+    ] = "str",
+    lm_cfg: LMConfig = LMConfig(),
+    auth: Optional[Authentication] = None,
+    lm_cache: Optional[Dict[str, str]] = None,
+    verbose: bool = False,
+) -> List[Union[str, Dict[str, str]]]:
+    header_prompt = InContextExample(
+        predicates=["on(a, b)", "inhand(a)", "under(a, b)"],
+        primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"]
+        + ["stop()"]
+        if custom_in_context_example_robot_format == "python_list_with_stop"
+        else ["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"],
+        use_primitives=True,
+        use_predicates=True,
+    )
+    initial_object_relationships_str = [
+        str(prop) for prop in initial_object_relationships
+    ]
+
+    for example in examples:
+        example.use_scene_objects = True
+        example.use_scene_object_relationships = True
+        example.use_human = True
+        example.use_goal = True
+        example.use_robot = True
+        example.custom_robot_prompt = custom_in_context_example_robot_prompt
+        example.custom_robot_action_sequence_format = (
+            custom_in_context_example_robot_format
+        )
+
+    original_max_tokens = lm_cfg.max_tokens
+    lm_cfg.max_tokens = 10
+    lm_cfg.echo = False
+
+    current_prompt = CurrentExample(
+        scene_objects=objects,
+        scene_object_relationships=initial_object_relationships_str,
+        human=instruction,
+        goal_predicted=goal,
+        use_scene_objects=True,
+        use_scene_object_relationships=True,
+        use_human=True,
+        use_goal=True,
+        use_predicted_goal=True,
+        predict_robot=True,
+        custom_robot_prompt=custom_robot_prompt,
+        custom_robot_action_sequence_format=custom_robot_action_sequence_format,
+        pddl_domain_file=pddl_domain_file,
+        pddl_problem_file=pddl_problem_file,
+        use_action_object_relationship_history=True,
+        all_prior_object_relationships=all_prior_object_relationships,
+        all_executed_actions=all_executed_actions,
+    )
+    authenticate(APIType.OPENAI, "personal-all")
+    lm_cfg.api_type = APIType.OPENAI
+    lm_cfg.engine = "code-davinci-002"
+    result, lm_cache = generate_lm_response(
+        header_prompt,
+        current_prompt,
+        examples,
+        lm_cfg=lm_cfg,
+        auth=auth,
+        lm_cache=lm_cache,
+        verbose=verbose,
+    )
+
+    lm_cfg.echo = False
+    lm_cfg.max_tokens = original_max_tokens
+    action_str = result.robot_predicted
+    return action_str, lm_cache
