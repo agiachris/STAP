@@ -503,6 +503,8 @@ def run_closed_loop_planning(
         actions[t] = plan.actions[0]
         states[t : t + 1] = plan.states[:1]
         values[t] = plan.values[0]
+        # ensure last state has something in it
+        states[t+1: t+2] = observation
 
     p_success = np.exp(np.log(values).sum())
 

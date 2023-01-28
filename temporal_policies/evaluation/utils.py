@@ -90,12 +90,16 @@ def get_task_plan_primitives_instantiated(
         if len(task_plan) == 0:
             continue
         else:
-            task_plans_instantiated.append(
-                [
-                    env.get_primitive_info(action_call=action_call)
-                    for action_call in task_plan
-                ]
-            )
+            try:
+                task_plans_instantiated.append(
+                    [
+                        env.get_primitive_info(action_call=action_call)
+                        for action_call in task_plan
+                    ]
+                )
+            except Exception as e:
+                print(f"Exception: {e}")
+                continue
     return task_plans_instantiated
 
 
@@ -203,7 +207,7 @@ def get_object_relationships(
     objects: Dict[str, Object],
     available_predicates: List[str],
     use_hand_state: bool = False,
-) -> List[predicates.Predicate]:
+) -> List[str]:
     if not use_hand_state:
         print(
             f"Note: cutting out the first observation entry (ee observation) ---- skipping inhand(a)"
@@ -219,7 +223,7 @@ def get_object_relationships(
 
     # sim = True to use custom pose --- need to update the sim=True code
     initial_object_relationships = [
-        prop for prop in possible_props if prop.value_simple(objects, sim=True)
+        str(prop) for prop in possible_props if prop.value_simple(objects, sim=True)
     ]
 
     # disable custom pose
