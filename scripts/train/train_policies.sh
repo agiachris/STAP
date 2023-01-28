@@ -61,7 +61,7 @@ function run_policy {
         EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
     done    
 
-    for critic_checkpoint in "${CRITIC_CHECKPOINTS}"; do
+    for critic_checkpoint in "${CRITIC_CHECKPOINTS[@]}"; do
         CRITIC_CHECKPOINT="${CRITIC_CHECKPOINT_PATH}/${critic_checkpoint}.pt"
         NAME="${critic_checkpoint}"
         train_policy
@@ -77,7 +77,7 @@ plots_path="plots"
 #### Experiments.
 
 ### Pybullet.
-exp_name="20230124/policy"
+exp_name="20230126/policy"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
@@ -126,6 +126,41 @@ fi
 # run_policy
 
 ## Data.
+# SYMBOLIC_ACTION_TYPE="valid"
+# TRAIN_SEEDS=($(seq 0 15))
+# VALIDATION_SEEDS=($(seq 16 19))
+
+## Critics trained with logistics regression.
+
+# Pick w/out collisions, balanced data (40% success min).
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="pick"
+# CRITIC_CHECKPOINT_PATH="models/20230125/value"
+# CRITIC_CHECKPOINTS=("pick/final_model")
+# run_policy
+
+# Place w/out collisions, balanced data (40% success min).
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="place"
+# CRITIC_CHECKPOINT_PATH="models/20230124/value"
+# CRITIC_CHECKPOINTS=("place/final_model")
+# run_policy
+
+# Pull w/out collisions, balanced data (40% success min).
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="pull"
+# CRITIC_CHECKPOINT_PATH="models/20230125/value"
+# CRITIC_CHECKPOINTS=("pull/final_model")
+# run_policy
+
+# Push w/out collisions, balanced data (40% success min).
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="push"
+# CRITIC_CHECKPOINT_PATH="models/20230125/value"
+# CRITIC_CHECKPOINTS=("push/final_model")
+# run_policy
+
+## Data.
 SYMBOLIC_ACTION_TYPE="valid"
 TRAIN_SEEDS=($(seq 0 15))
 VALIDATION_SEEDS=($(seq 16 19))
@@ -133,29 +168,33 @@ VALIDATION_SEEDS=($(seq 16 19))
 ## Critics trained with logistics regression.
 
 # Pick w/out collisions, balanced data (40% success min).
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_policy_mean.yaml"
 DATA_CHECKPOINT_PATH="models/20230124/datasets"
 PRIMITIVE="pick"
-CRITIC_CHECKPOINT_PATH="models/20230124/value"
+CRITIC_CHECKPOINT_PATH="models/20230126/value"
 CRITIC_CHECKPOINTS=("pick/final_model")
 run_policy
 
 # Place w/out collisions, balanced data (40% success min).
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_policy.yaml"
 DATA_CHECKPOINT_PATH="models/20230124/datasets"
 PRIMITIVE="place"
-CRITIC_CHECKPOINT_PATH="models/20230124/value"
+CRITIC_CHECKPOINT_PATH="models/20230126/value"
 CRITIC_CHECKPOINTS=("place/final_model")
 run_policy
 
 # Pull w/out collisions, balanced data (40% success min).
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_policy.yaml"
 DATA_CHECKPOINT_PATH="models/20230124/datasets"
 PRIMITIVE="pull"
-CRITIC_CHECKPOINT_PATH="models/20230124/value"
+CRITIC_CHECKPOINT_PATH="models/20230126/value"
 CRITIC_CHECKPOINTS=("pull/final_model")
 run_policy
 
 # Push w/out collisions, balanced data (40% success min).
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/sac_policy.yaml"
 DATA_CHECKPOINT_PATH="models/20230124/datasets"
 PRIMITIVE="push"
-CRITIC_CHECKPOINT_PATH="models/20230124/value"
+CRITIC_CHECKPOINT_PATH="models/20230126/value"
 CRITIC_CHECKPOINTS=("push/final_model")
 run_policy

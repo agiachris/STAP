@@ -255,6 +255,7 @@ def evaluate_trajectory(
                 p_successes[:, t] = p_distribution.mean
                 p_successes_unc[:, t] = getattr(p_distribution, probabilistic_metric)
             if isinstance(value_fn, networks.critics.EnsembleOODCritic):
+                p_successes_unc = torch.zeros_like(p_successes)
                 p_successes_unc[:, t] = value_fn.detect
 
     else:

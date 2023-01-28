@@ -30,6 +30,12 @@ METRIC_COLORS = {
     "q_std": "tab:purple",
     "q_max": "tab:orange",
     "q_min": "tab:red",
+    "true_pos": "tab:green",
+    "false_pos": "tab:red",
+    "true_neg": "tab:blue",
+    "false_neg": "tab:orange", 
+    "pos_recall": "tab:purple", 
+    "neg_recall": "tab:pink", 
 }
 
 
@@ -38,6 +44,7 @@ def barplot(
     y_arr: Union[List[float], np.ndarray],
     y_err: Optional[Union[List[float], np.ndarray]] = None,
     x_arr: Optional[Union[List[float], np.ndarray]] = None,
+    log_scale: bool = False,
     x_ticks: Optional[List[str]] = None,
     title: Optional[str] = None,
     x_label: Optional[str] = None,
@@ -46,6 +53,8 @@ def barplot(
 ) -> None:
     fig = plt.figure(figsize=(10, 5))
     plt.bar(x_arr, y_arr, yerr=y_err, color=color)
+    if log_scale:
+        plt.yscale("log")
     plt.title(title)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
@@ -163,10 +172,11 @@ def evaluate_values(
     for k in PLOT_METRICS:
         metric_name = " ".join(k.split("_")).title()
         barplot(
-            path=path / f"{k}_ablation_plot.pdf",
+            path=path / f"{k}_ablation_plot.png",
             y_arr=[binned_metrics[i][k].mean() for i in range(num_bins)],
             y_err=[binned_metrics[i][k].std() for i in range(num_bins)],
             x_arr=x_arr,
+            log_scale=k=="q_freq",
             x_ticks=x_ticks,
             title=f"Q-Ensemble Ablation: {name.capitalize()} {metric_name}",
             x_label=x_label,
@@ -186,15 +196,19 @@ def evaluate_values(
         false_negative = np.logical_and(~positive_mask, rewards).sum()
         tpr = true_positive / (true_positive + false_positive)
         tnr = true_negative / (true_negative + false_negative)
+        pos_recall = true_positive / (true_positive + false_negative)
+        neg_recall = true_negative / (true_negative + false_positive)
         binned_confusion["true_pos"].append(tpr)
         binned_confusion["false_pos"].append(1 - tpr)
         binned_confusion["true_neg"].append(tnr)
         binned_confusion["false_neg"].append(1 - tnr)
+        binned_confusion["pos_recall"].append(pos_recall)
+        binned_confusion["neg_recall"].append(neg_recall)
         
     for k in binned_confusion.keys():
         metric_name = " ".join(k.split("_")).title()
         barplot(
-            path=path / f"{k}_ablation_plot.pdf",
+            path=path / f"{k}_ablation_plot.png",
             y_arr=binned_confusion[k],
             x_arr=x_arr,
             x_ticks=x_ticks,
