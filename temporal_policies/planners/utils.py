@@ -254,6 +254,9 @@ def evaluate_trajectory(
                 p_distribution = value_fn.forward(policy_state, action)
                 p_successes[:, t] = p_distribution.mean
                 p_successes_unc[:, t] = getattr(p_distribution, probabilistic_metric)
+            if isinstance(value_fn, networks.critics.EnsembleOODCritic):
+                p_successes_unc[:, t] = value_fn.detect
+
     else:
         raise NotImplementedError
 

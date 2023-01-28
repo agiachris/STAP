@@ -1,0 +1,35 @@
+planner: CEMPlanner
+planner_kwargs:
+  num_samples: 10000
+  num_iterations: 10
+  num_elites: 10
+  keep_elites_fraction: 1.0
+  standard_deviation: 0.3
+
+agent_configs:
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      critic_class: EnsembleOODCritic
+      ood_threshold: 0.10
+      pessimistic: true
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      critic_class: EnsembleOODCritic
+      ood_threshold: 0.20
+      pessimistic: true
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      critic_class: EnsembleOODCritic
+      ood_threshold: 0.15
+      pessimistic: true
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      critic_class: EnsembleOODCritic
+      ood_threshold: 0.12
+      pessimistic: true
+
+dynamics_config: "{DYNAMICS_CONFIG}"

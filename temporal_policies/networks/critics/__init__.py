@@ -3,4 +3,9 @@ from .probabilistic import ProbabilisticCritic
 from .constant import ConstantCritic
 from .mlp import ContinuousMLPCritic
 from .oracle import OracleCritic
-from .ensemble import ContinuousEnsembleCritic, EnsembleLCBCritic, EnsembleThresholdCritic
+from .ensemble import (
+    ContinuousEnsembleCritic, 
+    EnsembleLCBCritic, 
+    EnsembleThresholdCritic,
+    EnsembleOODCritic,
+)
