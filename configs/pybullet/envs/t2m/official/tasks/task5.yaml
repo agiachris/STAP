@@ -10,7 +10,7 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you move three boxes onto the rack?
+    - instruction: How would you move two boxes onto the rack?
       action_skeleton:
         - pick(hook, table)
         - pull(yellow_box, hook)
@@ -19,17 +19,15 @@ env_kwargs:
         - place(yellow_box, rack)
         - pick(blue_box)
         - place(blue_box, rack)
-        - pick(red_box)
-        - place(red_box, rack)
       initial_state:
         - free(hook)
         - free(yellow_box)
         - free(blue_box)
-        - free(red_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(hook)
+        - inworkspace(blue_box)
         - beyondworkspace(yellow_box)
         - nonblocking(yellow_box, rack)
         - nonblocking(yellow_box, blue_box)
@@ -38,12 +36,10 @@ env_kwargs:
         - on(yellow_box, table)
         - on(blue_box, table)
         - under(cyan_box, rack)
-        - on(red_box, table)
         - on(cyan_box, table)
       goal_propositions:
         - on(yellow_box, rack)
         - on(blue_box, rack)
-        - on(red_box, rack)
       supported_predicates:
         - under(a, b)
         - on(a, b)
@@ -71,5 +67,4 @@ env_kwargs:
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/salt.yaml
     - configs/pybullet/envs/assets/yogurt.yaml
-    - configs/pybullet/envs/assets/milk.yaml
     - configs/pybullet/envs/assets/icecream.yaml
