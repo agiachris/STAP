@@ -45,7 +45,8 @@ class SAC(rl.RLAgent):
         actor_update_freq: int = 2,
         target_update_freq: int = 2,
         use_bce: bool = False,
-        bce_weight: Optional[List[float]] = None
+        bce_weight: Optional[List[float]] = None,
+        q_actor_update: Optional[str] = None,
     ):
         """Constructs the SAC agent from config parameters.
 
@@ -70,6 +71,7 @@ class SAC(rl.RLAgent):
             target_update_freq: Target update frequency.
             use_bce: Logstics regression loss instead of MSE.
             bce_weight: Logistics regression classification weight.
+            q_actor_update: Use minimum, mean, or median of Q-ensemble.
         """
         agent_kwargs = {
             "actor": deepcopy(actor_kwargs),
@@ -138,6 +140,7 @@ class SAC(rl.RLAgent):
         self.actor_update_freq = actor_update_freq
         self.target_update_freq = target_update_freq
         self.use_bce = use_bce
+        self.q_actor_update = q_actor_update
 
     @property
     def log_alpha(self) -> torch.Tensor:
@@ -232,8 +235,16 @@ class SAC(rl.RLAgent):
         dist = self.actor(obs)
         action = dist.rsample()
         log_prob = dist.log_prob(action).sum(dim=-1)
-        q = self.critic(obs, action)
-        q = torch.min(torch.stack(q), axis=0).values
+        q = torch.stack(self.critic(obs, action))
+
+        if self.q_actor_update is None or self.q_actor_update == "min":
+            q = torch.min(q, dim=0).values
+        elif self.q_actor_update == "mean":
+            q = q.mean(dim=0)
+        elif self.q_actor_update == "median":
+            q = q.median(dim=0).values
+        else:
+            raise ValueError(f"Q-actor update type {self.q_actor_update} is not supported.")
         actor_loss = (self.alpha.detach() * log_prob - q).mean()
         alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
 
