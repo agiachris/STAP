@@ -37,7 +37,7 @@
             "pick(red_box)",
             "place(red_box, table)",
             "pick(hook)",
-            "push(red_box, hook)"
+            "push(red_box, hook, rack)"
         ],
         "use_primitives": false,
         "use_predicates": false,
