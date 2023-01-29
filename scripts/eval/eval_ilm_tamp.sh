@@ -40,13 +40,14 @@ function eval_ilm_tamp {
     args="${args} --visualize-planning ${VIZ_PLANNING}"
     args="${args} --n-examples ${N_INCONTEXT_EXAMPLES}"
     args="${args} ${ENV_KWARGS}"
+    args="${args} --termination_method ${TERMINATION_METHOD}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 3"
         args="${args} --path ${PLANNER_OUTPUT_PATH}_debug"
         args="${args} --verbose 1"
         args="${args} --engine curie"
     else
-        args="${args} --num-eval 10"
+        args="${args} --num-eval 1"
         args="${args} --path ${PLANNER_OUTPUT_PATH}"
         args="${args} --verbose 0"
         args="${args} --engine davinci"
@@ -90,17 +91,17 @@ DEBUG=0
 VIZ_PLANNING=1
 input_path="models"
 output_path="plots"
-exp_name="20230122/ilm_tamp"
+exp_name="20230129/integrated"
 
 # LLM
-KEY_NAME="personal-all"
+KEY_NAME="helm"
 N_INCONTEXT_EXAMPLES=10
 # Evaluate planners.
 PLANNERS=(
     "policy_cem"
     # "greedy"
 )
-
+TERMINATION_METHOD="goal_prop"
 # Experiments.
 
 # Pybullet.
@@ -112,8 +113,9 @@ TASK_NUMS=(
     "2"
     "3"
     "4"
-    # "5"
-    # "6"
+    "5"
+    "6"
+    "7"
 )
 
 ENV_KWARGS="--closed-loop 1"
