@@ -320,7 +320,7 @@ def eval_lm_tamp(
                         is_end_lm: bool = is_satisfy_goal_props(
                             goal_props_callable,
                             prop_testing_objs,
-                            env.get_observation(),  # not the last state, which is nan
+                            new_state,  # not the last state, which is nan
                             use_hand_state=False,
                         )
                     else:
