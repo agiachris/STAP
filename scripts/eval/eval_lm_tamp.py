@@ -610,6 +610,9 @@ def eval_lm_tamp(
                 next_action_str = lm_agent.get_next_action_str(
                     object_relationships_history,
                     executed_actions,
+                    in_context_example_robot_format="python_list",
+                    robot_prompt="Instruction achieved (True/False): ",
+                    verbose=False,
                 )
                 lm_cache = lm_agent.lm_cache
                 save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
