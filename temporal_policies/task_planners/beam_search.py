@@ -401,7 +401,7 @@ class BeamSearchProblem(SearchProblem):
         self.examples = examples
         self.lm_cfg = lm_cfg
         self.auth = auth
-        self.lm_cache = lm_cache
+        self.lm_cache = lm_agent.lm_cache
         self.lm_cache_file = lm_cache_file
         self.termination_method = termination_method
         self.lm_agent = lm_agent
