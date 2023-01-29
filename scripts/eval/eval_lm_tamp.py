@@ -111,7 +111,9 @@ def eval_lm_tamp(
     api_type: Optional[APIType] = APIType.HELM,
     max_tokens: Optional[int] = 200,
     auth: Optional[Authentication] = None,
-    termination_method: Literal["goal_prop", "pred_stop"] = "pred_stop",
+    termination_method: Literal[
+        "goal_prop", "pred_instr_achieved"
+    ] = "pred_instr_achieved",
     use_ground_truth_goal_props: bool = False,
 ) -> None:
     # set seeds
@@ -165,15 +167,10 @@ def eval_lm_tamp(
         env.objects, available_predicates
     )
 
-    num_successes_on_used_goal_props: int = (
-        0  # either predicted or ground truth goal props
-    )
     num_successes_on_ground_truth_goal_props: int = 0
-    
+
     goal_props_predicted: List[str] = None
-    goal_props_ground_truth: List[str] = [
-        str(goal) for goal in env.goal_propositions
-    ]
+    goal_props_ground_truth: List[str] = [str(goal) for goal in env.goal_propositions]
 
     pbar = tqdm.tqdm(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
@@ -305,14 +302,19 @@ def eval_lm_tamp(
                         available_predicates,
                         use_hand_state=False,
                     )
-                    plan_object_relationships_history.append(new_object_relationships)
-                    plan_executed_actions.append(str(task_plan[i]).lower())
-                    next_action_str = lm_agent.get_next_action_str(
-                        plan_object_relationships_history,
-                        plan_executed_actions,
-                    )
-                    lm_cache = lm_agent.lm_cache
-                    if termination_method == "pred_stop":
+                    if termination_method == "pred_instr_achieved":
+                        plan_object_relationships_history.append(
+                            new_object_relationships
+                        )
+                        plan_executed_actions.append(str(task_plan[i]).lower())
+                        next_action_str = lm_agent.get_next_action_str(
+                            plan_object_relationships_history,
+                            plan_executed_actions,
+                            in_context_example_robot_format="python_list",
+                            robot_prompt="Instruction achieved (True/False): ",
+                            verbose=False,
+                        )
+                        lm_cache = lm_agent.lm_cache
                         is_end_lm: bool = "stop" in next_action_str[: len("stop()") + 5]
                     elif termination_method == "goal_prop":
                         is_end_lm: bool = is_satisfy_goal_props(
@@ -328,7 +330,6 @@ def eval_lm_tamp(
                         value > 0.45 for value in motion_plan.values[:i]
                     )
                     if is_end_lm and is_geom_feasible:
-                        print(f'next_action_str: "{next_action_str}"')
                         goal_reaching_task_plans.append(task_plan[: i + 1])
                         shortened_motion_plan = copy.deepcopy(motion_plan)
                         shortened_motion_plan.actions = motion_plan.actions[: i + 1]
@@ -427,7 +428,7 @@ def eval_lm_tamp(
                 if t_planner is not None:
                     motion_planner_times += t_planner
 
-                if termination_method == "pred_stop":
+                if termination_method == "pred_instr_achieved":
                     done = "stop" in next_action_str[: len("stop()") + 5]
                     if done:
                         fallback_to_scoring = False
@@ -462,7 +463,6 @@ def eval_lm_tamp(
 
             if fallback_to_scoring:
                 print(colored("No plan reaches the goal", "red"))
-                # TODO(klin) update the logic to fall back to SayCan-like step?
                 # implement SayCan-like step here
                 actions, lm_cache = get_next_actions_from_lm(
                     env.instruction,
@@ -484,10 +484,14 @@ def eval_lm_tamp(
                     verbose=False,
                 )
                 env_lst = [env] * len(actions)
-                potential_actions: List[table_primitives.Primitive] = [
-                    env.get_primitive_info(action, env)
-                    for (action, env) in zip(actions, env_lst)
-                ]
+                potential_actions: List[table_primitives.Primitive] = []
+                for action, env in zip(actions, env_lst):
+                    try:
+                        potential_actions.append(env.get_primitive_info(action, env))
+                    except Exception as e:
+                        print(f"Exception: {e}")
+                        continue
+
                 potential_actions_str: List[str] = [
                     str(action).lower() for action in potential_actions
                 ]
@@ -508,7 +512,7 @@ def eval_lm_tamp(
                     auth=auth,
                     lm_cache=lm_cache,
                     lm_cache_file=lm_cache_file,
-                    verbose=True,
+                    verbose=False,
                 )
 
                 policy_actions: np.ndarray = get_policy_actions(
@@ -610,7 +614,7 @@ def eval_lm_tamp(
                 lm_cache = lm_agent.lm_cache
                 save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
-                if termination_method == "pred_stop":
+                if termination_method == "pred_instr_achieved":
                     done = "stop" in next_action_str[: len("stop()") + 5]
                     if done:
                         print(
@@ -703,17 +707,11 @@ def eval_lm_tamp(
             num_successes_on_ground_truth_goal_props += 1
 
         gif_path = (
-            path
-            / str(idx_iter)
-            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
-            / f"execution_{'success' if success else 'fail'}.gif"
+            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.gif"
         )
         env.record_save(gif_path, reset=False)
         gif_path = (
-            path
-            / str(idx_iter)
-            / ("use-gt-goals" if use_ground_truth_goal_props else "use-pred-goals")
-            / f"execution_{'success' if success else 'fail'}.mp4"
+            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.mp4"
         )
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
@@ -730,10 +728,9 @@ def eval_lm_tamp(
     # and dividing by the number of runs
     success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
 
-    print(f"num_successes_on_used_goal_props: {num_successes_on_used_goal_props}")
     path.mkdir(parents=True, exist_ok=True)
     # Save planning results.
-    with open(path / f"results_{idx_iter}.json", "w") as f:
+    with open(path / f"results_seed_{seed}.json", "w") as f:
         save_dict = {
             "args": {
                 "planner_config": planner_config,
@@ -754,10 +751,11 @@ def eval_lm_tamp(
             "task_name": env.name,
             "task_file": str(pathlib.Path(env_config).name),
             "success_rate": success_rate,
+            "goal_props_predicted": goal_props_predicted,
+            "instruction": env.instruction,
             "run_logs": run_logs,
         }
         json.dump(save_dict, f, indent=2)
-
 
 
 def main(args: argparse.Namespace) -> None:
@@ -847,9 +845,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--termination_method",
         type=str,
-        default="pred_stop",
+        default="pred_instr_achieved",
         help="LM termination method",
-        choices=["pred_stop", "goal_prop"],
+        choices=["pred_instr_achieved", "goal_prop"],
     )
     args = parser.parse_args()
 

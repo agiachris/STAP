@@ -105,7 +105,9 @@ def eval_ilm_tamp(
     auth: Optional[Authentication] = None,
     visualize_planning: bool = False,
     use_ground_truth_goal_props: bool = False,
-    termination_method: Literal["pred_stop", "goal_prop"] = "pred_stop",
+    termination_method: Literal[
+        "pred_instr_achieved", "goal_prop"
+    ] = "pred_instr_achieved",
 ):
     # set seeds
     if seed is not None:
@@ -113,14 +115,26 @@ def eval_ilm_tamp(
         np.random.seed(seed)
         torch.manual_seed(seed)
 
-    # these would perhaps belong in .../prompts/
     examples = get_examples_from_json_dir("configs/pybullet/envs/t2m/official/prompts/")
 
     for example in examples:
+        example.use_scene_objects = True
+        example.use_scene_object_relationships = False
+        example.use_human = True
+        example.use_goal = False
+        example.use_robot = False
+        example.use_instruction_achieved_test = True
+        example.custom_robot_prompt = custom_in_context_example_robot_prompt
+        example.custom_robot_action_sequence_format = (
+            custom_in_context_example_robot_format
+        )
         example.custom_robot_action_sequence_format = (
             custom_robot_action_sequence_format
         )
+        print(example.overall_example)
+    import ipdb
 
+    ipdb.set_trace()
     examples = random.sample(examples, n_examples)
     random.shuffle(examples)
     lm_cfg: LMConfig = LMConfig(
@@ -164,12 +178,6 @@ def eval_ilm_tamp(
         seed_generator(num_eval, load_path), f"Evaluate {path.name}", dynamic_ncols=True
     )
     run_logs: List[Dict[str, Any]] = []
-    # steps to success when stopping search + execution
-    # via the predicted goal props
-    steps_to_success_via_pred_goal_props: List[int] = []
-    # steps to success when stopping search + execution
-    # via asking the LLM to predict the next action and stopping if it predicts stop()
-    steps_to_success_via_stop_prediction: List[int] = []
 
     for idx_iter, (seed, loaded_plan) in enumerate(pbar):
         goal_props_predicted: List[str]
@@ -201,6 +209,7 @@ def eval_ilm_tamp(
             auth=auth,
             lm_cache=lm_cache,
         )
+        save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
         goal_props_ground_truth: List[str] = [
             str(goal) for goal in env.goal_propositions
         ]
@@ -242,16 +251,19 @@ def eval_ilm_tamp(
                 observation,
                 use_hand_state=False,
             ):
-                print(colored("goal props satisfied", "green"))
+                print(colored("goal props satisfied", "magenta"))
                 done = True
-        elif termination_method == "pred_stop":
+        elif termination_method == "pred_instr_achieved":
             next_action_str = lm_agent.get_next_action_str(
                 object_relationships_history,
                 executed_actions,
+                in_context_example_robot_format="python_list",
+                robot_prompt="Instruction achieved (True/False): ",
+                verbose=True,
             )
             lm_cache = lm_agent.lm_cache
-            if "stop()" in next_action_str:
-                print(colored("LM predicted stop()", "green"))
+            if "True" in next_action_str:
+                print(colored("LM predicted instruction achieved", "magenta"))
                 done = True
         else:
             raise NotImplementedError("Unknown termination method")
@@ -273,15 +285,19 @@ def eval_ilm_tamp(
                 lm_cfg,
                 object_relationships_history,
                 executed_actions,
-                auth,
-                lm_cache,
-                lm_cache_file,
+                lm_agent,
+                auth=auth,
+                lm_cache=lm_cache,
+                lm_cache_file=lm_cache_file,
+                termination_method=termination_method,
             )
             successful_action_nodes: List[Node] = beam_search_algorithm.solve(
                 beam_search_problem,
                 visualize=visualize_planning,
                 visualize_path=path / str(idx_iter),
             )
+            save_lm_cache(pathlib.Path(lm_cache_file), lm_agent.lm_cache)
+
             idx_best = np.argmax(
                 [
                     node.motion_plan_post_optimization.values.prod()
@@ -327,16 +343,19 @@ def eval_ilm_tamp(
                     observation,
                     use_hand_state=False,
                 ):
-                    print(colored("goal props satisfied", "green"))
+                    print(colored("goal props satisfied", "magenta"))
                     done = True
-            elif termination_method == "pred_stop":
+            elif termination_method == "pred_instr_achieved":
                 next_action_str = lm_agent.get_next_action_str(
                     object_relationships_history,
                     executed_actions,
+                    in_context_example_robot_format="python_list",
+                    robot_prompt="Instruction achieved (True/False): ",
+                    verbose=True,
                 )
                 lm_cache = lm_agent.lm_cache
-                if "stop()" in next_action_str:
-                    print(colored("LM predicted stop()", "green"))
+                if "True" in next_action_str:
+                    print(colored("LM predicted instruction achieved", "magenta"))
                     done = True
             else:
                 raise NotImplementedError("Unknown termination method")
@@ -346,15 +365,7 @@ def eval_ilm_tamp(
 
         success: bool = env.is_goal_state()
         if success:
-            if termination_method == "goal_prop":
-                steps_to_success_via_pred_goal_props.append(
-                    step - 1
-                )  # -1 because take extra step at end for rendering; not true if terminate at beginning
-                print(colored("Success! Ground truth goal props satisfied.", "green"))
-            elif termination_method == "pred_stop":
-                steps_to_success_via_pred_goal_props.append(step - 1)
-        else:
-            steps_to_success_via_pred_goal_props.append(-1)
+            print(colored("Success!", "green"))
 
         gif_path = (
             path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.gif"
@@ -375,7 +386,7 @@ def eval_ilm_tamp(
         }
         run_logs.append(run_log)
 
-    save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+    save_lm_cache(pathlib.Path(lm_cache_file), lm_agent.lm_cache)
     # Save planning results.
     path.mkdir(parents=True, exist_ok=True)
     success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
@@ -402,6 +413,8 @@ def eval_ilm_tamp(
             "task_name": env.name,
             "task_file": str(pathlib.Path(env_config).name),
             "success_rate": success_rate,
+            "goal_props_predicted": goal_props_predicted,
+            "instruction": env.instruction,
             "run_logs": run_logs,
         }
         json.dump(save_dict, f, indent=2)
@@ -482,13 +495,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
     parser.add_argument(
-        "--api-type", type=APIType, default=APIType.OPENAI, help="API to use"
+        "--api-type", type=APIType, default=APIType.HELM, help="API to use"
     )
     parser.add_argument(
         "--key-name",
         type=str,
         choices=["personal-code", "personal-all", "helm"],
-        default="personal-code",
+        default="helm",
         help="API key name to use",
     )
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
@@ -499,7 +512,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--termination-method",
         type=str,
-        default="goal_prop",
+        default="pred_instr_achieved",
         help="Termination condition",
     )
     args = parser.parse_args()
