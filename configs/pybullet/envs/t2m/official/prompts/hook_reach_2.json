@@ -39,6 +39,13 @@
             "pull(yellow_box, hook)",
             "place(hook, table)"
         ],
+        "instruction_achieved": true,
+        "instruction_achieved_scene_object_relationships": [
+            "on(hook, rack)",
+            "on(yellow_box, table)",
+            "on(cyan_box, rack)",
+            "on(rack, table)"
+        ],
         "use_primitives": false,
         "use_predicates": false,
         "use_scene_objects": false,
@@ -47,6 +54,7 @@
         "use_explanation": false,
         "use_goal": false,
         "use_robot": false,
+        "use_instruction_achieved_test": false,
         "explanation_predicted": null,
         "goal_predicted": null,
         "action_predicted": null,
