@@ -127,6 +127,16 @@ class Node:
         return self.parent.motion_planner
 
     @cached_property
+    def root_node_object_relationships(self) -> List[str]:
+        root_node_object_relationships = get_object_relationships(
+            self.root_node_geometric_state,
+            self.env.prop_testing_objs,
+            self.available_predicates,
+            use_hand_state=False,
+        )
+        return list(map(str, root_node_object_relationships))
+
+    @cached_property
     def current_object_relationships(self) -> List[str]:
         if self.parent is None:
             root_node_object_relationships = get_object_relationships(
@@ -370,7 +380,9 @@ class BeamSearchProblem(SearchProblem):
         auth: Optional[Authentication] = None,
         lm_cache: Optional[Dict[str, str]] = None,
         lm_cache_file: Optional[str] = None,
-        termination_method: Literal["pred_stop", "goal_prop"] = "goal_prop",
+        termination_method: Literal[
+            "pred_instr_achieved", "goal_prop"
+        ] = "pred_instr_achieved",
     ):
         # TODO(klin) remove when instruction is inside env
         self.instruction: str = instruction
@@ -393,6 +405,7 @@ class BeamSearchProblem(SearchProblem):
         self.lm_cache_file = lm_cache_file
         self.termination_method = termination_method
         self.lm_agent = lm_agent
+        self.lm_cache = lm_agent.lm_cache
 
         # though maybe this can be hardcoded
         # since it differs for each type of LM call
@@ -423,7 +436,7 @@ class BeamSearchProblem(SearchProblem):
         print(
             f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
         )
-        if self.termination_method == "pred_stop":
+        if self.termination_method == "pred_instr_achieved":
             # prompt the LM for the next action to execute
             # if next action is stop, then we are done
             # otherwise, we are not done
@@ -435,12 +448,19 @@ class BeamSearchProblem(SearchProblem):
             next_action_str = self.lm_agent.get_next_action_str(
                 current_node_all_prior_object_relationships,
                 current_node_all_executed_actions,
+                verbose=True,
+                in_context_example_robot_format="python_list",
+                robot_prompt="Instruction achieved (True/False): ",
             )
             lm_cache = self.lm_agent.lm_cache
             self.lm_cache = lm_cache
-            if "stop" in next_action_str:
-                print(colored(f"Success: {node.action_skeleton_as_strings}", "green"))
-                # object relationships
+            if "True" in next_action_str:
+                print(
+                    colored(
+                        f"Stop due to predicting True after: {node.action_skeleton_as_strings}",
+                        "magenta",
+                    )
+                )
                 print(
                     f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
                 )
@@ -452,8 +472,12 @@ class BeamSearchProblem(SearchProblem):
                 node.motion_plan_post_optimization.states[-1],
                 use_hand_state=False,
             ):
-                print(colored(f"Success: {node.action_skeleton_as_strings}", "green"))
-                # object relationships
+                print(
+                    colored(
+                        f"Stop due to satisfying goal props: {node.action_skeleton_as_strings}",
+                        "magenta",
+                    )
+                )
                 print(
                     f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
                 )
@@ -513,6 +537,7 @@ class BeamSearchProblem(SearchProblem):
             custom_robot_action_sequence_format="python_list",
         )
         self.lm_cache = lm_cache
+        self.lm_agent.lm_cache = lm_cache
 
         for i in range(len(nodes)):
             nodes[i].action_sequence_score_lm = lm_action_scores[i]
@@ -552,6 +577,7 @@ class BeamSearchProblem(SearchProblem):
             lm_cache=self.lm_cache,
             verbose=True,
         )
+        self.lm_agent.lm_cache = lm_cache
         self.lm_cache = lm_cache
         self.lm_cfg.echo = True
         self.lm_cfg.engine = "code-davinci-002"
@@ -660,13 +686,17 @@ class BeamSearchAlgorithm:
                     next_beam[i].custom_recording_text = custom_recording_text
 
                 for node in next_beam:
+                    obj_rel_lst = [node.root_node_object_relationships]
+                    obj_rel_lst.extend(
+                        node.object_relationships_sequence_post_optimization
+                    )
                     planners.vizualize_predicted_plan(
                         node.action_skeleton_as_strings,
                         node.env,
                         node.action_skeleton_as_primitives,
                         node.motion_plan_post_optimization,
                         path=visualize_path,
-                        object_relationships_list=node.object_relationships_sequence_post_optimization,
+                        object_relationships_list=obj_rel_lst,
                         custom_recording_text=node.custom_recording_text_sequence,
                         file_extensions=["mp4"],
                     )
