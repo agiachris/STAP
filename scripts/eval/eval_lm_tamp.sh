@@ -38,6 +38,7 @@ function eval_lm_tamp {
     args="${args} --timeout 10"
     args="${args} --max-depth 10"
     args="${args} --n-examples ${N_INCONTEXT_EXAMPLES}"
+    args="${args} --termination_method ${TERMINATION_METHOD}"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 3"
@@ -88,7 +89,7 @@ function visualize_tamp {
 DEBUG=0
 input_path="models"
 output_path="plots"
-exp_name="20230122/lm_tamp"
+exp_name="20230129/hierarchical"
 
 # LLM
 KEY_NAME="personal-all"
@@ -99,18 +100,19 @@ PLANNERS=(
     "policy_cem"
     # "greedy"
 )
-
+TERMINATION_METHOD="goal_prop"
 # Experiments.
 
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 TASK_NUMS=(
-    # "0"
-    # "1"
-    # "2"
+    "0"
+    "1"
+    "2"
     "3"
     "4"
-    # "5"
-    # "6"
+    "5"
+    "6"
+    "7"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 # CKPT="select_model"
