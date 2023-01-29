@@ -81,6 +81,7 @@ def get_task_plans_from_lm(
         example.use_human = True
         example.use_goal = True
         example.use_robot = True
+        example.use_instruction_achieved_test = False
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
         example.custom_robot_action_sequence_format = (
             custom_in_context_example_robot_format
@@ -186,6 +187,7 @@ def get_next_actions_from_lm(
         example.use_human = True
         example.use_goal = True
         example.use_robot = True
+        example.use_instruction_achieved_test = False
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
         example.custom_robot_action_sequence_format = (
             custom_in_context_example_robot_format
@@ -292,6 +294,7 @@ def get_action_scores_from_lm(
         example.use_human = True
         example.use_goal = True
         example.use_robot = True
+        example.use_instruction_achieved_test = False
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
         example.custom_robot_action_sequence_format = (
             custom_in_context_example_robot_format
@@ -417,7 +420,7 @@ def get_next_action_str_from_lm(
     custom_in_context_example_robot_format: Literal[
         "python_list_with_stop", "python_list"
     ] = "python_list_with_stop",
-    custom_robot_prompt: str = "Executed action (single primitive action string only):",
+    custom_robot_prompt: str = "Executed action:",
     custom_robot_action_sequence_format: Literal[
         "python_list_with_stop", "python_list", "str"
     ] = "str",
@@ -441,17 +444,18 @@ def get_next_action_str_from_lm(
 
     for example in examples:
         example.use_scene_objects = True
-        example.use_scene_object_relationships = True
+        example.use_scene_object_relationships = False
         example.use_human = True
-        example.use_goal = True
-        example.use_robot = True
+        example.use_goal = False
+        example.use_robot = False
+        example.use_instruction_achieved_test = True
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
         example.custom_robot_action_sequence_format = (
             custom_in_context_example_robot_format
         )
 
     original_max_tokens = lm_cfg.max_tokens
-    lm_cfg.max_tokens = 10
+    lm_cfg.max_tokens = 2
     lm_cfg.echo = False
 
     current_prompt = CurrentExample(
@@ -473,9 +477,9 @@ def get_next_action_str_from_lm(
         all_prior_object_relationships=all_prior_object_relationships,
         all_executed_actions=all_executed_actions,
     )
-    authenticate(APIType.OPENAI, "personal-all")
-    lm_cfg.api_type = APIType.OPENAI
-    lm_cfg.engine = "code-davinci-002"
+    # authenticate(APIType.OPENAI, "personal-all")
+    lm_cfg.api_type = APIType.HELM
+    lm_cfg.engine = "text-davinci-003"
     result, lm_cache = generate_lm_response(
         header_prompt,
         current_prompt,

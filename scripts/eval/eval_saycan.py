@@ -389,10 +389,13 @@ def eval_saycan(
             print(colored(f"Potential actions: {actions}", "yellow"))
             # remove actions
             env_lst = [env] * len(actions)
-            potential_actions: List[table_primitives.Primitive] = [
-                env.get_primitive_info(action, env)
-                for (action, env) in zip(actions, env_lst)
-            ]
+            potential_actions: List[table_primitives.Primitive] = []
+            for action, env in zip(actions, env_lst):
+                try:
+                    potential_actions.append(env.get_primitive_info(action, env))
+                except Exception as e:
+                    print(f"Exception: {e}")
+                    continue
             potential_actions_str: List[str] = [
                 str(action).lower() for action in potential_actions
             ]
@@ -588,9 +591,12 @@ def eval_saycan(
             "task_name": env.name,
             "task_file": str(pathlib.Path(env_config).name),
             "success_rate": success_rate,
+            "goal_props_predicted": goal_props_predicted,
+            "instruction": env.instruction,
             "run_logs": run_logs,
         }
         json.dump(save_dict, f, indent=2)
+
 
 def main(args: argparse.Namespace) -> None:
     auth = authenticate(args.api_type, args.key_name)

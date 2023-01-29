@@ -10,15 +10,14 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would ensure there's an odd number (greater than one) of boxes on the rack?
+    - instruction: How would you ensure there are at least three items on the rack?
       action_skeleton:
         - pick(yellow_box)
         - place(yellow_box, rack)
-        - pick(hook)
-        - pull(red_box, hook)
-        - place(hook, table)
         - pick(red_box)
         - place(red_box, rack)
+        - pick(cyan_box)
+        - place(cyan_box, rack)
       initial_state:
         - free(hook)
         - free(yellow_box)
@@ -27,20 +26,18 @@ env_kwargs:
         - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(hook)
-        - inworkspace(cyan_box)
         - inworkspace(yellow_box)
-        - beyondworkspace(red_box)
-        - nonblocking(red_box, rack)
+        - inworkspace(red_box)
+        - inworkspace(cyan_box)
         - on(rack, table)
-        - on(hook, table)
-        - under(cyan_box, rack)
-        - on(cyan_box, table)
+        - on(hook, rack)
         - on(yellow_box, table)
         - on(red_box, table)
-        - on(blue_box, rack)
+        - on(cyan_box, table)
       goal_propositions:
         - on(yellow_box, rack)
         - on(red_box, rack)
+        - on(cyan_box, rack)
       supported_predicates:
         - under(a, b)
         - on(a, b)
@@ -69,4 +66,76 @@ env_kwargs:
     - configs/pybullet/envs/assets/yogurt.yaml
     - configs/pybullet/envs/assets/milk.yaml
     - configs/pybullet/envs/assets/icecream.yaml
-    - configs/pybullet/envs/assets/salt.yaml
+
+# env: pybullet.TableEnv
+# env_kwargs:
+#   name: lifted_0
+#   gui: false
+
+#   primitives:
+#     - pick
+#     - place
+#     - pull
+#     - push
+
+#   tasks:
+#     - instruction: How would ensure there are at least three objects on the rack?
+#       action_skeleton:
+#         - pick(yellow_box)
+#         - place(yellow_box, rack)
+#         - pick(hook)
+#         - pull(red_box, hook)
+#         - place(hook, table)
+#         - pick(red_box)
+#         - place(red_box, rack)
+#       initial_state:
+#         - free(hook)
+#         - free(yellow_box)
+#         - free(red_box)
+#         - aligned(rack)
+#         - poslimit(rack)
+#         - inworkspace(rack)
+#         - inworkspace(hook)
+#         - inworkspace(cyan_box)
+#         - inworkspace(yellow_box)
+#         - beyondworkspace(red_box)
+#         - nonblocking(red_box, rack)
+#         - on(rack, table)
+#         - on(hook, table)
+#         - under(cyan_box, rack)
+#         - on(cyan_box, table)
+#         - on(yellow_box, table)
+#         - on(red_box, table)
+#         - on(blue_box, rack)
+#       goal_propositions:
+#         - on(yellow_box, rack)
+#         - on(red_box, rack)
+#       supported_predicates:
+#         - under(a, b)
+#         - on(a, b)
+#         - inhand(a)
+        
+#   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
+
+#   objects:
+#     - object_type: Urdf
+#       object_kwargs:
+#         name: table
+#         path: configs/pybullet/envs/assets/iprl_table.urdf
+#         is_static: true
+#     - object_type: Rack
+#       object_kwargs:
+#         name: rack
+#         size: [0.22, 0.32, 0.16]
+#         color: [0.4, 0.2, 0.0, 1.0]
+#     - object_type: Hook
+#       object_kwargs:
+#         name: hook
+#         head_length: 0.2
+#         handle_length: 0.38
+#         handle_y: -1.0
+#         color: [0.6, 0.6, 0.6, 1.0]
+#     - configs/pybullet/envs/assets/yogurt.yaml
+#     - configs/pybullet/envs/assets/milk.yaml
+#     - configs/pybullet/envs/assets/icecream.yaml
+#     - configs/pybullet/envs/assets/salt.yaml
