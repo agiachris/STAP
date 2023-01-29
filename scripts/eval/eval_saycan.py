@@ -591,6 +591,8 @@ def eval_saycan(
             "task_name": env.name,
             "task_file": str(pathlib.Path(env_config).name),
             "success_rate": success_rate,
+            "goal_props_predicted": goal_props_predicted,
+            "instruction": env.instruction,
             "run_logs": run_logs,
         }
         json.dump(save_dict, f, indent=2)
