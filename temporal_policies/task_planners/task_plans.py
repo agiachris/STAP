@@ -81,6 +81,7 @@ def get_task_plans_from_lm(
         example.use_human = True
         example.use_goal = True
         example.use_robot = True
+        example.use_instruction_achieved_test = False
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
         example.custom_robot_action_sequence_format = (
             custom_in_context_example_robot_format
@@ -186,6 +187,7 @@ def get_next_actions_from_lm(
         example.use_human = True
         example.use_goal = True
         example.use_robot = True
+        example.use_instruction_achieved_test = False
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
         example.custom_robot_action_sequence_format = (
             custom_in_context_example_robot_format
@@ -292,6 +294,7 @@ def get_action_scores_from_lm(
         example.use_human = True
         example.use_goal = True
         example.use_robot = True
+        example.use_instruction_achieved_test = False
         example.custom_robot_prompt = custom_in_context_example_robot_prompt
         example.custom_robot_action_sequence_format = (
             custom_in_context_example_robot_format
