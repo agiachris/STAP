@@ -32,6 +32,7 @@ function eval_ilm_tamp {
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
     args="${args} --key-name ${KEY_NAME}"
+    args="${args} --api-type ${API_TYPE}"
     args="${args} --seed 0"
     args="${args} --pddl-domain ${PDDL_DOMAIN}"
     args="${args} --pddl-problem ${PDDL_PROBLEM}"
@@ -47,7 +48,7 @@ function eval_ilm_tamp {
         args="${args} --verbose 1"
         args="${args} --engine curie"
     else
-        args="${args} --num-eval 1"
+        args="${args} --num-eval 10"
         args="${args} --path ${PLANNER_OUTPUT_PATH}"
         args="${args} --verbose 0"
         args="${args} --engine davinci"
@@ -61,17 +62,17 @@ function run_planners {
         PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
 
         POLICY_CHECKPOINTS=(
-            "models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-            "models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
-            "models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-            "models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+            "20230126/policy/pick/final_model/final_model.pt",
+            "20230126/policy/place/final_model/final_model.pt",
+            "20230126/policy/pull/final_model/final_model.pt",
+            "20230126/policy/push/final_model/final_model.pt"
         )
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
         elif [[ "${planner}" == daf_* ]]; then
             DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${planner}/dynamics/final_model.pt"
         else
-            DYNAMICS_CHECKPOINT="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+            DYNAMICS_CHECKPOINT="models/20230125/dynamics/pick_place_pull_push_dynamics/final_model.pt"
         fi
 
         eval_ilm_tamp
@@ -91,14 +92,16 @@ DEBUG=0
 VIZ_PLANNING=1
 input_path="models"
 output_path="plots"
-exp_name="20230129/integrated"
+exp_name="20230129-newest/integrated"
 
 # LLM
 KEY_NAME="helm"
+API_TYPE="helm"
 N_INCONTEXT_EXAMPLES=10
 # Evaluate planners.
 PLANNERS=(
-    "policy_cem"
+    "ensemble_policy_cem_ood"
+    # "policy_cem"
     # "greedy"
 )
 TERMINATION_METHOD="goal_prop"
