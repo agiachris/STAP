@@ -11,7 +11,7 @@ from temporal_policies.task_planners.lm_data_structures import APIType
 @dataclass
 class PDDLConfig:
     domain_dir: str = "configs/pybullet/envs/t2m/official/template"
-    domain_file: str = "template_domain.pddl"
+    domain_file: str = "template_valid_domain.pddl"
     problem_dir: Optional[str] = None
     problem_subdir: Optional[str] = None
     instruction_dir: Optional[str] = None
@@ -186,32 +186,20 @@ class PolicyDatasetGenerationConfig:
     """Configuration for generating a dataset of (s, a, s', r) tuples."""
 
     split: str = "train"
-    exp_name: str = "20230116/datasets"
+    exp_name: str = "20230125/datasets"
     custom_path: Optional[str] = None
     # Trainer configs.
-    trainer_config: str = "configs/pybullet/trainers/primitive_dataset.yaml"
+    trainer_config: str = "configs/pybullet/trainers/primitive_valid_dataset.yaml"
     agent_config: str = "configs/pybullet/agents/single_stage/sac.yaml"
-    env_config: str = ""
-    eval_env_config: str = ""
-    encoder_checkpoint: Optional[str] = None
-    resume: str = False
-    overwrite: str = False
     device: str = "auto"
     seed: int = 0
-    gui: int = 0
-    use_curriculum: int = 0
-    num_pretrain_steps: int = 100000
-    num_train_steps: int = 0
-    num_eval_episodes: int = 0
-    num_env_processes: int = 1
-    num_eval_env_processes: int = 0
     # Dataset generation configs.
-    pddl_config: PDDLConfig = dataclasses.field(default_factory=lambda: PDDLConfig())
+    pddl_handler: Optional[PDDLConfig] = None
     template_env_yaml: str = (
         "configs/pybullet/envs/t2m/official/template/template_env.yaml"
     )
     primitive: Literal["pick", "place", "push", "pull"] = "pick"
-    symbolic_action_type: Literal["valid", "invalid", "all"] = "valid"
+    symbolic_action_type: Literal["valid", "invalid"] = "valid"
     save_env_config: bool = True
     object_types: Dict[str, str] = dataclasses.field(
         default_factory=lambda: {
@@ -224,6 +212,14 @@ class PolicyDatasetGenerationConfig:
             "salt": "box",
         }
     )
+
+    @property
+    def pddl_config(self) -> PDDLConfig:
+        if isinstance(self.pddl_handler, PDDLConfig):
+            return self.pddl_handler
+        domain_file = f"template_{self.symbolic_action_type}_domain.pddl"
+        self.pddl_handler = PDDLConfig(domain_file=domain_file)
+        return self.pddl_handler
 
     @property
     def env_root_dir(self) -> str:
@@ -245,7 +241,3 @@ class PolicyDatasetGenerationConfig:
         if self.custom_path is not None:
             return self.custom_path
         return os.path.join("models", self.exp_name)
-
-    @property
-    def eval_recording_path(self) -> str:
-        return os.path.join("plots", self.exp_name)

@@ -222,7 +222,7 @@ class CEMPlanner(planners.Planner):
                 )
 
                 # Evaluate trajectories.
-                p_success, values, _ = utils.evaluate_trajectory(
+                p_success, values, values_unc = utils.evaluate_trajectory(
                     value_fns, decode_fns, states, actions=samples
                 )
 
@@ -238,6 +238,7 @@ class CEMPlanner(planners.Planner):
                     best_actions = samples[idx_best].cpu().numpy()
                     best_states = states[idx_best].cpu().numpy()
                     best_values = values[idx_best].cpu().numpy()
+                    best_values_unc = values_unc[idx_best].cpu().numpy()
 
                 # Update distribution.
                 mean = self.momentum * mean + (1 - self.momentum) * elites.mean(dim=0)
@@ -259,6 +260,7 @@ class CEMPlanner(planners.Planner):
             best_actions is not None
             and best_states is not None
             and best_values is not None
+            and best_values_unc is not None
         )
 
         if return_visited_samples:
@@ -277,6 +279,7 @@ class CEMPlanner(planners.Planner):
             states=best_states,
             p_success=p_best_success,
             values=best_values,
+            values_unc=best_values_unc,
             visited_actions=visited_actions,
             visited_states=visited_states,
             p_visited_success=p_visited_success,

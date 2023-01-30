@@ -1,0 +1,15 @@
+trainer: PrimitiveDatasetGenerator
+trainer_kwargs:
+  dataset_class: ReplayBuffer
+  dataset_kwargs:
+    capacity: 100000
+    batch_size: 128
+    sample_strategy: uniform
+    save_frequency: 1000
+
+  dataset_size: 100000
+  collection_strategy: uniform
+  simulate: false
+
+  log_freq: 1000
+  profile_freq: 1000

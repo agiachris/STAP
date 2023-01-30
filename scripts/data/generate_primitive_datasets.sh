@@ -16,11 +16,11 @@ function run_cmd {
 
 function generate_data {
     args="--config.exp-name ${EXP_NAME}"
+    args="${args} --config.trainer-config ${TRAINER_CONFIG}"
     args="${args} --config.split ${SPLIT}"
     args="${args} --config.primitive ${PRIMITIVE}"
     args="${args} --config.symbolic-action-type ${SYMBOLIC_ACTION_TYPE}"
     args="${args} --config.seed ${SEED}"
-    args="${args} --config.num-pretrain-steps ${NUM_PRETRAIN_STEPS}"
     
     CMD="python scripts/data/generate_primitive_dataset.py ${args}"    
     run_cmd
@@ -39,22 +39,42 @@ function run_data_generation {
 }
 
 # Experiments.
-EXP_NAME="20230119/datasets"
-SYMBOLIC_ACTION_TYPE="valid"
-NUM_PRETRAIN_STEPS="100000"
+EXP_NAME="20230125/datasets"
 
 # Pybullet.
-TRAIN_SEEDS=("0" "1" "2" "3" "4" "5" "6" "7")
-VALIDATION_SEEDS=("8" "9")
 
-PRIMITIVE="pick"
-run_data_generation
+# In-distribution (symbolically valid) data generation.
+# TRAINER_CONFIG="configs/pybullet/trainers/primitive_valid_dataset.yaml"
+# SYMBOLIC_ACTION_TYPE="valid"
+# TRAIN_SEEDS=($(seq 0 15))
+# VALIDATION_SEEDS=($(seq 16 19))
 
-PRIMITIVE="place"
-run_data_generation
+# PRIMITIVE="pick"
+# run_data_generation
 
-PRIMITIVE="pull"
-run_data_generation
+# PRIMITIVE="place"
+# run_data_generation
 
-PRIMITIVE="push"
-run_data_generation
+# PRIMITIVE="pull"
+# run_data_generation
+
+# PRIMITIVE="push"
+# run_data_generation
+
+# Out-of-distribution (symbolically invalid) data generation.
+# TRAINER_CONFIG="configs/pybullet/trainers/primitive_invalid_dataset.yaml"
+# SYMBOLIC_ACTION_TYPE="invalid"
+# TRAIN_SEEDS=("0")
+# VALIDATION_SEEDS=()
+
+# PRIMITIVE="pick"
+# run_data_generation
+
+# PRIMITIVE="place"
+# run_data_generation
+
+# PRIMITIVE="pull"
+# run_data_generation
+
+# PRIMITIVE="push"
+# run_data_generation

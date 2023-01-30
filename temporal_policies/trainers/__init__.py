@@ -8,4 +8,5 @@ from .dynamics import DynamicsTrainer
 from .autoencoders import AutoencoderTrainer
 from .unified import UnifiedTrainer
 from .scod import SCODTrainer
+from .primitive_data import PrimitiveDatasetGenerator
 from .utils import *

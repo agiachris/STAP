@@ -238,9 +238,10 @@ def evaluate_trajectory(
         dtype=torch.float32,
         device=states.device,
     )
-    p_successes_unc = (
-        None if probabilistic_metric is None else torch.zeros_like(p_successes)
-    )
+    # p_successes_unc = (
+    #     None if probabilistic_metric is None else torch.zeros_like(p_successes)
+    # )
+    p_successes_unc = torch.zeros_like(p_successes)
     if q_value:
         assert actions is not None
         for t, (value_fn, decode_fn) in enumerate(zip(value_fns, decode_fns)):
@@ -254,6 +255,9 @@ def evaluate_trajectory(
                 p_distribution = value_fn.forward(policy_state, action)
                 p_successes[:, t] = p_distribution.mean
                 p_successes_unc[:, t] = getattr(p_distribution, probabilistic_metric)
+            if isinstance(value_fn, networks.critics.EnsembleOODCritic):
+                p_successes_unc[:, t] = value_fn.detect
+
     else:
         raise NotImplementedError
 

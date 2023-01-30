@@ -53,6 +53,13 @@ class EnsembleAgent(wrapper.WrapperAgent):
                 pessimistic=pessimistic,
                 clip=clip
             )
+        elif issubclass(critic_class, critics.EnsembleOODCritic):
+            critic = critic_class(
+                threshold=ood_threshold,
+                critic=policy.critic,
+                pessimistic=pessimistic,
+                clip=clip,
+            )
         else:
             raise ValueError(f"{critic_class} not supported by EnsembleAgent.")
             

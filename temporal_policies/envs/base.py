@@ -40,7 +40,7 @@ class Primitive:
             action, from_space=cls.action_scale, to_space=cls.action_space
         )
 
-    def sample(self) -> np.ndarray:
+    def sample(self, uniform: bool = False) -> np.ndarray:
         return self.action_space.sample()
 
     def __str__(self) -> str:

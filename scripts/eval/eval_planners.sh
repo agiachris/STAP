@@ -85,18 +85,19 @@ output_path="plots"
 ## Planner configurations.
 PLANNERS=(
 # Q-value / Latent dynamics.
-    "policy_cem"
+    # "policy_cem"
     # "random_cem"
     # "policy_shooting"
     # "random_shooting"
 # Ensemble Q-value / Latent dynamics.
     # "ensemble_policy_cem"
-    "ensemble_policy_cem_scale-0.1"
-    "ensemble_policy_cem_scale-0.5"
-    "ensemble_policy_cem_scale-1.0"
-    "ensemble_policy_cem_scale-0.1_pessimistic-True"
-    "ensemble_policy_cem_scale-0.5_pessimistic-True"
-    "ensemble_policy_cem_scale-1.0_pessimistic-True"
+    "ensemble_policy_cem_ood"
+    # "ensemble_policy_cem_scale-0.1"
+    # "ensemble_policy_cem_scale-0.5"
+    # "ensemble_policy_cem_scale-1.0"
+    # "ensemble_policy_cem_scale-0.1_pessimistic-True"
+    # "ensemble_policy_cem_scale-0.5_pessimistic-True"
+    # "ensemble_policy_cem_scale-1.0_pessimistic-True"
 # SCOD value / Latent dynamics.
     # "policy_cem_var_scod_value"
     # "policy_cem_cvar_scod_value"
@@ -164,7 +165,7 @@ TASKS=(
 # )
 
 ## Pybullet.
-exp_name="20230122/planners/taps"
+exp_name="20230126/planners/taps"
 PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
 
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
@@ -180,14 +181,47 @@ PRIMITIVES=(
     "pull"
     "push"
 )
+
+# Critics trained with mean squared regression.
+# declare -A POLICY_CHECKPOINT_PATHS=(
+#     ["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+#     ["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
+#     ["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+#     ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+# )
+# DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+# run_planners
+
+# Critics trained with logistics regression.
+# declare -A POLICY_CHECKPOINT_PATHS=(
+#     ["pick"]="models/20230123/policy/pick_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
+#     ["place"]="models/20230123/policy/place_value_sched-cos_iter-5M_sac_ens_value_logistics/final_model/final_model.pt"
+#     ["pull"]="models/20230123/policy/pull_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
+#     ["push"]="models/20230123/policy/push_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
+# )
+# DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+# run_planners
+
+# Critics trained with logistics regression, balanced data (40% success)
+# declare -A POLICY_CHECKPOINT_PATHS=(
+#     ["pick"]="models/20230125/policy/pick/final_model/final_model.pt"
+#     ["place"]="models/20230124/policy/place/final_model/final_model.pt"
+#     ["pull"]="models/20230125/policy/pull/final_model/final_model.pt"
+#     ["push"]="models/20230125/policy/push/final_model/final_model.pt"
+# )
+# DYNAMICS_CHECKPOINT_PATH="models/20230125/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+# run_planners
+
+# Critics trained with MSE loss and no sigmoid activation, balanced data (40%).
 declare -A POLICY_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-    ["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
-    ["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-    ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+    ["pick"]="models/20230126/policy/pick/final_model/final_model.pt"
+    ["place"]="models/20230126/policy/place/final_model/final_model.pt"
+    ["pull"]="models/20230126/policy/pull/final_model/final_model.pt"
+    ["push"]="models/20230126/policy/push/final_model/final_model.pt"
 )
-DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+DYNAMICS_CHECKPOINT_PATH="models/20230125/dynamics/pick_place_pull_push_dynamics/best_model.pt"
 run_planners
+
 
 ## Visualize results.
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
@@ -206,6 +240,6 @@ function visualize_results {
     run_cmd
 }
 
-FIGURE_NAME="improved-dynamics"
+FIGURE_NAME="mse-models-handcrafted-dynamics"
 visualize_results
 

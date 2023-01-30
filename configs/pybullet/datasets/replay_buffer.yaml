@@ -1,0 +1,5 @@
+dataset: ReplayBuffer
+dataset_kwargs:
+  capacity: 100000
+  batch_size: 128
+  sample_strategy: uniform
