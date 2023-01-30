@@ -30,6 +30,7 @@ from temporal_policies.envs.pybullet.table.objects import Object
 
 import tqdm
 import tabulate
+from temporal_policies.networks.critics.base import Critic
 
 from temporal_policies.planners.utils import get_printable_object_relationships_str
 
@@ -107,6 +108,9 @@ def get_values(
                 q_s_a = value_fns[i].predict(
                     policy_state, tensors.from_numpy(actions[i], device=device)
                 )
+                if isinstance(value_fns[i], Critic.EnsembleOODCritic):
+                    ood_filter = 1 - value_fns[i].detect
+                    q_s_a = q_s_a * ood_filter
                 # clip values between 0 and 1
                 q_s_a = torch.clamp(q_s_a, 0, 1)
             except RuntimeError as e:

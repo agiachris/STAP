@@ -329,7 +329,10 @@ def eval_lm_tamp(
 
                     is_geom_feasible: bool = all(
                         value > 0.45 for value in motion_plan.values[:i]
+                    ) and all(
+                        value_unc < 0.5 for value_unc in motion_plan.values_unc[:i]
                     )
+                    # note that value_unc is technically a boolean for EnsembleOODCritic
                     if is_end_lm and is_geom_feasible:
                         goal_reaching_task_plans.append(task_plan[: i + 1])
                         shortened_motion_plan = copy.deepcopy(motion_plan)
