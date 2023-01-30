@@ -69,7 +69,7 @@ output_path="plots"
 #### Experiments.
 
 ### Pybullet.
-exp_name="20230126/value_mse"
+exp_name="20230126/value_logistics"
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 NUM_EVAL_STEPS=1000
 
@@ -121,39 +121,13 @@ NUM_EVAL_STEPS=1000
 ## Critics trained with logistics regression, balanced data (40%).
 
 ## Data.
-# DATA_CONFIG="configs/pybullet/datasets/replay_buffer.yaml"
-# SEEDS=("0")
-# declare -A AGENT_CHECKPOINT_PATHS=(
-#     ["pick"]="models/20230124/value"
-#     ["place"]="models/20230124/value"
-#     ["pull"]="models/20230124/value"
-#     ["push"]="models/20230124/value"
-# )
-# for PRIMITIVE in "${!AGENT_CHECKPOINT_PATHS[@]}"; do
-#     AGENT_CHECKPOINT_PATH="${AGENT_CHECKPOINT_PATHS[${PRIMITIVE}]}"
-    
-#     AGENT_CHECKPOINT="${PRIMITIVE}"
-#     SYMBOLIC_ACTION_TYPE="valid"
-#     DATA_CHECKPOINT_PATH="models/20230124/datasets"
-#     TAG="ind"
-#     run_value
-    
-#     AGENT_CHECKPOINT="${PRIMITIVE}"
-#     SYMBOLIC_ACTION_TYPE="invalid"
-#     DATA_CHECKPOINT_PATH="models/20230125/datasets"
-#     TAG="ood"
-#     run_value
-# done
-
-## Critics trained with MSE loss and no sigmoid activation, balanced data (40%).
-
 DATA_CONFIG="configs/pybullet/datasets/replay_buffer.yaml"
 SEEDS=("0")
 declare -A AGENT_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230126/value"
-    ["place"]="models/20230126/value"
-    ["pull"]="models/20230126/value"
-    ["push"]="models/20230126/value"
+    ["pick"]="models/20230124/value"
+    ["place"]="models/20230124/value"
+    ["pull"]="models/20230124/value"
+    ["push"]="models/20230124/value"
 )
 for PRIMITIVE in "${!AGENT_CHECKPOINT_PATHS[@]}"; do
     AGENT_CHECKPOINT_PATH="${AGENT_CHECKPOINT_PATHS[${PRIMITIVE}]}"
@@ -170,3 +144,29 @@ for PRIMITIVE in "${!AGENT_CHECKPOINT_PATHS[@]}"; do
     TAG="ood"
     run_value
 done
+
+## Critics trained with MSE loss and no sigmoid activation, balanced data (40%).
+
+# DATA_CONFIG="configs/pybullet/datasets/replay_buffer.yaml"
+# SEEDS=("0")
+# declare -A AGENT_CHECKPOINT_PATHS=(
+#     ["pick"]="models/20230126/value"
+#     ["place"]="models/20230126/value"
+#     ["pull"]="models/20230126/value"
+#     ["push"]="models/20230126/value"
+# )
+# for PRIMITIVE in "${!AGENT_CHECKPOINT_PATHS[@]}"; do
+#     AGENT_CHECKPOINT_PATH="${AGENT_CHECKPOINT_PATHS[${PRIMITIVE}]}"
+    
+#     AGENT_CHECKPOINT="${PRIMITIVE}"
+#     SYMBOLIC_ACTION_TYPE="valid"
+#     DATA_CHECKPOINT_PATH="models/20230124/datasets"
+#     TAG="ind"
+#     run_value
+    
+#     AGENT_CHECKPOINT="${PRIMITIVE}"
+#     SYMBOLIC_ACTION_TYPE="invalid"
+#     DATA_CHECKPOINT_PATH="models/20230125/datasets"
+#     TAG="ood"
+#     run_value
+# done
