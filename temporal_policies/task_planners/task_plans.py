@@ -86,8 +86,9 @@ def get_task_plans_from_lm(
         example.custom_robot_action_sequence_format = (
             custom_in_context_example_robot_format
         )
+
     lm_cfg.engine = "text-davinci-003"
-    lm_cfg.api_type = APIType.HELM
+
     try:
         results, lm_cache = generate_lm_response(
             header_prompt,
@@ -193,8 +194,12 @@ def get_next_actions_from_lm(
             custom_in_context_example_robot_format
         )
 
-    authenticate(APIType.OPENAI, "personal-all")
-    lm_cfg.api_type = APIType.OPENAI
+    original_api_type = lm_cfg.api_type
+    # if already openai, then don't need to authenticate, otherwise use personal-code
+    if not original_api_type.name == APIType.OPENAI.name:
+        authenticate(APIType.OPENAI, "personal-code")
+        lm_cfg.api_type = APIType.OPENAI
+
     lm_cfg.engine = "code-davinci-002"
     results, lm_cache = generate_lm_response(
         header_prompt,
@@ -212,6 +217,8 @@ def get_next_actions_from_lm(
         ],
         verbose=verbose,
     )
+    lm_cfg.api_type = original_api_type
+
     return (
         results.parsed_robot_predicted,
         lm_cache,
@@ -331,8 +338,12 @@ def get_action_scores_from_lm(
     )
     # generate LM response to the particular prompt (maybe made up of)
     # then, I need to get scores corresponding
-    authenticate(APIType.OPENAI, "personal-all")
-    lm_cfg.api_type = APIType.OPENAI
+    original_api_type = lm_cfg.api_type
+    # if already openai, then don't need to authenticate
+    if not original_api_type.name == APIType.OPENAI.name:
+        authenticate(APIType.OPENAI, "personal-code")
+        lm_cfg.api_type = APIType.OPENAI
+    # always use code-davinci for scoring
     lm_cfg.engine = "code-davinci-002"
     results, lm_cache = generate_lm_response(
         header_prompt,
@@ -343,6 +354,8 @@ def get_action_scores_from_lm(
         lm_cache=lm_cache,
         verbose=False,
     )
+    lm_cfg.api_type = original_api_type
+
     # TODO(klin): only works for non-helm api
     assert isinstance(
         results.tokens_predicted[0], List
@@ -378,7 +391,7 @@ def get_action_scores_from_lm(
         action_logprobs_dct[actions_key] = action_logprob
         print(f"{logprob_type}: {actions_key}, logprob: {np.round(action_logprob, 3)}")
 
-    save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
+    # save_lm_cache(pathlib.Path(lm_cache_file), lm_cache)
 
     lm_cfg.echo = False
     lm_cfg.max_tokens = original_max_tokens
@@ -477,8 +490,6 @@ def get_next_action_str_from_lm(
         all_prior_object_relationships=all_prior_object_relationships,
         all_executed_actions=all_executed_actions,
     )
-    # authenticate(APIType.OPENAI, "personal-all")
-    lm_cfg.api_type = APIType.HELM
     lm_cfg.engine = "text-davinci-003"
     result, lm_cache = generate_lm_response(
         header_prompt,
