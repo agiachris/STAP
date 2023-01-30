@@ -60,10 +60,10 @@ function run_planners {
         PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
 
         POLICY_CHECKPOINTS=(
-            "20230126/policy/pick/final_model/final_model.pt",
-            "20230126/policy/place/final_model/final_model.pt",
-            "20230126/policy/pull/final_model/final_model.pt",
-            "20230126/policy/push/final_model/final_model.pt"
+            "models/20230126/policy/pick/final_model/final_model.pt",
+            "models/20230126/policy/place/final_model/final_model.pt",
+            "models/20230126/policy/pull/final_model/final_model.pt",
+            "models/20230126/policy/push/final_model/final_model.pt"
         )
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""

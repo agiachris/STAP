@@ -41,7 +41,7 @@ function eval_ilm_tamp {
     args="${args} --visualize-planning ${VIZ_PLANNING}"
     args="${args} --n-examples ${N_INCONTEXT_EXAMPLES}"
     args="${args} ${ENV_KWARGS}"
-    args="${args} --termination_method ${TERMINATION_METHOD}"
+    args="${args} --termination-method ${TERMINATION_METHOD}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 3"
         args="${args} --path ${PLANNER_OUTPUT_PATH}_debug"
@@ -62,10 +62,10 @@ function run_planners {
         PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
 
         POLICY_CHECKPOINTS=(
-            "20230126/policy/pick/final_model/final_model.pt",
-            "20230126/policy/place/final_model/final_model.pt",
-            "20230126/policy/pull/final_model/final_model.pt",
-            "20230126/policy/push/final_model/final_model.pt"
+            "models/20230126/policy/pick/final_model/final_model.pt"
+            "models/20230126/policy/place/final_model/final_model.pt"
+            "models/20230126/policy/pull/final_model/final_model.pt"
+            "models/20230126/policy/push/final_model/final_model.pt"
         )
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
@@ -115,10 +115,10 @@ TASK_NUMS=(
     "1"
     "2"
     "3"
-    "4"
-    "5"
-    "6"
-    "7"
+    # "4"
+    # "5"
+    # "6"
+    # "7"
 )
 
 ENV_KWARGS="--closed-loop 1"
