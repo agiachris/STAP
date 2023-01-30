@@ -314,6 +314,11 @@ class Node:
                     self.action_skeleton_as_strings, self.env
                 ),
             )
+            if motion_plan.values_unc is not None:
+                ood_filter = (
+                    1 - motion_plan.values_unc
+                )  # value_unc being greater means higher uncertainty
+                motion_plan.values *= ood_filter
         except Exception:
             print(
                 f"Error in motion planning for node {self} with action skeleton {self.action_skeleton_as_strings}"

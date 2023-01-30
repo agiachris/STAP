@@ -59,17 +59,17 @@ function run_planners {
         PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
 
         POLICY_CHECKPOINTS=(
-            "models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-            "models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
-            "models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-            "models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+            "models/20230126/policy/pick/final_model/final_model.pt",
+            "models/20230126/policy/place/final_model/final_model.pt",
+            "models/20230126/policy/pull/final_model/final_model.pt",
+            "models/20230126/policy/push/final_model/final_model.pt"
         )
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
         elif [[ "${planner}" == daf_* ]]; then
             DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${planner}/dynamics/final_model.pt"
         else
-            DYNAMICS_CHECKPOINT="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+            DYNAMICS_CHECKPOINT="models/20230125/dynamics/pick_place_pull_push_dynamics/final_model.pt"
         fi
 
         eval_saycan
@@ -89,7 +89,7 @@ DEBUG=0
 VIZ_PLANNING=1
 input_path="models"
 output_path="plots"
-exp_name="20230129/inner_monologue"
+exp_name="20230129-newest/inner_monologue"
 
 # LLM
 KEY_NAME="personal-all"
@@ -97,7 +97,8 @@ N_INCONTEXT_EXAMPLES=10
 
 # Evaluate planners.
 PLANNERS=(
-    "policy_cem"
+    "ensemble_policy_cem_ood"
+    # "policy_cem"
     # "greedy"
 )
 
