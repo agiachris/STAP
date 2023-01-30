@@ -29,8 +29,9 @@
         "human": "How would you push all the boxes under the rack?",
         "explanation": null,
         "goal": [
-            "under(blue_box, table)",
-            "under(cyan_box, table)"
+            "under(blue_box, rack)",
+            "under(cyan_box, rack)",
+            "under(red_box, rack)"
         ],
         "robot_action_sequence": [
             "pick(blue_box)",
@@ -41,7 +42,18 @@
             "pick(blue_box)",
             "place(blue_box, table)",
             "pick(hook)",
-            "push(blue_box, hook, rack)"
+            "push(blue_box, hook, rack)",
+            "push(red_box, hook, rack)"
+        ],
+        "instruction_achieved": false,
+        "instruction_achieved_scene_object_relationships": [
+            "on(hook, table)",
+            "on(rack, table)",
+            "on(blue_box, table)",
+            "on(cyan_box, table)",
+            "under(blue_box, rack)",
+            "on(red_box, table)",
+            "under(cyan_box, rack)"
         ],
         "use_primitives": false,
         "use_predicates": false,
@@ -51,6 +63,7 @@
         "use_explanation": false,
         "use_goal": false,
         "use_robot": false,
+        "use_instruction_achieved_test": false,
         "explanation_predicted": null,
         "goal_predicted": null,
         "action_predicted": null,

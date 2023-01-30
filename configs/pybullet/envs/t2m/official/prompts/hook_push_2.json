@@ -34,9 +34,20 @@
         "robot_action_sequence": [
             "pick(red_box)",
             "place(red_box, table)",
+            "pick(yellow_box)",
+            "place(yellow_box, rack)",
             "pick(hook)",
             "push(blue_box, hook, rack)",
             "place(hook, table)"
+        ],
+        "instruction_achieved": false,
+        "instruction_achieved_scene_object_relationships": [
+            "on(hook, table)",
+            "under(yellow_box, rack)",
+            "on(yellow_box, table)",
+            "on(blue_box, table)",
+            "on(red_box, rack)",
+            "on(rack, table)"
         ],
         "use_primitives": false,
         "use_predicates": false,
@@ -46,6 +57,7 @@
         "use_explanation": false,
         "use_goal": false,
         "use_robot": false,
+        "use_instruction_achieved_test": false,
         "explanation_predicted": null,
         "goal_predicted": null,
         "action_predicted": null,

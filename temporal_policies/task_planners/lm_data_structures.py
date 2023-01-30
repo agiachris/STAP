@@ -22,6 +22,7 @@ GOAL_PROMPT = (
     "Goal predicate set: "  # set seems to work better than list? nevermind ... hmm
 )
 ROBOT_PROMPT = "Robot action sequence: "
+INSTRUCTION_ACHIEVED_TEST_PROMPT = "Instruction achieved (True/False): "
 
 
 class APIType(Enum):
@@ -50,6 +51,10 @@ class InContextExample:
     explanation: Optional[str] = None
     goal: Optional[List[str]] = None
     robot_action_sequence: Optional[List[str]] = None
+    instruction_achieved: Optional[bool] = None
+    instruction_achieved_scene_object_relationships: Optional[
+        List[str]
+    ] = None  # paired with instruction_achieved
 
     use_primitives: bool = False
     use_predicates: bool = False
@@ -59,6 +64,7 @@ class InContextExample:
     use_explanation: bool = False
     use_goal: bool = False
     use_robot: bool = False
+    use_instruction_achieved_test: bool = False  # if true, uses "Instruction achieved (True/False): <True/False>" as prompt for each example
 
     # storage for predicted values
     explanation_predicted: Optional[str] = None  # explanation predicted from GPT3
@@ -191,6 +197,14 @@ class InContextExample:
             res += (
                 f"{SCENE_OBJECT_RELATIONSHIP_PROMPT}{self.scene_object_relationships}\n"
             )
+        if self.use_instruction_achieved_test:
+            assert (
+                self.instruction_achieved_scene_object_relationships is not None
+            ), "instruction_achieved_scene_object_relationships is None when using instruction_achieved_test"
+            assert (
+                not self.use_scene_object_relationships
+            ), "instruction_achieved_test is not compatible with scene_object_relationships (for now)"
+            res += f"{SCENE_OBJECT_RELATIONSHIP_PROMPT}{self.instruction_achieved_scene_object_relationships}\n"
         if self.use_human and self.human is not None:
             res += f"{HUMAN_INSTRUCTION_PROMPT}{self.human}\n"
         if self.use_explanation and self.explanation is not None:
@@ -220,6 +234,11 @@ class InContextExample:
                 )
 
             res += f"{robot_prompt}{action_sequence}\n"
+        if self.use_instruction_achieved_test:
+            assert (
+                self.instruction_achieved is not None
+            ), "instruction_achieved is None when using instruction_achieved_test"
+            res += f"{INSTRUCTION_ACHIEVED_TEST_PROMPT}{self.instruction_achieved}\n"
         return res
 
     def save_to_json(self, path: str, overwrite: bool = False) -> None:

@@ -38,6 +38,7 @@ function eval_lm_tamp {
     args="${args} --timeout 10"
     args="${args} --max-depth 10"
     args="${args} --n-examples ${N_INCONTEXT_EXAMPLES}"
+    args="${args} --termination_method ${TERMINATION_METHOD}"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 3"
@@ -59,17 +60,17 @@ function run_planners {
         PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
 
         POLICY_CHECKPOINTS=(
-            "models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-            "models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
-            "models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-            "models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
+            "models/20230126/policy/pick/final_model/final_model.pt",
+            "models/20230126/policy/place/final_model/final_model.pt",
+            "models/20230126/policy/pull/final_model/final_model.pt",
+            "models/20230126/policy/push/final_model/final_model.pt"
         )
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
         elif [[ "${planner}" == daf_* ]]; then
             DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${planner}/dynamics/final_model.pt"
         else
-            DYNAMICS_CHECKPOINT="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+            DYNAMICS_CHECKPOINT="models/20230125/dynamics/pick_place_pull_push_dynamics/final_model.pt"
         fi
 
         eval_lm_tamp
@@ -88,7 +89,7 @@ function visualize_tamp {
 DEBUG=0
 input_path="models"
 output_path="plots"
-exp_name="20230122/lm_tamp"
+exp_name="20230129-newest/hierarchical"
 
 # LLM
 KEY_NAME="personal-all"
@@ -96,10 +97,11 @@ N_INCONTEXT_EXAMPLES=10
 
 # Evaluate planners.
 PLANNERS=(
-    "policy_cem"
+    "ensemble_policy_cem_ood"
+    # "policy_cem"
     # "greedy"
 )
-
+TERMINATION_METHOD="goal_prop"
 # Experiments.
 
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
@@ -110,7 +112,8 @@ TASK_NUMS=(
     "3"
     "4"
     "5"
-    # "6"
+    "6"
+    "7"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 # CKPT="select_model"

@@ -22,16 +22,16 @@ env_kwargs:
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(hook)
-        - incollisionzone(blue_box)
         - beyondworkspace(rack)
+        - inworkspace(blue_box)
         - nonblocking(rack, hook)
         - on(rack, table)
         - on(hook, table)
         - on(blue_box, table)
-        - on(cyan_box, table)
         - on(yellow_box, table)
-        - inworkspace(cyan_box)
-        - beyondworkspace(yellow_box)
+        - beyondworkspace(yellow_box)\
+        - on(cyan_box, table)
+        - beyondworkspace(cyan_box)
       goal_propositions:
         - under(blue_box, rack)
       supported_predicates:

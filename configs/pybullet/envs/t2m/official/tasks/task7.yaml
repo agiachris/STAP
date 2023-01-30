@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: long_horizon_2
+  name: lifted_1
   gui: false
 
   primitives:
@@ -10,41 +10,36 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you move two boxes onto the rack?
+    - instruction: How would you put a primary colored box on the rack?
       action_skeleton:
-        - pick(hook, table)
-        - pull(yellow_box, hook)
+        - pick(hook)
+        - pull(blue_box, hook)
         - place(hook, table)
-        - pick(yellow_box, table)
-        - place(yellow_box, rack)
         - pick(blue_box)
         - place(blue_box, rack)
       initial_state:
         - free(hook)
-        - free(yellow_box)
         - free(blue_box)
+        - free(cyan_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(hook)
-        - inworkspace(blue_box)
-        - beyondworkspace(yellow_box)
-        - nonblocking(yellow_box, rack)
-        - nonblocking(yellow_box, blue_box)
+        - inworkspace(cyan_box)
+        - beyondworkspace(blue_box)
+        - nonblocking(blue_box, rack)
+        - nonblocking(blue_box, cyan_box)
         - on(rack, table)
         - on(hook, table)
-        - on(yellow_box, table)
         - on(blue_box, table)
-        - under(cyan_box, rack)
         - on(cyan_box, table)
       goal_propositions:
-        - on(yellow_box, rack)
         - on(blue_box, rack)
       supported_predicates:
         - under(a, b)
         - on(a, b)
         - inhand(a)
-
+        
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   objects:
@@ -66,5 +61,4 @@ env_kwargs:
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/salt.yaml
-    - configs/pybullet/envs/assets/yogurt.yaml
     - configs/pybullet/envs/assets/icecream.yaml

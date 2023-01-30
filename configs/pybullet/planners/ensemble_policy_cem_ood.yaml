@@ -12,7 +12,7 @@ agent_configs:
       agent_config: "{AGENT_CONFIG}"
       critic_class: EnsembleOODCritic
       ood_threshold: 0.10
-      pessimistic: true
+      pessimistic: false
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"

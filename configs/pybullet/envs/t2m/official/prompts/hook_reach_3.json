@@ -21,22 +21,38 @@
         ],
         "scene_object_relationships": [
             "on(hook, table)",
-            "on(blue_box, rack)",
-            "on(rack, table)"
+            "on(blue_box, table)",
+            "on(rack, table)",
+            "on(red_box, table)",
+            "on(yellow_box, table)"
         ],
         "human": "situate all the boxes above the rack",
         "explanation": null,
         "goal": [
-            "on(hook, rack)",
             "on(blue_box, rack)",
-            "on(rack, table)"
+            "on(red_box, rack)",
+            "on(yellow_box, rack)"
         ],
         "robot_action_sequence": [
             "pick(hook)",
             "pull(blue_box, hook)",
+            "pull(red_box, hook)",
+            "pull(yellow_box, hook)",
             "place(hook, table)",
             "pick(blue_box)",
-            "place(blue_box, rack)"
+            "place(blue_box, rack)",
+            "pick(red_box)",
+            "place(red_box, rack)",
+            "pick(yellow_box)",
+            "place(yellow_box, rack)"
+        ],
+        "instruction_achieved": false,
+        "instruction_achieved_scene_object_relationships": [
+            "on(hook, table)",
+            "on(blue_box, rack)",
+            "on(red_box, table)",
+            "on(rack, table)",
+            "on(yellow_box, rack)"
         ],
         "use_primitives": false,
         "use_predicates": false,
@@ -46,6 +62,7 @@
         "use_explanation": false,
         "use_goal": false,
         "use_robot": false,
+        "use_instruction_achieved_test": false,
         "explanation_predicted": null,
         "goal_predicted": null,
         "action_predicted": null,
