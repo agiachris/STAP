@@ -187,6 +187,7 @@ def eval_lm_tamp(
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
         print(f"seed: {seed}")
+        env.get_primitive_info(action, env)
 
         env_state = env.get_state()
 
@@ -298,7 +299,7 @@ def eval_lm_tamp(
                     assert not np.isnan(new_state).any()
                     new_object_relationships = get_object_relationships(
                         new_state,
-                        env.objects,
+                        prop_testing_objs,
                         available_predicates,
                         use_hand_state=False,
                     )
@@ -846,7 +847,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_tokens", type=int, default=100, help="LM max tokens")
     parser.add_argument("--logprobs", type=int, default=1, help="LM logprobs")
     parser.add_argument(
-        "--termination_method",
+        "--termination-method",
         type=str,
         default="pred_instr_achieved",
         help="LM termination method",

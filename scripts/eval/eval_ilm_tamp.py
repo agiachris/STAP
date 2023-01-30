@@ -118,23 +118,10 @@ def eval_ilm_tamp(
     examples = get_examples_from_json_dir("configs/pybullet/envs/t2m/official/prompts/")
 
     for example in examples:
-        example.use_scene_objects = True
-        example.use_scene_object_relationships = False
-        example.use_human = True
-        example.use_goal = False
-        example.use_robot = False
-        example.use_instruction_achieved_test = True
-        example.custom_robot_prompt = custom_in_context_example_robot_prompt
-        example.custom_robot_action_sequence_format = (
-            custom_in_context_example_robot_format
-        )
         example.custom_robot_action_sequence_format = (
             custom_robot_action_sequence_format
         )
-        print(example.overall_example)
-    import ipdb
 
-    ipdb.set_trace()
     examples = random.sample(examples, n_examples)
     random.shuffle(examples)
     lm_cfg: LMConfig = LMConfig(
@@ -145,8 +132,6 @@ def eval_ilm_tamp(
         api_type=api_type,
         max_tokens=max_tokens,
     )
-    # lm_cfg.engine = "text-davinci-003"
-    lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
     # Load environment.
     env_kwargs = {}
     if gui is not None:
@@ -162,6 +147,14 @@ def eval_ilm_tamp(
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
+    # lm_cfg.engine = "text-davinci-003"
+    # remove suffix from lm_cache_file
+    if lm_cache_file is not None:
+        lm_cache_file_suffix = pathlib.Path(lm_cache_file).suffix
+        lm_cache_file = pathlib.Path(lm_cache_file).stem
+        lm_cache_file = lm_cache_file + "_" + env.name + lm_cache_file_suffix
+
+    lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
 
     path = path + "_" + termination_method
     path = pathlib.Path(path) / env.name
@@ -295,8 +288,8 @@ def eval_ilm_tamp(
                 beam_search_problem,
                 visualize=visualize_planning,
                 visualize_path=path / str(idx_iter),
+                max_depth=max_depth - step,
             )
-            save_lm_cache(pathlib.Path(lm_cache_file), lm_agent.lm_cache)
 
             idx_best = np.argmax(
                 [
@@ -314,26 +307,66 @@ def eval_ilm_tamp(
             state = best_motion_plan.states[0]
             assert isinstance(state, np.ndarray)
             value = best_motion_plan.values[0]
+            p_success = best_motion_plan.p_success
             env.set_primitive(best_task_plan[0])
 
             if recording_id is None:
                 recording_id = env.record_start()
             else:
                 env.record_start(recording_id)
+
+            # check if any node is successful
             observation, reward, _, _, _ = env.step(
                 action, successful_action_node.custom_recording_text_sequence[0]
             )
-            env.record_stop(recording_id)
-
-            step += 1
-
-            objects = list(env.objects.keys())
             object_relationships = get_object_relationships(
                 observation, env.objects, available_predicates, use_hand_state=False
             )
             object_relationships = [str(prop) for prop in object_relationships]
             executed_actions.append(str(best_task_plan[0]))
             object_relationships_history.append(object_relationships)
+
+            if successful_action_node.is_success:
+                # Run closed-loop planning on the rest.
+                rewards, plan, t_planner = planners.run_closed_loop_planning(
+                    env, best_task_plan[1:], planner
+                )
+                env.record_stop(recording_id)
+                step += len(best_task_plan[1:])
+
+                rewards = np.append(reward, rewards)
+                plan = planners.PlanningResult(
+                    actions=np.concatenate((action[None, ...], plan.actions), axis=0),
+                    states=np.concatenate((state[None, ...], plan.states), axis=0),
+                    p_success=plan.p_success,
+                    values=np.append(value, plan.values),
+                )
+                # Save recording.
+                gif_path = path / f"planning_{idx_iter}.gif"
+                if (rewards == 0.0).any():
+                    gif_path = (
+                        gif_path.parent / f"{gif_path.name}_fail{gif_path.suffix}"
+                    )
+                env.record_save(gif_path, reset=False)
+
+                executed_actions.extend(
+                    [str(action).lower() for action in best_task_plan]
+                )
+                object_relationships_history.extend(
+                    [
+                        get_object_relationships(
+                            state,
+                            prop_testing_objs,
+                            available_predicates,
+                            use_hand_state=False,
+                        )
+                        for state in plan.states[1:]
+                    ]
+                )  # skip the first plan.states since that observation is already in the history
+
+            env.record_stop(recording_id)
+
+            step += 1
 
             print(f"action executed: {str(best_task_plan[0])}; reward: {reward}")
             if termination_method == "goal_prop":
@@ -421,6 +454,10 @@ def eval_ilm_tamp(
 
 
 def main(args: argparse.Namespace) -> None:
+    if args.api_type == "helm":
+        args.api_type = APIType.HELM
+    elif args.api_type == "openai":
+        args.api_type = APIType.OPENAI
     if args.key_name == "helm":
         args.api_type = APIType.HELM
     auth = authenticate(args.api_type, args.key_name)
@@ -494,9 +531,10 @@ if __name__ == "__main__":
         help="LM engine (curie or davinci or baggage or ada)",
     )
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
-    parser.add_argument(
-        "--api-type", type=APIType, default=APIType.HELM, help="API to use"
-    )
+    # parser.add_argument(
+    #     "--api-type", type=APIType, default=APIType.HELM, help="API to use"
+    # )
+    parser.add_argument("--api-type", type=str, default="helm", help="API to use")
     parser.add_argument(
         "--key-name",
         type=str,

@@ -6,6 +6,7 @@ from termcolor import colored
 from configs.base_config import LMConfig
 from scripts.eval.eval_saycan import format_saycan_scoring_table
 from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.planners.base import PlanningResult
 from temporal_policies.task_planners.lm_agent import LMPlannerAgent
 from torch import Tensor
 
@@ -48,6 +49,7 @@ class Node:
         available_predicates: Optional[List[predicates.Predicate]] = None,
         all_ground_truth_prior_object_relationships: List[List[str]] = None,
         all_ground_truth_executed_actions: List[str] = None,
+        is_success: Optional[bool] = False,
     ):
         """
         Args:
@@ -107,6 +109,7 @@ class Node:
             else []
         )
         self._action_sequence_score: Optional[float] = None
+        self._is_success = is_success
 
     @property
     def env(self) -> envs.Env:
@@ -237,6 +240,14 @@ class Node:
         return self.parent.all_ground_truth_executed_actions
 
     @property
+    def is_success(self):
+        return self._is_success
+
+    @is_success.setter
+    def is_success(self, value: bool):
+        self._is_success = value
+
+    @property
     def beam(self) -> List["Node"]:
         """List of nodes in the beam; used for recording and visualization purposes"""
         return self._beam
@@ -296,10 +307,28 @@ class Node:
     @cached_property
     def motion_plan_post_optimization(self) -> planners.PlanningResult:
         """Full motion plan after optimization"""
-        return self.motion_planner.plan(
-            self.root_node_geometric_state,
-            instantiate_task_plan_primitives(self.action_skeleton_as_strings, self.env),
-        )
+        try:
+            motion_plan: PlanningResult = self.motion_planner.plan(
+                self.root_node_geometric_state,
+                instantiate_task_plan_primitives(
+                    self.action_skeleton_as_strings, self.env
+                ),
+            )
+        except Exception:
+            print(
+                f"Error in motion planning for node {self} with action skeleton {self.action_skeleton_as_strings}"
+            )
+            # create a dummy motion plan of type PlanningResult where states is an array like self.root_node_geometric_state
+            # and actions is an empty list
+            states = self.root_node_geometric_state[None, :]
+            states[:] = 0
+            motion_plan = PlanningResult(
+                actions=np.zeros(1),
+                states=states,
+                values=np.zeros(1),
+                p_success=0,
+            )
+        return motion_plan
 
     @property
     def object_relationships_sequence_post_optimization(self) -> List[List[str]]:
@@ -432,10 +461,12 @@ class BeamSearchProblem(SearchProblem):
             )
         )
         print(f"Action skeleton values: {node.motion_plan_post_optimization.values}")
-
-        print(
-            f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
-        )
+        try:
+            print(
+                f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
+            )
+        except:
+            print("No object relationships due to motion plan failure (invalid action)")
         if self.termination_method == "pred_instr_achieved":
             # prompt the LM for the next action to execute
             # if next action is stop, then we are done
@@ -457,13 +488,11 @@ class BeamSearchProblem(SearchProblem):
             if "True" in next_action_str:
                 print(
                     colored(
-                        f"Stop due to predicting True after: {node.action_skeleton_as_strings}",
+                        f"is_end() = True (instruction predicted as achieved) after: {node.action_skeleton_as_strings}",
                         "magenta",
                     )
                 )
-                print(
-                    f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
-                )
+                node.is_success = True
                 return True
         elif self.termination_method == "goal_prop":
             if is_satisfy_goal_props(
@@ -474,13 +503,11 @@ class BeamSearchProblem(SearchProblem):
             ):
                 print(
                     colored(
-                        f"Stop due to satisfying goal props: {node.action_skeleton_as_strings}",
+                        f"is_end() = True (satisfies goal props) after: {node.action_skeleton_as_strings}",
                         "magenta",
                     )
                 )
-                print(
-                    f"Object relationships: {node.object_relationships_sequence_post_optimization[-1]}"
-                )
+                node.is_success = True
                 return True
         return False
 
@@ -586,10 +613,17 @@ class BeamSearchProblem(SearchProblem):
         potential_action_primitives: List[primitives.Primitive] = []
         for action in actions:
             try:
+                # TODO(klin)
+                # why does this allow things like
+                # ['pick(blue_box)', 'place(blue_box, blue_box)'] pass through?
+                # ah, maybe the primitive is OK to create?
                 potential_action_primitives.append(
                     self.env.get_primitive_info(action, self.env)
                 )
             except Exception as e:
+                import ipdb
+
+                ipdb.set_trace()
                 print(f"Error in action primitive: {e}")
                 pass
 
@@ -631,10 +665,14 @@ class BeamSearchAlgorithm:
         problem: BeamSearchProblem,
         visualize: bool = False,
         visualize_path: str = None,
+        max_depth: Optional[int] = None,
     ) -> List[Node]:
         """
         Solves a given problem using beam search.
         """
+        if max_depth is not None:
+            self.max_depth = max_depth
+
         beam: List[Node] = [problem.start_node]
         # problem.is_end(problem.start_node)
         # Iterate over the depths
