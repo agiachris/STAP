@@ -220,7 +220,7 @@ declare -A POLICY_CHECKPOINT_PATHS=(
     ["push"]="models/20230126/policy/push/final_model/final_model.pt"
 )
 DYNAMICS_CHECKPOINT_PATH="models/20230125/dynamics/pick_place_pull_push_dynamics/best_model.pt"
-run_planners
+# run_planners
 
 
 ## Visualize results.
