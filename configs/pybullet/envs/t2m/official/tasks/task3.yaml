@@ -19,6 +19,8 @@ env_kwargs:
       initial_state:
         - free(hook)
         - free(blue_box)
+        - free(yellow_box)
+        # - free(cyan_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(hook)
@@ -30,8 +32,8 @@ env_kwargs:
         - on(blue_box, table)
         - on(yellow_box, table)
         - beyondworkspace(yellow_box)
-        - on(cyan_box, table)
-        - beyondworkspace(cyan_box)
+        # - on(cyan_box, table)
+        # - beyondworkspace(cyan_box)
       goal_propositions:
         - under(blue_box, rack)
       supported_predicates:
