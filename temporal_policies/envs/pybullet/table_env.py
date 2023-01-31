@@ -74,7 +74,6 @@ class Task:
         ]
 
         # Goal predicates.
-        breakpoint()
         if goal_propositions is not None:
             goal_propositions = [[predicates.Predicate.create(pred) for pred in goal] for goal in goal_propositions]
             
