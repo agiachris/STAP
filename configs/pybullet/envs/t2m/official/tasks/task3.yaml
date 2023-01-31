@@ -29,11 +29,11 @@ env_kwargs:
         - on(hook, table)
         - on(blue_box, table)
         - on(yellow_box, table)
-        - beyondworkspace(yellow_box)\
+        - beyondworkspace(yellow_box)
         - on(cyan_box, table)
         - beyondworkspace(cyan_box)
       goal_propositions:
-        - under(blue_box, rack)
+        - ["under(blue_box, rack)"]
       supported_predicates:
         - under(a, b)
         - on(a, b)
