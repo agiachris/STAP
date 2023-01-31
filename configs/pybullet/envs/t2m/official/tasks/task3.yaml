@@ -20,7 +20,7 @@ env_kwargs:
         - free(hook)
         - free(blue_box)
         - free(yellow_box)
-        # - free(cyan_box)
+        - free(cyan_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(hook)
@@ -32,8 +32,8 @@ env_kwargs:
         - on(blue_box, table)
         - on(yellow_box, table)
         - beyondworkspace(yellow_box)
-        # - on(cyan_box, table)
-        # - beyondworkspace(cyan_box)
+        - on(cyan_box, table)
+        - beyondworkspace(cyan_box)
       goal_propositions:
         - under(blue_box, rack)
       supported_predicates:
@@ -62,5 +62,5 @@ env_kwargs:
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/salt.yaml
-    - configs/pybullet/envs/assets/icecream.yaml
+    # - configs/pybullet/envs/assets/icecream.yaml
     - configs/pybullet/envs/assets/yogurt.yaml
