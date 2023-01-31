@@ -19,18 +19,16 @@ env_kwargs:
         - pick(cyan_box)
         - place(cyan_box, rack)
       initial_state:
-        - free(hook)
         - free(yellow_box)
         - free(red_box)
+        - free(cyan_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
-        - inworkspace(hook)
         - inworkspace(yellow_box)
         - inworkspace(red_box)
         - inworkspace(cyan_box)
         - on(rack, table)
-        - on(hook, rack)
         - on(yellow_box, table)
         - on(red_box, table)
         - on(cyan_box, table)
@@ -56,13 +54,13 @@ env_kwargs:
         name: rack
         size: [0.22, 0.32, 0.16]
         color: [0.4, 0.2, 0.0, 1.0]
-    - object_type: Hook
-      object_kwargs:
-        name: hook
-        head_length: 0.2
-        handle_length: 0.38
-        handle_y: -1.0
-        color: [0.6, 0.6, 0.6, 1.0]
+    # - object_type: Hook
+    #   object_kwargs:
+    #     name: hook
+    #     head_length: 0.2
+    #     handle_length: 0.38
+    #     handle_y: -1.0
+    #     color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/yogurt.yaml
     - configs/pybullet/envs/assets/milk.yaml
     - configs/pybullet/envs/assets/icecream.yaml

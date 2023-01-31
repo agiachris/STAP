@@ -11,6 +11,7 @@ env_kwargs:
 
   tasks:
     - instruction: How would you pick and place the yellow box, cyan box and blue box onto the rack?
+
       action_skeleton:
         - pick(yellow_box)
         - place(yellow_box, rack)
