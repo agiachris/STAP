@@ -35,7 +35,7 @@ env_kwargs:
         - on(cyan_box, table)
         - beyondworkspace(cyan_box)
       goal_propositions:
-        - under(blue_box, rack)
+        - ["under(blue_box, rack)"]
       supported_predicates:
         - under(a, b)
         - on(a, b)
