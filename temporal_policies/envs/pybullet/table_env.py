@@ -57,7 +57,7 @@ class Task:
         initial_state: List[str],
         prob: Optional[float] = None,
         instruction: Optional[str] = None,
-        goal_propositions: Optional[List[str]] = None,
+        goal_propositions: Optional[List[List[str]]] = None,
         supported_predicates: Optional[List[str]] = None,
     ) -> "Task":
 
@@ -75,10 +75,8 @@ class Task:
 
         # Goal predicates.
         if goal_propositions is not None:
-            goal_propositions = [
-                predicates.Predicate.create(pred) for pred in goal_propositions
-            ]
-
+            goal_propositions = [[predicates.Predicate.create(pred) for pred in goal] for goal in goal_propositions]
+            
         return Task(
             action_skeleton=primitives,
             initial_state=initial_propositions,
@@ -761,8 +759,8 @@ class TableEnv(PybulletEnv):
         return self.task.instruction
 
     @property
-    def goal_propositions(self) -> List[predicates.Predicate]:
-        """Return list of task-specific goal predicates."""
+    def goal_propositions(self) -> List[List[predicates.Predicate]]:
+        """Return disjunctive set of possible task-specific goal predicates."""
         if self.task.goal_propositions is None:
             raise ValueError("Goal predicates not declared in task.")
         return self.task.goal_propositions
@@ -781,14 +779,17 @@ class TableEnv(PybulletEnv):
 
     def is_goal_state(self, sim: bool = True) -> bool:
         """Returns True if the goal predicates hold in the current state."""
-        return all(
-            pred.value(
-                robot=self.robot,
-                objects=self.objects,
-                state=self.task.initial_state,
-                sim=sim,
+        return any(
+            all(
+                pred.value(
+                    robot=self.robot,
+                    objects=self.objects,
+                    state=self.task.initial_state,
+                    sim=sim,
+                )
+                for pred in possible_goal
             )
-            for pred in self.goal_propositions
+            for possible_goal in self.goal_propositions
         )
 
     def _is_any_object_below_table(self) -> bool:
