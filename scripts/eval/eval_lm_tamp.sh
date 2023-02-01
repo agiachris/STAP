@@ -90,11 +90,11 @@ function visualize_tamp {
 DEBUG=0
 input_path="models"
 output_path="plots"
-exp_name="20230131/hierarchical"
+exp_name="20230201/hierarchical"
 
 # LLM
 API_TYPE="openai"
-KEY_NAME="personal-all"
+KEY_NAME="personal-h"
 N_INCONTEXT_EXAMPLES=11
 
 # Evaluate planners.
@@ -115,10 +115,6 @@ TASK_NUMS=(
     "4"
     "5"
     "6"
-    # "7"
-    # "9"
-    # "10"
-    # "11"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 # CKPT="select_model"

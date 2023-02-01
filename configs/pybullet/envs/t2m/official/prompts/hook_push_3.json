@@ -15,26 +15,33 @@
             "table",
             "hook",
             "rack",
-            "yellow_box"
+            "yellow_box",
+            "blue_box",
+            "red_box"
         ],
         "scene_object_relationships": [
             "inhand(hook)",
             "on(yellow_box, table)",
-            "on(rack, table)"
+            "on(rack, table)",
+            "on(blue_box, table)"
         ],
-        "human": "How would you push all the boxes under the rack?",
+        "human": "How would you push two of the boxes to be under the rack?",
         "explanation": null,
         "goal": [
-            "under(yellow_box, rack)"
+            ["under(yellow_box, rack)", "under(blue_box, rack)"], 
+            ["under(blue_box, rack)", "under(red_box, rack)"], 
+            ["under(yellow_box, rack)", "under(red_box, rack)"]
         ],
         "robot_action_sequence": [
-            "push(yellow_box, hook, rack)"
+            "push(yellow_box, hook, rack)",
+            "push(red_box, hook, rack)"
         ],
         "instruction_achieved": true,
         "instruction_achieved_scene_object_relationships": [
             "inhand(hook)",
             "under(yellow_box, rack)",
-            "on(rack, table)"
+            "on(rack, table)",
+            "under(blue_box, rack)"
         ],
         "use_primitives": false,
         "use_predicates": false,

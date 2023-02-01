@@ -30,10 +30,10 @@
         ],
         "human": "How would you get the cyan box under the rack and then ensure the hook is on the table?",
         "explanation": null,
-        "goal": [
+        "goal": [[
             "under(cyan_box, rack)",
             "on(hook, table)"
-        ],
+        ]],
         "robot_action_sequence": [
             "pick(blue_box)",
             "place(blue_box, table)",

@@ -255,7 +255,7 @@ def eval_lm_tamp(
         step: int = 0
         while not done:
             fallback_to_scoring: bool = True
-            generated_task_plans = lm_agent.get_task_plans(
+            generated_task_plans: List[List[str]] = lm_agent.get_task_plans(
                 object_relationships_history=object_relationships_history,
                 executed_actions=executed_actions,
                 custom_in_context_example_robot_prompt=custom_in_context_example_robot_prompt,
@@ -265,7 +265,7 @@ def eval_lm_tamp(
                 verbose=True,
             )
             task_plans_str = "\n".join(
-                list(map(lambda x: str(x[0]), generated_task_plans))
+                list(map(lambda x: str(x[0]).lower(), generated_task_plans))
             )
             print(colored(f"generated task plans: {task_plans_str}", "blue"))
             action_skeletons_instantiated = get_task_plan_primitives_instantiated(
@@ -489,6 +489,10 @@ def eval_lm_tamp(
                 if plan_only:
                     fallback_to_scoring = False
                     done = True
+
+                # if count_done_score_early_terminations:
+                #     if done:
+                        # num_early_terminations += 1
 
             if fallback_to_scoring:
                 print(colored("No plan reaches the goal", "red"))
@@ -763,7 +767,7 @@ def eval_lm_tamp(
 
         # compute success rate but summing up the number of successes inside run_logs
         # and dividing by the number of runs
-        success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
+        success_rate = sum([run_log["reached_ground_truth_goal"] for run_log in run_logs]) / len(run_logs)
 
         path.mkdir(parents=True, exist_ok=True)
         # Save planning results.

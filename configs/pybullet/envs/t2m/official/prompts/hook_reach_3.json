@@ -26,18 +26,14 @@
             "on(red_box, table)",
             "on(yellow_box, table)"
         ],
-        "human": "situate all the boxes above the rack",
+        "human": "situate an odd number greater than 1 of the boxes above the rack",
         "explanation": null,
         "goal": [
-            "on(blue_box, rack)",
-            "on(red_box, rack)",
-            "on(yellow_box, rack)"
+            ["on(blue_box, rack)", "on(red_box, rack)", "on(yellow_box, rack)"]
         ],
         "robot_action_sequence": [
             "pick(hook)",
             "pull(blue_box, hook)",
-            "pull(red_box, hook)",
-            "pull(yellow_box, hook)",
             "place(hook, table)",
             "pick(blue_box)",
             "place(blue_box, rack)",

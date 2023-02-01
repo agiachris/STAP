@@ -436,7 +436,7 @@ def eval_ilm_tamp(
 
         # Save planning results.
         path.mkdir(parents=True, exist_ok=True)
-        success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
+        success_rate = sum([run_log["reached_ground_truth_goal"] for run_log in run_logs]) / len(run_logs)
 
         # Save planning results.
         with open(path / f"results_idx_iter_{idx_iter}_seed_{seed}.json", "w") as f:
