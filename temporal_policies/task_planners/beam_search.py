@@ -602,7 +602,7 @@ class BeamSearchProblem(SearchProblem):
             examples=self.examples,
             custom_in_context_example_robot_prompt="Top robot action sequence: ",
             custom_in_context_example_robot_format="python_list",
-            custom_robot_prompt=f"Top {num_successors} next actions (python list using available scene objects; do not use newline): ",
+            custom_robot_prompt=f"Top {num_successors} valid next robot actions (single python list of primitives): ",
             custom_robot_action_sequence_format="python_list",
             lm_cfg=self.lm_cfg,
             auth=self.auth,
@@ -622,14 +622,13 @@ class BeamSearchProblem(SearchProblem):
                 # why does this allow things like
                 # ['pick(blue_box)', 'place(blue_box, blue_box)'] pass through?
                 # ah, maybe the primitive is OK to create?
+                # 'place(yellow_box, red_box)' this primitive gets caught
+                # though e is 'red_box'??? ah, sometimes the LM outputs objects that don't exist in the scene
                 potential_action_primitives.append(
                     self.env.get_primitive_info(action, self.env)
                 )
             except Exception as e:
-                import ipdb
-
-                ipdb.set_trace()
-                print(f"Error in action primitive: {e}")
+                print(f"Error {e} in action primitive: {action}")
                 pass
 
         new_nodes = []
@@ -751,7 +750,7 @@ class BeamSearchAlgorithm:
             filtered_results = []
             filtered_successors = []
             for (successor, result) in zip(next_beam, results):
-                if successor.last_action_q_value_post_optimization > 0.45:
+                if successor.last_action_q_value_post_optimization > 0.2:
                     filtered_results.append(result)
                     filtered_successors.append(successor)
 

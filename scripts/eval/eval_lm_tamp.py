@@ -115,6 +115,7 @@ def eval_lm_tamp(
         "goal_prop", "pred_instr_achieved"
     ] = "pred_instr_achieved",
     use_ground_truth_goal_props: bool = False,
+    plan_only: bool = True,
 ) -> None:
     # set seeds
     if seed is not None:
@@ -134,7 +135,6 @@ def eval_lm_tamp(
         api_type=api_type,
         max_tokens=max_tokens,
     )
-    lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
     timer = timing.Timer()
 
     # Load environment.
@@ -143,6 +143,16 @@ def eval_lm_tamp(
         env_kwargs["gui"] = bool(gui)
     env_factory = envs.EnvFactory(config=env_config)
     env = env_factory(**env_kwargs)
+
+    # add task name to lm_cache_file
+    if lm_cache_file is not None:
+        lm_cache_file_suffix = pathlib.Path(lm_cache_file).suffix
+        lm_cache_file = pathlib.Path(lm_cache_file).stem
+        lm_cache_file = (
+            lm_cache_file + "_" + env.name + "_hierarchical" + lm_cache_file_suffix
+        )
+
+    lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
 
     prop_testing_objs: Dict[str, Object] = get_prop_testing_objs(env)
 
@@ -187,7 +197,6 @@ def eval_lm_tamp(
         observation, info = env.reset(seed=seed)
         seed = info["seed"]
         print(f"seed: {seed}")
-        env.get_primitive_info(action, env)
 
         env_state = env.get_state()
 
@@ -219,9 +228,9 @@ def eval_lm_tamp(
                 lm_cache=lm_cache,
                 verbose=True,
             )
-            goal_props_callable: List[predicates.Predicate] = get_callable_goal_props(
-                goal_props_predicted, possible_props
-            )
+            goal_props_callable: List[
+                List[predicates.Predicate]
+            ] = get_callable_goal_props(goal_props_predicted, possible_props)
 
         # TODO(klin): check if satisfies goal at first timestep
 
@@ -253,8 +262,12 @@ def eval_lm_tamp(
                 custom_in_context_example_robot_format=custom_in_context_example_robot_format,
                 custom_robot_prompt=custom_robot_prompt,
                 custom_robot_action_sequence_format=custom_robot_action_sequence_format,
+                verbose=True,
             )
-            print(colored(f"generated task plans: {generated_task_plans}", "blue"))
+            task_plans_str = "\n".join(
+                list(map(lambda x: str(x[0]), generated_task_plans))
+            )
+            print(colored(f"generated task plans: {task_plans_str}", "blue"))
             action_skeletons_instantiated = get_task_plan_primitives_instantiated(
                 generated_task_plans, env
             )
@@ -264,7 +277,7 @@ def eval_lm_tamp(
             )
             for i, action_skeleton in enumerate(action_skeletons_instantiated):
                 print(f"action_skeleton: {[str(action) for action in action_skeleton]}")
-                if len(action_skeleton) > max_depth:
+                if len(action_skeleton) > max_depth - step:
                     print(f"action_skeleton too long. Skipping ...")
                     continue
 
@@ -326,9 +339,14 @@ def eval_lm_tamp(
                         )
                     else:
                         raise NotImplementedError("Unknown termination method")
-
+                    print(
+                        f"task_plan[:i+1]: {[str(a).lower() for a in task_plan[:i+1]]}"
+                    )
+                    print(
+                        f"motion_plan.values[:i+1]: {np.round(motion_plan.values[:i+1], 3)}"
+                    )
                     is_geom_feasible: bool = all(
-                        value > 0.45 for value in motion_plan.values[:i]
+                        value > 0.2 for value in motion_plan.values[:i]
                     ) and all(
                         value_unc < 0.5 for value_unc in motion_plan.values_unc[:i]
                     )
@@ -373,6 +391,7 @@ def eval_lm_tamp(
                 else 0
             )
             if len(goal_reaching_task_p_successes) > 0:
+                found_plan = True
                 best_task_plan = goal_reaching_task_plans[idx_best]
                 best_motion_plan = goal_reaching_motion_plans[idx_best]
 
@@ -462,8 +481,14 @@ def eval_lm_tamp(
                 # after doing closed loop planning, we still need to check if the goal is reached
                 # however, for the sake of evaluation, we will not do this check since
                 # it's likely that re-planning will exceed max depth anyway
+                # i.e. if we tried closed loop planning and it failed, we will not do it again
                 done = True
                 fallback_to_scoring = False
+
+                # add the if condition to explicitly not fallback if we are doing plan_only
+                if plan_only:
+                    fallback_to_scoring = False
+                    done = True
 
             if fallback_to_scoring:
                 print(colored("No plan reaches the goal", "red"))
@@ -479,7 +504,7 @@ def eval_lm_tamp(
                     pddl_problem,
                     custom_in_context_example_robot_prompt="Top robot action sequence: ",
                     custom_in_context_example_robot_format="python_list",
-                    custom_robot_prompt="Top 5 valid next actions (python list of primitives): ",
+                    custom_robot_prompt="Top 5 valid next robot actions (single python list of primitives): ",
                     custom_robot_action_sequence_format="python_list",
                     examples=examples,
                     lm_cfg=lm_cfg,
@@ -648,7 +673,7 @@ def eval_lm_tamp(
 
                 if step == max_depth:
                     done = True
-                    print(colored("Stopping because max depth reached", "orange"))
+                    print(colored("Stopping because max depth reached", "magenta"))
 
             if env.is_goal_state():
                 print(colored("ground truth goal props satisfied", "green"))
@@ -708,64 +733,75 @@ def eval_lm_tamp(
                 continue
 
         env.record_stop()
-        success = env.is_goal_state()
-        if success:
+        reached_ground_truth_goal = env.is_goal_state()
+        if reached_ground_truth_goal:
             print(colored("ground truth goal props satisfied", "green"))
             num_successes_on_ground_truth_goal_props += 1
 
         gif_path = (
-            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.gif"
+            path
+            / str(idx_iter)
+            / f"execution_{'reached_ground_truth_goal' if reached_ground_truth_goal else 'fail'}.gif"
         )
         env.record_save(gif_path, reset=False)
         gif_path = (
-            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.mp4"
+            path
+            / str(idx_iter)
+            / f"execution_{'reached_ground_truth_goal' if reached_ground_truth_goal else 'fail'}.mp4"
         )
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
         run_log = {
             "seed": seed,
-            "success": success,
+            "reached_ground_truth_goal": reached_ground_truth_goal,
             "num_steps": step,
             "executed_actions": executed_actions,
             "object_relationships_history": object_relationships_history,
+            "found_plan": found_plan,
         }
         run_logs.append(run_log)
 
-    # compute success rate but summing up the number of successes inside run_logs
-    # and dividing by the number of runs
-    success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
+        # compute success rate but summing up the number of successes inside run_logs
+        # and dividing by the number of runs
+        success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
 
-    path.mkdir(parents=True, exist_ok=True)
-    # Save planning results.
-    with open(path / f"results_seed_{seed}.json", "w") as f:
-        save_dict = {
-            "args": {
-                "planner_config": planner_config,
-                "env_config": env_config,
-                "policy_checkpoints": policy_checkpoints,
-                "dynamics_checkpoint": dynamics_checkpoint,
-                "device": device,
-                "num_eval": num_eval,
-                "path": str(path),
-                "pddl_domain": pddl_domain,
-                "pddl_problem": pddl_problem,
-                "max_depth": max_depth,
-                "timeout": timeout,
-                "seed": seed,
-                "verbose": verbose,
-                "termination_method": termination_method,
-            },
-            "task_name": env.name,
-            "task_file": str(pathlib.Path(env_config).name),
-            "success_rate": success_rate,
-            "goal_props_predicted": goal_props_predicted,
-            "instruction": env.instruction,
-            "run_logs": run_logs,
-        }
-        json.dump(save_dict, f, indent=2)
+        path.mkdir(parents=True, exist_ok=True)
+        # Save planning results.
+        with open(path / f"results_idx_iter_{idx_iter}_seed_{seed}.json", "w") as f:
+            save_dict = {
+                "args": {
+                    "planner_config": planner_config,
+                    "env_config": env_config,
+                    "policy_checkpoints": policy_checkpoints,
+                    "dynamics_checkpoint": dynamics_checkpoint,
+                    "device": device,
+                    "num_eval": num_eval,
+                    "path": str(path),
+                    "pddl_domain": pddl_domain,
+                    "pddl_problem": pddl_problem,
+                    "max_depth": max_depth,
+                    "timeout": timeout,
+                    "seed": seed,
+                    "verbose": verbose,
+                    "termination_method": termination_method,
+                },
+                "task_name": env.name,
+                "task_file": str(pathlib.Path(env_config).name),
+                "success_rate": success_rate,
+                "goal_props_predicted": goal_props_predicted,
+                "instruction": env.instruction,
+                "run_logs": run_logs,
+            }
+            json.dump(save_dict, f, indent=2)
 
 
 def main(args: argparse.Namespace) -> None:
+    if args.api_type == "helm":
+        args.api_type = APIType.HELM
+    elif args.api_type == "openai":
+        args.api_type = APIType.OPENAI
+    if args.key_name == "helm":
+        args.api_type = APIType.HELM
     auth = authenticate(args.api_type)
     assert (
         "code" not in args.key_name
@@ -837,13 +873,18 @@ if __name__ == "__main__":
         help="LM engine (curie or davinci or baggage or ada)",
     )
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
-    parser.add_argument(
-        "--api_type", type=APIType, default=APIType.HELM, help="API to use"
-    )
+    parser.add_argument("--api-type", type=str, default="helm", help="API to use")
+
     parser.add_argument(
         "--key-name",
         type=str,
-        choices=["personal-code", "personal-all", "helm"],
+        choices=[
+            "personal-code",
+            "personal-all",
+            "personal-nshah",
+            "personal-h",
+            "helm",
+        ],
         default="personal-code",
         help="API key name to use",
     )
@@ -855,6 +896,12 @@ if __name__ == "__main__":
         default="pred_instr_achieved",
         help="LM termination method",
         choices=["pred_instr_achieved", "goal_prop"],
+    )
+    parser.add_argument(
+        "--plan-only",
+        type=int,
+        default=1,
+        help="Only plan and run closed-loop motion planning if found a valid plan according to the termination method and Q functions",
     )
     args = parser.parse_args()
 

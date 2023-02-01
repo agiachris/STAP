@@ -61,6 +61,7 @@ def get_goal_from_lm(
     authenticate(APIType.OPENAI, "personal-all")
     lm_cfg.api_type = APIType.OPENAI
     lm_cfg.engine = "code-davinci-002"
+    lm_cfg.max_tokens = 200
     # generate goal from LM
     results, lm_cache = generate_lm_response(
         header_prompt,
@@ -76,12 +77,13 @@ def get_goal_from_lm(
 
 
 def is_valid_goal_props(
-    predicted_props: List[str],
+    predicted_props_list: List[List[str]],
     possible_props: List[predicates.Predicate],
 ) -> bool:
+
     possible_props_str = [str(prop) for prop in possible_props]
-    syntactically_valid_goals = [prop in possible_props_str for prop in predicted_props]
-    if not all(syntactically_valid_goals):
-        return False
-    else:
-        return True
+    for single_predicted_props in predicted_props_list:
+        syntactically_valid_goals = [prop in possible_props_str for prop in single_predicted_props]
+        if not all(syntactically_valid_goals):
+            return False
+    return True

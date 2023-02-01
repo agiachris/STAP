@@ -27,6 +27,7 @@ import random
 from temporal_policies import agents, envs, planners
 from temporal_policies.dynamics.base import Dynamics
 from temporal_policies.envs.pybullet.table.objects import Object
+from temporal_policies.networks import critics
 
 import tqdm
 import tabulate
@@ -108,8 +109,8 @@ def get_values(
                 q_s_a = value_fns[i].predict(
                     policy_state, tensors.from_numpy(actions[i], device=device)
                 )
-                if isinstance(value_fns[i], Critic.EnsembleOODCritic):
-                    ood_filter = 1 - value_fns[i].detect
+                if isinstance(value_fns[i], critics.EnsembleOODCritic):
+                    ood_filter = 1 - value_fns[i].detect.float()
                     q_s_a = q_s_a * ood_filter
                 # clip values between 0 and 1
                 q_s_a = torch.clamp(q_s_a, 0, 1)
@@ -271,14 +272,21 @@ def eval_saycan(
         api_type=api_type,
         max_tokens=max_tokens,
     )
-    lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
-
     # Load environment.
     env_kwargs = {}
     if gui is not None:
         env_kwargs["gui"] = bool(gui)
     env_factory = envs.EnvFactory(config=env_config)
     env = env_factory(**env_kwargs)
+
+    # add task name to lm_cache_file
+    if lm_cache_file is not None:
+        lm_cache_file_suffix = pathlib.Path(lm_cache_file).suffix
+        lm_cache_file = pathlib.Path(lm_cache_file).stem
+        lm_cache_file = lm_cache_file + "_" + env.name + "_inner_monologue" + lm_cache_file_suffix
+
+    lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
+
     # Load planner.
     planner = planners.load(
         config=planner_config,
@@ -364,6 +372,7 @@ def eval_saycan(
         while not done:
             # lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
             # for generating possible actions, don't include stop()
+            lm_verbose=True
             actions, lm_cache = get_next_actions_from_lm(
                 env.instruction,
                 goal_props_to_use,
@@ -566,43 +575,44 @@ def eval_saycan(
         }
         run_logs.append(run_log)
 
-    # Save planning results.
-    path.mkdir(parents=True, exist_ok=True)
+        # Save planning results.
+        path.mkdir(parents=True, exist_ok=True)
+        success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
 
-    # Save planning results.
-    path.mkdir(parents=True, exist_ok=True)
-    success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
-
-    # Save planning results.
-    with open(path / f"results_seed_{seed}.json", "w") as f:
-        save_dict = {
-            "args": {
-                "planner_config": planner_config,
-                "env_config": env_config,
-                "policy_checkpoints": policy_checkpoints,
-                "dynamics_checkpoint": dynamics_checkpoint,
-                "device": device,
-                "num_eval": num_eval,
-                "path": str(path),
-                "pddl_domain": pddl_domain,
-                "pddl_problem": pddl_problem,
-                "max_depth": max_depth,
-                "timeout": timeout,
-                "seed": seed,
-                "verbose": verbose,
-                "termination_method": "saycan_scoring",
-            },
-            "task_name": env.name,
-            "task_file": str(pathlib.Path(env_config).name),
-            "success_rate": success_rate,
-            "goal_props_predicted": goal_props_predicted,
-            "instruction": env.instruction,
-            "run_logs": run_logs,
-        }
-        json.dump(save_dict, f, indent=2)
+        # Save planning results.
+        with open(path / f"results_idx_iter_{idx_iter}_seed_{seed}.json", "w") as f:
+            save_dict = {
+                "args": {
+                    "planner_config": planner_config,
+                    "env_config": env_config,
+                    "policy_checkpoints": policy_checkpoints,
+                    "dynamics_checkpoint": dynamics_checkpoint,
+                    "device": device,
+                    "num_eval": num_eval,
+                    "path": str(path),
+                    "pddl_domain": pddl_domain,
+                    "pddl_problem": pddl_problem,
+                    "max_depth": max_depth,
+                    "timeout": timeout,
+                    "seed": seed,
+                    "verbose": verbose,
+                    "termination_method": "saycan_scoring",
+                },
+                "task_name": env.name,
+                "task_file": str(pathlib.Path(env_config).name),
+                "success_rate": success_rate,
+                "goal_props_predicted": goal_props_predicted,
+                "instruction": env.instruction,
+                "run_logs": run_logs,
+            }
+            json.dump(save_dict, f, indent=2)
 
 
 def main(args: argparse.Namespace) -> None:
+    if args.api_type == "helm":
+        args.api_type = APIType.HELM
+    elif args.api_type == "openai":
+        args.api_type = APIType.OPENAI
     auth = authenticate(args.api_type, args.key_name)
     delattr(args, "key_name")
     eval_saycan(**vars(args), auth=auth)
@@ -681,13 +691,11 @@ if __name__ == "__main__":
         help="LM engine (curie or davinci or baggage or ada)",
     )
     parser.add_argument("--temperature", type=float, default=0, help="LM temperature")
-    parser.add_argument(
-        "--api_type", type=APIType, default=APIType.OPENAI, help="API to use"
-    )
+    parser.add_argument("--api-type", type=str, default="helm", help="API to use")
     parser.add_argument(
         "--key-name",
         type=str,
-        choices=["personal-code", "personal-all", "helm"],
+        choices=["personal-code", "personal-all", "personal-raoak", "personal-m", "helm"],
         default="personal-code",
         help="API key name to use",
     )

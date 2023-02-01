@@ -361,8 +361,8 @@ def generate_lm_response(
     result.use_predicted_goal = current_prompt.use_predicted_goal
     result.goal_ground_truth = current_prompt.goal
     if current_prompt.predict_goal:
-        overall_prompt += "Predicted goal predicate set: "  # GOAL_PROMPT
-        stop = [ROBOT_PROMPT, SCENE_OBJECT_PROMPT, SCENE_PRIMITIVE_PROMPT]
+        overall_prompt += "Predicted goal predicate set (python list of lists): "  # GOAL_PROMPT
+        stop = [ROBOT_PROMPT, SCENE_OBJECT_PROMPT, SCENE_PRIMITIVE_PROMPT, "Predicted"]
         response, lm_cache = gpt3_call(
             engine=lm_cfg.engine,
             overall_prompt=overall_prompt,
@@ -492,6 +492,7 @@ def update_result_current_prompt_based_on_response_robot(
                 print(f"Error: {e}")
                 parsed_robot_predicted_lst = []
             for parsed_robot_predicted in parsed_robot_predicted_lst:
+                continue
                 (
                     robot_prediction_result_type,
                     predicted_task_plan_description,
@@ -512,20 +513,21 @@ def update_result_current_prompt_based_on_response_robot(
                 import ipdb
 
                 ipdb.set_trace()
-                parsed_robot_predicted = result.parsed_robot_predicted
-            (
-                robot_prediction_result_type,
-                predicted_task_plan_description,
-            ) = check_task_plan_result(
-                current_prompt.goal_predicted
-                if current_prompt.use_predicted_goal or current_prompt.goal is None
-                else current_prompt.goal,
-                str(parsed_robot_predicted),
-                current_prompt.pddl_domain_file,
-                current_prompt.pddl_problem_file,
-            )
-            robot_prediction_result_types.append(robot_prediction_result_type)
-            predicted_task_plan_descriptions.append(predicted_task_plan_description)
+                if False:
+                    parsed_robot_predicted = result.parsed_robot_predicted
+                (
+                    robot_prediction_result_type,
+                    predicted_task_plan_description,
+                ) = check_task_plan_result(
+                    current_prompt.goal_predicted
+                    if current_prompt.use_predicted_goal or current_prompt.goal is None
+                    else current_prompt.goal,
+                    str(parsed_robot_predicted),
+                    current_prompt.pddl_domain_file,
+                    current_prompt.pddl_problem_file,
+                )
+                robot_prediction_result_types.append(robot_prediction_result_type)
+                predicted_task_plan_descriptions.append(predicted_task_plan_description)
         elif current_prompt.custom_robot_action_sequence_format == "str":
             return
         elif (
