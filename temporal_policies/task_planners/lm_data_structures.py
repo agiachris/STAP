@@ -49,7 +49,7 @@ class InContextExample:
     scene_object_relationships: Optional[List[str]] = None
     human: Optional[str] = None
     explanation: Optional[str] = None
-    goal: Optional[List[str]] = None
+    goal: Optional[Union[List[List[str]], List[str]]] = None
     robot_action_sequence: Optional[List[str]] = None
     instruction_achieved: Optional[bool] = None
     instruction_achieved_scene_object_relationships: Optional[
