@@ -1,7 +1,7 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: lh_lg_0
-  gui: true
+  name: long_horizon_1
+  gui: false
 
   primitives:
     - pick
@@ -10,10 +10,12 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you move three of the boxes to the rack?
+    - instruction: How would you move all of the boxes to the rack?
       action_skeleton:
         - pick(red_box)
         - place(red_box, rack)
+        - pick(yellow_box)
+        - place(yellow_box, rack)
         - pick(cyan_box)
         - place(cyan_box, rack)
         - pick(blue_box)
@@ -36,10 +38,7 @@ env_kwargs:
         - on(cyan_box, table)
         - on(blue_box, table)
       goal_propositions:
-        - ["on(red_box, rack)", "on(yellow_box, rack)", "on(cyan_box, rack)", "on(blue_box, table)"]
-        - ["on(red_box, rack)", "on(yellow_box, rack)", "on(cyan_box, table)", "on(blue_box, rack)"]
-        - ["on(red_box, rack)", "on(yellow_box, table)", "on(cyan_box, rack)", "on(blue_box, rack)"]
-        - ["on(red_box, table)", "on(yellow_box, rack)", "on(cyan_box, rack)", "on(blue_box, rack)"]
+        - ["on(red_box, rack)", "on(yellow_box, rack)", "on(cyan_box, rack)", "on(blue_box, rack)"]
       supported_predicates:
         - under(a, b)
         - on(a, b)

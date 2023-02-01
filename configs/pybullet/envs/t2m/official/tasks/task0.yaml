@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: structured_language_0
+  name: lh_0
   gui: false
 
   primitives:
@@ -10,35 +10,40 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you use the hook to pull the red box closer, place the hook, pick the red box then place it on the rack?
+    - instruction: How would you pick and place all of the boxes onto the rack?
       action_skeleton:
-        - pick(hook, table)
-        - pull(red_box, hook)
-        - place(hook, table)
-        - pick(red_box, table)
+        - pick(red_box)
         - place(red_box, rack)
+        - pick(yellow_box)
+        - place(yellow_box, rack)
+        - pick(cyan_box)
+        - place(cyan_box, rack)
+        - pick(blue_box)
+        - place(blue_box, rack)
       initial_state:
-        - free(hook)
         - free(red_box)
+        - free(yellow_box)
+        - free(cyan_box)
         - free(blue_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
-        - inworkspace(hook)
-        - beyondworkspace(red_box)
-        - nonblocking(red_box, rack)
-        - nonblocking(red_box, blue_box)
+        - inworkspace(red_box)
+        - inworkspace(yellow_box)
+        - inworkspace(cyan_box)
+        - inworkspace(blue_box)
         - on(rack, table)
-        - on(hook, table)
         - on(red_box, table)
+        - on(yellow_box, table)
+        - on(cyan_box, table)
         - on(blue_box, table)
       goal_propositions:
-        - [ "on(red_box, rack)" ]
+        - ["on(red_box, rack)", "on(yellow_box, rack)", "on(cyan_box, rack)", "on(blue_box, rack)"]
       supported_predicates:
         - under(a, b)
         - on(a, b)
         - inhand(a)
-
+        
   robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
 
   objects:
@@ -52,12 +57,7 @@ env_kwargs:
         name: rack
         size: [0.22, 0.32, 0.16]
         color: [0.4, 0.2, 0.0, 1.0]
-    - object_type: Hook
-      object_kwargs:
-        name: hook
-        head_length: 0.2
-        handle_length: 0.38
-        handle_y: -1.0
-        color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/salt.yaml
+    - configs/pybullet/envs/assets/yogurt.yaml
     - configs/pybullet/envs/assets/milk.yaml
+    - configs/pybullet/envs/assets/icecream.yaml

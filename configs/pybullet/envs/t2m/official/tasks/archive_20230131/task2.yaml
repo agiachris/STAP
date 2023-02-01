@@ -1,6 +1,6 @@
 env: pybullet.TableEnv
 env_kwargs:
-  name: lh_1
+  name: structured_language_2
   gui: false
 
   primitives:
@@ -14,10 +14,8 @@ env_kwargs:
       action_skeleton:
         - pick(yellow_box)
         - place(yellow_box, table)
-        - pick(blue_box)
-        - place(blue_box, table)
         - pick(hook)
-        - push(cyan_box, hook, rack)
+        - push(yellow_box, hook, rack)
       initial_state:
         - free(hook)
         - free(cyan_box)
@@ -27,11 +25,11 @@ env_kwargs:
         - beyondworkspace(rack)
         - nonblocking(rack, cyan_box)
         - nonblocking(rack, yellow_box)
-        - inoperationalzone(cyan_box)
         - inobstructionzone(yellow_box)
         - inobstructionzone(blue_box)
         - infront(yellow_box, rack)
         - infront(blue_box, rack)
+        - inoperationalzone(cyan_box)
         - infront(cyan_box, rack)
         - on(rack, table)
         - on(hook, table)
