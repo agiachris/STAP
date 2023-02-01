@@ -7,29 +7,35 @@ planner_kwargs:
   standard_deviation: 0.3
 
 agent_configs:
-  - agent: EnsembleAgent
-    agent_kwargs:
-      agent_config: "{AGENT_CONFIG}"
-      critic_class: EnsembleOODCritic
-      ood_threshold: 0.10
-      pessimistic: false
-  - agent: EnsembleAgent
-    agent_kwargs:
-      agent_config: "{AGENT_CONFIG}"
-      critic_class: EnsembleOODCritic
-      ood_threshold: 0.20
-      pessimistic: true
-  - agent: EnsembleAgent
-    agent_kwargs:
-      agent_config: "{AGENT_CONFIG}"
-      critic_class: EnsembleOODCritic
-      ood_threshold: 0.15
-      pessimistic: true
+  - "{AGENT_CONFIG}"
+    # agent_kwargs:
+    #   agent_config: "{AGENT_CONFIG}"
+    #   critic_class: EnsembleOODCritic
+    #   ood_threshold: 0.10
+    #   pessimistic: false
+  # - agent: EnsembleAgent
+  #   agent_kwargs:
+  #     agent_config: "{AGENT_CONFIG}"
+  #     critic_class: EnsembleOODCritic
+  #     ood_threshold: 0.10
+  #     pessimistic: false
   - agent: EnsembleAgent
     agent_kwargs:
       agent_config: "{AGENT_CONFIG}"
       critic_class: EnsembleOODCritic
       ood_threshold: 0.12
+      pessimistic: true
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      critic_class: EnsembleOODCritic
+      ood_threshold: 0.1
+      pessimistic: true
+  - agent: EnsembleAgent
+    agent_kwargs:
+      agent_config: "{AGENT_CONFIG}"
+      critic_class: EnsembleOODCritic
+      ood_threshold: 0.06
       pessimistic: true
 
 dynamics_config: "{DYNAMICS_CONFIG}"

@@ -32,13 +32,14 @@ function eval_lm_tamp {
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
     args="${args} --key-name ${KEY_NAME}"
+    args="${args} --api-type ${API_TYPE}"
     args="${args} --seed 0"
     args="${args} --pddl-domain ${PDDL_DOMAIN}"
     args="${args} --pddl-problem ${PDDL_PROBLEM}"
     args="${args} --timeout 10"
     args="${args} --max-depth 10"
     args="${args} --n-examples ${N_INCONTEXT_EXAMPLES}"
-    args="${args} --termination_method ${TERMINATION_METHOD}"
+    args="${args} --termination-method ${TERMINATION_METHOD}"
     args="${args} ${ENV_KWARGS}"
     if [[ $DEBUG -ne 0 ]]; then
         args="${args} --num-eval 3"
@@ -60,9 +61,9 @@ function run_planners {
         PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
 
         POLICY_CHECKPOINTS=(
-            "models/20230126/policy/pick/final_model/final_model.pt",
-            "models/20230126/policy/place/final_model/final_model.pt",
-            "models/20230126/policy/pull/final_model/final_model.pt",
+            "models/20230125/policy/pick/final_model/final_model.pt"
+            "models/20230126/policy/place/final_model/final_model.pt"
+            "models/20230126/policy/pull/final_model/final_model.pt"
             "models/20230126/policy/push/final_model/final_model.pt"
         )
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
@@ -89,11 +90,12 @@ function visualize_tamp {
 DEBUG=0
 input_path="models"
 output_path="plots"
-exp_name="20230129-newest/hierarchical"
+exp_name="20230131/hierarchical"
 
 # LLM
+API_TYPE="openai"
 KEY_NAME="personal-all"
-N_INCONTEXT_EXAMPLES=10
+N_INCONTEXT_EXAMPLES=11
 
 # Evaluate planners.
 PLANNERS=(
@@ -113,7 +115,10 @@ TASK_NUMS=(
     "4"
     "5"
     "6"
-    "7"
+    # "7"
+    # "9"
+    # "10"
+    # "11"
 )
 POLICY_ENVS=("pick" "place" "pull" "push")
 # CKPT="select_model"
@@ -125,6 +130,8 @@ ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
+
+ENV_KWARGS="--gui 0"
 
 # Run planners.
 POLICY_INPUT_PATH="${input_path}/${exp_name}"

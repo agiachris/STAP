@@ -117,15 +117,18 @@ def instantiate_task_plan_primitives(
 
 
 def get_callable_goal_props(
-    predicted_goal_props: List[str], possible_props: List[predicates.Predicate]
-) -> List[predicates.Predicate]:
-    if not is_valid_goal_props(predicted_goal_props, possible_props):
+    predicted_goal_props_list: List[List[str]], possible_props: List[predicates.Predicate]
+) -> List[List[predicates.Predicate]]:
+    if not is_valid_goal_props(predicted_goal_props_list, possible_props):
         raise ValueError("Invalid goal props")
 
-    parsed_goal_props = [
-        symbolic.problem.parse_proposition(prop) for prop in predicted_goal_props
-    ]
-    return get_goal_props_instantiated(parsed_goal_props)
+    callable_goal_props: List[List[predicates.Predicate]] = []
+    for predicted_goal_props in predicted_goal_props_list:
+        parsed_goal_props = [
+            symbolic.problem.parse_proposition(prop) for prop in predicted_goal_props
+        ]
+        callable_goal_props.append(get_goal_props_instantiated(parsed_goal_props))
+    return callable_goal_props
 
 
 def get_possible_props(
@@ -171,7 +174,7 @@ def get_prop_testing_objs(env: envs.Env) -> Dict[str, Object]:
 
 
 def is_satisfy_goal_props(
-    props: predicates.Predicate,
+    props_list: predicates.Predicate,
     objects: Dict[str, Object],
     state: np.ndarray,
     use_hand_state: bool = False,
@@ -195,7 +198,10 @@ def is_satisfy_goal_props(
         objects[obj_name].enable_custom_pose()
         objects[obj_name].set_custom_pose(obj_state.pose())
     # sim = True to use custom pose
-    success = all([prop.value_simple(objects, sim=True) for prop in props])
+    success = any(
+        all([prop.value_simple(objects, sim=True) for prop in props])
+        for props in props_list
+    )
 
     return success
 

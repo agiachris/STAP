@@ -43,7 +43,7 @@ def get_task_plans_from_lm(
     verbose: bool = False,
 ) -> List[Union[List[str], List[List[str]], Dict[str, str]]]:
     header_prompt = InContextExample(
-        predicates=["on(a, b)", "inhand(a)"],
+        predicates=["on(a, b)", "inhand(a)", "under(a, b)"],
         primitives=["pick(a)", "place(a, b)", "pull(a, hook)", "push(a, hook, rack)"]
         + ["stop()"]
         if custom_in_context_example_robot_format == "python_list_with_stop"

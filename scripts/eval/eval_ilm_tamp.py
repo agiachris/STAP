@@ -108,6 +108,7 @@ def eval_ilm_tamp(
     termination_method: Literal[
         "pred_instr_achieved", "goal_prop"
     ] = "pred_instr_achieved",
+    plan_only: bool = True,
 ):
     # set seeds
     if seed is not None:
@@ -147,8 +148,7 @@ def eval_ilm_tamp(
         dynamics_checkpoint=dynamics_checkpoint,
         device=device,
     )
-    # lm_cfg.engine = "text-davinci-003"
-    # remove suffix from lm_cache_file
+    # add task name to lm_cache_file
     if lm_cache_file is not None:
         lm_cache_file_suffix = pathlib.Path(lm_cache_file).suffix
         lm_cache_file = pathlib.Path(lm_cache_file).stem
@@ -188,7 +188,6 @@ def eval_ilm_tamp(
         object_relationships = get_object_relationships(
             observation, env.objects, available_predicates, use_hand_state=False
         )
-        # import ipdb; ipdb.set_trace()
         object_relationships = [str(prop) for prop in object_relationships]
         object_relationships_history.append(object_relationships)
         goal_props_predicted, lm_cache = get_goal_from_lm(
@@ -219,6 +218,7 @@ def eval_ilm_tamp(
         print(colored(f"goal props predicted: {goal_props_predicted}", "blue"))
         print(colored(f"minimal goal props: {goal_props_ground_truth}", "blue"))
 
+        found_plan: bool = False
         done: bool = False
         recording_id: Optional[int] = None
 
@@ -322,25 +322,27 @@ def eval_ilm_tamp(
             object_relationships = get_object_relationships(
                 observation, env.objects, available_predicates, use_hand_state=False
             )
+            print(f"action executed: {str(best_task_plan[0])}; reward: {reward}")
             object_relationships = [str(prop) for prop in object_relationships]
             executed_actions.append(str(best_task_plan[0]))
             object_relationships_history.append(object_relationships)
-
-            if successful_action_node.is_success:
+            remaining_task_plan = best_task_plan[1:]
+            if successful_action_node.is_success and len(remaining_task_plan) > 0:
+                print(
+                    colored(
+                        f"Node forward rollout predicts success: remainder of plan is {[str(a) for a in remaining_task_plan]}",
+                        "magenta",
+                    )
+                )
                 # Run closed-loop planning on the rest.
                 rewards, plan, t_planner = planners.run_closed_loop_planning(
-                    env, best_task_plan[1:], planner
+                    env, remaining_task_plan, planner
                 )
                 env.record_stop(recording_id)
-                step += len(best_task_plan[1:])
+                step += len(remaining_task_plan)
 
                 rewards = np.append(reward, rewards)
-                plan = planners.PlanningResult(
-                    actions=np.concatenate((action[None, ...], plan.actions), axis=0),
-                    states=np.concatenate((state[None, ...], plan.states), axis=0),
-                    p_success=plan.p_success,
-                    values=np.append(value, plan.values),
-                )
+                observation = plan.states[-1]
                 # Save recording.
                 gif_path = path / f"planning_{idx_iter}.gif"
                 if (rewards == 0.0).any():
@@ -350,7 +352,7 @@ def eval_ilm_tamp(
                 env.record_save(gif_path, reset=False)
 
                 executed_actions.extend(
-                    [str(action).lower() for action in best_task_plan]
+                    [str(action).lower() for action in remaining_task_plan]
                 )
                 object_relationships_history.extend(
                     [
@@ -363,21 +365,23 @@ def eval_ilm_tamp(
                         for state in plan.states[1:]
                     ]
                 )  # skip the first plan.states since that observation is already in the history
-
             env.record_stop(recording_id)
 
             step += 1
 
-            print(f"action executed: {str(best_task_plan[0])}; reward: {reward}")
             if termination_method == "goal_prop":
                 if is_satisfy_goal_props(
                     goal_props_callable,
                     prop_testing_objs,
-                    observation,
+                    env.get_observation(),
                     use_hand_state=False,
                 ):
                     print(colored("goal props satisfied", "magenta"))
                     done = True
+                    found_plan = True
+                else:
+                    found_plan = False
+
             elif termination_method == "pred_instr_achieved":
                 next_action_str = lm_agent.get_next_action_str(
                     object_relationships_history,
@@ -390,67 +394,79 @@ def eval_ilm_tamp(
                 if "True" in next_action_str:
                     print(colored("LM predicted instruction achieved", "magenta"))
                     done = True
+                    found_plan = True
+                else:
+                    found_plan = False
             else:
                 raise NotImplementedError("Unknown termination method")
 
             if step == max_depth:
                 done = True
 
-        success: bool = env.is_goal_state()
-        if success:
+            if plan_only:
+                done = True
+
+        reached_ground_truth_goal: bool = env.is_goal_state()
+        if reached_ground_truth_goal:
             print(colored("Success!", "green"))
 
         gif_path = (
-            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.gif"
+            path
+            / str(idx_iter)
+            / f"execution_{'reached_ground_truth_goal' if reached_ground_truth_goal else 'fail'}.gif"
         )
         env.record_save(gif_path, reset=False)
         gif_path = (
-            path / str(idx_iter) / f"execution_{'success' if success else 'fail'}.mp4"
+            path
+            / str(idx_iter)
+            / f"execution_{'reached_ground_truth_goal' if reached_ground_truth_goal else 'fail'}.mp4"
         )
         env.record_save(gif_path, reset=True)
         env._recording_text = ""
 
         run_log = {
             "seed": seed,
-            "success": success,
+            "reached_ground_truth_goal": reached_ground_truth_goal,
             "num_steps": step,
             "executed_actions": executed_actions,
             "object_relationships_history": object_relationships_history,
+            "found_plan": found_plan,
         }
         run_logs.append(run_log)
 
-    save_lm_cache(pathlib.Path(lm_cache_file), lm_agent.lm_cache)
-    # Save planning results.
-    path.mkdir(parents=True, exist_ok=True)
-    success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
+        # Save planning results.
+        path.mkdir(parents=True, exist_ok=True)
+        success_rate = sum([run_log["success"] for run_log in run_logs]) / len(run_logs)
 
-    # Save planning results.
-    with open(path / f"results_seed_{seed}.json", "w") as f:
-        save_dict = {
-            "args": {
-                "planner_config": planner_config,
-                "env_config": env_config,
-                "policy_checkpoints": policy_checkpoints,
-                "dynamics_checkpoint": dynamics_checkpoint,
-                "device": device,
-                "num_eval": num_eval,
-                "path": str(path),
-                "pddl_domain": pddl_domain,
-                "pddl_problem": pddl_problem,
-                "max_depth": max_depth,
-                "timeout": timeout,
-                "seed": seed,
-                "verbose": verbose,
-                "termination_method": termination_method,
-            },
-            "task_name": env.name,
-            "task_file": str(pathlib.Path(env_config).name),
-            "success_rate": success_rate,
-            "goal_props_predicted": goal_props_predicted,
-            "instruction": env.instruction,
-            "run_logs": run_logs,
-        }
-        json.dump(save_dict, f, indent=2)
+        # Save planning results.
+        with open(path / f"results_idx_iter_{idx_iter}_seed_{seed}.json", "w") as f:
+            save_dict = {
+                "args": {
+                    "planner_config": planner_config,
+                    "env_config": env_config,
+                    "policy_checkpoints": policy_checkpoints,
+                    "dynamics_checkpoint": dynamics_checkpoint,
+                    "device": device,
+                    "num_eval": num_eval,
+                    "path": str(path),
+                    "pddl_domain": pddl_domain,
+                    "pddl_problem": pddl_problem,
+                    "max_depth": max_depth,
+                    "timeout": timeout,
+                    "seed": seed,
+                    "verbose": verbose,
+                    "termination_method": termination_method,
+                },
+                "task_name": env.name,
+                "task_file": str(pathlib.Path(env_config).name),
+                "success_rate": success_rate,
+                "goal_props_predicted": goal_props_predicted,
+                "instruction": env.instruction,
+                "run_logs": run_logs,
+            }
+            json.dump(save_dict, f, indent=2)
+
+    save_lm_cache(pathlib.Path(lm_cache_file), lm_agent.lm_cache)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -538,7 +554,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--key-name",
         type=str,
-        choices=["personal-code", "personal-all", "helm"],
+        choices=["personal-code", "personal-all", "helm", "personal-raoak"],
         default="helm",
         help="API key name to use",
     )
@@ -552,6 +568,12 @@ if __name__ == "__main__":
         type=str,
         default="pred_instr_achieved",
         help="Termination condition",
+    )
+    parser.add_argument(
+        "--plan-only",
+        type=int,
+        default=1,
+        help="Only plan and run closed-loop motion planning if found a valid plan according to the termination method and Q functions",
     )
     args = parser.parse_args()
 

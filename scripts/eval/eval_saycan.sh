@@ -32,6 +32,7 @@ function eval_saycan {
         args="${args} --dynamics-checkpoint ${DYNAMICS_CHECKPOINT}"
     fi
     args="${args} --key-name ${KEY_NAME}"
+    args="${args} --api-type ${API_TYPE}"
     args="${args} --seed 0"
     args="${args} --pddl-domain ${PDDL_DOMAIN}"
     args="${args} --pddl-problem ${PDDL_PROBLEM}"
@@ -59,9 +60,9 @@ function run_planners {
         PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
 
         POLICY_CHECKPOINTS=(
-            "models/20230126/policy/pick/final_model/final_model.pt",
-            "models/20230126/policy/place/final_model/final_model.pt",
-            "models/20230126/policy/pull/final_model/final_model.pt",
+            "models/20230125/policy/pick/final_model/final_model.pt"
+            "models/20230126/policy/place/final_model/final_model.pt"
+            "models/20230126/policy/pull/final_model/final_model.pt"
             "models/20230126/policy/push/final_model/final_model.pt"
         )
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
@@ -89,10 +90,11 @@ DEBUG=0
 VIZ_PLANNING=1
 input_path="models"
 output_path="plots"
-exp_name="20230129-newest/inner_monologue"
+exp_name="20230130/inner_monologue"
 
 # LLM
-KEY_NAME="personal-all"
+KEY_NAME="personal-m"
+API_TYPE="openai"
 N_INCONTEXT_EXAMPLES=10
 
 # Evaluate planners.
@@ -115,7 +117,8 @@ TASK_NUMS=(
     # "4"
     # "5"
     # "6"
-    "7"
+    # "7"
+    "8"
 )
 
 ENV_KWARGS="--closed-loop 1"

@@ -62,7 +62,7 @@ function run_planners {
         PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
 
         POLICY_CHECKPOINTS=(
-            "models/20230126/policy/pick/final_model/final_model.pt"
+            "models/20230125/policy/pick/final_model/final_model.pt"
             "models/20230126/policy/place/final_model/final_model.pt"
             "models/20230126/policy/pull/final_model/final_model.pt"
             "models/20230126/policy/push/final_model/final_model.pt"
@@ -92,12 +92,17 @@ DEBUG=0
 VIZ_PLANNING=1
 input_path="models"
 output_path="plots"
-exp_name="20230129-newest/integrated"
+exp_name="20230130/integrated"
 
 # LLM
-KEY_NAME="helm"
-API_TYPE="helm"
-N_INCONTEXT_EXAMPLES=10
+# KEY_NAME="personal-all"
+# API_TYPE="openai"
+# KEY_NAME="helm"
+# API_TYPE="helm"
+KEY_NAME="personal-all"
+API_TYPE="openai"
+
+N_INCONTEXT_EXAMPLES=11
 # Evaluate planners.
 PLANNERS=(
     "ensemble_policy_cem_ood"
@@ -115,10 +120,13 @@ TASK_NUMS=(
     "1"
     "2"
     "3"
-    # "4"
-    # "5"
-    # "6"
+    "5"
+    "6"
     # "7"
+    # "4"
+    # "9"
+    # "10"
+    # "11"
 )
 
 ENV_KWARGS="--closed-loop 1"
