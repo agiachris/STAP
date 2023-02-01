@@ -92,7 +92,7 @@ DEBUG=0
 VIZ_PLANNING=1
 input_path="models"
 output_path="plots"
-exp_name="20230130/integrated"
+exp_name="20230201-official/integrated"
 
 # LLM
 # KEY_NAME="personal-all"
@@ -120,13 +120,9 @@ TASK_NUMS=(
     "1"
     "2"
     "3"
+    "4"
     "5"
     "6"
-    # "7"
-    # "4"
-    # "9"
-    # "10"
-    # "11"
 )
 
 ENV_KWARGS="--closed-loop 1"

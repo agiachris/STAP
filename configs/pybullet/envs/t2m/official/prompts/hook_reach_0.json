@@ -28,11 +28,11 @@
         ],
         "human": "How would you set the red box to be the only box on the rack?",
         "explanation": null,
-        "goal": [
+        "goal": [[
             "on(red_box, rack)",
             "on(blue_box, table)",
             "on(cyan_box, table)"
-        ],
+        ]],
         "robot_action_sequence": [
             "place(blue_box, table)",
             "pick(hook)",

@@ -27,11 +27,11 @@
         ],
         "human": "set the hook on the rack and stack the yellow_box onto the table and set the cyan_box on the rack",
         "explanation": null,
-        "goal": [
+        "goal": [[
             "on(hook, rack)",
             "on(yellow_box, table)",
             "on(cyan_box, rack)"
-        ],
+        ]],
         "robot_action_sequence": [
             "pick(yellow_box)",
             "place(yellow_box, table)",

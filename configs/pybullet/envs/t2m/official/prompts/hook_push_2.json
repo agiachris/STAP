@@ -28,9 +28,9 @@
         ],
         "human": "Move the ocean colored box to be under the rack and ensure the hook ends up on the table.",
         "explanation": null,
-        "goal": [
+        "goal": [[
             "under(blue_box, rack)"
-        ],
+        ]],
         "robot_action_sequence": [
             "pick(red_box)",
             "place(red_box, table)",

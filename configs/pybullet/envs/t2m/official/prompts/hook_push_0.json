@@ -29,7 +29,7 @@
         "human": "Move the warm colored box to be underneath the rack.",
         "explanation": null,
         "goal": [
-            "under(red_box, rack)"
+            ["under(red_box, rack)"]
         ],
         "robot_action_sequence": [
             "pick(blue_box)",

@@ -30,10 +30,10 @@
         ],
         "human": "could you move all the boxes onto the rack?",
         "explanation": null,
-        "goal": [
+        "goal": [[
             "on(yellow_box, rack)",
             "on(blue_box, rack)"
-        ],
+        ]],
         "robot_action_sequence": [
             "pull(yellow_box, hook)",
             "place(hook, table)",

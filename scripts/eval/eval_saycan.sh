@@ -90,7 +90,7 @@ DEBUG=0
 VIZ_PLANNING=1
 input_path="models"
 output_path="plots"
-exp_name="20230130/inner_monologue"
+exp_name="20230201-official/inner_monologue"
 
 # LLM
 KEY_NAME="personal-m"
@@ -110,15 +110,13 @@ PLANNERS=(
 PLANNER_CONFIG_PATH="configs/pybullet/planners/"
 
 TASK_NUMS=(
-    # "0"
-    # "1"
-    # "2"
-    # "3"
-    # "4"
-    # "5"
-    # "6"
-    # "7"
-    "8"
+    "0"
+    "1"
+    "2"
+    "3"
+    "4"
+    "5"
+    "6"
 )
 
 ENV_KWARGS="--closed-loop 1"
