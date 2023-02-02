@@ -12,7 +12,7 @@ def compute_plan(
     pddl,
     state: Set[str],
     timeout: float = 10.0,
-    max_depth: int = 10,
+    max_depth: int = 20,
     verbose: bool = False,
 ) -> List[str]:
     pddl.initial_state = state
@@ -34,7 +34,7 @@ def compute_subgoal_completion(
     path: Union[str, pathlib.Path],
     domain_file: Union[str, pathlib.Path],
     timeout: float = 10.0,
-    max_depth: int = 10,
+    max_depth: int = 20,
     verbose: bool = False,
 ):
     if isinstance(path, str):
