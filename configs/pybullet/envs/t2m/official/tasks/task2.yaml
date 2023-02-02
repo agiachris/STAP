@@ -1,7 +1,7 @@
 env: pybullet.TableEnv
 env_kwargs:
   name: lh_lg_0
-  gui: true
+  gui: false
 
   primitives:
     - pick
