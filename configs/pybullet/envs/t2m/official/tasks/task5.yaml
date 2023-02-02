@@ -12,8 +12,8 @@ env_kwargs:
   tasks:
     - instruction: How would you get two boxes onto the rack?
       action_skeleton:
-        - pick(cyan_box)
-        - place(cyan_box, rack)
+        - pick(blue_box)
+        - place(blue_box, rack)
         - pick(hook)
         - pull(yellow_box, hook)
         - place(hook, table)
@@ -21,34 +21,34 @@ env_kwargs:
         - place(yellow_box, rack)
       initial_state:
         - free(hook)
-        - free(blue_box)
         - free(cyan_box)
+        - free(blue_box)
         - free(yellow_box)
         - free(red_box)
         - aligned(rack)
         - poslimit(rack)
         - inworkspace(rack)
         - inworkspace(hook)
-        - inworkspace(cyan_box)
+        - inworkspace(blue_box)
         - beyondworkspace(yellow_box)
         - beyondworkspace(red_box)
-        - beyondworkspace(blue_box)
+        - beyondworkspace(cyan_box)
         - nonblocking(yellow_box, rack)
-        - nonblocking(yellow_box, blue_box)
+        - nonblocking(yellow_box, cyan_box)
         - nonblocking(yellow_box, red_box)
         - on(rack, table)
         - on(hook, table)
-        - on(blue_box, table)
         - on(cyan_box, table)
+        - on(blue_box, table)
         - on(yellow_box, table)
         - on(red_box, table)
       goal_propositions:
-        - ["on(blue_box, rack)", "on(yellow_box, rack)", "on(red_box, table)", "on(cyan_box, table)"]
-        - ["on(blue_box, rack)", "on(red_box, rack)", "on(yellow_box, table)", "on(cyan_box, table)"]
-        - ["on(blue_box, rack)", "on(cyan_box, rack)", "on(red_box, table)", "on(yellow_box, table)"]
-        - ["on(yellow_box, rack)", "on(red_box, rack)", "on(blue_box, table)", "on(cyan_box, table)"]
-        - ["on(yellow_box, rack)", "on(cyan_box, rack)", "on(blue_box, table)", "on(red_box, table)"]
-        - ["on(cyan_box, rack)", "on(red_box, rack)", "on(blue_box, table)", "on(yellow_box, table)"]
+        - ["on(cyan_box, rack)", "on(yellow_box, rack)", "on(red_box, table)", "on(blue_box, table)"]
+        - ["on(cyan_box, rack)", "on(red_box, rack)", "on(yellow_box, table)", "on(blue_box, table)"]
+        - ["on(cyan_box, rack)", "on(blue_box, rack)", "on(red_box, table)", "on(yellow_box, table)"]
+        - ["on(yellow_box, rack)", "on(red_box, rack)", "on(cyan_box, table)", "on(blue_box, table)"]
+        - ["on(yellow_box, rack)", "on(blue_box, rack)", "on(cyan_box, table)", "on(red_box, table)"]
+        - ["on(blue_box, rack)", "on(red_box, rack)", "on(cyan_box, table)", "on(yellow_box, table)"]
       supported_predicates:
         - under(a, b)
         - on(a, b)

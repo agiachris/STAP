@@ -10,7 +10,7 @@ env_kwargs:
     - push
 
   tasks:
-    - instruction: How would you put one box on the rack? 
+    - instruction: How would you put one box on the rack (hint you may use a hook)? 
       action_skeleton:
         - pick(hook)
         - pull(blue_box, hook)
