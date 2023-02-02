@@ -106,7 +106,7 @@ def eval_ilm_tamp(
     visualize_planning: bool = False,
     use_ground_truth_goal_props: bool = False,
     termination_method: Literal[
-        "pred_instr_achieved", "goal_prop"
+        "pred_instr_achieved", "goal_prop", "score_stop"
     ] = "pred_instr_achieved",
     plan_only: bool = True,
 ):
@@ -258,6 +258,8 @@ def eval_ilm_tamp(
             if "True" in next_action_str:
                 print(colored("LM predicted instruction achieved", "magenta"))
                 done = True
+        elif termination_method == "score_stop":
+            print("score stop not implemented yet due to not replanning (task level)")
         else:
             raise NotImplementedError("Unknown termination method")
 
