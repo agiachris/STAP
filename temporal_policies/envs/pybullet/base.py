@@ -1,3 +1,5 @@
+from typing import Dict, Any, Tuple
+
 import os
 import sys
 
@@ -8,15 +10,26 @@ with RedirectStream(sys.stderr):
     import pybullet as p
 
 
-def connect_pybullet(gui: bool = True, options: str = "") -> int:
+DEFAULT_OPTIONS = {
+    "background_color_red": 0.12,
+    "background_color_green": 0.12,
+    "background_color_blue": 0.25,
+}
+
+
+def to_str_kwarg(kv: Tuple[str, Any]) -> str:
+    return f"--{kv[0]}={kv[1]}"
+
+
+def connect_pybullet(gui: bool = True, gui_kwargs: Dict[str, Any] = {}) -> int:
     if not gui:
         with RedirectStream():
-            physics_id = p.connect(p.DIRECT, options=options)
+            physics_id = p.connect(p.DIRECT, options=gui_kwargs["options"])
     elif not os.environ["DISPLAY"]:
         raise p.error
     else:
         with RedirectStream():
-            physics_id = p.connect(p.GUI, options=options)
+            physics_id = p.connect(p.GUI, options=gui_kwargs["options"])
 
         p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0, physicsClientId=physics_id)
         p.configureDebugVisualizer(
@@ -30,7 +43,11 @@ def connect_pybullet(gui: bool = True, options: str = "") -> int:
         p.configureDebugVisualizer(
             p.COV_ENABLE_RGB_BUFFER_PREVIEW, 0, physicsClientId=physics_id
         )
-        p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 0, physicsClientId=physics_id)
+        p.configureDebugVisualizer(
+            p.COV_ENABLE_SHADOWS, 
+            gui_kwargs.get("shadows", 0),
+            physicsClientId=physics_id
+        )
         p.resetDebugVisualizerCamera(
             cameraDistance=0.25,
             cameraYaw=90,
@@ -43,19 +60,25 @@ def connect_pybullet(gui: bool = True, options: str = "") -> int:
 
 
 class PybulletEnv(Env):
-    def __init__(self, name: str, gui: bool = True):
+    def __init__(self, 
+        name: str, 
+        gui: bool = True,
+        gui_kwargs: Dict[str, Any] = {},
+    ):
         self.name = name
-        options = (
-            "--background_color_red=0.12 "
-            "--background_color_green=0.12 "
-            "--background_color_blue=0.25"
-        )
+
+        gui_kwargs["options"] = gui_kwargs.get("options", DEFAULT_OPTIONS)
+        for k, v in DEFAULT_OPTIONS.items():
+            if k not in gui_kwargs["options"]:
+                gui_kwargs["options"][k] = v       
+        gui_kwargs["options"] = " ".join(map(to_str_kwarg, gui_kwargs["options"].items()))
+        
         try:
-            self._physics_id = connect_pybullet(gui=gui, options=options)
+            self._physics_id = connect_pybullet(gui=gui, gui_kwargs=gui_kwargs)
         except p.error as e:
             print(e)
             print("Unable to connect to pybullet with gui. Connecting without gui...")
-            self._physics_id = connect_pybullet(gui=False, options=options)
+            self._physics_id = connect_pybullet(gui=False, gui_kwargs=gui_kwargs)
 
         p.setGravity(0, 0, -9.8, physicsClientId=self.physics_id)
 

@@ -4,7 +4,7 @@ import multiprocessing
 import multiprocessing.synchronize
 import pathlib
 import random
-from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union, Type
+from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 
 import gym
 import numpy as np
@@ -39,6 +39,7 @@ class CameraView:
     height: int
     view_matrix: np.ndarray
     projection_matrix: np.ndarray
+    shadow: int
 
 
 @dataclasses.dataclass
@@ -156,6 +157,9 @@ class TableEnv(PybulletEnv):
         object_tracker_config: Optional[Union[str, Dict[str, Any]]] = None,
         recording_freq: int = 15,
         gui: bool = True,
+        gui_kwargs: Dict[str, Any] = {},
+        render_mode: str = "default",
+        render_kwargs: Dict[str, Any] = {},
         num_processes: int = 1,
         reset_queue_size: int = 100,
         child_process_seed: Optional[int] = None,
@@ -173,6 +177,9 @@ class TableEnv(PybulletEnv):
             object_tracker_config: Config to construct `pybullet.real.object_tracker.ObjectTracker`.
             recording_freq: Recording frequency.
             gui: Whether to open Pybullet gui.
+            gui_kwargs: Gui kwargs.
+            render_mode: Frame render mode.
+            render_kwargs: Rendering kwargs.
             num_processes: Number of processes to use. One will be dedicated to
                 the main environment, while the rest will find valid
                 `env.reset()` initializations.
@@ -183,8 +190,15 @@ class TableEnv(PybulletEnv):
                 main process!
             use_curriculum: Whether to use a curriculum on the number of objects.
         """
-        super().__init__(name=name, gui=gui)
-
+        if render_mode not in TableEnv.metadata["render_modes"]:
+            raise ValueError(f"Render mode {render_mode} is not supported.")        
+        super().__init__(name=name, gui=gui, gui_kwargs=gui_kwargs)
+        shadows = gui_kwargs.get("shadows", 0)
+        self.gui = gui
+        self.gui_kwargs = gui_kwargs
+        self.render_mode = render_mode
+        self.render_kwargs = render_kwargs
+        
         # TODO (Chris Agia): Bug-fix multiprocessing stalls.
         # Launch external reset process. 
         # if reset_queue_size <= 0 or num_processes <= 1:
@@ -309,6 +323,7 @@ class TableEnv(PybulletEnv):
                     cameraUpVector=[0.0, 0.0, 1.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
+                shadow=shadows
             ),
             "top": CameraView(
                 width=WIDTH,
@@ -319,6 +334,7 @@ class TableEnv(PybulletEnv):
                     cameraUpVector=[0.0, 1.0, 0.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
+                shadow=shadows
             ),
             "front_right": CameraView(
                 width=WIDTH,
@@ -329,6 +345,7 @@ class TableEnv(PybulletEnv):
                     cameraUpVector=[0.0, 0.0, 1.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
+                shadow=shadows
             ),
             "profile": CameraView(
                 width=WIDTH,
@@ -339,9 +356,9 @@ class TableEnv(PybulletEnv):
                     cameraUpVector=[0.0, 0.0, 1.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
+                shadow=shadows
             ),
         }
-        self.render_mode = "default"
 
         self._timelapse = recording.Recorder()
         self._recorder = recording.Recorder(recording_freq)
@@ -866,9 +883,7 @@ class TableEnv(PybulletEnv):
             camera_view = self._camera_views[self.render_mode.replace("_high_res", "")]
         except KeyError:
             camera_view = self._camera_views["front"]
-
-        self.render_mode = "high_res_front"
-
+        
         if "high_res" in self.render_mode:
             width, height = (1620, 1080)
         else:
@@ -878,6 +893,7 @@ class TableEnv(PybulletEnv):
             height,
             viewMatrix=camera_view.view_matrix,
             projectionMatrix=camera_view.projection_matrix,
+            shadow=camera_view.shadow,
             renderer=p.ER_BULLET_HARDWARE_OPENGL,
             physicsClientId=self.physics_id,
         )[2]
@@ -896,8 +912,8 @@ class TableEnv(PybulletEnv):
             fill=(0, 204, 0),
             font=FONT,
         )
-        # text_color = (255, 100, 255)
-        # draw.text((20, 10), "Hello World", fill=text_color, font=FONT)
+        text_color = (255, 100, 255)
+        draw.text((20, 10), "Hello World", fill=text_color, font=FONT)
         return np.array(img)
 
     def record_start(

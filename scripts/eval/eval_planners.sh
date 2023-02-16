@@ -91,7 +91,7 @@ PLANNERS=(
     # "random_shooting"
 # Ensemble Q-value / Latent dynamics.
     # "ensemble_policy_cem"
-    "ensemble_policy_cem_ood"
+    # "ensemble_policy_cem_ood"
     # "ensemble_policy_cem_scale-0.1"
     # "ensemble_policy_cem_scale-0.5"
     # "ensemble_policy_cem_scale-1.0"
@@ -131,26 +131,26 @@ PLANNERS=(
     # "daf_random_shooting"
 # Greedy.
     # "greedy_oracle_dynamics"
-    "greedy"
+    # "greedy"
 )
 
 ## TAPS Evaluation tasks.
 
-TASK_ROOT="configs/pybullet/envs/taps/official/domains"
-TASKS=(
-# Domain 1: Hook Reach
-    "hook_reach/task0"
-    "hook_reach/task1"
-    "hook_reach/task2"
-# Domain 2: Constrained Packing
-    "constrained_packing/task0"
-    "constrained_packing/task1"
-    "constrained_packing/task2"
-# Domain 3: Rearrangement Push
-    "rearrangement_push/task0"
-    "rearrangement_push/task1"
-    "rearrangement_push/task2"
-)
+# TASK_ROOT="configs/pybullet/envs/taps/official/domains"
+# TASKS=(
+# # Domain 1: Hook Reach
+#     "hook_reach/task0"
+#     "hook_reach/task1"
+#     "hook_reach/task2"
+# # Domain 2: Constrained Packing
+#     "constrained_packing/task0"
+#     "constrained_packing/task1"
+#     "constrained_packing/task2"
+# # Domain 3: Rearrangement Push
+#     "rearrangement_push/task0"
+#     "rearrangement_push/task1"
+#     "rearrangement_push/task2"
+# )
 
 ## T2M Evaluation tasks.
 # TASK_ROOT="configs/pybullet/envs/t2m/official/tasks"
@@ -164,8 +164,15 @@ TASKS=(
 #     "task6"
 # )
 
+## T2M Evaluation tasks.
+# TASK_ROOT="configs/pybullet/envs/t2m/examples/figures"
+# TASKS=(
+#     "teaser"
+#     "teaser_hierarchical"
+# )
+
 ## Pybullet.
-exp_name="20230126/planners/taps"
+exp_name="20230203/planners/taps"
 PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
 
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
@@ -213,33 +220,33 @@ PRIMITIVES=(
 # run_planners
 
 # Critics trained with MSE loss and no sigmoid activation, balanced data (40%).
-declare -A POLICY_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230126/policy/pick/final_model/final_model.pt"
-    ["place"]="models/20230126/policy/place/final_model/final_model.pt"
-    ["pull"]="models/20230126/policy/pull/final_model/final_model.pt"
-    ["push"]="models/20230126/policy/push/final_model/final_model.pt"
-)
-DYNAMICS_CHECKPOINT_PATH="models/20230125/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+# declare -A POLICY_CHECKPOINT_PATHS=(
+#     ["pick"]="models/20230126/policy/pick/final_model/final_model.pt"
+#     ["place"]="models/20230126/policy/place/final_model/final_model.pt"
+#     ["pull"]="models/20230126/policy/pull/final_model/final_model.pt"
+#     ["push"]="models/20230126/policy/push/final_model/final_model.pt"
+# )
+# DYNAMICS_CHECKPOINT_PATH="models/20230125/dynamics/pick_place_pull_push_dynamics/best_model.pt"
 # run_planners
 
 
 ## Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
-    exit
-fi
+# if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
+#     exit
+# fi
 
-function visualize_results {
-    args=""
-    args="${args} --path ${PLANNER_OUTPUT_ROOT}"
-    args="${args} --envs ${TASKS[@]}"
-    args="${args} --methods ${PLANNERS[@]}"
-    if [ ! -z "${FIGURE_NAME}" ]; then
-        args="${args} --name ${FIGURE_NAME}"
-    fi
-    CMD="python scripts/visualize/generate_planning_figure.py ${args}"
-    run_cmd
-}
+# function visualize_results {
+#     args=""
+#     args="${args} --path ${PLANNER_OUTPUT_ROOT}"
+#     args="${args} --envs ${TASKS[@]}"
+#     args="${args} --methods ${PLANNERS[@]}"
+#     if [ ! -z "${FIGURE_NAME}" ]; then
+#         args="${args} --name ${FIGURE_NAME}"
+#     fi
+#     CMD="python scripts/visualize/generate_planning_figure.py ${args}"
+#     run_cmd
+# }
 
-FIGURE_NAME="mse-models-handcrafted-dynamics"
-visualize_results
+# FIGURE_NAME="mse-models-handcrafted-dynamics"
+# visualize_results
 

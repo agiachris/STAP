@@ -1,0 +1,65 @@
+env: pybullet.TableEnv
+env_kwargs:
+  name: teaser
+  gui: true
+  gui_kwargs:
+    shadows: 1
+  render_mode: profile_high_res
+
+  primitives:
+    - pick
+    - place
+    - pull
+    - push
+
+  tasks:
+    - instruction: How would you fetch me a box from the table?
+      action_skeleton:
+        - pick(red_box)
+      initial_state:
+        - free(hook)
+        - free(red_box)
+        - free(yellow_box)
+        - aligned(rack)
+        - poslimit(rack)
+        - inworkspace(rack)
+        - inworkspace(hook)
+        - inworkspace(yellow_box)
+        - inworkspace(blue_box)
+        - beyondworkspace(red_box)
+        - under(blue_box, rack)
+        - on(rack, table)
+        - on(hook, table)
+        - on(yellow_box, rack)
+        - on(blue_box, table)
+        - on(red_box, table)
+      goal_propositions: 
+        - ["inhand(red_box)"]
+      supported_predicates:
+        - under(a, b)
+        - on(a, b)
+        - inhand(a)
+        
+  robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
+
+  objects:
+    - object_type: Urdf
+      object_kwargs:
+        name: table
+        path: configs/pybullet/envs/assets/iprl_table.urdf
+        is_static: true
+    - object_type: Rack
+      object_kwargs:
+        name: rack
+        size: [0.22, 0.32, 0.16]
+        color: [0.4, 0.2, 0.0, 1.0]
+    - object_type: Hook
+      object_kwargs:
+        name: hook
+        head_length: 0.2
+        handle_length: 0.38
+        handle_y: -1.0
+        color: [0.6, 0.6, 0.6, 1.0]
+    - configs/pybullet/envs/assets/salt.yaml
+    - configs/pybullet/envs/assets/yogurt.yaml
+    - configs/pybullet/envs/assets/milk.yaml

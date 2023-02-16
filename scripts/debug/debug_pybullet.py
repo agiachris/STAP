@@ -17,11 +17,9 @@ def main(env_config: str, seed: Optional[int] = None) -> None:
         seed = None
 
         print("Reset seed:", info["seed"])
-        print("Supported goal predicates:", env.supported_predicates)
-        print("Task instruction:", env.instruction)
-        print("Goal predicates:", env.goal_propositions)
-        print("Supported goal predicates:", env.supported_predicates)
-        print("")
+        print("Supported goal predicates:", env.task.supported_predicates)
+        print("Task instruction:", env.task.instruction)
+        print("Goal predicates:", env.task.goal_propositions, "\n")
 
         action_skeleton = env.task.action_skeleton
         for step in range(len(action_skeleton)):
@@ -36,7 +34,9 @@ def main(env_config: str, seed: Optional[int] = None) -> None:
             normalized_action = primitive.normalize_action(action.vector)
             _, success, _, truncated, _ = env.step(normalized_action)
             print(f"Success {primitive}: {success}")
-            print("Goal state achieved:", env.is_goal_state())
+
+            if env.task.goal_propositions is not None:
+                print("Goal state achieved:", env.is_goal_state())
             if truncated:
                 break
         
