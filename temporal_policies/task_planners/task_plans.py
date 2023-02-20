@@ -88,7 +88,7 @@ def get_task_plans_from_lm(
         )
 
     lm_cfg.engine = "text-davinci-003"
-
+    # lm_cfg.engine = "code-davinci-002"
     try:
         results, lm_cache = generate_lm_response(
             header_prompt,
@@ -132,6 +132,8 @@ def get_next_actions_from_lm(
     all_executed_actions: List[str],
     pddl_domain_file: str,
     pddl_problem_file: str,
+    use_scene_objects: bool = True,
+    use_scene_object_relationships: bool = True,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
     custom_in_context_example_robot_format: Literal[
@@ -167,8 +169,8 @@ def get_next_actions_from_lm(
         scene_object_relationships=object_relationships_str,
         human=instruction,
         goal_predicted=goal,
-        use_scene_objects=True,
-        use_scene_object_relationships=True,
+        use_scene_objects=use_scene_objects,
+        use_scene_object_relationships=use_scene_object_relationships,
         use_human=True,
         use_goal=True,
         use_predicted_goal=True,
@@ -177,14 +179,15 @@ def get_next_actions_from_lm(
         custom_robot_action_sequence_format=custom_robot_action_sequence_format,
         pddl_domain_file=pddl_domain_file,
         pddl_problem_file=pddl_problem_file,
-        use_action_object_relationship_history=True,
+        use_action_object_relationship_history=True if use_scene_object_relationships else False,
+        use_action_history=False if use_scene_object_relationships else True,
         all_prior_object_relationships=all_prior_object_relationships,
         all_executed_actions=all_executed_actions,
     )
 
     for example in examples:
-        example.use_scene_objects = True
-        example.use_scene_object_relationships = True
+        example.use_scene_objects = use_scene_objects
+        example.use_scene_object_relationships = use_scene_object_relationships
         example.use_human = True
         example.use_goal = True
         example.use_robot = True
@@ -262,6 +265,8 @@ def get_action_scores_from_lm(
     all_executed_actions: List[str],
     pddl_domain_file: str,
     pddl_problem_file: str,
+    use_scene_objects: bool = True,
+    use_scene_object_relationships: bool = True,
     score_action_sequence: bool = False,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
@@ -296,8 +301,8 @@ def get_action_scores_from_lm(
     object_relationships_str = [str(prop) for prop in object_relationships]
 
     for example in examples:
-        example.use_scene_objects = True
-        example.use_scene_object_relationships = True
+        example.use_scene_objects = use_scene_objects
+        example.use_scene_object_relationships = use_scene_object_relationships
         example.use_human = True
         example.use_goal = True
         example.use_robot = True
@@ -320,8 +325,8 @@ def get_action_scores_from_lm(
         scene_object_relationships=object_relationships_str,
         human=instruction,
         goal_predicted=goal,
-        use_scene_objects=True,
-        use_scene_object_relationships=True,
+        use_scene_objects=use_scene_objects,
+        use_scene_object_relationships=use_scene_object_relationships,
         use_human=True,
         use_goal=True,
         use_predicted_goal=True,
@@ -330,7 +335,8 @@ def get_action_scores_from_lm(
         custom_robot_action_sequence_format=custom_robot_action_sequence_format,
         pddl_domain_file=pddl_domain_file,
         pddl_problem_file=pddl_problem_file,
-        use_action_object_relationship_history=True,
+        use_action_object_relationship_history=True if use_scene_object_relationships else False,
+        use_action_history=False if use_scene_object_relationships else True,
         all_prior_object_relationships=all_prior_object_relationships,
         all_executed_actions=all_executed_actions,
         score_action=True,
@@ -352,7 +358,8 @@ def get_action_scores_from_lm(
         lm_cfg=lm_cfg,
         auth=auth,
         lm_cache=lm_cache,
-        verbose=False,
+        # verbose=True,
+        verbose=verbose,
     )
     lm_cfg.api_type = original_api_type
 
@@ -404,6 +411,7 @@ def get_action_scores_from_lm(
         softmax_scores[option] = np.exp(score * softmax_beta) / np.sum(
             np.exp(np.array(list(action_logprobs_dct.values())) * softmax_beta)
         )
+        print(f"softmax score for {option}: {softmax_scores[option]}")
 
     print(f"softmax_beta: {softmax_beta}")
     action_scores = [
@@ -427,6 +435,8 @@ def get_next_action_str_from_lm(
     all_executed_actions: List[str],
     pddl_domain_file: str,
     pddl_problem_file: str,
+    use_scene_objects: bool = True,
+    use_scene_object_relationships: bool = True,
     score_action_sequence: bool = False,
     examples: Optional[List[InContextExample]] = None,
     custom_in_context_example_robot_prompt: str = "Top robot action sequence: ",
@@ -456,8 +466,8 @@ def get_next_action_str_from_lm(
     ]
 
     for example in examples:
-        example.use_scene_objects = True
-        example.use_scene_object_relationships = False
+        example.use_scene_objects = use_scene_objects
+        example.use_scene_object_relationships = use_scene_object_relationships
         example.use_human = True
         example.use_goal = False
         example.use_robot = False
@@ -476,8 +486,8 @@ def get_next_action_str_from_lm(
         scene_object_relationships=initial_object_relationships_str,
         human=instruction,
         goal_predicted=goal,
-        use_scene_objects=True,
-        use_scene_object_relationships=True,
+        use_scene_objects=use_scene_objects,
+        use_scene_object_relationships=use_scene_object_relationships,
         use_human=True,
         use_goal=True,
         use_predicted_goal=True,
@@ -486,7 +496,8 @@ def get_next_action_str_from_lm(
         custom_robot_action_sequence_format=custom_robot_action_sequence_format,
         pddl_domain_file=pddl_domain_file,
         pddl_problem_file=pddl_problem_file,
-        use_action_object_relationship_history=True,
+        use_action_object_relationship_history=True if use_scene_object_relationships else False,
+        use_action_history=False if use_scene_object_relationships else True,
         all_prior_object_relationships=all_prior_object_relationships,
         all_executed_actions=all_executed_actions,
     )

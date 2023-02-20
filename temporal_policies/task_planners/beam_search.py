@@ -484,7 +484,7 @@ class BeamSearchProblem(SearchProblem):
             next_action_str = self.lm_agent.get_next_action_str(
                 current_node_all_prior_object_relationships,
                 current_node_all_executed_actions,
-                verbose=True,
+                verbose=False,
                 in_context_example_robot_format="python_list",
                 robot_prompt="Instruction achieved (True/False): ",
             )
@@ -570,6 +570,7 @@ class BeamSearchProblem(SearchProblem):
                 lm_cache_file=self.lm_cache_file,
                 custom_in_context_example_robot_format="python_list",
                 custom_robot_action_sequence_format="python_list",
+                verbose=True,
             )
             self.lm_cache = lm_cache
             self.lm_agent.lm_cache = lm_cache
@@ -579,9 +580,11 @@ class BeamSearchProblem(SearchProblem):
 
             return [best_values[i] * lm_action_scores[i] for i in range(len(nodes))]
         else:
+            new_potential_actions_str = [action_str for action_str in potential_actions_str]
+            new_potential_actions_str.append("stop()")
             lm_action_scores, lm_cache = get_action_scores_from_lm(
                 self.env.instruction,
-                potential_actions_str,
+                new_potential_actions_str,
                 self.goal_props,
                 list(self.env.objects.keys()),
                 pre_action_current_object_relationships,
@@ -601,8 +604,11 @@ class BeamSearchProblem(SearchProblem):
             self.lm_agent.lm_cache = lm_cache
 
             for i in range(len(nodes)):
-                nodes[i].action_sequence_score_lm = lm_action_scores[i]
-
+                try:
+                    nodes[i].action_sequence_score_lm = lm_action_scores[i]
+                except:
+                    import ipdb; ipdb.set_trace()
+                    nodes[i].action_sequence_score_lm = lm_action_scores[i]
             overall_scores = [
                 best_values[i] * lm_action_scores[i] for i in range(len(nodes))
             ]
@@ -771,8 +777,12 @@ class BeamSearchAlgorithm:
                     obj_rel_lst.extend(
                         node.object_relationships_sequence_post_optimization
                     )
+                    # join the action skeleton strings with a space and remove the quotation marks
+                    record_name = " ".join(
+                        node.action_skeleton_as_strings
+                    )
                     planners.vizualize_predicted_plan(
-                        node.action_skeleton_as_strings,
+                        record_name,
                         node.env,
                         node.action_skeleton_as_primitives,
                         node.motion_plan_post_optimization,
@@ -792,6 +802,12 @@ class BeamSearchAlgorithm:
                             "magenta",
                         )
                     )
+                    print(f"Stop score: {stop_score}")
+                    print(f"Other scores: {other_scores}")
+                    print([node.action_primitive for node in next_beam])
+                    # there should only be one node in the beam
+                    assert len(beam) == 1, "Beam should only have one node (since using beam size 1"
+                    beam[0].is_success = True
                     return beam
 
             # check if any of the successors are a solution

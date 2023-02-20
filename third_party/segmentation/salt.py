@@ -52,8 +52,13 @@ def segment_salt(
     mask_salt = extract_largest_contour(mask_salt)
 
     # Get box pose.
+    # import ipdb; ipdb.set_trace()
     pos = xyzs.mean(axis=0)
-    pos[0] -= 0.01
+    # pos[0] -= 0.01
+    pos[0] -= 0.02 # - 0.005
+    # pos[0] += 0.01
+    # pos[0] -= 0.01 - 0.255
+
     if pos[2] > SIZE_RACK[2]:
         pos[2] = SIZE_RACK[2] + 0.5 * SIZE_SALT[2]
     else:

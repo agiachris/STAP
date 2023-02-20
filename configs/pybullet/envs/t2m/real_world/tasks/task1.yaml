@@ -41,7 +41,9 @@ env_kwargs:
         - on(a, b)
         - inhand(a)
         
-  robot_config: configs/pybullet/envs/robots/franka_panda_sim.yaml
+  robot_config: configs/pybullet/envs/robots/franka_panda_real.yaml
+  object_tracker_config: configs/pybullet/envs/perception/object_tracker.yaml
+
 
   objects:
     - object_type: Urdf

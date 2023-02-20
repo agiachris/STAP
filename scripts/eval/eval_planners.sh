@@ -139,17 +139,17 @@ PLANNERS=(
 TASK_ROOT="configs/pybullet/envs/taps/official/domains"
 TASKS=(
 # Domain 1: Hook Reach
-    "hook_reach/task0"
-    "hook_reach/task1"
-    "hook_reach/task2"
+    # "hook_reach/task0"
+    # "hook_reach/task1"
+    # "hook_reach/task2"
 # Domain 2: Constrained Packing
-    "constrained_packing/task0"
-    "constrained_packing/task1"
-    "constrained_packing/task2"
+    # "constrained_packing/task0"
+    # "constrained_packing/task1"
+    # "constrained_packing/task2"
 # Domain 3: Rearrangement Push
     "rearrangement_push/task0"
-    "rearrangement_push/task1"
-    "rearrangement_push/task2"
+    # "rearrangement_push/task1"
+    # "rearrangement_push/task2"
 )
 
 ## T2M Evaluation tasks.
@@ -220,7 +220,7 @@ declare -A POLICY_CHECKPOINT_PATHS=(
     ["push"]="models/20230126/policy/push/final_model/final_model.pt"
 )
 DYNAMICS_CHECKPOINT_PATH="models/20230125/dynamics/pick_place_pull_push_dynamics/best_model.pt"
-# run_planners
+run_planners
 
 
 ## Visualize results.

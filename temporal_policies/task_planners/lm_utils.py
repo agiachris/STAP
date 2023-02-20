@@ -92,7 +92,9 @@ def authenticate(
 
     import socket
     credentials_path: str
-    if "stanford" in socket.gethostname() or "juno" in socket.gethostname():
+    if "bohg-franka" in socket.gethostname():
+        credentials_path = "../credentials.json"
+    elif "stanford" in socket.gethostname() or "juno" in socket.gethostname():
         credentials_path = "/sailhome/thankyou/credentials.json"
     else:
         credentials_path = "../credentials.json"
@@ -428,7 +430,9 @@ def generate_lm_response(
             result, current_prompt, response
         )
     if verbose:
-        print(f"Overall prompt:\n{overall_prompt}\n")
+        print(f"Overall prompt:")
+        print(overall_prompt)
+        print("\n")
     return result, lm_cache
 
 
@@ -450,7 +454,9 @@ def get_robot_action_prompt(current_prompt: CurrentExample) -> Union[str, List[s
         for i, executed_action in enumerate(current_prompt.all_executed_actions):
             robot_action_prompt += f"Executed action: {str(executed_action).lower()}\n"
             robot_action_prompt += f"New object relationships: {current_prompt.all_prior_object_relationships[i + 1]}\n"
-
+    elif current_prompt.use_action_history:
+        for i, executed_action in enumerate(current_prompt.all_executed_actions):
+            robot_action_prompt += f"Executed action: {str(executed_action).lower()}\n"
     if current_prompt.score_action:
         # TODO(klin) set actions_to_score to a list of strings by default
         if len(current_prompt.actions_to_score) == 1:
