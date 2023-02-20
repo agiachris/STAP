@@ -91,7 +91,7 @@ PLANNERS=(
     # "random_shooting"
 # Ensemble Q-value / Latent dynamics.
     # "ensemble_policy_cem"
-    "ensemble_policy_cem_ood"
+    # "ensemble_policy_cem_ood"
     # "ensemble_policy_cem_scale-0.1"
     # "ensemble_policy_cem_scale-0.5"
     # "ensemble_policy_cem_scale-1.0"
@@ -131,7 +131,7 @@ PLANNERS=(
     # "daf_random_shooting"
 # Greedy.
     # "greedy_oracle_dynamics"
-    "greedy"
+    # "greedy"
 )
 
 ## TAPS Evaluation tasks.
@@ -164,8 +164,15 @@ TASKS=(
 #     "task6"
 # )
 
+## T2M Evaluation tasks.
+# TASK_ROOT="configs/pybullet/envs/t2m/examples/figures"
+# TASKS=(
+#     "teaser"
+#     "teaser_hierarchical"
+# )
+
 ## Pybullet.
-exp_name="20230126/planners/taps"
+exp_name="20230203/planners/taps"
 PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
 
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
@@ -224,22 +231,22 @@ run_planners
 
 
 ## Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
-    exit
-fi
+# if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
+#     exit
+# fi
 
-function visualize_results {
-    args=""
-    args="${args} --path ${PLANNER_OUTPUT_ROOT}"
-    args="${args} --envs ${TASKS[@]}"
-    args="${args} --methods ${PLANNERS[@]}"
-    if [ ! -z "${FIGURE_NAME}" ]; then
-        args="${args} --name ${FIGURE_NAME}"
-    fi
-    CMD="python scripts/visualize/generate_planning_figure.py ${args}"
-    run_cmd
-}
+# function visualize_results {
+#     args=""
+#     args="${args} --path ${PLANNER_OUTPUT_ROOT}"
+#     args="${args} --envs ${TASKS[@]}"
+#     args="${args} --methods ${PLANNERS[@]}"
+#     if [ ! -z "${FIGURE_NAME}" ]; then
+#         args="${args} --name ${FIGURE_NAME}"
+#     fi
+#     CMD="python scripts/visualize/generate_planning_figure.py ${args}"
+#     run_cmd
+# }
 
-FIGURE_NAME="mse-models-handcrafted-dynamics"
-visualize_results
+# FIGURE_NAME="mse-models-handcrafted-dynamics"
+# visualize_results
 
