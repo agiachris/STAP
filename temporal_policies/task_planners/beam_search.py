@@ -415,7 +415,7 @@ class BeamSearchProblem(SearchProblem):
         lm_cache: Optional[Dict[str, str]] = None,
         lm_cache_file: Optional[str] = None,
         termination_method: Literal[
-            "pred_instr_achieved", "goal_prop"
+            "pred_instr_achieved", "goal_prop", "score_stop"
         ] = "pred_instr_achieved",
     ):
         # TODO(klin) remove when instruction is inside env
@@ -484,7 +484,7 @@ class BeamSearchProblem(SearchProblem):
             next_action_str = self.lm_agent.get_next_action_str(
                 current_node_all_prior_object_relationships,
                 current_node_all_executed_actions,
-                verbose=True,
+                verbose=False,
                 in_context_example_robot_format="python_list",
                 robot_prompt="Instruction achieved (True/False): ",
             )
@@ -514,6 +514,8 @@ class BeamSearchProblem(SearchProblem):
                 )
                 node.is_success = True
                 return True
+        elif self.termination_method == "score_stop":
+            print("score_stop is not handled in is_end() yet because it requires seeing the values of the other nodes in the beam")
         return False
 
     def get_node_scores(self, nodes: List[Node]) -> List[float]:
@@ -550,31 +552,68 @@ class BeamSearchProblem(SearchProblem):
         print(
             f"pre_action_all_prior_object_relationships: {pre_action_all_prior_object_relationships}"
         )
-        lm_action_scores, lm_cache = get_action_scores_from_lm(
-            self.env.instruction,
-            potential_actions_str,
-            self.goal_props,
-            list(self.env.objects.keys()),
-            pre_action_current_object_relationships,
-            pre_action_all_prior_object_relationships,
-            pre_action_all_executed_actions,
-            self.pddl_domain_file,
-            self.pddl_problem_file,
-            examples=self.examples,
-            lm_cfg=self.lm_cfg,
-            auth=self.auth,
-            lm_cache=self.lm_cache,
-            lm_cache_file=self.lm_cache_file,
-            custom_in_context_example_robot_format="python_list",
-            custom_robot_action_sequence_format="python_list",
-        )
-        self.lm_cache = lm_cache
-        self.lm_agent.lm_cache = lm_cache
+        if self.termination_method != "score_stop":
+            lm_action_scores, lm_cache = get_action_scores_from_lm(
+                self.env.instruction,
+                potential_actions_str,
+                self.goal_props,
+                list(self.env.objects.keys()),
+                pre_action_current_object_relationships,
+                pre_action_all_prior_object_relationships,
+                pre_action_all_executed_actions,
+                self.pddl_domain_file,
+                self.pddl_problem_file,
+                examples=self.examples,
+                lm_cfg=self.lm_cfg,
+                auth=self.auth,
+                lm_cache=self.lm_cache,
+                lm_cache_file=self.lm_cache_file,
+                custom_in_context_example_robot_format="python_list",
+                custom_robot_action_sequence_format="python_list",
+                verbose=True,
+            )
+            self.lm_cache = lm_cache
+            self.lm_agent.lm_cache = lm_cache
 
-        for i in range(len(nodes)):
-            nodes[i].action_sequence_score_lm = lm_action_scores[i]
+            for i in range(len(nodes)):
+                nodes[i].action_sequence_score_lm = lm_action_scores[i]
 
-        return [best_values[i] * lm_action_scores[i] for i in range(len(nodes))]
+            return [best_values[i] * lm_action_scores[i] for i in range(len(nodes))]
+        else:
+            new_potential_actions_str = [action_str for action_str in potential_actions_str]
+            new_potential_actions_str.append("stop()")
+            lm_action_scores, lm_cache = get_action_scores_from_lm(
+                self.env.instruction,
+                new_potential_actions_str,
+                self.goal_props,
+                list(self.env.objects.keys()),
+                pre_action_current_object_relationships,
+                pre_action_all_prior_object_relationships,
+                pre_action_all_executed_actions,
+                self.pddl_domain_file,
+                self.pddl_problem_file,
+                examples=self.examples,
+                lm_cfg=self.lm_cfg,
+                auth=self.auth,
+                lm_cache=self.lm_cache,
+                lm_cache_file=self.lm_cache_file,
+                custom_in_context_example_robot_format="python_list_with_stop",
+                custom_robot_action_sequence_format="python_list_with_stop",
+            )
+            self.lm_cache = lm_cache
+            self.lm_agent.lm_cache = lm_cache
+
+            for i in range(len(nodes)):
+                try:
+                    nodes[i].action_sequence_score_lm = lm_action_scores[i]
+                except:
+                    import ipdb; ipdb.set_trace()
+                    nodes[i].action_sequence_score_lm = lm_action_scores[i]
+            overall_scores = [
+                best_values[i] * lm_action_scores[i] for i in range(len(nodes))
+            ]
+            overall_scores.append(lm_action_scores[-1] * 0.5)
+            return overall_scores
 
     def get_successors(self, node: Node, num_successors: int = 5) -> List[Node]:
         """Returns num_successors successors of a given node."""
@@ -703,6 +742,7 @@ class BeamSearchAlgorithm:
 
             # Set the current beam to the next beam
             node_scores = problem.get_node_scores(next_beam)
+            # if termination condition is score_stop, then node_scores includes an extra score for the stop() action
 
             if visualize:
                 potential_actions_as_strings: List[str] = [
@@ -714,6 +754,11 @@ class BeamSearchAlgorithm:
                     node.action_sequence_q_product_post_optimization
                     for node in next_beam
                 ]
+                if problem.termination_method == "score_stop":
+                    lm_action_scores.append(node_scores[-1])
+                    value_action_scores.append(0.5)
+                    potential_actions_as_strings.append("stop()")
+
                 formatted_table_str: str = format_saycan_scoring_table(
                     table_headers,
                     potential_actions_as_strings,
@@ -732,8 +777,12 @@ class BeamSearchAlgorithm:
                     obj_rel_lst.extend(
                         node.object_relationships_sequence_post_optimization
                     )
+                    # join the action skeleton strings with a space and remove the quotation marks
+                    record_name = " ".join(
+                        node.action_skeleton_as_strings
+                    )
                     planners.vizualize_predicted_plan(
-                        node.action_skeleton_as_strings,
+                        record_name,
                         node.env,
                         node.action_skeleton_as_primitives,
                         node.motion_plan_post_optimization,
@@ -743,6 +792,24 @@ class BeamSearchAlgorithm:
                         file_extensions=["mp4"],
                     )
 
+            if problem.termination_method == "score_stop":
+                stop_score = node_scores[-1]
+                other_scores = node_scores[:-1]
+                if stop_score > max(other_scores):
+                    print(
+                        colored(
+                            "Stop score is higher than other scores, stopping search",
+                            "magenta",
+                        )
+                    )
+                    print(f"Stop score: {stop_score}")
+                    print(f"Other scores: {other_scores}")
+                    print([node.action_primitive for node in next_beam])
+                    # there should only be one node in the beam
+                    assert len(beam) == 1, "Beam should only have one node (since using beam size 1"
+                    beam[0].is_success = True
+                    return beam
+
             # check if any of the successors are a solution
             results: List[bool] = [problem.is_end(node) for node in next_beam]
 
@@ -750,7 +817,7 @@ class BeamSearchAlgorithm:
             filtered_results = []
             filtered_successors = []
             for (successor, result) in zip(next_beam, results):
-                if successor.last_action_q_value_post_optimization > 0.2:
+                if all(successor.motion_plan_post_optimization.values > 0.2):
                     filtered_results.append(result)
                     filtered_successors.append(successor)
 

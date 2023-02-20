@@ -53,7 +53,14 @@ def segment_yogurt(
 
     # Get box pose.
     pos = xyzs.mean(axis=0)
-    pos[0] -= 0.02
+    # pos[0] -= 0.02
+    # pos[0] -= 0.02 + 0.005
+    # pos[0] -= 0.01 # + 0.005
+    # pos[0] += 0.005
+    # pos[0] -= 0.01
+    # pos[0] -= 0.01
+    pos[0] += 0.015
+    # needs to think object is further than it actually is
     if pos[2] > SIZE_RACK[2]:
         pos[2] = SIZE_RACK[2] + 0.5 * SIZE_YOGURT[2]
     else:

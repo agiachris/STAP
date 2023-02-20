@@ -53,6 +53,8 @@ def segment_milk(
 
     # Get box pose.
     pos = xyzs.mean(axis=0)
+    # pos[0] += 0.005  # needs to think the milk is further than it actually is
+    pos[0] += 0.02
 
     u, s, vt = np.linalg.svd(xyzs[:, :2] - pos[None, :2], full_matrices=False)
     # Assume x is always positive.

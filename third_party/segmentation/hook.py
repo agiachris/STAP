@@ -75,7 +75,9 @@ def segment_hook(
     xy_head = np.array([-xy_handle[1], xy_handle[0]])
     pos[:2] += 0.06 * xy_handle + 0.1 * xy_head
     pos[0] -= 0.02
-
+    # pos[0] -= 0.01
+    # pos[0] += 0.02  # needs to think it's further than it actually is
+    # pos[0] += 0.01  # needs to think it's further than it actually is
     if DEBUG:
         cv2.imshow("Color", img_color)
         cv2.imshow("h", img_h)

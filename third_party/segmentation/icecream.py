@@ -53,7 +53,10 @@ def segment_icecream(
     # Get box pose.
     pos = xyzs.mean(axis=0)
     # pos[0] = xyz_max[0] - 0.5 * SIZE_ICECREAM[0]
-    pos[0] -= 0.02
+    # pos[0] -= 0.02
+    # pos[0] -= 0.02
+    # pos[0] -= 0.01
+    pos[0] += 0.015
     if pos[2] > SIZE_RACK[2]:
         pos[2] = SIZE_RACK[2] + 0.035
     else:

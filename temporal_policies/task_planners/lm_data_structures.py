@@ -270,6 +270,7 @@ class CurrentExample(InContextExample):
     # organizes overall current prompt to include: the history of actions that've
     # been executed and the evolution of the object relationships
     use_action_object_relationship_history: bool = False
+    use_action_history: bool = False
     all_prior_object_relationships: Optional[List[List[str]]] = None
     all_executed_actions: Optional[List[List[str]]] = None
 

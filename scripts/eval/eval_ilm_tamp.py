@@ -106,7 +106,7 @@ def eval_ilm_tamp(
     visualize_planning: bool = False,
     use_ground_truth_goal_props: bool = False,
     termination_method: Literal[
-        "pred_instr_achieved", "goal_prop"
+        "pred_instr_achieved", "goal_prop", "score_stop"
     ] = "pred_instr_achieved",
     plan_only: bool = True,
 ):
@@ -258,6 +258,8 @@ def eval_ilm_tamp(
             if "True" in next_action_str:
                 print(colored("LM predicted instruction achieved", "magenta"))
                 done = True
+        elif termination_method == "score_stop":
+            print("score stop not implemented yet due to not replanning (task level)")
         else:
             raise NotImplementedError("Unknown termination method")
 
@@ -328,6 +330,7 @@ def eval_ilm_tamp(
             object_relationships_history.append(object_relationships)
             remaining_task_plan = best_task_plan[1:]
             if successful_action_node.is_success and len(remaining_task_plan) > 0:
+                found_plan = True
                 print(
                     colored(
                         f"Node forward rollout predicts success: remainder of plan is {[str(a) for a in remaining_task_plan]}",
@@ -368,7 +371,7 @@ def eval_ilm_tamp(
             env.record_stop(recording_id)
 
             step += 1
-
+            terminate_due_to_termination_method = False
             if termination_method == "goal_prop":
                 if is_satisfy_goal_props(
                     goal_props_callable,
@@ -378,9 +381,9 @@ def eval_ilm_tamp(
                 ):
                     print(colored("goal props satisfied", "magenta"))
                     done = True
-                    found_plan = True
+                    terminate_due_to_termination_method = True
                 else:
-                    found_plan = False
+                    terminate_due_to_termination_method = False
 
             elif termination_method == "pred_instr_achieved":
                 next_action_str = lm_agent.get_next_action_str(
@@ -394,9 +397,11 @@ def eval_ilm_tamp(
                 if "True" in next_action_str:
                     print(colored("LM predicted instruction achieved", "magenta"))
                     done = True
-                    found_plan = True
+                    terminate_due_to_termination_method = True
                 else:
-                    found_plan = False
+                    terminate_due_to_termination_method = False
+            elif termination_method == "score_stop":
+                print("termination method is score_stop, not implemented yet due to not replanning")
             else:
                 raise NotImplementedError("Unknown termination method")
 
@@ -436,7 +441,9 @@ def eval_ilm_tamp(
 
         # Save planning results.
         path.mkdir(parents=True, exist_ok=True)
-        success_rate = sum([run_log["reached_ground_truth_goal"] for run_log in run_logs]) / len(run_logs)
+        success_rate = sum(
+            [run_log["reached_ground_truth_goal"] for run_log in run_logs]
+        ) / len(run_logs)
 
         # Save planning results.
         with open(path / f"results_idx_iter_{idx_iter}_seed_{seed}.json", "w") as f:
@@ -554,7 +561,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--key-name",
         type=str,
-        choices=["personal-code", "personal-all", "helm", "personal-raoak"],
+        choices=[
+            "personal-code",
+            "personal-all",
+            "helm",
+            "personal-raoak",
+            "personal-h",
+            "personal-nshah",
+        ],
         default="helm",
         help="API key name to use",
     )
