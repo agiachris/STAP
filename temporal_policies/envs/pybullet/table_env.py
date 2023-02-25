@@ -157,9 +157,9 @@ class TableEnv(PybulletEnv):
         object_tracker_config: Optional[Union[str, Dict[str, Any]]] = None,
         recording_freq: int = 15,
         gui: bool = True,
-        gui_kwargs: Dict[str, Any] = {},
+        gui_kwargs: Optional[Dict[str, Any]] = None,
         render_mode: str = "default",
-        render_kwargs: Dict[str, Any] = {},
+        render_kwargs: Optional[Dict[str, Any]] = None,
         num_processes: int = 1,
         reset_queue_size: int = 100,
         child_process_seed: Optional[int] = None,
@@ -191,7 +191,10 @@ class TableEnv(PybulletEnv):
             use_curriculum: Whether to use a curriculum on the number of objects.
         """
         if render_mode not in TableEnv.metadata["render_modes"]:
-            raise ValueError(f"Render mode {render_mode} is not supported.")        
+            raise ValueError(f"Render mode {render_mode} is not supported.")
+        gui_kwargs = {} if gui_kwargs is None else gui_kwargs
+        render_kwargs = {} if render_kwargs is None else render_kwargs
+
         super().__init__(name=name, gui=gui, gui_kwargs=gui_kwargs)
         shadows = gui_kwargs.get("shadows", 0)
         self.gui = gui
@@ -647,9 +650,6 @@ class TableEnv(PybulletEnv):
             ):
                 # Track objects from the real world.
                 self.object_tracker.update_poses()
-                if not initialize_robot_pose(self.robot):
-                    dbprint(f"TableEnv.reset(seed={seed}): Failed to initialize robot")
-                    continue
                 break
 
             # Reset variants and freeze objects so they don't get simulated.
@@ -723,6 +723,7 @@ class TableEnv(PybulletEnv):
         }
         self._seed = seed
         task_sampling_trials += 1
+
         return self.get_observation(), info
 
     def step(
@@ -885,9 +886,7 @@ class TableEnv(PybulletEnv):
             camera_view = self._camera_views[self.render_mode.replace("_high_res", "")]
         except KeyError:
             camera_view = self._camera_views["front"]
-
-        self.render_mode = "high_res_front"
-
+        
         if "high_res" in self.render_mode:
             width, height = (1620, 1080)
         else:
@@ -903,20 +902,21 @@ class TableEnv(PybulletEnv):
         )[2]
         img_rgba = np.reshape(img_rgba, (height, width, 4))
         img_rgb = img_rgba[:, :, :3]
+
         img = Image.fromarray(img_rgb, "RGB")
         draw = ImageDraw.Draw(img)
         try:
             FONT = ImageFont.truetype("fonts/nk57-monospace-no-bd.ttf", 30)
         except OSError:
             FONT = ImageFont.load_default()
-        # draw.multiline_text(
-        #     (10, 10),
-        #     str(self.get_primitive()) + f"\n{self._recording_text}",
-        #     fill=(0, 204, 0),
-        #     font=FONT,
-        # )
-        # text_color = (255, 100, 255)
-        # draw.text((20, 10), "Hello World", fill=text_color, font=FONT)
+        draw.multiline_text(
+            (10, 10),
+            str(self.get_primitive()) + f"\n{self._recording_text}",
+            fill=(0, 204, 0),
+            font=FONT,
+        )
+        text_color = (255, 100, 255)
+        draw.text((20, 10), "Hello World", fill=text_color, font=FONT)
         return np.array(img)
 
     def record_start(

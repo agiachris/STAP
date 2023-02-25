@@ -1,4 +1,4 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 
 import os
 import sys
@@ -62,8 +62,8 @@ def connect_pybullet(gui: bool = True, gui_kwargs: Dict[str, Any] = {}) -> int:
 class PybulletEnv(Env):
     def __init__(self, 
         name: str, 
-        gui: bool = True,
-        gui_kwargs: Dict[str, Any] = {},
+        gui: bool,
+        gui_kwargs: Dict[str, Any],
     ):
         self.name = name
 
@@ -71,7 +71,8 @@ class PybulletEnv(Env):
         for k, v in DEFAULT_OPTIONS.items():
             if k not in gui_kwargs["options"]:
                 gui_kwargs["options"][k] = v       
-        gui_kwargs["options"] = " ".join(map(to_str_kwarg, gui_kwargs["options"].items()))
+        options = " ".join(map(to_str_kwarg, gui_kwargs["options"].items()))
+        gui_kwargs["options"] = options
         
         try:
             self._physics_id = connect_pybullet(gui=gui, gui_kwargs=gui_kwargs)
