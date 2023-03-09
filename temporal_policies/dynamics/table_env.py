@@ -30,7 +30,7 @@ class TableEnvDynamics(LatentDynamics):
         network_kwargs: Dict[str, Any],
         env: Optional[envs.pybullet.TableEnv],
         rigid_body: bool = True,
-        hand_crafted: bool = True,
+        hand_crafted: bool = False,
         checkpoint: Optional[Union[str, pathlib.Path]] = None,
         device: str = "auto",
     ):
@@ -312,13 +312,7 @@ class TableEnvDynamics(LatentDynamics):
         next_dynamics_state = self.forward(
             dynamics_state, action, primitive.idx_policy, policy_args
         )
-
-        # TODO (Chris Agia): WARNING
-        # Clipping the dynamics state within [-0.5, 0.5] assumes correct 
-        # normalization of the observation. This requires the containment
-        # of all object features to within ObjectState.RANGES. If this is
-        # true, clipping may reduce compounding dynamics prediction errors.
-        # next_dynamics_state = next_dynamics_state.clamp(-0.5, 0.5)
+        next_dynamics_state = next_dynamics_state.clamp(-0.5, 0.5)
 
         # Update env state with new unnormalized observation.
         next_env_state = env_state.clone()
