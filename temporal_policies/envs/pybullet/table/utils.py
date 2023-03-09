@@ -22,7 +22,7 @@ TABLE_CONSTRAINTS = {
     "operational_x_min": 0.50,
     "operational_x_max": 0.60,
     "obstruction_x_min": 0.575,
-    "workspace_radius": 0.75,
+    "workspace_radius": 0.70,
 }
 
 
@@ -192,11 +192,13 @@ def is_inworkspace(
     sim: bool = True,
 ) -> bool:
     """Returns True if the object is in the workspace."""
-    if obj_pos is None or distance is None:
+    if obj_pos is None:
         if obj is None:
             raise ValueError("Must specify obj or obj_pos and distance")
         obj_pos = obj.pose(sim=sim).pos[:2]
+    if distance is None:
         distance = float(np.linalg.norm(obj_pos))
+        
     if not (
         TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
         and distance < TABLE_CONSTRAINTS["workspace_radius"]
@@ -213,11 +215,13 @@ def is_beyondworkspace(
     sim: bool = True,
 ) -> bool:
     """Returns True if the object is beyond the workspace."""
-    if obj_pos is None or distance is None:
+    if obj_pos is None:
         if obj is None:
             raise ValueError("Must specify obj or obj_pos and distance")
         obj_pos = obj.pose(sim=sim).pos[:2]
+    if distance is None:
         distance = float(np.linalg.norm(obj_pos))
+
     if distance < TABLE_CONSTRAINTS["workspace_radius"]:
         return False
 

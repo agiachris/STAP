@@ -291,6 +291,11 @@ class Pick(Primitive):
         if not allow_collisions:
             did_non_args_move = self.create_object_movement_check(objects=objects)
         try:
+            if not real_world and not utils.is_inworkspace(obj=obj):
+                raise ControlException(
+                    f"Object {obj} is beyond the robot workspace."
+                )
+
             robot.goto_pose(pre_pos, command_quat)
             if not allow_collisions and did_non_args_move():
                 raise ControlException(
@@ -412,6 +417,11 @@ class Place(Primitive):
         if not allow_collisions:
             did_non_args_move = self.create_object_movement_check(objects=objects)
         try:
+            if not real_world and not utils.is_inworkspace(obj_pos=pre_pos[:2]):
+                raise ControlException(
+                    f"Placement location {pre_pos} is beyond robot workspace."
+                )
+            
             robot.goto_pose(pre_pos, command_quat)
             if not allow_collisions and did_non_args_move():
                 if verbose:
