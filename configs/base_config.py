@@ -189,7 +189,7 @@ class PolicyDatasetGenerationConfig:
     exp_name: str = "20230125/datasets"
     custom_path: Optional[str] = None
     # Trainer configs.
-    trainer_config: str = "configs/pybullet/trainers/primitive_valid_dataset.yaml"
+    trainer_config: str = "configs/pybullet/trainers/datasets/primitive_valid_dataset.yaml"
     agent_config: str = "configs/pybullet/agents/single_stage/sac.yaml"
     device: str = "auto"
     seed: int = 0
