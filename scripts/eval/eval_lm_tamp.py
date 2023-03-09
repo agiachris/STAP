@@ -492,7 +492,7 @@ def eval_lm_tamp(
 
                 # if count_done_score_early_terminations:
                 #     if done:
-                        # num_early_terminations += 1
+                # num_early_terminations += 1
 
             if fallback_to_scoring:
                 print(colored("No plan reaches the goal", "red"))
@@ -767,7 +767,9 @@ def eval_lm_tamp(
 
         # compute success rate but summing up the number of successes inside run_logs
         # and dividing by the number of runs
-        success_rate = sum([run_log["reached_ground_truth_goal"] for run_log in run_logs]) / len(run_logs)
+        success_rate = sum(
+            [run_log["reached_ground_truth_goal"] for run_log in run_logs]
+        ) / len(run_logs)
 
         path.mkdir(parents=True, exist_ok=True)
         # Save planning results.

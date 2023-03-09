@@ -8,7 +8,6 @@ from temporal_policies.networks.critics.mlp import ContinuousMLPCritic
 
 
 class ContinuousEnsembleCritic(Critic, abc.ABC):
-    
     def __init__(
         self,
         critic: ContinuousMLPCritic,
@@ -16,7 +15,7 @@ class ContinuousEnsembleCritic(Critic, abc.ABC):
         clip: bool,
     ):
         """Construct ContinuousEnsembleCritic.
-        
+
         Args:
             critic: Base Critic.
             pessimistic: Estimated rewards from min(Qi) instead of mean(Qi).
@@ -35,7 +34,7 @@ class ContinuousEnsembleCritic(Critic, abc.ABC):
     @property
     def clip(self) -> bool:
         return self._clip
-    
+
     def forward(self, state: torch.Tensor, action: torch.Tensor) -> List[torch.Tensor]:  # type: ignore
         """Predicts the expected value of the given (state, action) pair.
 
@@ -47,20 +46,16 @@ class ContinuousEnsembleCritic(Critic, abc.ABC):
             Predicted expected value.
         """
         return self.network.forward(state, action)
-    
+
     @abc.abstractmethod
     def predict(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Predict must be implemented in subclasses.")
 
 
 class EnsembleLCBCritic(ContinuousEnsembleCritic):
-    def __init__(
-        self,
-        scale: float,
-        **kwargs: Any
-    ):
+    def __init__(self, scale: float, **kwargs: Any):
         """Construct EnsembleLCBCritic.
-        
+
         Args:
             scale: Lower confidence bound (LCB) scale factor, <min/mean>(Qi) - scale * std(Qi).
         """
@@ -85,14 +80,9 @@ class EnsembleLCBCritic(ContinuousEnsembleCritic):
 
 
 class EnsembleThresholdCritic(ContinuousEnsembleCritic):
-    def __init__(
-        self,
-        threshold: float,
-        value: float,
-        **kwargs: Any
-    ):
+    def __init__(self, threshold: float, value: float, **kwargs: Any):
         """Construct EnsembleThresholdCritic.
-        
+
         Args:
             threshold: Out-of-distribution threshold on std(Qi).
             value: Value assignment to out-of-distribution detected sample.
@@ -120,13 +110,9 @@ class EnsembleThresholdCritic(ContinuousEnsembleCritic):
 
 
 class EnsembleOODCritic(ContinuousEnsembleCritic):
-    def __init__(
-        self,
-        threshold: float,
-        **kwargs: Any
-    ):
+    def __init__(self, threshold: float, **kwargs: Any):
         """Construct EnsembleOODCritic.
-        
+
         Args:
             threshold: Out-of-distribution threshold on std(Qi).
         """

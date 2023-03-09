@@ -91,6 +91,7 @@ def authenticate(
             key_name = "helm"
 
     import socket
+
     credentials_path: str
     if "bohg-franka" in socket.gethostname():
         credentials_path = "../credentials.json"
@@ -363,7 +364,9 @@ def generate_lm_response(
     result.use_predicted_goal = current_prompt.use_predicted_goal
     result.goal_ground_truth = current_prompt.goal
     if current_prompt.predict_goal:
-        overall_prompt += "Predicted goal predicate set (python list of lists): "  # GOAL_PROMPT
+        overall_prompt += (
+            "Predicted goal predicate set (python list of lists): "  # GOAL_PROMPT
+        )
         stop = [ROBOT_PROMPT, SCENE_OBJECT_PROMPT, SCENE_PRIMITIVE_PROMPT, "Predicted"]
         response, lm_cache = gpt3_call(
             engine=lm_cfg.engine,
@@ -494,7 +497,9 @@ def update_result_current_prompt_based_on_response_robot(
             try:
                 parsed_robot_predicted_lst = result.parsed_robot_predicted_list_of_lists
             except Exception as e:
-                print(f"Unable to parse robot action sequence: {result.robot_predicted}")
+                print(
+                    f"Unable to parse robot action sequence: {result.robot_predicted}"
+                )
                 print(f"Error: {e}")
                 parsed_robot_predicted_lst = []
             for parsed_robot_predicted in parsed_robot_predicted_lst:

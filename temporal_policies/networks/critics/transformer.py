@@ -9,22 +9,18 @@ from temporal_policies.networks.transformer import AttentionEncoderBlock
 def create_q_network(
     observation_space,
     action_space,
-    attention_heads: int, 
+    attention_heads: int,
     embedding_size: int,
     attention_dropout: float,
     residual_dropout: float,
     residual_ratio: int,
     output_act: Optional[Type[torch.nn.Module]] = None,
 ) -> torch.nn.Module:
-    
+
     attention = AttentionEncoderBlock(
-        attention_heads, 
-        embedding_size, 
-        attention_dropout, 
-        residual_dropout
+        attention_heads, embedding_size, attention_dropout, residual_dropout
     )
     return None
-
 
 
 class ContinuousTransformerCritic(Critic):
@@ -32,7 +28,7 @@ class ContinuousTransformerCritic(Critic):
         self,
         observation_space,
         action_space,
-        attention_heads: int, 
+        attention_heads: int,
         embedding_size: int,
         attention_dropout: float,
         residual_dropout: float,

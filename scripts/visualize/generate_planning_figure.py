@@ -79,7 +79,7 @@ def create_dataframe(
                 uq = "SCOD"
         else:
             uq = None
-        
+
         policy = tokens[0]
         if policy == "random":
             policy = "rand."
@@ -94,7 +94,7 @@ def create_dataframe(
             for t in tokens[2:]:
                 p = t.split("-")
                 planner = f"{planner} {p[0][0].upper()}={p[-1]}"
-        
+
         if uq is None:
             return f"{policy.capitalize()} {planner}"
 
@@ -115,7 +115,6 @@ def create_dataframe(
             return f"{domain_name}: {task_name}"
         else:
             raise ValueError("No support for tasks outside of TAPS or T2M.")
-
 
     df_plans: Dict[str, List[Any]] = {
         "Task": [],
@@ -242,7 +241,7 @@ def plot_planning_results(
 
     tasks = df_plans["Task"].unique()
     fig, axes = plt.subplots(3, 3, figsize=(10, 7), dpi=300)
-    
+
     for idx_task, task in enumerate(tasks):
         ax = axes.flatten()[idx_task]
         barplot(

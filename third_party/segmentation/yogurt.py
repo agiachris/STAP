@@ -40,7 +40,7 @@ def segment_yogurt(
     idx_points = point_cloud.flatten_indices(mask_yogurt)
     xyzs = point_cloud.points[idx_points]
     xyz_min = xyzs.min(axis=0)  # - np.array([0.01, 0.01, 0.02])
-    xyz_max = xyzs.max(axis=0) # + np.array([0.01, 0.0, 0.0])
+    xyz_max = xyzs.max(axis=0)  # + np.array([0.01, 0.0, 0.0])
     # xyz_min[0] = max(xyz_min[0], xyz_max[0] - SIZE_YOGURT[1])
     xyz_min[2] = xyz_max[2] - SIZE_YOGURT[2] - 0.01
     idxx_min = (xyz_min[None, :] <= point_cloud.points).all(axis=1)

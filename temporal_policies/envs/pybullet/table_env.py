@@ -76,8 +76,11 @@ class Task:
 
         # Goal predicates.
         if goal_propositions is not None:
-            goal_propositions = [[predicates.Predicate.create(pred) for pred in goal] for goal in goal_propositions]
-            
+            goal_propositions = [
+                [predicates.Predicate.create(pred) for pred in goal]
+                for goal in goal_propositions
+            ]
+
         return Task(
             action_skeleton=primitives,
             initial_state=initial_propositions,
@@ -201,9 +204,9 @@ class TableEnv(PybulletEnv):
         self.gui_kwargs = gui_kwargs
         self.render_mode = render_mode
         self.render_kwargs = render_kwargs
-        
+
         # TODO (Chris Agia): Bug-fix multiprocessing stalls.
-        # Launch external reset process. 
+        # Launch external reset process.
         # if reset_queue_size <= 0 or num_processes <= 1:
         #     self._process_pipes: Optional[
         #         List[multiprocessing.connection.Connection]
@@ -241,8 +244,12 @@ class TableEnv(PybulletEnv):
         #     ]
         #     for process in self._reset_processes:
         #         process.start()
-        self._process_pipes: Optional[List[multiprocessing.connection.Connection]] = None
-        self._seed_queue: Optional[multiprocessing.Queue[Tuple[int, Optional[dict]]]] = None
+        self._process_pipes: Optional[
+            List[multiprocessing.connection.Connection]
+        ] = None
+        self._seed_queue: Optional[
+            multiprocessing.Queue[Tuple[int, Optional[dict]]]
+        ] = None
         self._seed_buffer = None
         self._reset_processes = None
         self._process_id: Optional[Tuple[int, int]] = None
@@ -326,7 +333,7 @@ class TableEnv(PybulletEnv):
                     cameraUpVector=[0.0, 0.0, 1.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
-                shadow=shadows
+                shadow=shadows,
             ),
             "top": CameraView(
                 width=WIDTH,
@@ -337,7 +344,7 @@ class TableEnv(PybulletEnv):
                     cameraUpVector=[0.0, 1.0, 0.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
-                shadow=shadows
+                shadow=shadows,
             ),
             "front_right": CameraView(
                 width=WIDTH,
@@ -348,7 +355,7 @@ class TableEnv(PybulletEnv):
                     cameraUpVector=[0.0, 0.0, 1.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
-                shadow=shadows
+                shadow=shadows,
             ),
             "profile": CameraView(
                 width=WIDTH,
@@ -359,7 +366,7 @@ class TableEnv(PybulletEnv):
                     cameraUpVector=[0.0, 0.0, 1.0],
                 ),
                 projection_matrix=PROJECTION_MATRIX,
-                shadow=shadows
+                shadow=shadows,
             ),
         }
 
@@ -886,7 +893,7 @@ class TableEnv(PybulletEnv):
             camera_view = self._camera_views[self.render_mode.replace("_high_res", "")]
         except KeyError:
             camera_view = self._camera_views["front"]
-        
+
         if "high_res" in self.render_mode:
             width, height = (1620, 1080)
         else:

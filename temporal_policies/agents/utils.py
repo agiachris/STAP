@@ -111,14 +111,16 @@ class AgentFactory(configs.Factory):
 
         if issubclass(self.cls, agents.RLAgent):
             self.kwargs["checkpoint"] = checkpoint
-            
+
             if issubclass(self.cls, agents.SAC):
                 if critic_checkpoint is not None:
                     # Update critic config / kwargs.
                     critic_config = load_config(critic_checkpoint)
                     for key in ["critic_class", "critic_kwargs"]:
                         self.kwargs[key] = critic_config["agent_kwargs"][key]
-                        self.config["agent_kwargs"][key] = critic_config["agent_kwargs"][key]
+                        self.config["agent_kwargs"][key] = critic_config[
+                            "agent_kwargs"
+                        ][key]
 
                     self.kwargs["critic"] = agents.load(
                         checkpoint=critic_checkpoint,
@@ -132,7 +134,9 @@ class AgentFactory(configs.Factory):
                     actor_config = load_config(actor_checkpoint)
                     for key in ["actor_class", "actor_kwargs"]:
                         self.kwargs[key] = actor_config["agent_kwargs"][key]
-                        self.config["agent_kwargs"][key] = actor_config["agent_kwargs"][key]
+                        self.config["agent_kwargs"][key] = actor_config["agent_kwargs"][
+                            key
+                        ]
 
                     self.kwargs["actor"] = agents.load(
                         checkpoint=actor_checkpoint,
@@ -140,7 +144,6 @@ class AgentFactory(configs.Factory):
                         encoder_checkpoint=encoder_checkpoint,
                         device=device,
                     ).actor
-                 
 
         self.kwargs["env"] = env
         self.kwargs["device"] = device

@@ -320,7 +320,10 @@ def evaluate_plan(
 
     return rewards
 
-def get_printable_object_relationships_str(obj_rels: List[str], max_row_length: int = 60) -> None:
+
+def get_printable_object_relationships_str(
+    obj_rels: List[str], max_row_length: int = 60
+) -> None:
     """
     Get printable object relationships string.
     """
@@ -336,6 +339,7 @@ def get_printable_object_relationships_str(obj_rels: List[str], max_row_length: 
 
     overall_str += curr_line
     return overall_str
+
 
 def vizualize_predicted_plan(
     save_path_suffix: Union[int, str],
@@ -374,7 +378,9 @@ def vizualize_predicted_plan(
             )
 
         if object_relationships_list is not None:
-            env._recording_text +=  "\n" + get_printable_object_relationships_str(object_relationships_list[i])
+            env._recording_text += "\n" + get_printable_object_relationships_str(
+                object_relationships_list[i]
+            )
 
         env.set_observation(predicted_state)
         recorder.add_frame(frame=env.render())
@@ -388,7 +394,9 @@ def vizualize_predicted_plan(
         else:
             env._recording_text = custom_recording_text
     if object_relationships_list is not None:
-        env._recording_text += "\n" + get_printable_object_relationships_str(object_relationships_list[-1])
+        env._recording_text += "\n" + get_printable_object_relationships_str(
+            object_relationships_list[-1]
+        )
     env.set_observation(plan.states[-1])
     recorder.add_frame(frame=env.render())
 
@@ -508,7 +516,7 @@ def run_closed_loop_planning(
         states[t : t + 1] = plan.states[:1]
         values[t] = plan.values[0]
         # ensure last state has something in it
-        states[t+1: t+2] = observation
+        states[t + 1 : t + 2] = observation
 
     p_success = np.exp(np.log(values).sum())
 

@@ -307,7 +307,7 @@ class TableEnvDynamics(LatentDynamics):
         assert policy_args is not None
         idx_args = policy_args["observation_indices"]
         dynamics_state = self._normalize_state(env_state[..., idx_args, :])
-        
+
         # Dynamics state -> dynamics state.
         next_dynamics_state = self.forward(
             dynamics_state, action, primitive.idx_policy, policy_args
@@ -317,7 +317,7 @@ class TableEnvDynamics(LatentDynamics):
         # Update env state with new unnormalized observation.
         next_env_state = env_state.clone()
         next_env_state[..., idx_args, :] = self._unnormalize_state(next_dynamics_state)
-        
+
         # Keep object shape features consistent across time.
         if self._rigid_body:
             idx_feats = self.env.static_feature_indices
@@ -333,10 +333,14 @@ class TableEnvDynamics(LatentDynamics):
             for primitive_name in use_handcrafted_dynamics_primitives:
                 if primitive_name in str(primitive).lower():
                     next_env_state[..., idx_feats] = self._apply_handcrafted_dynamics(
-                        env_state.clone(), action, next_env_state.clone(), primitive, policy_args
+                        env_state.clone(),
+                        action,
+                        next_env_state.clone(),
+                        primitive,
+                        policy_args,
                     )[..., idx_feats]
                     break
-        
+
         # Set states of non existent objects to 0.
         non_existent_obj_start_idx = policy_args["shuffle_range"][1]
         next_env_state[..., non_existent_obj_start_idx:, :] = 0

@@ -142,5 +142,3 @@ def extract_largest_contour(img_mask: np.ndarray) -> np.ndarray:
         cv2.FILLED,
     ).astype(bool)
     return img_mask
-
-

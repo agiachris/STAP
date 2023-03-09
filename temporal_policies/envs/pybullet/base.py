@@ -44,9 +44,9 @@ def connect_pybullet(gui: bool = True, gui_kwargs: Dict[str, Any] = {}) -> int:
             p.COV_ENABLE_RGB_BUFFER_PREVIEW, 0, physicsClientId=physics_id
         )
         p.configureDebugVisualizer(
-            p.COV_ENABLE_SHADOWS, 
+            p.COV_ENABLE_SHADOWS,
             gui_kwargs.get("shadows", 0),
-            physicsClientId=physics_id
+            physicsClientId=physics_id,
         )
         p.resetDebugVisualizerCamera(
             cameraDistance=0.25,
@@ -60,8 +60,9 @@ def connect_pybullet(gui: bool = True, gui_kwargs: Dict[str, Any] = {}) -> int:
 
 
 class PybulletEnv(Env):
-    def __init__(self, 
-        name: str, 
+    def __init__(
+        self,
+        name: str,
         gui: bool,
         gui_kwargs: Dict[str, Any],
     ):
@@ -70,10 +71,10 @@ class PybulletEnv(Env):
         gui_kwargs["options"] = gui_kwargs.get("options", DEFAULT_OPTIONS)
         for k, v in DEFAULT_OPTIONS.items():
             if k not in gui_kwargs["options"]:
-                gui_kwargs["options"][k] = v       
+                gui_kwargs["options"][k] = v
         options = " ".join(map(to_str_kwarg, gui_kwargs["options"].items()))
         gui_kwargs["options"] = options
-        
+
         try:
             self._physics_id = connect_pybullet(gui=gui, gui_kwargs=gui_kwargs)
         except p.error as e:

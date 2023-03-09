@@ -14,7 +14,9 @@ class EnsembleAgent(wrapper.WrapperAgent):
         self,
         policy: base.Agent,
         env: Optional[envs.Env] = None,
-        critic_class: Union[str, Type[critics.ContinuousEnsembleCritic]] = critics.EnsembleLCBCritic,
+        critic_class: Union[
+            str, Type[critics.ContinuousEnsembleCritic]
+        ] = critics.EnsembleLCBCritic,
         pessimistic: bool = True,
         clip: bool = True,
         lcb_scale: Optional[float] = None,
@@ -43,7 +45,7 @@ class EnsembleAgent(wrapper.WrapperAgent):
                 scale=lcb_scale,
                 critic=policy.critic,
                 pessimistic=pessimistic,
-                clip=clip
+                clip=clip,
             )
         elif issubclass(critic_class, critics.EnsembleThresholdCritic):
             critic = critic_class(
@@ -51,7 +53,7 @@ class EnsembleAgent(wrapper.WrapperAgent):
                 value=ood_value,
                 critic=policy.critic,
                 pessimistic=pessimistic,
-                clip=clip
+                clip=clip,
             )
         elif issubclass(critic_class, critics.EnsembleOODCritic):
             critic = critic_class(
@@ -62,7 +64,7 @@ class EnsembleAgent(wrapper.WrapperAgent):
             )
         else:
             raise ValueError(f"{critic_class} not supported by EnsembleAgent.")
-            
+
         super().__init__(
             state_space=policy.state_space,
             action_space=policy.action_space,

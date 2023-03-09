@@ -117,7 +117,8 @@ def instantiate_task_plan_primitives(
 
 
 def get_callable_goal_props(
-    predicted_goal_props_list: List[List[str]], possible_props: List[predicates.Predicate]
+    predicted_goal_props_list: List[List[str]],
+    possible_props: List[predicates.Predicate],
 ) -> List[List[predicates.Predicate]]:
     if not is_valid_goal_props(predicted_goal_props_list, possible_props):
         raise ValueError("Invalid goal props")

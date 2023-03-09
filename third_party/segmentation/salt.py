@@ -55,7 +55,7 @@ def segment_salt(
     # import ipdb; ipdb.set_trace()
     pos = xyzs.mean(axis=0)
     # pos[0] -= 0.01
-    pos[0] -= 0.02 # - 0.005
+    pos[0] -= 0.02  # - 0.005
     # pos[0] += 0.01
     # pos[0] -= 0.01 - 0.255
 

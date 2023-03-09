@@ -283,7 +283,9 @@ def eval_saycan(
     if lm_cache_file is not None:
         lm_cache_file_suffix = pathlib.Path(lm_cache_file).suffix
         lm_cache_file = pathlib.Path(lm_cache_file).stem
-        lm_cache_file = lm_cache_file + "_" + env.name + "_inner_monologue" + lm_cache_file_suffix
+        lm_cache_file = (
+            lm_cache_file + "_" + env.name + "_inner_monologue" + lm_cache_file_suffix
+        )
 
     lm_cache: Dict[str, str] = load_lm_cache(pathlib.Path(lm_cache_file))
 
@@ -372,7 +374,7 @@ def eval_saycan(
         while not done:
             # lm_cfg.engine = "text-davinci-003"  # 002 is bad at following instructions
             # for generating possible actions, don't include stop()
-            lm_verbose=True
+            lm_verbose = True
             actions, lm_cache = get_next_actions_from_lm(
                 env.instruction,
                 goal_props_to_use,
@@ -695,7 +697,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--key-name",
         type=str,
-        choices=["personal-code", "personal-all", "personal-raoak", "personal-m", "helm"],
+        choices=[
+            "personal-code",
+            "personal-all",
+            "personal-raoak",
+            "personal-m",
+            "helm",
+        ],
         default="personal-code",
         help="API key name to use",
     )

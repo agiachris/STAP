@@ -515,7 +515,9 @@ class BeamSearchProblem(SearchProblem):
                 node.is_success = True
                 return True
         elif self.termination_method == "score_stop":
-            print("score_stop is not handled in is_end() yet because it requires seeing the values of the other nodes in the beam")
+            print(
+                "score_stop is not handled in is_end() yet because it requires seeing the values of the other nodes in the beam"
+            )
         return False
 
     def get_node_scores(self, nodes: List[Node]) -> List[float]:
@@ -580,7 +582,9 @@ class BeamSearchProblem(SearchProblem):
 
             return [best_values[i] * lm_action_scores[i] for i in range(len(nodes))]
         else:
-            new_potential_actions_str = [action_str for action_str in potential_actions_str]
+            new_potential_actions_str = [
+                action_str for action_str in potential_actions_str
+            ]
             new_potential_actions_str.append("stop()")
             lm_action_scores, lm_cache = get_action_scores_from_lm(
                 self.env.instruction,
@@ -607,7 +611,9 @@ class BeamSearchProblem(SearchProblem):
                 try:
                     nodes[i].action_sequence_score_lm = lm_action_scores[i]
                 except:
-                    import ipdb; ipdb.set_trace()
+                    import ipdb
+
+                    ipdb.set_trace()
                     nodes[i].action_sequence_score_lm = lm_action_scores[i]
             overall_scores = [
                 best_values[i] * lm_action_scores[i] for i in range(len(nodes))
@@ -778,9 +784,7 @@ class BeamSearchAlgorithm:
                         node.object_relationships_sequence_post_optimization
                     )
                     # join the action skeleton strings with a space and remove the quotation marks
-                    record_name = " ".join(
-                        node.action_skeleton_as_strings
-                    )
+                    record_name = " ".join(node.action_skeleton_as_strings)
                     planners.vizualize_predicted_plan(
                         record_name,
                         node.env,
@@ -806,7 +810,9 @@ class BeamSearchAlgorithm:
                     print(f"Other scores: {other_scores}")
                     print([node.action_primitive for node in next_beam])
                     # there should only be one node in the beam
-                    assert len(beam) == 1, "Beam should only have one node (since using beam size 1"
+                    assert (
+                        len(beam) == 1
+                    ), "Beam should only have one node (since using beam size 1"
                     beam[0].is_success = True
                     return beam
 

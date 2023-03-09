@@ -11,6 +11,7 @@ SIZE_ICECREAM = np.array([0.06, 0.06, 0.065])
 
 DEBUG = False
 
+
 def segment_icecream(
     img_color: np.ndarray,
     img_depth: np.ndarray,

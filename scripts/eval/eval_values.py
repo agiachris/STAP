@@ -7,7 +7,8 @@ import torch
 import numpy as np
 from collections import defaultdict
 import matplotlib as mpl
-mpl.use('Agg')
+
+mpl.use("Agg")
 import matplotlib.pyplot as plt
 
 from temporal_policies.utils import configs, random, tensors
@@ -33,9 +34,9 @@ METRIC_COLORS = {
     "true_pos": "tab:green",
     "false_pos": "tab:red",
     "true_neg": "tab:blue",
-    "false_neg": "tab:orange", 
-    "pos_recall": "tab:purple", 
-    "neg_recall": "tab:pink", 
+    "false_neg": "tab:orange",
+    "pos_recall": "tab:purple",
+    "neg_recall": "tab:pink",
 }
 
 
@@ -82,23 +83,21 @@ def evaluate_values(
     if name is not None:
         path = path / name
     path.mkdir(parents=True, exist_ok=overwrite)
-    
+
     # Load pretrained agent.
     if trainer_checkpoint is not None:
         trainer_factory = trainers.TrainerFactory(
-            checkpoint=trainer_checkpoint, 
-            env_kwargs={"gui": False},
-            device=device
+            checkpoint=trainer_checkpoint, env_kwargs={"gui": False}, device=device
         )
-        trainer: Union[trainers.ValueTrainer, trainers.PolicyTrainer, trainers.AgentTrainer] = trainer_factory()
+        trainer: Union[
+            trainers.ValueTrainer, trainers.PolicyTrainer, trainers.AgentTrainer
+        ] = trainer_factory()
         agent = trainer.model
     elif agent_checkpoint is not None:
         if seed is not None:
             random.seed(seed)
         agent_factory = agents.AgentFactory(
-            checkpoint=agent_checkpoint, 
-            env_kwargs={"gui": False},
-            device=device
+            checkpoint=agent_checkpoint, env_kwargs={"gui": False}, device=device
         )
         agent = agent_factory()
     else:
@@ -126,16 +125,16 @@ def evaluate_values(
         for step, batch in enumerate(iter(dataloader)):
             if num_eval_steps is not None and step > num_eval_steps:
                 break
-            
+
             batch = tensors.to(batch, agent.device)
             t_observation = batch["observation"]
             if isinstance(agent.encoder, IMAGE_ENCODERS):
                 t_observation = tensors.rgb_to_cnn(t_observation)
             t_state = agent.encoder.encode(t_observation, batch["policy_args"])
-            
+
             # Size [B, critic.num_q_functions]
-            batch_qs = torch.stack(agent.critic.forward(t_state, batch["action"])).T            
-            
+            batch_qs = torch.stack(agent.critic.forward(t_state, batch["action"])).T
+
             # Store per-example metrics of size [B,]
             metrics["reward"].append(batch["reward"].cpu().numpy())
             metrics["q_mean"].append(batch_qs.mean(dim=-1).cpu().numpy())
@@ -154,8 +153,10 @@ def evaluate_values(
 
     # Bin metrics based on mean or min of ensemble Q-values.
     binned_metrics: List[Dict[str, np.ndarray]] = []
-    for i in range(num_bins):        
-        mask = np.logical_and(metrics[bin_metric] >= bins[i], metrics[bin_metric] < bins[i+1])
+    for i in range(num_bins):
+        mask = np.logical_and(
+            metrics[bin_metric] >= bins[i], metrics[bin_metric] < bins[i + 1]
+        )
         q_freq = np.sum(mask)
         collect_metric = dict(q_freq=q_freq)
         if q_freq > 0:
@@ -163,11 +164,11 @@ def evaluate_values(
         else:
             collect_metric.update({k: np.zeros(1) for k in metrics.keys()})
         binned_metrics.append(collect_metric)
-    
+
     x_arr = np.arange(num_bins)
     x_ticks = [f"{bins[i]:.1f}-{bins[i+1]:.1f}" for i in range(num_bins)]
     x_label = " ".join(bin_metric.split("_")).title()
-    
+
     # Plot metrics across bins.
     for k in PLOT_METRICS:
         metric_name = " ".join(k.split("_")).title()
@@ -176,7 +177,7 @@ def evaluate_values(
             y_arr=[binned_metrics[i][k].mean() for i in range(num_bins)],
             y_err=[binned_metrics[i][k].std() for i in range(num_bins)],
             x_arr=x_arr,
-            log_scale=k=="q_freq",
+            log_scale=k == "q_freq",
             x_ticks=x_ticks,
             title=f"Q-Ensemble Ablation: {name.capitalize()} {metric_name}",
             x_label=x_label,
@@ -187,7 +188,7 @@ def evaluate_values(
     # Compute TP / FP / TN / FN
     rewards = metrics["reward"].astype(bool)
     binned_confusion: Dict[str, List[float]] = defaultdict(list)
-    for i in range(num_bins): 
+    for i in range(num_bins):
         # [N,] = [T, F, ...]
         positive_mask = metrics[bin_metric] >= bins[i]
         true_positive = np.logical_and(positive_mask, rewards).sum()
@@ -204,7 +205,7 @@ def evaluate_values(
         binned_confusion["false_neg"].append(1 - tnr)
         binned_confusion["pos_recall"].append(pos_recall)
         binned_confusion["neg_recall"].append(neg_recall)
-        
+
     for k in binned_confusion.keys():
         metric_name = " ".join(k.split("_")).title()
         barplot(
@@ -226,13 +227,28 @@ def main(args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", "-p", required=True, help="Experiment save path.")
-    parser.add_argument("--dataset-config", required=True, help="Path to dataset configuration file.")
-    parser.add_argument("--dataset-checkpoints", required=True, nargs="+", help="Paths to data checkpoints.")
+    parser.add_argument(
+        "--dataset-config", required=True, help="Path to dataset configuration file."
+    )
+    parser.add_argument(
+        "--dataset-checkpoints",
+        required=True,
+        nargs="+",
+        help="Paths to data checkpoints.",
+    )
     parser.add_argument("--trainer-checkpoint", "-t", help="Path to pretrained agent.")
     parser.add_argument("--agent-checkpoint", "-a", help="Path to agent checkpoint.")
-    parser.add_argument("--num-eval-steps", type=int, help="Number of steps to evaluate over.")
-    parser.add_argument("--num-bins", type=int, help="Number of bins for Q-value scores.")
-    parser.add_argument("--expected", action="store_true", help="Bin Q-ensembles means instead of minimums.")
+    parser.add_argument(
+        "--num-eval-steps", type=int, help="Number of steps to evaluate over."
+    )
+    parser.add_argument(
+        "--num-bins", type=int, help="Number of bins for Q-value scores."
+    )
+    parser.add_argument(
+        "--expected",
+        action="store_true",
+        help="Bin Q-ensembles means instead of minimums.",
+    )
     parser.add_argument("--overwrite", action="store_true", default=False)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--seed", type=int, help="Random seed")

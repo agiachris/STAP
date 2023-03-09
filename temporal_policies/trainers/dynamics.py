@@ -130,7 +130,9 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                     ),
                 )
                 if not isinstance(agent_trainer, (AgentTrainer, PolicyTrainer)):
-                    raise ValueError("Trainer checkpoint must be AgentTrainer or PolicyTrainer.")
+                    raise ValueError(
+                        "Trainer checkpoint must be AgentTrainer or PolicyTrainer."
+                    )
                 agent_trainers.append(agent_trainer)
 
         dataset_class = configs.get_class(dataset_class, datasets)
@@ -177,14 +179,16 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
             num_data_workers=num_data_workers,
         )
 
-        self._eval_dataloader = self.create_dataloader(self.eval_dataset, self.num_data_workers)
+        self._eval_dataloader = self.create_dataloader(
+            self.eval_dataset, self.num_data_workers
+        )
         self._eval_batches = iter(self.eval_dataloader)
 
     @property
     def dynamics(self) -> dynamics.LatentDynamics:
         """Dynamics model being trained."""
         return self.model
-    
+
     @property
     def eval_dataloader(self) -> torch.utils.data.DataLoader:
         return self._eval_dataloader
@@ -227,13 +231,13 @@ class DynamicsTrainer(Trainer[dynamics.LatentDynamics, DynamicsBatch, WrappedBat
                 dynamic_ncols=True,
             )
             for _ in pbar:
-                
+
                 try:
                     batch = next(self.eval_batches)
                 except StopIteration:
                     self._eval_batches = iter(self.eval_dataloader)
                     batch = next(self.eval_batches)
-            
+
                 with torch.no_grad():
                     batch = self.process_batch(batch)
                     _, eval_metrics = self.dynamics.compute_loss(**batch)

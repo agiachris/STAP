@@ -39,7 +39,7 @@ def main(env_config: str, seed: Optional[int] = None) -> None:
                 print("Goal state achieved:", env.is_goal_state())
             if truncated:
                 break
-        
+
         input("Done task, continue?\n")
 
 

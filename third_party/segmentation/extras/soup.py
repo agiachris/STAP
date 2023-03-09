@@ -28,7 +28,7 @@ def segment_soup(
     mask_red &= (70 < img_v) & (img_v < 160)
 
     # mask_soup = (mask_metal | mask_red) & ~mask_others
-    mask_soup =  mask_red & ~mask_others
+    mask_soup = mask_red & ~mask_others
 
     if DEBUG:
         mask_soup_color = mask_soup

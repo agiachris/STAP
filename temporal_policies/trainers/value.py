@@ -97,7 +97,9 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             for train_data in train_data_checkpoints:
                 dataset.load(pathlib.Path(train_data))
         elif checkpoint is None:
-            raise ValueError("Must provide one of train data checkpoint or trainer checkpoint.")
+            raise ValueError(
+                "Must provide one of train data checkpoint or trainer checkpoint."
+            )
 
         # Load eval dataset.
         eval_dataset_kwargs = dict(eval_dataset_kwargs)
@@ -112,7 +114,9 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
             for eval_data in eval_data_checkpoints:
                 eval_dataset.load(pathlib.Path(eval_data))
         elif checkpoint is None:
-            raise ValueError("Must provide one of eval data checkpoint or trainer checkpoint.")
+            raise ValueError(
+                "Must provide one of eval data checkpoint or trainer checkpoint."
+            )
 
         processor_class = configs.get_class(processor_class, processors)
         processor = processor_class(agent.observation_space, **processor_kwargs)
@@ -150,7 +154,9 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
         if checkpoint is not None:
             self.load(checkpoint, strict=True)
 
-        self._eval_dataloader = self.create_dataloader(self.eval_dataset, self.num_data_workers)
+        self._eval_dataloader = self.create_dataloader(
+            self.eval_dataset, self.num_data_workers
+        )
         self._eval_batches = iter(self.eval_dataloader)
 
     @property
@@ -209,7 +215,7 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 dynamic_ncols=True,
             )
             for _ in pbar:
-                
+
                 try:
                     batch = next(self.eval_batches)
                 except StopIteration:
@@ -222,5 +228,5 @@ class ValueTrainer(Trainer[agents.RLAgent, Batch, Batch]):
                 pbar.set_postfix({self.eval_metric: eval_metrics[self.eval_metric]})
 
         self.train_mode()
-        
+
         return metrics_list

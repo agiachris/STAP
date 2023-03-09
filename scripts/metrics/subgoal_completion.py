@@ -17,10 +17,7 @@ def compute_plan(
     pddl.initial_state = state
     planner = symbolic.Planner(pddl, pddl.initial_state)
     bfs = symbolic.BreadthFirstSearch(
-        planner.root, 
-        max_depth=max_depth, 
-        timeout=timeout, 
-        verbose=verbose
+        planner.root, max_depth=max_depth, timeout=timeout, verbose=verbose
     )
     plan = None
     for _plan in bfs:
@@ -66,7 +63,7 @@ def compute_subgoal_completion(
                 run_log["subgoal_completion_rate"] = 1.0
                 num_success += 1
                 continue
-        
+
         plan_cost = 0
         pddl = symbolic.Pddl(domain_file, problem_file)
 
@@ -77,28 +74,24 @@ def compute_subgoal_completion(
                 break
             state = pddl.next_state(state, action_call)
             plan_cost += 1
-        
+
         plan_to_go = compute_plan(
-            pddl, 
-            state,
-            timeout=timeout,
-            max_depth=max_depth,
-            verbose=verbose
+            pddl, state, timeout=timeout, max_depth=max_depth, verbose=verbose
         )
         cost_to_go = len([node.action for node in plan_to_go][1:])
 
         if cost_to_go == 0:
             pddl = symbolic.Pddl(domain_file, problem_file)
             optimal_plan = compute_plan(
-                pddl, 
+                pddl,
                 pddl.initial_state,
                 timeout=timeout,
                 max_depth=max_depth,
-                verbose=verbose
+                verbose=verbose,
             )
             optimal_cost = len([node.action for node in optimal_plan][1:])
             cost_diff = 1 if plan_cost <= optimal_cost else plan_cost - optimal_cost
-            subgoal_rate = (optimal_cost - cost_diff) / optimal_cost    
+            subgoal_rate = (optimal_cost - cost_diff) / optimal_cost
 
         else:
             subgoal_rate = plan_cost / (plan_cost + cost_to_go)
@@ -107,22 +100,32 @@ def compute_subgoal_completion(
         failure_subgoal_completion += subgoal_rate
         run_log["subgoal_completion_rate"] = subgoal_rate
 
-    subgoal_completion_rate = (num_success + failure_subgoal_completion) / (num_success + num_failure)
+    subgoal_completion_rate = (num_success + failure_subgoal_completion) / (
+        num_success + num_failure
+    )
     planning_result["subgoal_completion_rate"] = subgoal_completion_rate
-    
+
     if save:
         with open(output_path, "w") as f:
             json.dump(planning_result, f, indent=2)
-    
+
     return subgoal_completion_rate
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", "-p", type=str, required=True, help="Path to saved output file.")
-    parser.add_argument("--domain-file", type=str, required=True, help="Path to PDDL domain file.")
+    parser.add_argument(
+        "--path", "-p", type=str, required=True, help="Path to saved output file."
+    )
+    parser.add_argument(
+        "--domain-file", type=str, required=True, help="Path to PDDL domain file."
+    )
     parser.add_argument("--timeout", type=float, default=10.0, help="Planning timeout.")
-    parser.add_argument("--max-depth", type=int, default=20, help="Maximum search depth.")
+    parser.add_argument(
+        "--max-depth", type=int, default=20, help="Maximum search depth."
+    )
     parser.add_argument("--verbose", action="store_true", help="Verbose planning.")
-    parser.add_argument("--save", action="store_true", help="Save the result with updated stats.")
+    parser.add_argument(
+        "--save", action="store_true", help="Save the result with updated stats."
+    )
     compute_subgoal_completion(**vars(parser.parse_args()))

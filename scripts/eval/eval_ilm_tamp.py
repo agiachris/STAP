@@ -401,7 +401,9 @@ def eval_ilm_tamp(
                 else:
                     terminate_due_to_termination_method = False
             elif termination_method == "score_stop":
-                print("termination method is score_stop, not implemented yet due to not replanning")
+                print(
+                    "termination method is score_stop, not implemented yet due to not replanning"
+                )
             else:
                 raise NotImplementedError("Unknown termination method")
 

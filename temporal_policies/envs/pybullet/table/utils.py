@@ -198,7 +198,7 @@ def is_inworkspace(
         obj_pos = obj.pose(sim=sim).pos[:2]
     if distance is None:
         distance = float(np.linalg.norm(obj_pos))
-        
+
     if not (
         TABLE_CONSTRAINTS["workspace_x_min"] <= obj_pos[0]
         and distance < TABLE_CONSTRAINTS["workspace_radius"]

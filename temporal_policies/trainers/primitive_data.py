@@ -52,7 +52,7 @@ class PrimitiveDatasetGenerator:
             profile_freq: Profiling frequency.
             num_data_workers: Number of workers to use for dataloader.
             name: Optional trainer name. Uses env name by default.
-        """        
+        """
         if name is None:
             name = agent.env.name
         path = pathlib.Path(path) / name
@@ -67,7 +67,7 @@ class PrimitiveDatasetGenerator:
         self._dataset_size = dataset_size
         self._collection_strategy = collection_strategy
         self._min_success_ratio = min_success_ratio
-        self._max_failure_ratio = max_failure_ratio 
+        self._max_failure_ratio = max_failure_ratio
         self._simulate = simulate
 
         # Trainer parameters.
@@ -107,12 +107,12 @@ class PrimitiveDatasetGenerator:
     def agent(self) -> agents.RLAgent:
         """Agent being trained."""
         return self._agent
-    
+
     @property
     def env(self) -> envs.Env:
         """Agent env."""
         return self.agent.env
-    
+
     @property
     def dataset(self) -> datasets.ReplayBuffer:
         """Train dataset."""
@@ -155,11 +155,11 @@ class PrimitiveDatasetGenerator:
     def device(self) -> torch.device:
         """Torch device."""
         return self._device
-    
+
     def train(self) -> None:
         """Trains the model."""
         self.dataset.initialize()
-        
+
         log_freq = self.log_freq
         self.log_freq = min(log_freq, self._dataset_size // 10)
 
@@ -189,7 +189,9 @@ class PrimitiveDatasetGenerator:
 
             if self._simulate:
                 action = primitive.sample(uniform=False)
-                next_observation, reward, terminated, truncated, info = self.env.step(action)
+                next_observation, reward, terminated, truncated, info = self.env.step(
+                    action
+                )
                 done = terminated or truncated
                 discount = 1.0 - float(done)
                 try:
@@ -198,16 +200,26 @@ class PrimitiveDatasetGenerator:
                     policy_args = None
 
                 assert done, "Must be in single-step environment."
-                
+
                 if self._collection_strategy == "balanced":
-                    exceeding_max_num_failure = self._num_failure >= self._dataset_size * self._max_failure_ratio
-                    violating_min_num_success = self._dataset_size - self._num_failure <= self._dataset_size * self._min_success_ratio
-                    if reward == 0.0 and (exceeding_max_num_failure or violating_min_num_success):
+                    exceeding_max_num_failure = (
+                        self._num_failure
+                        >= self._dataset_size * self._max_failure_ratio
+                    )
+                    violating_min_num_success = (
+                        self._dataset_size - self._num_failure
+                        <= self._dataset_size * self._min_success_ratio
+                    )
+                    if reward == 0.0 and (
+                        exceeding_max_num_failure or violating_min_num_success
+                    ):
                         return collect_metrics
                 elif self._collection_strategy == "uniform":
                     pass
                 else:
-                    raise ValueError(f"Collection strategy {self._collection_strategy} is not supported.")
+                    raise ValueError(
+                        f"Collection strategy {self._collection_strategy} is not supported."
+                    )
 
                 self._num_failure += int(reward == 0.0)
 
@@ -222,7 +234,7 @@ class PrimitiveDatasetGenerator:
                     policy_args=policy_args,
                 )
                 collect_metrics.update({"reward": reward, "episode": self.epoch})
-    
+
             else:
                 action = primitive.sample(uniform=True)
                 policy_args = primitive.get_policy_args()
@@ -273,4 +285,3 @@ class PrimitiveDatasetGenerator:
         else:
             self.timer.tic("log_interval")
         return time_metrics
-

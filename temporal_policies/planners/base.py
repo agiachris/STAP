@@ -19,7 +19,7 @@ class PlanningResult:
     visited_states: Optional[np.ndarray] = None  # [num_visited, T+1, dim_states]
     p_visited_success: Optional[np.ndarray] = None  # [num_visited]
     visited_values: Optional[np.ndarray] = None  # [num_visited, T]
-    values_unc: Optional[np.ndarray] = None # [T]
+    values_unc: Optional[np.ndarray] = None  # [T]
 
 
 class Planner(abc.ABC):

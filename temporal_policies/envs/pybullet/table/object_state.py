@@ -39,7 +39,7 @@ class ObjectState:
     @classmethod
     def dynamic_feature_indices(cls) -> List[int]:
         return [i for i, f in enumerate(list(cls.FEATURES.values())) if "dynamic" in f]
-        
+
     @classmethod
     def static_feature_indices(cls) -> List[int]:
         return [i for i, f in enumerate(list(cls.FEATURES.values())) if "static" in f]

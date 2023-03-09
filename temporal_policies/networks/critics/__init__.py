@@ -4,8 +4,8 @@ from .constant import ConstantCritic
 from .mlp import ContinuousMLPCritic
 from .oracle import OracleCritic
 from .ensemble import (
-    ContinuousEnsembleCritic, 
-    EnsembleLCBCritic, 
+    ContinuousEnsembleCritic,
+    EnsembleLCBCritic,
     EnsembleThresholdCritic,
     EnsembleOODCritic,
 )

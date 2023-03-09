@@ -63,9 +63,7 @@ class TrainerFactory(configs.Factory):
                 if checkpoint is None:
                     raise ValueError("Either agent or checkpoint must be specified")
                 ckpt_agent = agents.load(
-                    checkpoint=checkpoint, 
-                    env_kwargs=env_kwargs,
-                    device=device
+                    checkpoint=checkpoint, env_kwargs=env_kwargs, device=device
                 )
                 if not isinstance(ckpt_agent, agents.RLAgent):
                     raise ValueError("Checkpoint agent must be an RLAgent instance")
@@ -79,31 +77,27 @@ class TrainerFactory(configs.Factory):
                 if checkpoint is None:
                     raise ValueError("Either agent or checkpoint must be specified")
                 ckpt_agent = agents.load(
-                    checkpoint=checkpoint, 
-                    env_kwargs=env_kwargs,
-                    device=device
+                    checkpoint=checkpoint, env_kwargs=env_kwargs, device=device
                 )
                 if not isinstance(ckpt_agent, agents.RLAgent):
                     raise ValueError("Checkpoint agent must be an RLAgent instance")
                 agent = ckpt_agent
             self.kwargs["agent"] = agent
-        
+
         elif issubclass(self.cls, trainers.PolicyTrainer):
             if agent is None:
                 if checkpoint is None:
                     raise ValueError("Either agent or checkpoint must be specified")
                 ckpt_agent = agents.load(
-                    checkpoint=checkpoint, 
-                    env_kwargs=env_kwargs,
-                    device=device
+                    checkpoint=checkpoint, env_kwargs=env_kwargs, device=device
                 )
                 if not isinstance(ckpt_agent, agents.RLAgent):
                     raise ValueError("Checkpoint agent must be an RLAgent instance")
                 agent = ckpt_agent
-                
+
             self.kwargs["agent"] = agent
             self.kwargs["eval_env"] = eval_env
-        
+
         elif issubclass(self.cls, trainers.PrimitiveDatasetGenerator):
             if agent is None:
                 if checkpoint is None:
@@ -112,7 +106,7 @@ class TrainerFactory(configs.Factory):
                 if not isinstance(ckpt_agent, agents.RLAgent):
                     raise ValueError("Checkpoint agent must be an RLAgent instance")
                 agent = ckpt_agent
-                
+
             self.kwargs["agent"] = agent
 
         elif issubclass(self.cls, (trainers.DynamicsTrainer, trainers.UnifiedTrainer)):

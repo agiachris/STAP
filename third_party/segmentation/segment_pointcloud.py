@@ -79,8 +79,14 @@ TASK_OBJECTS = {
     "constrained_packing/taskK": ["rack", "salt", "yogurt", "milk"],
     "constrained_packing/task2": ["rack", "salt", "yogurt", "milk", "icecream", "hook"],
     # "rearrangement_push/task0": ["rack", "hook", "icecream"],  # idx5
-    "rearrangement_push/task0": ["rack", "hook", "icecream", "salt", "milk", "yogurt"],  # idx5
-
+    "rearrangement_push/task0": [
+        "rack",
+        "hook",
+        "icecream",
+        "salt",
+        "milk",
+        "yogurt",
+    ],  # idx5
 }
 TASK_OBJECTS.update({obj: [obj] for obj in OBJECTS})
 

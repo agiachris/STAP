@@ -550,4 +550,3 @@ def main(config: PolicyDatasetGenerationConfig):
 
 if __name__ == "__main__":
     tyro.cli(main)
-

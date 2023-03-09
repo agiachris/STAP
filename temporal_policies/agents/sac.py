@@ -18,7 +18,7 @@ def get_bce_weight(target_q: torch.Tensor, logistics_weight: torch.Tensor):
     weight[target_q == 0] = logistics_weight[0]
     weight[target_q == 1] = logistics_weight[1]
     return weight
-    
+
 
 class SAC(rl.RLAgent):
     """Soft actor critic."""
@@ -84,7 +84,9 @@ class SAC(rl.RLAgent):
                     kwargs[key] = configs.get_class(kwargs[key], torch.nn)
 
         if encoder is None:
-            encoder = encoders.Encoder(env, encoder_class, agent_kwargs["encoder"], device)
+            encoder = encoders.Encoder(
+                env, encoder_class, agent_kwargs["encoder"], device
+            )
             target_encoder = encoders.Encoder(
                 env, encoder_class, agent_kwargs["encoder"], device
             )
@@ -99,7 +101,7 @@ class SAC(rl.RLAgent):
         actor_class = configs.get_class(actor_class, networks)
         if actor is None:
             actor = actor_class(encoder.state_space, env.action_space, **agent_kwargs["actor"])  # type: ignore
-        
+
         critic_class = configs.get_class(critic_class, networks)
         if critic is None:
             critic = critic_class(encoder.state_space, env.action_space, **agent_kwargs["critic"])  # type: ignore
@@ -120,7 +122,9 @@ class SAC(rl.RLAgent):
 
         if isinstance(bce_weight, list):
             if len(bce_weight) != 2 or any(w <= 0 for w in bce_weight):
-                raise ValueError("Require non-negative weight for positive and negative classes.")
+                raise ValueError(
+                    "Require non-negative weight for positive and negative classes."
+                )
             self.bce_weight = torch.tensor(bce_weight).float() / sum(bce_weight)
         else:
             self.bce_weight = None
@@ -206,17 +210,26 @@ class SAC(rl.RLAgent):
         if self.use_bce:
             if len(target_q) != (target_q == 0.0).sum() + (target_q == 1.0).sum():
                 raise ValueError("Logistics regression requires [0, 1] targets.")
-            weight = get_bce_weight(target_q, self.bce_weight) if isinstance(self.bce_weight, torch.Tensor) else None
-            q_losses = [torch.nn.functional.binary_cross_entropy(q, target_q, weight=weight) for q in qs]
+            weight = (
+                get_bce_weight(target_q, self.bce_weight)
+                if isinstance(self.bce_weight, torch.Tensor)
+                else None
+            )
+            q_losses = [
+                torch.nn.functional.binary_cross_entropy(q, target_q, weight=weight)
+                for q in qs
+            ]
         else:
             q_losses = [torch.nn.functional.mse_loss(q, target_q) for q in qs]
         q_loss = sum(q_losses) / len(q_losses)
 
         metrics = {f"q{i}_loss": q.item() for i, q in enumerate(q_losses)}
-        metrics.update({
-            "q_loss": q_loss.item(),
-            "target_q": target_q.mean().item(),
-        })
+        metrics.update(
+            {
+                "q_loss": q_loss.item(),
+                "target_q": target_q.mean().item(),
+            }
+        )
 
         return q_loss, metrics
 
@@ -244,7 +257,9 @@ class SAC(rl.RLAgent):
         elif self.q_actor_update == "median":
             q = q.median(dim=0).values
         else:
-            raise ValueError(f"Q-actor update type {self.q_actor_update} is not supported.")
+            raise ValueError(
+                f"Q-actor update type {self.q_actor_update} is not supported."
+            )
         actor_loss = (self.alpha.detach() * log_prob - q).mean()
         alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
 
@@ -274,12 +289,13 @@ class SAC(rl.RLAgent):
         Returns:
             Dict of optimizers for all trainable networks.
         """
-        keys = ["actor", "critic", "log_alpha"]    
-        if (
-            any(k not in optimizer_kwargs for k in keys)
-            and any(k in optimizer_kwargs for k in keys)
-            ):
-            raise ValueError(f"Must supply general optimizer_kwargs or optimizer_kwargs for each of {keys}")
+        keys = ["actor", "critic", "log_alpha"]
+        if any(k not in optimizer_kwargs for k in keys) and any(
+            k in optimizer_kwargs for k in keys
+        ):
+            raise ValueError(
+                f"Must supply general optimizer_kwargs or optimizer_kwargs for each of {keys}"
+            )
 
         optimizers = {}
         for key in keys:
@@ -287,7 +303,7 @@ class SAC(rl.RLAgent):
                 kwargs = optimizer_kwargs[key]
             except KeyError:
                 kwargs = optimizer_kwargs
-            
+
             if not hasattr(self, key):
                 raise ValueError(f"SAC does not have attribute self.{key}.")
             learnable = getattr(self, key)
@@ -300,7 +316,7 @@ class SAC(rl.RLAgent):
                 raise ValueError(f"Optimization not supported for {learnable}.")
 
             optimizers[key] = optimizer_class(parameters, **kwargs)
-            
+
         return optimizers
 
     def train_step(

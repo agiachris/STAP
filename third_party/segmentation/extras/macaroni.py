@@ -43,7 +43,7 @@ def segment_macaroni(
     idx_points = point_cloud.flatten_indices(mask_macaroni)
     xyzs = point_cloud.points[idx_points]
     xyz_min = xyzs.min(axis=0)  # - np.array([0.02, 0.0, -0.01])
-    xyz_max = xyzs.max(axis=0)  + np.array([0.02, 0.0, 0.0])
+    xyz_max = xyzs.max(axis=0) + np.array([0.02, 0.0, 0.0])
     idxx_min = (xyz_min[None, :] <= point_cloud.points).all(axis=1)
     idxx_max = (point_cloud.points <= xyz_max[None, :]).all(axis=1)
     mask_xyz = point_cloud.expand_indices(idxx_min & idxx_max)

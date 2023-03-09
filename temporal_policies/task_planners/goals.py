@@ -83,7 +83,9 @@ def is_valid_goal_props(
 
     possible_props_str = [str(prop) for prop in possible_props]
     for single_predicted_props in predicted_props_list:
-        syntactically_valid_goals = [prop in possible_props_str for prop in single_predicted_props]
+        syntactically_valid_goals = [
+            prop in possible_props_str for prop in single_predicted_props
+        ]
         if not all(syntactically_valid_goals):
             return False
     return True

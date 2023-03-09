@@ -192,7 +192,7 @@ class Primitive(envs.Primitive, abc.ABC):
         ]
 
     def create_object_movement_check(
-        self, 
+        self,
         non_arg_objects: bool = True,
         arg_objects: bool = False,
         custom_objects: bool = False,
@@ -200,16 +200,22 @@ class Primitive(envs.Primitive, abc.ABC):
     ) -> Callable[[], bool]:
         """Returns a function that checks if any non-primitive argument has been significantly perturbed."""
         if sum([non_arg_objects, arg_objects, custom_objects]) != 1:
-            raise ValueError("Must specify only one of non_arg_objects, arg_objects, or custom_objects.")
-        
-        # Get specified objects.           
+            raise ValueError(
+                "Must specify only one of non_arg_objects, arg_objects, or custom_objects."
+            )
+
+        # Get specified objects.
         if non_arg_objects:
             if objects is None or not isinstance(objects, dict):
-                raise ValueError("Require dictionary of objects for non-arg object movement check.")
+                raise ValueError(
+                    "Require dictionary of objects for non-arg object movement check."
+                )
             objects = self.get_non_arg_objects(objects)
         elif custom_objects:
             if objects is None or not isinstance(objects, list):
-                raise ValueError("Require list of objects for custom object movement check.")
+                raise ValueError(
+                    "Require list of objects for custom object movement check."
+                )
         else:
             objects = self.arg_objects
 
@@ -292,9 +298,7 @@ class Pick(Primitive):
             did_non_args_move = self.create_object_movement_check(objects=objects)
         try:
             if not real_world and not utils.is_inworkspace(obj=obj):
-                raise ControlException(
-                    f"Object {obj} is beyond the robot workspace."
-                )
+                raise ControlException(f"Object {obj} is beyond the robot workspace.")
 
             robot.goto_pose(pre_pos, command_quat)
             if not allow_collisions and did_non_args_move():
@@ -421,7 +425,7 @@ class Place(Primitive):
                 raise ControlException(
                     f"Placement location {pre_pos} is beyond robot workspace."
                 )
-            
+
             robot.goto_pose(pre_pos, command_quat)
             if not allow_collisions and did_non_args_move():
                 if verbose:
@@ -718,7 +722,8 @@ class Push(Primitive):
             did_non_args_move = self.create_object_movement_check(
                 non_arg_objects=False,
                 custom_objects=True,
-                objects=[obj for obj in objects.values() if obj.isinstance(Rack)] + self.get_non_arg_objects(objects)
+                objects=[obj for obj in objects.values() if obj.isinstance(Rack)]
+                + self.get_non_arg_objects(objects),
             )
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
@@ -741,7 +746,7 @@ class Push(Primitive):
                 did_rack_move = self.create_object_movement_check(
                     non_arg_objects=False,
                     custom_objects=True,
-                    objects=[obj for obj in objects.values() if obj.isinstance(Rack)]
+                    objects=[obj for obj in objects.values() if obj.isinstance(Rack)],
                 )
 
             robot.goto_pose(
@@ -795,8 +800,10 @@ class Push(Primitive):
 
 class Null(Primitive):
     """Null primitive."""
-    
-    def __init__(self, env: Optional[envs.Env] = None, arg_objects: Optional[List[str]] = None):
+
+    def __init__(
+        self, env: Optional[envs.Env] = None, arg_objects: Optional[List[str]] = None
+    ):
         self._env = env
         if arg_objects is None:
             arg_objects = []

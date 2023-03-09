@@ -179,7 +179,9 @@ def get_next_actions_from_lm(
         custom_robot_action_sequence_format=custom_robot_action_sequence_format,
         pddl_domain_file=pddl_domain_file,
         pddl_problem_file=pddl_problem_file,
-        use_action_object_relationship_history=True if use_scene_object_relationships else False,
+        use_action_object_relationship_history=True
+        if use_scene_object_relationships
+        else False,
         use_action_history=False if use_scene_object_relationships else True,
         all_prior_object_relationships=all_prior_object_relationships,
         all_executed_actions=all_executed_actions,
@@ -335,7 +337,9 @@ def get_action_scores_from_lm(
         custom_robot_action_sequence_format=custom_robot_action_sequence_format,
         pddl_domain_file=pddl_domain_file,
         pddl_problem_file=pddl_problem_file,
-        use_action_object_relationship_history=True if use_scene_object_relationships else False,
+        use_action_object_relationship_history=True
+        if use_scene_object_relationships
+        else False,
         use_action_history=False if use_scene_object_relationships else True,
         all_prior_object_relationships=all_prior_object_relationships,
         all_executed_actions=all_executed_actions,
@@ -496,7 +500,9 @@ def get_next_action_str_from_lm(
         custom_robot_action_sequence_format=custom_robot_action_sequence_format,
         pddl_domain_file=pddl_domain_file,
         pddl_problem_file=pddl_problem_file,
-        use_action_object_relationship_history=True if use_scene_object_relationships else False,
+        use_action_object_relationship_history=True
+        if use_scene_object_relationships
+        else False,
         use_action_history=False if use_scene_object_relationships else True,
         all_prior_object_relationships=all_prior_object_relationships,
         all_executed_actions=all_executed_actions,

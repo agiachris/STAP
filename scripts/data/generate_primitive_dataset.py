@@ -221,17 +221,20 @@ def get_symbolic_actions(
     return actions
 
 
-def get_state_object_types(state: List[str], object_types: Dict[str, str]) -> Dict[str, str]:
+def get_state_object_types(
+    state: List[str], object_types: Dict[str, str]
+) -> Dict[str, str]:
     """Return dictionary of objects to object types for objects in state."""
     state_objects = set()
     for prop in state:
         state_objects = state_objects.union(set(symbolic.parse_args(prop)))
-    return {obj: obj_type for obj, obj_type in object_types.items() if obj in state_objects}
+    return {
+        obj: obj_type for obj, obj_type in object_types.items() if obj in state_objects
+    }
 
 
 def get_states_to_primitives(
-    states_to_actions: Dict[str, List[str]], 
-    primitive: str
+    states_to_actions: Dict[str, List[str]], primitive: str
 ) -> Dict[str, List[str]]:
     """Get mapping from states to specified primitive actions."""
     states_to_primitives: Dict[str, List[str]] = {}
@@ -296,7 +299,7 @@ def get_env_config(
                     task["prob"] = 0.5 * (1 / num_place_hook_actions)
                 else:
                     task["prob"] = 0.5 * (1 / num_place_box_actions)
-    
+
     elif symbolic_action_type == "invalid":
         pass
 
@@ -343,7 +346,7 @@ def main(config: PolicyDatasetGenerationConfig):
     for state in generate_symbolic_states(config.object_types):
         state_object_types = get_state_object_types(state, config.object_types)
         actions = get_symbolic_actions(state, state_object_types, config.pddl_config)
-        
+
         if len(actions) > 0:
             states_to_actions[str(state)] = actions
 
