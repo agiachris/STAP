@@ -80,35 +80,65 @@ SYMBOLIC_ACTION_TYPE="valid"
 TRAIN_SEEDS=($(seq 0 15))
 VALIDATION_SEEDS=($(seq 16 19))
 
+# Models with MSE loss and no sigmoid activation.
+
+# Pick w/out collisions, balanced data (40% success min).
+# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_mse.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="pick"
+# run_value
+
+# Place w/out collisions, balanced data (40% success min).
+# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-5M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_mse.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="place"
+# run_value
+
+# Pull w/out collisions, balanced data (40% success min).
+# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_mse.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="pull"
+# run_value
+
+# Push w/out collisions, balanced data (40% success min).
+# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_mse.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="push"
+# run_value
+
 # Models with logistic loss and sigmoid activation.
 
 # Pick w/out collisions, balanced data (40% success min).
-TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
-PRIMITIVE="pick"
-run_value
+# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="pick"
+# run_value
 
 # Place w/out collisions, balanced data (40% success min).
-TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-5M.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
-PRIMITIVE="place"
-run_value
+# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-5M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="place"
+# run_value
 
 # Pull w/out collisions, balanced data (40% success min).
-TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
-PRIMITIVE="pull"
-run_value
+# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="pull"
+# run_value
 
 # Push w/out collisions, balanced data (40% success min).
-TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
-PRIMITIVE="push"
-run_value
+# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
+# DATA_CHECKPOINT_PATH="models/20230124/datasets"
+# PRIMITIVE="push"
+# run_value
 
 # Sweeps.
 
