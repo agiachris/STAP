@@ -32,13 +32,13 @@ function run_data_generation {
 }
 
 # Experiments.
-EXP_NAME="20230124/datasets"
+EXP_NAME="20230309/datasets"
 SYMBOLIC_ACTION_TYPE="valid"
 
 # Pybullet.
 SPLIT="train"
-SEEDS=($(seq 0 7))
-CPUS=($(seq 4 11))
-PRIMITIVE="push"
+SEEDS=($(seq 0 11))
+CPUS=($(seq 0 11))
+PRIMITIVE="pick"
 
 run_data_generation
