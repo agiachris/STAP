@@ -52,4 +52,7 @@ env_kwargs:
         handle_y: -1.0
         color: [0.6, 0.6, 0.6, 1.0]
     - configs/pybullet/envs/assets/icecream.yaml
+    - configs/pybullet/envs/assets/salt.yaml
+    - configs/pybullet/envs/assets/milk.yaml
+    - configs/pybullet/envs/assets/yogurt.yaml
    
