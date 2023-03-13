@@ -16,6 +16,8 @@ torchvision = "==0.13.1"
 torchaudio = "==0.12.1"
 tyro = "*"
 crfm-helm = "*"
+opencv-python = "*"
+atomicwrites = "*"
 
 [dev-packages]
 black = "*"
