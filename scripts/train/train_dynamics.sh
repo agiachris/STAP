@@ -72,7 +72,7 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] |
 fi
 
 # Launch full suite dynamics jobs.
-TRAINER_CONFIG="configs/pybullet/trainers/dynamics_iter-0.75M.yaml"
+TRAINER_CONFIG="configs/pybullet/trainers/dynamics/dynamics_iter-0.75M.yaml"
 PRIMITIVES=(
     "pick"
     "place"

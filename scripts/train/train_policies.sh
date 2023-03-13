@@ -75,7 +75,7 @@ exp_name="20230309/policy"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
-TRAINER_CONFIG="configs/pybullet/trainers/policy.yaml"
+TRAINER_CONFIG="configs/pybullet/trainers/policy/policy.yaml"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
