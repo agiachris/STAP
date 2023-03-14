@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from temporal_policies.utils import configs, random, tensors
 from temporal_policies import agents, trainers, datasets
 from temporal_policies.networks.encoders import IMAGE_ENCODERS
+from temporal_policies.networks.critics import EnsembleLogitOODCritic
 
 
 PLOT_METRICS = [
@@ -71,6 +72,7 @@ def evaluate_values(
     dataset_checkpoints: List[Union[str, pathlib.Path]],
     trainer_checkpoint: Optional[Union[str, pathlib.Path]] = None,
     agent_checkpoint: Optional[Union[str, pathlib.Path]] = None,
+    agent_config: Optional[Union[str, pathlib.Path]] = None,
     num_eval_steps: Optional[int] = None,
     num_bins: Optional[int] = None,
     expected: bool = False,
@@ -97,7 +99,7 @@ def evaluate_values(
         if seed is not None:
             random.seed(seed)
         agent_factory = agents.AgentFactory(
-            checkpoint=agent_checkpoint, env_kwargs={"gui": False}, device=device
+            config=agent_config, checkpoint=agent_checkpoint, env_kwargs={"gui": False}, device=device
         )
         agent = agent_factory()
     else:
@@ -134,11 +136,15 @@ def evaluate_values(
 
             # Size [B, critic.num_q_functions]
             batch_qs = torch.stack(agent.critic.forward(t_state, batch["action"])).T
+            if isinstance(agent.critic, EnsembleLogitOODCritic):
+                batch_qs_logits = agent.critic.logits.T
+                metrics["q_std"].append(batch_qs_logits.std(dim=-1).cpu().numpy())
+            else:
+                metrics["q_std"].append(batch_qs.std(dim=-1).cpu().numpy())
 
             # Store per-example metrics of size [B,]
             metrics["reward"].append(batch["reward"].cpu().numpy())
             metrics["q_mean"].append(batch_qs.mean(dim=-1).cpu().numpy())
-            metrics["q_std"].append(batch_qs.std(dim=-1).cpu().numpy())
             metrics["q_max"].append(torch.max(batch_qs, dim=-1).values.cpu().numpy())
             metrics["q_min"].append(torch.min(batch_qs, dim=-1).values.cpu().numpy())
 
@@ -238,6 +244,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--trainer-checkpoint", "-t", help="Path to pretrained agent.")
     parser.add_argument("--agent-checkpoint", "-a", help="Path to agent checkpoint.")
+    parser.add_argument("--agent-config", "-c", help="Config for agent wrapper.")
     parser.add_argument(
         "--num-eval-steps", type=int, help="Number of steps to evaluate over."
     )
