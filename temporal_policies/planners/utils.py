@@ -217,8 +217,8 @@ def evaluate_trajectory(
     actions: Optional[torch.Tensor] = None,
     q_value: bool = True,
     clip_success: bool = True,
-    probabilistic_metric: Optional[str] = None,
-) -> Tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+    unc_metric: Optional[str] = None,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Evaluates probability of success for the given trajectory.
 
     Args:
@@ -227,6 +227,8 @@ def evaluate_trajectory(
         states: [batch_dims, T + 1, state_dims] trajectory states.
         actions: [batch_dims, T, state_dims] trajectory actions.
         q_value: Whether to use state-action values (True) or state values (False).
+        clip_success: Whether to clip successes between [0, 1].
+        unc_metric: Uncertainty metric if value_fn outputs a distribution.
 
     Returns:
         (Trajectory success probabilities [batch_size],
@@ -238,9 +240,7 @@ def evaluate_trajectory(
         dtype=torch.float32,
         device=states.device,
     )
-    # p_successes_unc = (
-    #     None if probabilistic_metric is None else torch.zeros_like(p_successes)
-    # )
+    
     p_successes_unc = torch.zeros_like(p_successes)
     if q_value:
         assert actions is not None
@@ -250,14 +250,20 @@ def evaluate_trajectory(
             action = actions[:, t, :dim_action]
             if isinstance(value_fn, networks.critics.Critic):
                 p_successes[:, t] = value_fn.predict(policy_state, action)
+            
+            # Value functions that output a torch distribution.
             elif isinstance(value_fn, networks.critics.ProbabilisticCritic):
-                assert probabilistic_metric is not None and p_successes_unc is not None
+                if unc_metric is None:
+                    raise ValueError(
+                        "Must specify unc_metric if value_fn outputs a distribution."
+                    )
                 p_distribution = value_fn.forward(policy_state, action)
                 p_successes[:, t] = p_distribution.mean
-                p_successes_unc[:, t] = getattr(p_distribution, probabilistic_metric)
-            if isinstance(value_fn, networks.critics.EnsembleOODCritic):
+                p_successes_unc[:, t] = getattr(p_distribution, unc_metric)
+            
+            # Ensemble OOD detector critics with a detect property.
+            if isinstance(value_fn, networks.critics.EnsembleDetectorCritic):
                 p_successes_unc[:, t] = value_fn.detect
-
     else:
         raise NotImplementedError
 
@@ -265,18 +271,9 @@ def evaluate_trajectory(
         p_successes = torch.clip(p_successes, min=0, max=1)
 
     # Combine probabilities.
-    # p_success = logsum_exp(p_successes)
     p_success = torch.exp(torch.log(p_successes).sum(dim=-1))
 
     return p_success, p_successes, p_successes_unc
-
-
-@tensors.batch(dims=1)
-def logsum_exp(*input_tensors: torch.Tensor) -> torch.Tensor:
-    logsum = torch.log(input_tensors[0]).sum(dim=-1)
-    for i in range(1, len(input_tensors)):
-        logsum += torch.log(input_tensors[i]).sum(dim=-1)
-    return torch.exp(logsum)
 
 
 def evaluate_plan(

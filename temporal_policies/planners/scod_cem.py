@@ -252,7 +252,7 @@ class SCODCEMPlanner(planners.Planner):
                     decode_fns,
                     states,
                     actions=samples,
-                    probabilistic_metric="stddev",
+                    unc_metric="stddev",
                 )
 
                 # Filter out trajectories with the highest uncertainty.
