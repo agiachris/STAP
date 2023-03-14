@@ -7,5 +7,7 @@ from .ensemble import (
     ContinuousEnsembleCritic,
     EnsembleLCBCritic,
     EnsembleThresholdCritic,
+    EnsembleDetectorCritic,
     EnsembleOODCritic,
+    EnsembleLogitOODCritic,
 )
