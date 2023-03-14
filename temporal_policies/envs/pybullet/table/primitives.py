@@ -569,7 +569,7 @@ class Pull(Primitive):
             did_non_args_move = self.create_object_movement_check(objects=objects)
         try:
             robot.goto_pose(pre_pos, command_pose_reach.quat)
-            if not self.ALLOW_COLLISIONS and did_non_args_move():
+            if not allow_collisions and did_non_args_move():
                 if verbose:
                     if verbose:
                         print("Robot collided during pre-pose")
