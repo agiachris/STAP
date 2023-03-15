@@ -68,19 +68,26 @@ SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
 
 output_path="plots"
-exp_name="20230309/value_logits"
+exp_name="20230313/value"
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 NUM_EVAL_STEPS=1000
 
 # Critics trained with logistics regression, balanced data (40%).
 DATA_CONFIG="configs/pybullet/datasets/replay_buffer.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics_logit.yaml"
+
 SEEDS=("0")
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics_logit.yaml"
+# declare -A AGENT_CHECKPOINT_PATHS=(
+#     ["pick"]="models/20230309/value"
+#     ["place"]="models/20230309/value"
+#     ["pull"]="models/20230309/value"
+#     ["push"]="models/20230309/value"
+# )
 declare -A AGENT_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230309/value"
-    ["place"]="models/20230309/value"
-    ["pull"]="models/20230309/value"
-    ["push"]="models/20230309/value"
+    ["pick"]="models/20230313/value"
+    ["place"]="models/20230313/value"
+    ["pull"]="models/20230313/value"
+    ["push"]="models/20230313/value"
 )
 for PRIMITIVE in "${!AGENT_CHECKPOINT_PATHS[@]}"; do
     AGENT_CHECKPOINT_PATH="${AGENT_CHECKPOINT_PATHS[${PRIMITIVE}]}"
