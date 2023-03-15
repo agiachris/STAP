@@ -71,7 +71,7 @@ DEBUG=0
 
 output_path="models"
 plots_path="plots"
-exp_name="20230309/policy"
+exp_name="20230313/policy"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
