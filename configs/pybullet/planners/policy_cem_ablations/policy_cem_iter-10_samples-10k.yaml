@@ -1,0 +1,15 @@
+planner: CEMPlanner
+planner_kwargs:
+  num_samples: 10000
+  num_iterations: 10
+  num_elites: 10
+  keep_elites_fraction: 1.0
+  standard_deviation: 0.3
+
+agent_configs:
+  - "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
+  - "{AGENT_CONFIG}"
+
+dynamics_config: "{DYNAMICS_CONFIG}"

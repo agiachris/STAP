@@ -133,23 +133,32 @@ PLANNERS=(
     # "greedy_oracle_dynamics"
     # "greedy"
 )
+# PLANNERS=(
+# # Q-value / Latent dynamics.
+#     "policy_cem_iter-10_samples-100"
+#     "policy_cem_iter-10_samples-10k"
+#     "policy_cem_iter-10_samples-1k"
+#     "policy_cem_iter-5_samples-100"
+#     "policy_cem_iter-5_samples-10k"
+#     "policy_cem_iter-5_samples-1k"
+# )
 
 ## TAPS Evaluation tasks.
 
 TASK_ROOT="configs/pybullet/envs/taps/official/domains"
 TASKS=(
 # Domain 1: Hook Reach
-    # "hook_reach/task0"
-    # "hook_reach/task1"
-    # "hook_reach/task2"
+    "hook_reach/task0"
+    "hook_reach/task1"
+    "hook_reach/task2"
 # Domain 2: Constrained Packing
-    # "constrained_packing/task0"
-    # "constrained_packing/task1"
-    # "constrained_packing/task2"
+    "constrained_packing/task0"
+    "constrained_packing/task1"
+    "constrained_packing/task2"
 # Domain 3: Rearrangement Push
     "rearrangement_push/task0"
-    # "rearrangement_push/task1"
-    # "rearrangement_push/task2"
+    "rearrangement_push/task1"
+    "rearrangement_push/task2"
 )
 
 ## T2M Evaluation tasks.
@@ -172,10 +181,10 @@ TASKS=(
 # )
 
 ## Pybullet.
-exp_name="20230203/planners/taps"
+exp_name="20230315/planners/t2m"
 PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
 
-PLANNER_CONFIG_PATH="configs/pybullet/planners"
+PLANNER_CONFIG_PATH="configs/pybullet/planners/policy_cem_ablations"
 ENV_KWARGS="--closed-loop 1"
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
@@ -189,64 +198,33 @@ PRIMITIVES=(
     "push"
 )
 
-# Critics trained with mean squared regression.
-# declare -A POLICY_CHECKPOINT_PATHS=(
-#     ["pick"]="models/20230121/policy/pick_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-#     ["place"]="models/20230121/policy/place_value_sched-cos_iter-5M_sac_ens_value/final_model/final_model.pt"
-#     ["pull"]="models/20230120/policy/pull_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-#     ["push"]="models/20230120/policy/push_value_sched-cos_iter-2M_sac_ens_value/final_model/final_model.pt"
-# )
-# DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
-# run_planners
-
-# Critics trained with logistics regression.
-# declare -A POLICY_CHECKPOINT_PATHS=(
-#     ["pick"]="models/20230123/policy/pick_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
-#     ["place"]="models/20230123/policy/place_value_sched-cos_iter-5M_sac_ens_value_logistics/final_model/final_model.pt"
-#     ["pull"]="models/20230123/policy/pull_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
-#     ["push"]="models/20230123/policy/push_value_sched-cos_iter-2M_sac_ens_value_logistics/final_model/final_model.pt"
-# )
-# DYNAMICS_CHECKPOINT_PATH="models/20230121/dynamics/pick_place_pull_push_dynamics/best_model.pt"
-# run_planners
-
-# Critics trained with logistics regression, balanced data (40% success)
-# declare -A POLICY_CHECKPOINT_PATHS=(
-#     ["pick"]="models/20230125/policy/pick/final_model/final_model.pt"
-#     ["place"]="models/20230124/policy/place/final_model/final_model.pt"
-#     ["pull"]="models/20230125/policy/pull/final_model/final_model.pt"
-#     ["push"]="models/20230125/policy/push/final_model/final_model.pt"
-# )
-# DYNAMICS_CHECKPOINT_PATH="models/20230125/dynamics/pick_place_pull_push_dynamics/best_model.pt"
-# run_planners
-
 # Critics trained with MSE loss and no sigmoid activation, balanced data (40%).
 declare -A POLICY_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230126/policy/pick/final_model/final_model.pt"
-    ["place"]="models/20230126/policy/place/final_model/final_model.pt"
-    ["pull"]="models/20230126/policy/pull/final_model/final_model.pt"
-    ["push"]="models/20230126/policy/push/final_model/final_model.pt"
+    ["pick"]="models/20230309/policy/pick/final_model/final_model.pt"
+    ["place"]="models/20230313/policy/place/final_model/final_model.pt"
+    ["pull"]="models/20230313/policy/pull/final_model/final_model.pt"
+    ["push"]="models/20230313/policy/push/final_model/final_model.pt"
 )
-DYNAMICS_CHECKPOINT_PATH="models/20230125/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+DYNAMICS_CHECKPOINT_PATH="models/20230313/dynamics/pick_place_pull_push_dynamics/best_model.pt"
 run_planners
 
 
 ## Visualize results.
-# if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
-#     exit
-# fi
+if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
+    exit
+fi
 
-# function visualize_results {
-#     args=""
-#     args="${args} --path ${PLANNER_OUTPUT_ROOT}"
-#     args="${args} --envs ${TASKS[@]}"
-#     args="${args} --methods ${PLANNERS[@]}"
-#     if [ ! -z "${FIGURE_NAME}" ]; then
-#         args="${args} --name ${FIGURE_NAME}"
-#     fi
-#     CMD="python scripts/visualize/generate_planning_figure.py ${args}"
-#     run_cmd
-# }
+function visualize_results {
+    args=""
+    args="${args} --path ${PLANNER_OUTPUT_ROOT}"
+    args="${args} --envs ${TASKS[@]}"
+    args="${args} --methods ${PLANNERS[@]}"
+    if [ ! -z "${FIGURE_NAME}" ]; then
+        args="${args} --name ${FIGURE_NAME}"
+    fi
+    CMD="python scripts/visualize/generate_planning_figure.py ${args}"
+    run_cmd
+}
 
-# FIGURE_NAME="mse-models-handcrafted-dynamics"
-# visualize_results
-
+FIGURE_NAME="policy_cem_ablation"
+visualize_results
