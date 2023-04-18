@@ -55,7 +55,7 @@ class EnsembleAgent(wrapper.WrapperAgent):
                 pessimistic=pessimistic,
                 clip=clip,
             )
-        elif issubclass(critic_class, critics.EnsembleOODCritic):
+        elif issubclass(critic_class, critics.EnsembleDetectorCritic):
             critic = critic_class(
                 threshold=ood_threshold,
                 critic=policy.critic,

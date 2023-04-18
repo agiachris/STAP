@@ -63,7 +63,7 @@ SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
 
 output_path="models"
-exp_name="20230309/dynamics"
+exp_name="20230313/dynamics"
 DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 
@@ -79,10 +79,16 @@ PRIMITIVES=(
     "pull"
     "push"
 )
+# declare -A POLICY_CHECKPOINT_PATHS=(
+#     ["pick"]="models/20230309/policy/pick/final_model/final_model.pt"
+#     ["place"]="models/20230309/policy/place/final_model/final_model.pt"
+#     ["pull"]="models/20230309/policy/pull/final_model/final_model.pt"
+#     ["push"]="models/20230309/policy/push/final_model/final_model.pt"
+# )
 declare -A POLICY_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230309/policy/pick/final_model/final_model.pt"
-    ["place"]="models/20230309/policy/place/final_model/final_model.pt"
-    ["pull"]="models/20230309/policy/pull/final_model/final_model.pt"
-    ["push"]="models/20230309/policy/push/final_model/final_model.pt"
+    ["pick"]="models/20230313/policy/pick/final_model/final_model.pt"
+    ["place"]="models/20230313/policy/place/final_model/final_model.pt"
+    ["pull"]="models/20230313/policy/pull/final_model/final_model.pt"
+    ["push"]="models/20230313/policy/push/final_model/final_model.pt"
 )
 run_dynamics

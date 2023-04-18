@@ -25,6 +25,9 @@ function eval_value {
     if [ ! -z "${AGENT_CHECKPOINT}" ]; then
         args="${args} --agent-checkpoint ${AGENT_CHECKPOINT}"
     fi
+    if [ ! -z "${AGENT_CONFIG}" ]; then
+        args="${args} --agent-config ${AGENT_CONFIG}"
+    fi
     if [ ! -z "${NAME}" ]; then
         args="${args} --name ${NAME}"
     fi
@@ -60,113 +63,44 @@ function run_value {
     eval_value
 }
 
-
-#### Setup.
+# Setup.
 SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
+
 output_path="plots"
-
-#### Experiments.
-
-### Pybullet.
-exp_name="20230126/value_logistics"
+exp_name="20230313/value"
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 NUM_EVAL_STEPS=1000
 
-## Launch primitive jobs.
-
-## Data.
-# DATA_CONFIG="configs/pybullet/datasets/replay_buffer.yaml"
-# SYMBOLIC_ACTION_TYPE="valid"
-# SEEDS=("0")
-
-## Critics trained with mean squared regression.
-
-# DATA_CONFIG="configs/pybullet/datasets/replay_buffer.yaml"
-# SEEDS=("0")
-# declare -A PRIMITIVES=(
-#     ["pick"]="pick_value_sched-cos_iter-2M_sac_ens_value"
-#     ["place"]="place_value_sched-cos_iter-5M_sac_ens_value"
-#     ["pull"]="pull_value_sched-cos_iter-2M_sac_ens_value"
-#     ["push"]="push_value_sched-cos_iter-2M_sac_ens_value"
-# )
-# declare -A AGENT_CHECKPOINT_PATHS=(
-#     ["pick"]="models/20230120/value"
-#     ["place"]="models/20230120/value"
-#     ["pull"]="models/20230120/value"
-#     ["push"]="models/20230120/value"
-# )
-# declare -A DATA_CHECKPOINT_PATHS=(
-#     ["pick"]="models/20230116/datasets"
-#     ["place"]="models/20230116/datasets"
-#     ["pull"]="models/20230119/datasets"
-#     ["push"]="models/20230119/datasets"
-# )
-# for PRIMITIVE in "${!PRIMITIVES[@]}"; do
-#     AGENT_CHECKPOINT_PATH="${AGENT_CHECKPOINT_PATHS[${PRIMITIVE}]}"
-    
-#     AGENT_CHECKPOINT="${PRIMITIVES[${PRIMITIVE}]}"
-#     SYMBOLIC_ACTION_TYPE="valid"
-#     DATA_CHECKPOINT_PATH="${DATA_CHECKPOINT_PATHS[${PRIMITIVE}]}"
-#     TAG="ind"
-#     run_value
-    
-#     AGENT_CHECKPOINT="${PRIMITIVES[${PRIMITIVE}]}"
-#     SYMBOLIC_ACTION_TYPE="invalid"
-#     DATA_CHECKPOINT_PATH="models/20230125/datasets"
-#     TAG="ood"
-#     run_value
-# done
-
-## Critics trained with logistics regression, balanced data (40%).
-
-## Data.
+# Critics trained with logistics regression, balanced data (40%).
 DATA_CONFIG="configs/pybullet/datasets/replay_buffer.yaml"
+
 SEEDS=("0")
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics_logit.yaml"
+# declare -A AGENT_CHECKPOINT_PATHS=(
+#     ["pick"]="models/20230309/value"
+#     ["place"]="models/20230309/value"
+#     ["pull"]="models/20230309/value"
+#     ["push"]="models/20230309/value"
+# )
 declare -A AGENT_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230124/value"
-    ["place"]="models/20230124/value"
-    ["pull"]="models/20230124/value"
-    ["push"]="models/20230124/value"
+    ["pick"]="models/20230313/value"
+    ["place"]="models/20230313/value"
+    ["pull"]="models/20230313/value"
+    ["push"]="models/20230313/value"
 )
 for PRIMITIVE in "${!AGENT_CHECKPOINT_PATHS[@]}"; do
     AGENT_CHECKPOINT_PATH="${AGENT_CHECKPOINT_PATHS[${PRIMITIVE}]}"
     
     AGENT_CHECKPOINT="${PRIMITIVE}"
     SYMBOLIC_ACTION_TYPE="valid"
-    DATA_CHECKPOINT_PATH="models/20230124/datasets"
+    DATA_CHECKPOINT_PATH="models/20230309/datasets"
     TAG="ind"
     run_value
     
     AGENT_CHECKPOINT="${PRIMITIVE}"
     SYMBOLIC_ACTION_TYPE="invalid"
-    DATA_CHECKPOINT_PATH="models/20230125/datasets"
+    DATA_CHECKPOINT_PATH="models/20230309/datasets"
     TAG="ood"
     run_value
 done
-
-## Critics trained with MSE loss and no sigmoid activation, balanced data (40%).
-
-# DATA_CONFIG="configs/pybullet/datasets/replay_buffer.yaml"
-# SEEDS=("0")
-# declare -A AGENT_CHECKPOINT_PATHS=(
-#     ["pick"]="models/20230126/value"
-#     ["place"]="models/20230126/value"
-#     ["pull"]="models/20230126/value"
-#     ["push"]="models/20230126/value"
-# )
-# for PRIMITIVE in "${!AGENT_CHECKPOINT_PATHS[@]}"; do
-#     AGENT_CHECKPOINT_PATH="${AGENT_CHECKPOINT_PATHS[${PRIMITIVE}]}"
-    
-#     AGENT_CHECKPOINT="${PRIMITIVE}"
-#     SYMBOLIC_ACTION_TYPE="valid"
-#     DATA_CHECKPOINT_PATH="models/20230124/datasets"
-#     TAG="ind"
-#     run_value
-    
-#     AGENT_CHECKPOINT="${PRIMITIVE}"
-#     SYMBOLIC_ACTION_TYPE="invalid"
-#     DATA_CHECKPOINT_PATH="models/20230125/datasets"
-#     TAG="ood"
-#     run_value
-# done

@@ -62,6 +62,10 @@ function run_planners {
         PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${planner}.yaml"
 
         POLICY_CHECKPOINTS=(
+            # "models/20230309/policy/pick/final_model.pt"
+            # "models/20230309/policy/place/final_model.pt"
+            # "models/20230309/policy/pull/final_model.pt"
+            # "models/20230309/policy/push/final_model.pt"
             "models/20230125/policy/pick/final_model/final_model.pt"
             "models/20230309/policy/place/final_model/final_model.pt"
             "models/20230309/policy/pull/final_model/final_model.pt"
@@ -74,7 +78,9 @@ function run_planners {
             # "models/20230124/policy/place/final_model/final_model.pt"
             # "models/20230124/policy/pull/final_model/final_model.pt"
             # "models/20230124/policy/push/final_model/final_model.pt"
-        )
+            # "models/20230124/policy/place/final_model/final_model.pt"
+            # "models/20230124/policy/pull/final_model/final_model.pt"
+            # "models/20230124/policy/push/final_model/final_model.pt"
         if [[ "${planner}" == *_oracle_*dynamics ]]; then
             DYNAMICS_CHECKPOINT=""
         elif [[ "${planner}" == daf_* ]]; then
@@ -83,7 +89,7 @@ function run_planners {
             DYNAMICS_CHECKPOINT="models/20230309/dynamics/pick_place_pull_push_dynamics/ckpt_model_500000.pt"
             #     # "models/20230309/dynamics/pick_place_pull_push_dynamics/ckpt_model_500000.pt"
             #     "models/20230125/dynamics/pick_place_pull_push_dynamics/final_model.pt"
-            # DYNAMICS_CHECKPOINT="models/20230125/dynamics/pick_place_pull_push_dynamics/final_model.pt"
+            DYNAMICS_CHECKPOINT="models/20230125/dynamics/pick_place_pull_push_dynamics/final_model.pt"
         fi
 
         eval_lm_tamp
@@ -140,6 +146,9 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; 
 fi
 
 ENV_KWARGS="--gui 1"
+
+real_or_sim="real_world" 
+# real_or_sim="official"
 
 real_or_sim="real_world" 
 # real_or_sim="official"

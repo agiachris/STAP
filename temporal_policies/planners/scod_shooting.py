@@ -119,7 +119,7 @@ class SCODShootingPlanner(planners.Planner):
                     decode_fns,
                     t_states,
                     actions=t_actions,
-                    probabilistic_metric="stddev",
+                    unc_metric="stddev",
                 )
 
                 # Filter out trajectories with the highest uncertainty.

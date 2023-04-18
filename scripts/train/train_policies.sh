@@ -71,7 +71,7 @@ DEBUG=0
 
 output_path="models"
 plots_path="plots"
-exp_name="20230309/policy"
+exp_name="20230313/policy"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
@@ -80,18 +80,52 @@ if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] |
     ENV_KWARGS="--gui 0"
 fi
 
-# Critics trained with logistics regression.
-
 # Data.
 SYMBOLIC_ACTION_TYPE="valid"
 TRAIN_SEEDS=($(seq 0 15))
 VALIDATION_SEEDS=($(seq 16 19))
 
+# Critics trained with logistics regression.
+
+# # Pick w/out collisions, balanced data (40% success min).
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
+# DATA_CHECKPOINT_PATH="models/20230309/datasets"
+# PRIMITIVE="pick"
+# CRITIC_CHECKPOINT_PATH="models/20230309/value"
+# CRITIC_CHECKPOINTS=("pick/final_model")
+# run_policy
+
+# # Place w/out collisions, balanced data (40% success min).
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
+# DATA_CHECKPOINT_PATH="models/20230309/datasets"
+# PRIMITIVE="place"
+# CRITIC_CHECKPOINT_PATH="models/20230309/value"
+# CRITIC_CHECKPOINTS=("place/final_model")
+# run_policy
+
+# # Pull w/out collisions, balanced data (40% success min).
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
+# DATA_CHECKPOINT_PATH="models/20230309/datasets"
+# PRIMITIVE="pull"
+# CRITIC_CHECKPOINT_PATH="models/20230309/value"
+# CRITIC_CHECKPOINTS=("pull/final_model")
+# run_policy
+
+# # Push w/out collisions, balanced data (40% success min).
+# AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
+# DATA_CHECKPOINT_PATH="models/20230309/datasets"
+# PRIMITIVE="push"
+# CRITIC_CHECKPOINT_PATH="models/20230309/value"
+# CRITIC_CHECKPOINTS=("push/final_model")
+# run_policy
+
+# Critics trained with logistics regression.
+
 # Pick w/out collisions, balanced data (40% success min).
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy_mean.yaml"
 DATA_CHECKPOINT_PATH="models/20230309/datasets"
 PRIMITIVE="pick"
-CRITIC_CHECKPOINT_PATH="models/20230309/value"
+CRITIC_CHECKPOINT_PATH="models/20230313/value"
 CRITIC_CHECKPOINTS=("pick/final_model")
 run_policy
 
@@ -99,7 +133,7 @@ run_policy
 AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
 DATA_CHECKPOINT_PATH="models/20230309/datasets"
 PRIMITIVE="place"
-CRITIC_CHECKPOINT_PATH="models/20230309/value"
+CRITIC_CHECKPOINT_PATH="models/20230313/value"
 CRITIC_CHECKPOINTS=("place/final_model")
 run_policy
 
@@ -107,7 +141,7 @@ run_policy
 AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
 DATA_CHECKPOINT_PATH="models/20230309/datasets"
 PRIMITIVE="pull"
-CRITIC_CHECKPOINT_PATH="models/20230309/value"
+CRITIC_CHECKPOINT_PATH="models/20230313/value"
 CRITIC_CHECKPOINTS=("pull/final_model")
 run_policy
 
@@ -115,6 +149,6 @@ run_policy
 AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
 DATA_CHECKPOINT_PATH="models/20230309/datasets"
 PRIMITIVE="push"
-CRITIC_CHECKPOINT_PATH="models/20230309/value"
+CRITIC_CHECKPOINT_PATH="models/20230313/value"
 CRITIC_CHECKPOINTS=("push/final_model")
 run_policy
