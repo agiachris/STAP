@@ -64,7 +64,7 @@ STAP supports [training skills](#training-skills), [dynamics models](#training-d
 We provide launch scripts for training STAP's required models below.
 The launch scripts also support parallelization on a cluster managed by SLURM, and will otherwise default to sequentially processing jobs.
 
-### Checkpoints (coming soon)
+### Model Checkpoints (coming soon!)
 As an alternative to training skills and dynamics models, we will soon provide checkpoints that can be downloaded and directly used to [evaluate planners](#evaluating-planning).
 <!-- - Skills trained through RL: path/to/drive
 - Skills trained through inverse RL: path/to/drive
