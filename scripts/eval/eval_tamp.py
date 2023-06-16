@@ -1,17 +1,3 @@
-"""
-python scripts/eval/eval_tamp.py  --planner-config configs/pybullet/planners/greedy.yaml 
---env-config configs/pybullet/envs/official/domains/hook_reach/tamp0.yaml 
---policy-checkpoints models/official/pick/select_model.pt models/official/place/select_model.pt models/official/pull/select_model.pt models/official/push/select_model.pt 
---dynamics-checkpoint models/20230101/complete_q_multistage/ckpt_model_300000/dynamics/ckpt_model_20000.pt --seed 0 
---pddl-domain configs/pybullet/envs/official/domains/hook_reach/tamp0_domain.pddl 
---pddl-problem configs/pybullet/envs/official/domains/hook_reach/tamp0_problem.pddl 
---max-depth 4 --timeout 10 --closed-loop 0 --num-eval 100 --path plots/official/tamp_experiment/hook_reach/tamp0 --verbose 0
-"""
-
-# --dynamics-checkpoint models/20230101/complete_q_multistage/ckpt_model_300000/dynamics_all_4/best_model.pt --seed 0
-# --dynamics-checkpoint models/official/select_model/dynamics/best_model.pt --seed 0
-
-
 import argparse
 import pathlib
 from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
@@ -20,9 +6,9 @@ import numpy as np
 import symbolic
 import tqdm
 
-from temporal_policies import dynamics, envs, planners
-from temporal_policies.envs.pybullet.table import primitives as table_primitives
-from temporal_policies.utils import timing
+from stap import dynamics, envs, planners
+from stap.envs.pybullet.table import primitives as table_primitives
+from stap.utils import timing
 
 
 def seed_generator(

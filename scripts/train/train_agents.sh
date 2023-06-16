@@ -2,22 +2,17 @@
 
 set -e
 
-# GCP_LOGIN="juno-login-lclbjqwy-001"
-# GCP_LOGIN="gcp-login-yq0fvtuw-001"
-
 function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
-        sbatch scripts/train/train_juno.sh "${CMD}"
-    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
-        sbatch scripts/train/train_gcp.sh "${CMD}"
+        sbatch "${SBATCH_SLURM}" "${CMD}"
     else
         ${CMD}
     fi
 }
 
-function train_policy {
+function train_agent {
     args=""
     args="${args} --trainer-config ${TRAINER_CONFIG}"
     args="${args} --agent-config ${AGENT_CONFIG}"
@@ -38,39 +33,66 @@ function train_policy {
         args="${args} --num-eval-episodes 10"
     else
         args="${args} --path ${POLICY_OUTPUT_PATH}"
+        if [[ $RESUME -ne 0 ]]; then
+            args="${args} --resume"
+        fi
         args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
     fi
 
-    CMD="python scripts/train/train_policy.py ${args}"
+    CMD="python scripts/train/train_agent.py ${args}"
     run_cmd
 }
 
 # Setup.
+SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
+RESUME=0
+
 output_path="models"
 plots_path="plots"
+env_path="configs/pybullet/envs/official/primitives"
 
-# Experiments.
-exp_name="20230118/sac"
-
-# Pybullet.
-AGENT_CONFIG="configs/pybullet/agents/single_stage/sac.yaml"
-TRAINER_CONFIG="configs/pybullet/trainers/agent_sac.yaml"
-
-POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
-EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
+# Pybullet experiments.
+if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pick.yaml"
-train_policy
+# Train skill library.
+# Details: light=200K episodes, MSE loss for Q-networks.
+exp_name="primitives_light_mse"
+AGENT_CONFIG="configs/pybullet/agents/single_stage/sac_mse.yaml"
+TRAINER_CONFIG="configs/pybullet/trainers/agent/agent_light.yaml"
+POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
+EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/place.yaml"
-train_policy
+ENV_CONFIG="${env_path}/light/pick.yaml"
+train_agent
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/pull.yaml"
-train_policy
+ENV_CONFIG="${env_path}/light/place.yaml"
+train_agent
 
-ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/push.yaml"
-train_policy
+ENV_CONFIG="${env_path}/light/pull.yaml"
+train_agent
+
+ENV_CONFIG="${env_path}/light/push.yaml"
+train_agent
+
+# Train skill library.
+# Details: light=200K episodes, Logistic Regression loss for Q-networks.
+# exp_name="primitives_light_logreg"
+# AGENT_CONFIG="configs/pybullet/agents/single_stage/sac_mse.yaml"
+# TRAINER_CONFIG="configs/pybullet/trainers/agent/agent_light.yaml"
+# POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
+# EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
+
+# ENV_CONFIG="${env_path}/light/pick.yaml"
+# train_agent
+
+# ENV_CONFIG="${env_path}/light/place.yaml"
+# train_agent
+
+# ENV_CONFIG="${env_path}/light/pull.yaml"
+# train_agent
+
+# ENV_CONFIG="${env_path}/light/push.yaml"
+# train_agent

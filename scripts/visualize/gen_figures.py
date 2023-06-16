@@ -7,7 +7,7 @@ from collections import defaultdict
 from copy import deepcopy
 import matplotlib.pyplot as plt
 
-from temporal_policies.envs.pybox2d.visualization import Box2DVisualizer
+from stap.envs.pybox2d.visualization import Box2DVisualizer
 
 
 def load_planner_results(parent_dir, planner_name):
@@ -26,7 +26,6 @@ def load_planner_results(parent_dir, planner_name):
 
 
 def standard_plot(x, y, title, xlabel, ylabel, labels, output_path, std=None):
-
     for i in range(len(x)):
         plt.plot(
             x[i],
@@ -132,7 +131,6 @@ def group_by_param(results, param_names):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--path", "-p", type=str, required=True, help="Path to results directory"

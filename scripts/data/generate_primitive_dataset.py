@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Optional, Set, Union, Tuple
+from typing import Any, Dict, List, Literal, Optional, Set, Union
 
 import os
 import ast
@@ -14,7 +14,7 @@ import symbolic
 
 from configs.base_config import PDDLConfig, PolicyDatasetGenerationConfig
 from scripts.eval.task_gen import utils
-from scripts.train import train_policy
+from scripts.train import train_agent
 
 
 MOVABLE_TYPES = {"box", "tool", "movable"}
@@ -382,7 +382,7 @@ def main(config: PolicyDatasetGenerationConfig):
         env_name=config.env_name,
     )
 
-    train_policy.train(
+    train_agent.train(
         config.path,
         trainer_config=config.trainer_config,
         agent_config=config.agent_config,

@@ -39,7 +39,7 @@ function run_data_generation {
 }
 
 # Experiments.
-EXP_NAME="20230309/datasets"
+EXP_NAME="datasets"
 
 # In-distribution (symbolically valid) data generation.
 TRAINER_CONFIG="configs/pybullet/trainers/datasets/primitive_valid_dataset.yaml"

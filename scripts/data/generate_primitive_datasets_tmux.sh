@@ -32,7 +32,7 @@ function run_data_generation {
 }
 
 # Experiments.
-EXP_NAME="20230309/datasets"
+EXP_NAME="datasets"
 SYMBOLIC_ACTION_TYPE="valid"
 
 # Pybullet.

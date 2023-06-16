@@ -5,9 +5,9 @@ import pathlib
 from pprint import pprint
 from typing import Any, Dict, Optional, Sequence, Union
 
-from temporal_policies import trainers
-from temporal_policies.dynamics import DynamicsFactory
-from temporal_policies.utils import configs, random
+from stap import trainers
+from stap.dynamics import DynamicsFactory
+from stap.utils import configs, random
 
 
 def train(

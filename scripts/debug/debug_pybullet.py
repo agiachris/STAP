@@ -3,8 +3,8 @@
 import argparse
 from typing import Optional
 
-from temporal_policies import envs
-from temporal_policies.envs import pybullet
+from stap import envs
+from stap.envs import pybullet
 
 
 def main(env_config: str, seed: Optional[int] = None) -> None:
@@ -17,9 +17,6 @@ def main(env_config: str, seed: Optional[int] = None) -> None:
         seed = None
 
         print("Reset seed:", info["seed"])
-        print("Supported goal predicates:", env.task.supported_predicates)
-        print("Task instruction:", env.task.instruction)
-        print("Goal predicates:", env.task.goal_propositions, "\n")
 
         action_skeleton = env.task.action_skeleton
         for step in range(len(action_skeleton)):
@@ -35,8 +32,6 @@ def main(env_config: str, seed: Optional[int] = None) -> None:
             _, success, _, truncated, _ = env.step(normalized_action)
             print(f"Success {primitive}: {success}")
 
-            if env.task.goal_propositions is not None:
-                print("Goal state achieved:", env.is_goal_state())
             if truncated:
                 break
 

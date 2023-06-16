@@ -3,16 +3,16 @@ requires = ["setuptools>=40.8.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "temporal_policies"
+name = "stap"
 version = "0.0.1"
 authors = [
   { name = "Christopher Agia", email = "cagia@cs.stanford.edu" },
   { name = "Toki Migimatsu", email = "takatoki@cs.stanford.edu" }
 ]
-description = "Learning compositional policies for long horizon planning."
+description = "Learning compositional policies for long-horizon planning."
 license = { file = "LICENSE" }
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
@@ -37,14 +37,12 @@ dependencies = [
   "pybullet",
   # Ours
   "ctrlutils==1.4.1",
-  # "pysymbolic>=1.0.1",
-  "pysymbolic @ git+https://github.com/tmigimatsu/symbolic/tree/0b2d558aeb4be20066f1ac0d3b3b6982a22c14b0",
-  # scod-regression,
+  "pysymbolic @ git+https://github.com/kevin-thankyou-lin/symbolic",
   "spatialdyn==1.4.4",
 ]
 
 [tool.setuptools.packages.find]
-include = ["temporal_policies*"]
+include = ["stap*"]
 
 [[tool.mypy.overrides]]
 module = [

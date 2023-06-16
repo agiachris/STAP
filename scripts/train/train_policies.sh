@@ -7,8 +7,6 @@ function run_cmd {
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
         sbatch "${SBATCH_SLURM}" "${CMD}"
-    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
-        sbatch scripts/train/train_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -45,7 +43,7 @@ function train_policy {
 }
 
 function run_policy {
-    ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${PRIMITIVE}_eval.yaml"
+    ENV_CONFIG="configs/pybullet/envs/official/primitives/primitives_rl/${PRIMITIVE}_eval.yaml"
     TRAIN_DATA_CHECKPOINTS=""
     for seed in "${TRAIN_SEEDS[@]}"; do
         data_path="${DATA_CHECKPOINT_PATH}/train_${SYMBOLIC_ACTION_TYPE}_${PRIMITIVE}_${seed}/train_data"
@@ -58,97 +56,52 @@ function run_policy {
         EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
     done    
 
-    for critic_checkpoint in "${CRITIC_CHECKPOINTS[@]}"; do
-        CRITIC_CHECKPOINT="${CRITIC_CHECKPOINT_PATH}/${critic_checkpoint}.pt"
-        NAME="${critic_checkpoint}"
-        train_policy
-    done
+    CRITIC_CHECKPOINT="${CRITIC_CHECKPOINT_PATH}/${PRIMITIVE}/${CRITIC_CHECKPOINT}.pt"
+    NAME="${CRITIC_CHECKPOINT}"
+    train_policy
 }
 
 # Setup.
 SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
 
+input_path="models"
 output_path="models"
 plots_path="plots"
-exp_name="20230313/policy"
+exp_name="policy"
+
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
 EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
 
-TRAINER_CONFIG="configs/pybullet/trainers/policy/policy.yaml"
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
+# Pybullet experiments.
+if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
-# Data.
+# Train policy library.
 SYMBOLIC_ACTION_TYPE="valid"
 TRAIN_SEEDS=($(seq 0 15))
 VALIDATION_SEEDS=($(seq 16 19))
+DATA_CHECKPOINT_PATH="${input_path}/datasets"
 
-# Critics trained with logistics regression.
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
+TRAINER_CONFIG="configs/pybullet/trainers/policy/policy.yaml"
 
-# # Pick w/out collisions, balanced data (40% success min).
-# AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
-# DATA_CHECKPOINT_PATH="models/20230309/datasets"
-# PRIMITIVE="pick"
-# CRITIC_CHECKPOINT_PATH="models/20230309/value"
-# CRITIC_CHECKPOINTS=("pick/final_model")
-# run_policy
+CRITIC_CHECKPOINT_PATH="${input_path}/value"
+CRITIC_CHECKPOINT="final_model"
 
-# # Place w/out collisions, balanced data (40% success min).
-# AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
-# DATA_CHECKPOINT_PATH="models/20230309/datasets"
-# PRIMITIVE="place"
-# CRITIC_CHECKPOINT_PATH="models/20230309/value"
-# CRITIC_CHECKPOINTS=("place/final_model")
-# run_policy
-
-# # Pull w/out collisions, balanced data (40% success min).
-# AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
-# DATA_CHECKPOINT_PATH="models/20230309/datasets"
-# PRIMITIVE="pull"
-# CRITIC_CHECKPOINT_PATH="models/20230309/value"
-# CRITIC_CHECKPOINTS=("pull/final_model")
-# run_policy
-
-# # Push w/out collisions, balanced data (40% success min).
-# AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
-# DATA_CHECKPOINT_PATH="models/20230309/datasets"
-# PRIMITIVE="push"
-# CRITIC_CHECKPOINT_PATH="models/20230309/value"
-# CRITIC_CHECKPOINTS=("push/final_model")
-# run_policy
-
-# Critics trained with logistics regression.
-
-# Pick w/out collisions, balanced data (40% success min).
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy_mean.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
+# Details: 1M episodes, Logistic Regression loss for Q-networks, ensemble of 8 Q-networks.
 PRIMITIVE="pick"
-CRITIC_CHECKPOINT_PATH="models/20230313/value"
-CRITIC_CHECKPOINTS=("pick/final_model")
 run_policy
 
-# Place w/out collisions, balanced data (40% success min).
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
+# Details: 1M episodes, MSE loss for Q-networks, ensemble of 8 Q-networks.
 PRIMITIVE="place"
-CRITIC_CHECKPOINT_PATH="models/20230313/value"
-CRITIC_CHECKPOINTS=("place/final_model")
 run_policy
 
-# Pull w/out collisions, balanced data (40% success min).
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
+# Details: 1M episodes, MSE loss for Q-networks, ensemble of 8 Q-networks.
 PRIMITIVE="pull"
-CRITIC_CHECKPOINT_PATH="models/20230313/value"
-CRITIC_CHECKPOINTS=("pull/final_model")
 run_policy
 
-# Push w/out collisions, balanced data (40% success min).
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
+# Details: 1M episodes, MSE loss for Q-networks, ensemble of 8 Q-networks.
 PRIMITIVE="push"
-CRITIC_CHECKPOINT_PATH="models/20230313/value"
-CRITIC_CHECKPOINTS=("push/final_model")
 run_policy

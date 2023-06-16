@@ -5,11 +5,9 @@ from typing import Any, Dict, Generator, List, Optional, Sequence, Tuple, Union
 import numpy as np
 import tqdm
 
-from temporal_policies import agents, dynamics, envs, planners
-from temporal_policies.envs.pybullet.table import primitives as table_primitives
-from temporal_policies.utils import recording, timing
-
-import eval_pybox2d_planners as pybox2d
+from stap import agents, dynamics, envs, planners
+from stap.envs.pybullet.table import primitives as table_primitives
+from stap.utils import recording, timing
 
 
 def seed_generator(
@@ -73,44 +71,23 @@ def evaluate_plan(
     path: pathlib.Path,
     grid_resolution: Optional[int] = None,
 ) -> Dict[str, Any]:
-    if isinstance(env, envs.pybox2d.Sequential2D):
-        if grid_resolution is None:
-            raise ValueError("Specify grid_resolution for Pybox2D eval plot")
-        (grid_q_values, grid_actions) = pybox2d.evaluate_critic_functions(
-            planner, env.action_skeleton, env, grid_resolution
-        )
-        pybox2d.plot_critic_functions(
-            env=env,
-            action_skeleton=env.action_skeleton,
-            actions=plan.visited_actions,
-            p_success=plan.p_visited_success,
-            rewards=rewards,
-            grid_q_values=grid_q_values,
-            grid_actions=grid_actions,
-            path=path / f"values_{idx_iter}.png",
-            title=env.name,
+    recorder = recording.Recorder()
+    recorder.start()
+    for primitive, predicted_state, action in zip(
+        env.action_skeleton, plan.states[1:], plan.actions
+    ):
+        env.set_primitive(primitive)
+        env._recording_text = (
+            "Action: ["
+            + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
+            + "]"
         )
 
-        return {"grid_q_values": grid_q_values, "grid_actions": grid_actions}
-
-    elif isinstance(env, envs.pybullet.TableEnv):
-        recorder = recording.Recorder()
-        recorder.start()
-        for primitive, predicted_state, action in zip(
-            env.action_skeleton, plan.states[1:], plan.actions
-        ):
-            env.set_primitive(primitive)
-            env._recording_text = (
-                "Action: ["
-                + ", ".join([f"{a:.2f}" for a in primitive.scale_action(action)])
-                + "]"
-            )
-
-            recorder.add_frame(frame=env.render())
-            env.set_observation(predicted_state)
-            recorder.add_frame(frame=env.render())
-        recorder.stop()
-        recorder.save(path / f"predicted_trajectory_{idx_iter}.gif")
+        recorder.add_frame(frame=env.render())
+        env.set_observation(predicted_state)
+        recorder.add_frame(frame=env.render())
+    recorder.stop()
+    recorder.save(path / f"predicted_trajectory_{idx_iter}.gif")
 
     return {}
 

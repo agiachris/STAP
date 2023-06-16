@@ -5,8 +5,8 @@ import pathlib
 from pprint import pprint
 from typing import Any, Dict, Optional, Sequence, Union
 
-from temporal_policies import encoders, envs, trainers
-from temporal_policies.utils import configs, random
+from stap import encoders, envs, trainers
+from stap.utils import configs, random
 
 
 def collect(

@@ -5,8 +5,8 @@ import pathlib
 from pprint import pprint
 from typing import Any, Dict, Optional, Union
 
-from temporal_policies import agents, scod, trainers
-from temporal_policies.utils import configs, random
+from stap import agents, scod, trainers
+from stap.utils import configs, random
 
 
 def train(

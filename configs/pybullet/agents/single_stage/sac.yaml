@@ -4,7 +4,8 @@ agent_kwargs:
   initial_temperature: 0.1
   critic_update_freq: 1
   actor_update_freq: 1
-  target_update_freq: 2
+  target_update_freq: 0
+  use_bce: true
 
   actor_class: actors.DiagonalGaussianMLPActor
   actor_kwargs:

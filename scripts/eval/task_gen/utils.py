@@ -4,8 +4,8 @@ import yaml
 import random
 from symbolic import parse_proposition
 
-from temporal_policies.envs.pybullet.table.objects import OBJECT_HIERARCHY
-from temporal_policies.envs.pybullet.table.predicates import (
+from stap.envs.pybullet.table.objects import OBJECT_HIERARCHY
+from stap.envs.pybullet.table.predicates import (
     PREDICATE_HIERARCHY,
     UNARY_PREDICATES,
     BINARY_PREDICATES,

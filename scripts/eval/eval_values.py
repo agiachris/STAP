@@ -11,10 +11,10 @@ import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
 
-from temporal_policies.utils import configs, random, tensors
-from temporal_policies import agents, trainers, datasets
-from temporal_policies.networks.encoders import IMAGE_ENCODERS
-from temporal_policies.networks.critics import EnsembleLogitOODCritic
+from stap.utils import configs, random, tensors
+from stap import agents, trainers, datasets
+from stap.networks.encoders import IMAGE_ENCODERS
+from stap.networks.critics import EnsembleLogitOODCritic
 
 
 PLOT_METRICS = [
@@ -99,7 +99,10 @@ def evaluate_values(
         if seed is not None:
             random.seed(seed)
         agent_factory = agents.AgentFactory(
-            config=agent_config, checkpoint=agent_checkpoint, env_kwargs={"gui": False}, device=device
+            config=agent_config,
+            checkpoint=agent_checkpoint,
+            env_kwargs={"gui": False},
+            device=device,
         )
         agent = agent_factory()
     else:

@@ -1,7 +1,7 @@
 trainer: DafTrainer
 trainer_kwargs:
-  dynamics_trainer_config: configs/pybullet/trainers/dynamics.yaml
-  agent_trainer_config: configs/pybullet/trainers/agent.yaml
+  dynamics_trainer_config: configs/pybullet/trainers/dynamics/dynamics_iter-0.5M.yaml
+  agent_trainer_config: configs/pybullet/trainers/agent/agent_light.yaml
 
   closed_loop_planning: true
 

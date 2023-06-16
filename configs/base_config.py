@@ -2,15 +2,13 @@ from typing import Literal, Optional, Dict
 
 import os
 import dataclasses
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cached_property
-
-from temporal_policies.task_planners.lm_data_structures import APIType
 
 
 @dataclass
 class PDDLConfig:
-    domain_dir: str = "configs/pybullet/envs/t2m/official/template"
+    domain_dir: str = "configs/pybullet/envs/official/template"
     domain_file: str = "template_valid_domain.pddl"
     problem_dir: Optional[str] = None
     problem_subdir: Optional[str] = None
@@ -81,112 +79,11 @@ class ProblemGenerationConfig:
 
 
 @dataclass
-class InContextExampleConfig:
-    use_predicates: bool = False
-    use_primitives: bool = False
-    use_scene_objects: bool = (
-        False  # if examples have different scenes, then should add the scene ...
-    )
-    use_scene_object_relationships: bool = False
-    use_human: bool = False
-    use_explanation: bool = False
-    use_goal: bool = False
-    use_robot: bool = False
-    custom_robot_prompt: str = ""
-    custom_robot_action_sequence_format: Literal[
-        "python_list", "python_list_of_lists", "saycan_done"
-    ] = "python_list"
-
-    predicates: Optional[list] = None
-    primitives: Optional[list] = None
-
-
-@dataclass
-class CurrentExampleConfig(InContextExampleConfig):
-    predict_goal: bool = False
-    predict_explanation: bool = False
-    predict_robot: bool = False
-    score_robot_action: bool = False
-
-
-@dataclass
-class LMConfig:
-    engine: Literal["davinci", "curie", "babbage", "ada"] = "curie"
-    temperature: float = 0
-    logprobs: int = 1
-    echo: bool = False
-    api_type: APIType = APIType.HELM
-    max_tokens: int = 100
-
-    def __post_init__(self):
-        if self.api_type.value == APIType.OPENAI.value:
-            engine_dict = {
-                "davinci": "code-davinci-002",
-                "text-davinci-003": "text-davinci-003",
-                "text-davinci-002": "text-davinci-002",
-                "curie": "text-curie-001",
-                "babbage": "text-babbage-001",
-                "ada": "text-ada-001",
-            }
-        elif self.api_type.value == APIType.HELM.value:
-            engine_dict = {
-                "text-davinci-003": "text-davinci-003",
-                "text-davinci-002": "text-davinci-002",
-                "davinci": "text-davinci-003",
-                "curie": "text-curie-001",
-                "babbage": "text-babbage-001",
-                "ada": "text-ada-001",
-            }
-        else:
-            raise ValueError("Invalid API type")
-
-        self.engine = (
-            engine_dict[self.engine] if self.engine in engine_dict else self.engine
-        )
-
-
-@dataclass
-class PromptConfig:
-    header_cfg: InContextExampleConfig = field(
-        default_factory=lambda: InContextExampleConfig(
-            primitives=["pick(a)", "place(a,b)", "push(a, hook)", "pull(a, hook, b)"],
-            predicates=["on(a, b)", "under(a, b)"],
-        ),
-    )
-    single_in_context_prompt_cfg: InContextExampleConfig = InContextExampleConfig()
-    current_prompt_cfg: CurrentExampleConfig = CurrentExampleConfig()
-    lm_cfg: LMConfig = LMConfig()
-    n_examples: int = 1
-
-
-@dataclass
-class EvaluationConfig:
-    seed: int = 0
-    n_evals: int = 2
-    prompt_cfg: PromptConfig = PromptConfig()
-    pddl_cfg: PDDLConfig = (
-        PDDLConfig()
-    )  # mainly used to get directory of json files ...
-    overwrite_lm_cache: bool = True
-    lm_cache_file: str = "lm_cache.pkl"
-
-    def __post_init__(self):
-        if self.prompt_cfg.current_prompt_cfg.predict_goal:
-            assert (
-                self.prompt_cfg.current_prompt_cfg.use_goal == False
-            ), "Cannot predict goal if use_goal is True"
-        if self.prompt_cfg.current_prompt_cfg.predict_robot:
-            assert (
-                self.prompt_cfg.current_prompt_cfg.use_robot == False
-            ), "Cannot predict robot if use_robot is True"
-
-
-@dataclass
 class PolicyDatasetGenerationConfig:
     """Configuration for generating a dataset of (s, a, s', r) tuples."""
 
     split: str = "train"
-    exp_name: str = "20230125/datasets"
+    exp_name: str = "datasets"
     custom_path: Optional[str] = None
     # Trainer configs.
     trainer_config: str = "configs/pybullet/trainers/datasets/primitive_valid_dataset.yaml"
@@ -196,7 +93,7 @@ class PolicyDatasetGenerationConfig:
     # Dataset generation configs.
     pddl_handler: Optional[PDDLConfig] = None
     template_env_yaml: str = (
-        "configs/pybullet/envs/t2m/official/template/template_env.yaml"
+        "configs/pybullet/envs/official/template/template_env.yaml"
     )
     primitive: Literal["pick", "place", "push", "pull"] = "pick"
     symbolic_action_type: Literal["valid", "invalid"] = "valid"
@@ -224,7 +121,7 @@ class PolicyDatasetGenerationConfig:
     @property
     def env_root_dir(self) -> str:
         path = os.path.join(
-            "configs/pybullet/envs/t2m/official/primitives", self.exp_name
+            "configs/pybullet/envs/official/primitives", self.exp_name
         )
         return path
 

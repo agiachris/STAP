@@ -7,8 +7,6 @@ function run_cmd {
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
         sbatch "${SBATCH_SLURM}" "${CMD}"
-    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
-        sbatch scripts/train/train_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -44,7 +42,7 @@ function train_value {
 }
 
 function run_value {
-    ENV_CONFIG="configs/pybullet/envs/t2m/official/primitives/primitives_rl/${PRIMITIVE}.yaml"
+    ENV_CONFIG="configs/pybullet/envs/official/primitives/primitives_rl/${PRIMITIVE}.yaml"
 
     TRAIN_DATA_CHECKPOINTS=""
     for seed in "${TRAIN_SEEDS[@]}"; do
@@ -64,156 +62,43 @@ function run_value {
 # Setup.
 SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
-SWEEP=0
 
+input_path="models"
 output_path="models"
-plots_path="plots"
-exp_name="20230313/value"
+exp_name="value"
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
+# Pybullet experiments.
+if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
-# Data.
+# Train critic library.
 SYMBOLIC_ACTION_TYPE="valid"
 TRAIN_SEEDS=($(seq 0 15))
 VALIDATION_SEEDS=($(seq 16 19))
+DATA_CHECKPOINT_PATH="${input_path}/datasets"
 
-# Models with logistic loss and sigmoid activation.
-
-# # Pick w/out collisions, balanced data (40% success min).
-# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
-# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
-# DATA_CHECKPOINT_PATH="models/20230309/datasets"
-# PRIMITIVE="pick"
-# run_value
-
-# # Place w/out collisions, balanced data (40% success min).
-# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-5M.yaml"
-# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
-# DATA_CHECKPOINT_PATH="models/20230309/datasets"
-# PRIMITIVE="place"
-# run_value
-
-# # Pull w/out collisions, balanced data (40% success min).
-# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
-# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
-# DATA_CHECKPOINT_PATH="models/20230309/datasets"
-# PRIMITIVE="pull"
-# run_value
-
-# # Push w/out collisions, balanced data (40% success min).
-# TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
-# AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
-# DATA_CHECKPOINT_PATH="models/20230309/datasets"
-# PRIMITIVE="push"
-# run_value
-
-# Models with MSE loss and no sigmoid activation.
-
-# Pick w/out collisions, balanced data (40% success min).
+# Details: 1M episodes, Logistic Regression loss for Q-networks, ensemble of 8 Q-networks.
 TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
-AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_mse.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
+AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_logistics.yaml"
 PRIMITIVE="pick"
 run_value
 
-# Place w/out collisions, balanced data (40% success min).
+# Details: 1M episodes, MSE loss for Q-networks, ensemble of 8 Q-networks.
 TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-5M.yaml"
 AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_mse.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
 PRIMITIVE="place"
 run_value
 
-# Pull w/out collisions, balanced data (40% success min).
+# Details: 1M episodes, MSE loss for Q-networks, ensemble of 8 Q-networks.
 TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
 AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_mse.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
 PRIMITIVE="pull"
 run_value
 
-# Push w/out collisions, balanced data (40% success min).
+# Details: 1M episodes, MSE loss for Q-networks, ensemble of 8 Q-networks.
 TRAINER_CONFIG="configs/pybullet/trainers/value/value_iter-3M.yaml"
 AGENT_CONFIG="configs/pybullet/agents/multi_stage/value/sac_ens_value_mse.yaml"
-DATA_CHECKPOINT_PATH="models/20230309/datasets"
 PRIMITIVE="push"
 run_value
-
-# Sweeps.
-
-if [[ $SWEEP == 0 ]]; then
-    exit
-fi
-
-function run_value_sweep {    
-    for trainer_name in "${TRAINER_SWEEPS[@]}"; do
-        TRAINER_CONFIG="${TRAINER_CONFIG_PATH}/${trainer_name}.yaml"
-    
-        for agent_name in "${AGENT_SWEEPS[@]}"; do
-            AGENT_CONFIG="${AGENT_CONFIG_PATH}/${agent_name}.yaml"
-
-            if [[ "${agent_name}" == *dims-256 ]] && [[ "${agent_name}" != *hids-4* ]]; then
-                SBATCH_SLURM="scripts/train/train_juno_cpu.sh"
-            else
-                SBATCH_SLURM="scripts/train/train_juno.sh"
-            fi
-
-            NAME="${PRIMITIVE}_${trainer_name}_${agent_name}"
-            run_value
-        done
-    done
-}
-
-# Set sweep config paths.
-TRAINER_CONFIG_PATH="configs/pybullet/trainers/value_sweeps"
-TRAINER_SWEEPS=(
-    # "value_l2-0.00005"
-    # "value_l2-0.0001"
-    # "value_l2-0.001"
-    # "value_l2-0.01"
-    # "value_l2-0.1"
-    # "value_lr-0.0001"
-    # "value_lr-0.00005"
-    # "value_lr-0.00001"
-    # "value_sched-cos_iter-2M"
-    # "value_sched-cos_iter-5M"
-    # "value_sched-exp_iter-2M"
-    # "value_iter-5M"
-)
-
-AGENT_CONFIG_PATH="configs/pybullet/agents/multi_stage/value_sweeps"
-AGENT_SWEEPS=(
-    # "sac_value_hids-2_dims-1024"
-    # "sac_value_hids-2_dims-512"
-    # "sac_value_hids-3_dims-1024"
-    # "sac_value_hids-3_dims-256"
-    # "sac_value_hids-3_dims-512"
-    # "sac_value_hids-4_dims-1024"
-    # "sac_value_hids-4_dims-256"
-    # "sac_value_hids-4_dims-512"
-    # "sac_ens_value_hids-4_dims-512"
-    # "sac_value"
-    # "sac_ens_value"
-    # "sac_ens_value_logistics"
-)
-
-# Pick w/out collisions, balanced data (40% success).
-# DATA_CHECKPOINT_PATH="models/20230124/datasets"
-# PRIMITIVE="pick"
-# run_value_sweep
-
-# Place w/out collisions, balanced data (40% success).
-# DATA_CHECKPOINT_PATH="models/20230124/datasets"
-# PRIMITIVE="place"
-# run_value_sweep
-
-# Pull w/out collisions, balanced data (40% success).
-# DATA_CHECKPOINT_PATH="models/20230124/datasets"
-# PRIMITIVE="pull"
-# run_value_sweep
-
-# Push w/out collisions, balanced data (40% success).
-# DATA_CHECKPOINT_PATH="models/20230124/datasets"
-# PRIMITIVE="push"
-# run_value_sweep

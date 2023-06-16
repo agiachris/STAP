@@ -8,8 +8,8 @@ import numpy as np
 import torch
 import tqdm
 
-from temporal_policies import agents, envs
-from temporal_policies.utils import random, tensors
+from stap import agents, envs
+from stap.utils import random, tensors
 
 
 @tensors.numpy_wrap

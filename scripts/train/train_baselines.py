@@ -7,8 +7,8 @@ from typing import Any, Dict, Optional, Union
 
 import tqdm
 
-from temporal_policies import agents, dynamics, envs, planners, trainers
-from temporal_policies.utils import configs, random
+from stap import agents, dynamics, envs, planners, trainers
+from stap.utils import configs, random
 
 
 def train(

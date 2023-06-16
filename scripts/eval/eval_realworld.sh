@@ -28,27 +28,16 @@ function run_planners {
     PLANNER_CONFIG="${PLANNER_CONFIG_PATH}/${PLANNER}.yaml"
 
     POLICY_CHECKPOINTS=()
-    for policy_env in "${POLICY_ENVS[@]}"; do
-        if [[ "${PLANNER}" == daf_* ]]; then
-            POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${PLANNER}/${policy_env}/${CKPT}.pt")
-        else
-            POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${policy_env}/${CKPT}.pt")
-        fi
+    for primitive in "${PRIMITIVE[@]}"; do
+        POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${primitive}/${CHECKPOINT}.pt")
     done
 
     SCOD_CHECKPOINTS=()
-    if [[ "${PLANNER}" == *scod* ]]; then
-        for policy_env in "${POLICY_ENVS[@]}"; do
-            SCOD_CHECKPOINTS+=("${SCOD_INPUT_PATH}/${CKPT}/${policy_env}/scod/final_scod.pt")
-        done
-    fi
 
     if [[ "${PLANNER}" == *_oracle_*dynamics ]]; then
         DYNAMICS_CHECKPOINT=""
-    elif [[ "${PLANNER}" == daf_* ]]; then
-        DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${PLANNER}/dynamics/final_model.pt"
     else
-        DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CKPT}/dynamics/final_model.pt"
+        DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CHECKPOINT}.pt"
     fi
 
     eval_realworld
@@ -58,29 +47,35 @@ function run_planners {
 input_path="models"
 output_path="plots"
 
-# Evaluate planners.
+# Planners: Uncomment planners to evaluate.
+PLANNER_CONFIG_PATH="configs/pybullet/planners"
 # PLANNER="policy_cem"
 # PLANNER="greedy"
-# ENV="hook_reach/task2"
-# ENV="constrained_packing/task1"
-# ENV="rearrangement_push/task0"
 
-# Experiments.
-exp_name="20220914/official"
-PLANNER_CONFIG_PATH="configs/pybullet/planners"
-POLICY_ENVS=("pick" "place" "pull" "push")
-CKPT="select_model"
-ENV_KWARGS="--closed-loop 1"
+# Evaluation tasks: Uncomment tasks to evaluate.
+TASK_ROOT="configs/pybullet/envs/official/real_domains"
+# TASK="hook_reach/task2"
+# TASK="constrained_packing/task1"
+# TASK="rearrangement_push/task0"
+
+# Pybullet experiments.
 if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
     ENV_KWARGS="--gui 0"
 fi
+ENV_KWARGS="${ENV_KWARGS} --closed-loop 1"
 
-# Run planners.
-POLICY_INPUT_PATH="${input_path}/${exp_name}"
-SCOD_INPUT_PATH="${input_path}/${exp_name}"
-DYNAMICS_INPUT_PATH="${input_path}/${exp_name}"
+# Evaluate planners.
+exp_name="real_world"
+PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${TASK}/${PLANNER}"
 
-ENV_CONFIG="configs/pybullet/envs/real_world/domains/${ENV}.yaml"
-PLANNER_OUTPUT_PATH="${output_path}/${exp_name}/${CKPT}/${ENV}"
-LOAD_PATH="${PLANNER_OUTPUT_PATH}"
+PRIMITIVES=(
+    "pick"
+    "place"
+    "pull"
+    "push"
+)
+CHECKPOINT="official_model"
+POLICY_INPUT_PATH="${input_path}/primitives_light_mse"
+DYNAMICS_INPUT_PATH="${input_path}/dynamics/pick_place_pull_push_dynamics"
+ENV_CONFIG="${TASK_ROOT}/${TASK}"
 run_planners

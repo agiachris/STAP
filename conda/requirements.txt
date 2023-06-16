@@ -1,8 +1,0 @@
-gym>=0.12
-pygame
-functorch
--e ../third_party/scod-regression
-black
-mypy
-flake8
--e ../.

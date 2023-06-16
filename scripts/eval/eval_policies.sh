@@ -2,21 +2,18 @@
 
 set -e
 
-GCP_LOGIN="juno-login-lclbjqwy-001"
 
 function run_cmd {
     echo ""
     echo "${CMD}"
-    if [[ `hostname` == "sc.stanford.edu" ]]; then
-        sbatch scripts/eval/eval_planners_juno.sh "${CMD}"
-    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
-        sbatch scripts/eval/eval_gcp.sh "${CMD}"
+    if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
+        sbatch "${SBATCH_SLURM}" "${CMD}"
     else
         ${CMD}
     fi
 }
 
-function eval_policies {
+function eval_policy {
     args=""
     args="${args} --checkpoint ${POLICY_CHECKPOINT}"
     args="${args} --seed 0"
@@ -40,55 +37,40 @@ function eval_policies {
     run_cmd
 }
 
+function run_policy {
+    ENV_CONFIG="${ENV_CONFIG_PATH}/${PRIMITIVE}_eval.yaml"
+    POLICY_CHECKPOINT="${POLICY_INPUT_PATH}/${PRIMITIVE}/${CHECKPOINT}.pt"
+    EXP_NAME="${CHECKPOINT}"
+    eval_policy
+}
+
 # Setup.
-
+SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
-NUM_EPISODES=10
 
-# Evaluate policies.
+input_path="models"
+output_path="plots"
 
-policy_envs=(
-    # "pick"
-    "pick_0"
-    # "place_0"
-    # "pull_0"
-    # "push_0"
-)
-# experiments=(
-#     "official"
-# )
-# experiments=(
-#     "20230101/complete_q_multistage"
-# )
-experiments=(
-    "20230106/complete_q_multistage"
-)
-ckpts=(
-    # "best_model"
-    # "final_model"
-    # "select_model"
-    # "ckpt_model_550000"
-    # "ckpt_model_100000"
-    # "ckpt_model_150000"
-    # "ckpt_model_300000"
-    "ckpt_model_1000000"
-)
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]]; then
-    ENV_KWARGS="${ENV_KWARGS} --gui 0"
+# Pybullet experiments.
+if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
+    ENV_KWARGS="--gui 0"
 fi
 
-ENV_KWARGS="${ENV_KWARGS} --gui 0"
+ENV_CONFIG_PATH="configs/pybullet/envs/official/primitives/light"
+POLICY_INPUT_PATH="${input_path}/primitives_light_mse"
 
-for exp_name in "${experiments[@]}"; do
-    for ckpt in "${ckpts[@]}"; do
-        for policy_env in "${policy_envs[@]}"; do
-            # set ENV_CONFIG to configs/pybullet/envs/official/primitives/<policy_env_name_without_0>_eval.yaml
-            # ENV_CONFIG="configs/pybullet/envs/official/primitives/${policy_env:0:-2}_eval.yaml"
-            # ENV_CONFIG="configs/pybullet/envs/official/primitives/${policy_env:0:-2}_viz.yaml"
-            ENV_CONFIG="configs/pybullet/envs/official/domains/hook_reach/task0.yaml"
-            EXP_NAME="${exp_name}/${ckpt}"
-            POLICY_CHECKPOINT="models/${exp_name}/${policy_env}/${ckpt}.pt"
-            eval_policies
-        done
-    done
-done
+# Evaluate skills.
+NUM_EPISODES=100
+CHECKPOINT="official_model"
+
+PRIMITIVE="pick"
+run_policy
+
+PRIMITIVE="place"
+run_policy
+
+PRIMITIVE="pull"
+run_policy
+
+PRIMITIVE="push"
+run_policy

@@ -2,15 +2,11 @@
 
 set -e
 
-GCP_LOGIN="juno-login-lclbjqwy-001"
-
 function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
         sbatch "${SBATCH_SLURM}" "${CMD}"
-    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
-        sbatch scripts/train/train_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -45,7 +41,7 @@ function run_dynamics {
     NAME=""
     POLICY_CHECKPOINTS=()
     for primitive in "${PRIMITIVES[@]}"; do
-        POLICY_CHECKPOINTS+=("${POLICY_CHECKPOINT_PATHS[${primitive}]}")
+        POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${primitive}/${POLICY_CHECKPOINT}.pt")
 
         if [ -z "${NAME}" ]; then
             NAME="${primitive}"
@@ -62,33 +58,26 @@ function run_dynamics {
 SBATCH_SLURM="scripts/train/train_juno.sh"
 DEBUG=0
 
+input_path="models"
 output_path="models"
-exp_name="20230313/dynamics"
-DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}"
-DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
+# Pybullet experiments.
+if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
 
-# Launch full suite dynamics jobs.
+# Train dynamics.
+exp_name="dynamics"
+DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}"
+DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics/dynamics_iter-0.75M.yaml"
+
 PRIMITIVES=(
     "pick"
     "place"
     "pull"
     "push"
 )
-# declare -A POLICY_CHECKPOINT_PATHS=(
-#     ["pick"]="models/20230309/policy/pick/final_model/final_model.pt"
-#     ["place"]="models/20230309/policy/place/final_model/final_model.pt"
-#     ["pull"]="models/20230309/policy/pull/final_model/final_model.pt"
-#     ["push"]="models/20230309/policy/push/final_model/final_model.pt"
-# )
-declare -A POLICY_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230313/policy/pick/final_model/final_model.pt"
-    ["place"]="models/20230313/policy/place/final_model/final_model.pt"
-    ["pull"]="models/20230313/policy/pull/final_model/final_model.pt"
-    ["push"]="models/20230313/policy/push/final_model/final_model.pt"
-)
+POLICY_INPUT_PATH="${input_path}/primitives_light_mse"
+POLICY_CHECKPOINT="final_model"
 run_dynamics

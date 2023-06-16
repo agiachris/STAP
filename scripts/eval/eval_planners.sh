@@ -2,16 +2,11 @@
 
 set -e
 
-# GCP_LOGIN="juno-login-lclbjqwy-001"
-# GCP_LOGIN="gcp-login-yq0fvtuw-001"
-
 function run_cmd {
     echo ""
     echo "${CMD}"
     if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]]; then
         sbatch "${SBATCH_SLURM}" "${CMD}"
-    elif [[ `hostname` == "${GCP_LOGIN}" ]]; then
-        sbatch scripts/eval/eval_gcp.sh "${CMD}"
     else
         ${CMD}
     fi
@@ -58,7 +53,7 @@ function run_planners {
 
             POLICY_CHECKPOINTS=()
             for primitive in "${PRIMITIVES[@]}"; do
-                POLICY_CHECKPOINTS+=("${POLICY_CHECKPOINT_PATHS[${primitive}]}")
+                POLICY_CHECKPOINTS+=("${POLICY_INPUT_PATH}/${primitive}/${CHECKPOINT}.pt")
             done
 
             SCOD_CHECKPOINTS=()
@@ -66,7 +61,7 @@ function run_planners {
             if [[ "${planner}" == *_oracle_*dynamics ]]; then
                 DYNAMICS_CHECKPOINT=""
             else
-                DYNAMICS_CHECKPOINT="${DYNAMICS_CHECKPOINT_PATH}"
+                DYNAMICS_CHECKPOINT="${DYNAMICS_INPUT_PATH}/${CHECKPOINT}.pt"
             fi
     
             eval_planner
@@ -74,78 +69,20 @@ function run_planners {
     done
 }
 
-### Setup.
-SBATCH_SLURM="scripts/eval/eval_planners_juno.sh"
-DEBUG=0
-input_path="models"
-output_path="plots"
+function visualize_results {
+    args=""
+    args="${args} --path ${PLANNER_OUTPUT_ROOT}"
+    args="${args} --envs ${TASKS[@]}"
+    args="${args} --methods ${PLANNERS[@]}"
+    if [ ! -z "${FIGURE_NAME}" ]; then
+        args="${args} --name ${FIGURE_NAME}"
+    fi
+    CMD="python scripts/visualize/generate_planning_figure.py ${args}"
+    run_cmd
+}
 
-### Experiments.
-
-## Planner configurations.
-PLANNERS=(
-# Q-value / Latent dynamics.
-    # "policy_cem"
-    # "random_cem"
-    # "policy_shooting"
-    # "random_shooting"
-# Ensemble Q-value / Latent dynamics.
-    # "ensemble_policy_cem"
-    # "ensemble_policy_cem_ood"
-    # "ensemble_policy_cem_scale-0.1"
-    # "ensemble_policy_cem_scale-0.5"
-    # "ensemble_policy_cem_scale-1.0"
-    # "ensemble_policy_cem_scale-0.1_pessimistic-True"
-    # "ensemble_policy_cem_scale-0.5_pessimistic-True"
-    # "ensemble_policy_cem_scale-1.0_pessimistic-True"
-# SCOD value / Latent dynamics.
-    # "policy_cem_var_scod_value"
-    # "policy_cem_cvar_scod_value"
-    # "policy_shooting_var_scod_value"
-    # "policy_shooting_cvar_scod_value"
-# Q-value / Oracle dynamics.
-    # "policy_cem_oracle_dynamics"
-    # "random_cem_oracle_dynamics"
-    # "policy_shooting_oracle_dynamics"
-    # "random_shooting_oracle_dynamics"
-# SCOD value / Oracle dynamics
-    # "policy_cem_var_scod_value_oracle_dynamics"
-    # "policy_shooting_var_scod_value_oracle_dynamics"
-    # "policy_cem_cvar_scod_value_oracle_dynamics"
-    # "policy_shooting_cvar_scod_value_oracle_dynamics"
-# SCOD thresholding / Latent Dynamics.
-    # "scod_policy_shooting"
-    # "scod_policy_cem"
-# SCOD thresholding / Oracle Dynamics.
-    # "scod_policy_shooting_oracle_dynamics"
-    # "scod_policy_cem_oracle_dynamics"
-# Oracle value / Oracle dynamics.
-    # "policy_cem_oracle_value_dynamics"
-    # "random_cem_oracle_value_dynamics"
-    # "policy_shooting_oracle_value_dynamics"
-    # "random_shooting_oracle_value_dynamics"
-# DAF.
-    # "daf_policy_cem"
-    # "daf_policy_shooting"
-    # "daf_random_cem"
-    # "daf_random_shooting"
-# Greedy.
-    # "greedy_oracle_dynamics"
-    # "greedy"
-)
-# PLANNERS=(
-# # Q-value / Latent dynamics.
-#     "policy_cem_iter-10_samples-100"
-#     "policy_cem_iter-10_samples-10k"
-#     "policy_cem_iter-10_samples-1k"
-#     "policy_cem_iter-5_samples-100"
-#     "policy_cem_iter-5_samples-10k"
-#     "policy_cem_iter-5_samples-1k"
-# )
-
-## TAPS Evaluation tasks.
-
-TASK_ROOT="configs/pybullet/envs/taps/official/domains"
+# Evaluation tasks: Uncomment tasks to evaluate.
+TASK_ROOT="configs/pybullet/envs/official/sim_domains"
 TASKS=(
 # Domain 1: Hook Reach
     "hook_reach/task0"
@@ -161,70 +98,69 @@ TASKS=(
     "rearrangement_push/task2"
 )
 
-## T2M Evaluation tasks.
-# TASK_ROOT="configs/pybullet/envs/t2m/official/tasks"
-# TASKS=(
-#     "task0"
-#     "task1"
-#     "task2"
-#     "task3"
-#     "task4"
-#     "task5"
-#     "task6"
-# )
+# Planners: Uncomment planners to evaluate.
+PLANNER_CONFIG_PATH="configs/pybullet/planners"
+PLANNERS=(
+# Q-value / Learned dynamics.
+    "policy_cem"
+    "random_cem"
+    "policy_shooting"
+    "random_shooting"
+# SCOD UQ value / Learned dynamics.
+    # "policy_cem_var_scod_value"
+    # "policy_cem_cvar_scod_value"
+    # "policy_shooting_var_scod_value"
+    # "policy_shooting_cvar_scod_value"
+# Q-value / Oracle dynamics.
+    # "policy_cem_oracle_dynamics"
+    # "random_cem_oracle_dynamics"
+    # "policy_shooting_oracle_dynamics"
+    # "random_shooting_oracle_dynamics"
+# SCOD UQ value / Oracle dynamics
+    # "policy_cem_var_scod_value_oracle_dynamics"
+    # "policy_shooting_var_scod_value_oracle_dynamics"
+    # "policy_cem_cvar_scod_value_oracle_dynamics"
+    # "policy_shooting_cvar_scod_value_oracle_dynamics"
+# SCOD UQ thresholding / Latent Dynamics.
+    # "scod_policy_shooting"
+    # "scod_policy_cem"
+# SCOD UQ thresholding / Oracle Dynamics.
+    # "scod_policy_shooting_oracle_dynamics"
+    # "scod_policy_cem_oracle_dynamics"
+# Oracle value / Oracle dynamics.
+    # "policy_cem_oracle_value_dynamics"
+    # "random_cem_oracle_value_dynamics"
+    # "policy_shooting_oracle_value_dynamics"
+    # "random_shooting_oracle_value_dynamics"
+# Greedy.
+    # "greedy_oracle_dynamics"
+    "greedy"
+)
 
-## T2M Evaluation tasks.
-# TASK_ROOT="configs/pybullet/envs/t2m/examples/figures"
-# TASKS=(
-#     "teaser"
-#     "teaser_hierarchical"
-# )
+# Setup.
+SBATCH_SLURM="scripts/eval/eval_planners_juno.sh"
+DEBUG=0
 
-## Pybullet.
-exp_name="20230315/planners/t2m"
-PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
+input_path="models"
+output_path="plots"
 
-PLANNER_CONFIG_PATH="configs/pybullet/planners/policy_cem_ablations"
-ENV_KWARGS="--closed-loop 1"
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]]; then
+# Pybullet experiments.
+if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
     ENV_KWARGS="--gui 0"
 fi
+ENV_KWARGS="${ENV_KWARGS} --closed-loop 1"
 
-# Model suite.
+# Evaluate planners.
+exp_name="planning"
+PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
+
 PRIMITIVES=(
     "pick"
     "place"
     "pull"
     "push"
 )
-
-# Critics trained with MSE loss and no sigmoid activation, balanced data (40%).
-declare -A POLICY_CHECKPOINT_PATHS=(
-    ["pick"]="models/20230309/policy/pick/final_model/final_model.pt"
-    ["place"]="models/20230313/policy/place/final_model/final_model.pt"
-    ["pull"]="models/20230313/policy/pull/final_model/final_model.pt"
-    ["push"]="models/20230313/policy/push/final_model/final_model.pt"
-)
-DYNAMICS_CHECKPOINT_PATH="models/20230313/dynamics/pick_place_pull_push_dynamics/best_model.pt"
+CHECKPOINT="official_model"
+POLICY_INPUT_PATH="${input_path}/primitives_light_mse"
+DYNAMICS_INPUT_PATH="${input_path}/dynamics/pick_place_pull_push_dynamics"
 run_planners
-
-
-## Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == "${GCP_LOGIN}" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
-    exit
-fi
-
-function visualize_results {
-    args=""
-    args="${args} --path ${PLANNER_OUTPUT_ROOT}"
-    args="${args} --envs ${TASKS[@]}"
-    args="${args} --methods ${PLANNERS[@]}"
-    if [ ! -z "${FIGURE_NAME}" ]; then
-        args="${args} --name ${FIGURE_NAME}"
-    fi
-    CMD="python scripts/visualize/generate_planning_figure.py ${args}"
-    run_cmd
-}
-
-FIGURE_NAME="policy_cem_ablation"
-visualize_results

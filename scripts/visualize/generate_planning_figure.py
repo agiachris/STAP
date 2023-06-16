@@ -17,20 +17,45 @@ plt.rcParams["pdf.fonttype"] = 42
 plt.rcParams["ps.fonttype"] = 42
 
 
+METHOD_IDX = {
+    "bc_policy_cem": 0,
+    "policy_cem": 1,
+    "policy_shooting": 2,
+    "daf_gen": 3,
+    "random_cem": 4,
+    "random_shooting": 5,
+    "greedy": 6,
+    "daf_skills": 7,
+}
+
+
+def result_indexer(result_data: Tuple[str, str, List[Dict[str, Any]]]) -> int:
+    task, method, _ = result_data
+    if "daf" in method:
+        if task[-1] == method.split("/")[0][-1]:
+            return METHOD_IDX["daf_skills"]
+        return METHOD_IDX["daf_gen"]
+    return METHOD_IDX[method]
+
+
 def load_results(
     path: Union[str, pathlib.Path],
     envs: Optional[Sequence[Optional[str]]],
     methods: Sequence[str],
     plot_action_statistics: int = 0,
-) -> Generator[Tuple[Optional[str], str, List[Dict[str, Any]]], None, None]:
+) -> List[Tuple[Optional[str], str, List[Dict[str, Any]]]]:
     if envs is None:
         envs = [None]
     path = pathlib.Path(path)
 
+    results = []
     for task in envs:
+        task_results = []
         env_path = path if task is None else path / task
+
         for method_name in methods:
             method_results = []
+
             for npz_file in tqdm.tqdm(
                 sorted(
                     (env_path / method_name).glob("results_*.npz"),
@@ -51,25 +76,29 @@ def load_results(
                         d["scaled_visited_actions"] = npz["scaled_visited_actions"]
                     method_results.append(d)
 
-                # print(npz_file, results[method_name][-1]["rewards"])
-            yield task, method_name, method_results
+            task_results.append((task, method_name, method_results))
+
+        results.extend(sorted(task_results, key=result_indexer))
+
+    return results
 
 
 def create_dataframe(
-    results: Generator[Tuple[Optional[str], str, List[Dict[str, Any]]], None, None]
+    results: List[Tuple[Optional[str], str, List[Dict[str, Any]]]]
 ) -> pd.DataFrame:
-    def get_method_label(method: str) -> str:
+    def get_method_label(method: str, task: str) -> str:
         if method == "random":
             return "Rand."
         if method in ("greedy", "greedy_oracle_dynamics"):
             return "Greedy"
 
-        tokens = method.split("_")
-        if tokens[0] == "daf":
-            return "DAF Skills"
-        elif "daf" in tokens[0]:
+        if "daf" in method:
+            train_id, method = method.split("/")
+            if task[-1] == train_id[-1]:
+                return "DAF Skills"
             return "DAF Gen"
 
+        tokens = method.split("_")
         uq = tokens[0]
         if uq in ["ensemble", "scod"]:
             tokens.pop(0)
@@ -82,7 +111,12 @@ def create_dataframe(
 
         policy = tokens[0]
         if policy == "random":
-            policy = "rand."
+            policy = "Rand."
+        elif policy == "policy":
+            policy = "Policy"
+        elif policy == "bc":
+            policy = "BC"
+            tokens = tokens[1:]
 
         planner = tokens[1]
         if planner == "cem":
@@ -96,9 +130,9 @@ def create_dataframe(
                 planner = f"{planner} {p[0][0].upper()}={p[-1]}"
 
         if uq is None:
-            return f"{policy.capitalize()} {planner}"
+            return f"{policy} {planner}"
 
-        return f"{uq} {policy.capitalize()} {planner}"
+        return f"{uq} {policy} {planner}"
 
     def get_task_label(task: Optional[str]) -> str:
         if task is None:
@@ -125,7 +159,7 @@ def create_dataframe(
 
     for task, method, method_results in results:
         task_label = get_task_label(task)
-        method_label = get_method_label(method)
+        method_label = get_method_label(method, task)
         for result in method_results:
             df_plans["Task"].append(task_label)
             df_plans["Method"].append(method_label)
@@ -154,7 +188,12 @@ def plot_planning_results(
     path: Union[str, pathlib.Path],
     name: str,
 ) -> None:
-    palette = sns.color_palette()[:5] + sns.color_palette()[6:]
+    palette = (
+        sns.color_palette()[:5]
+        + sns.color_palette()[7:8]
+        + sns.color_palette()[6:7]
+        + sns.color_palette()[8:]
+    )
 
     def barplot(
         ax: plt.Axes,
@@ -190,19 +229,17 @@ def plot_planning_results(
 
             # Compute color.
             # Colors should increase in lightness with idx_success_type,
-            # except for the last one, which is NA / NA.
+            # except for the second one, which is NA / NA.
             if idx_success_type == 0:
                 a = 0.8
             elif idx_success_type == 1:
                 a = 0.0
+                if idx_class == num_classes - 1:
+                    a = 0.45
                 ground_truth_bars.append(bar)
             else:
                 a = 0.5
 
-            # if num_success_type == 1:
-            #     a = 0.0
-            # else:
-            #     a = idx_success_type * 0.8 / (num_success_type - 1)
             color = 0.8 * np.array(palette[idx_class])
             color = (1 - a) * color + a * np.ones(3)
 
@@ -228,7 +265,11 @@ def plot_planning_results(
             # Modify plot.
             bar.set_color(color)
 
-            if idx_success_type == 2 and idx_class != num_classes - 1:
+            if idx_success_type == 1 and idx_class == num_classes - 1:
+                bar.set_hatch("//")
+                bar.set_edgecolor("w")
+
+            if idx_success_type == 2 and idx_class != num_classes - 2:
                 bar.set_fill(False)
                 # bar.set_color(line.get_color())
                 bar.set_linewidth(2.7)
@@ -252,17 +293,8 @@ def plot_planning_results(
             hue="Success Type",
             ylim=(0, 1),
         )
-        ax.set_title(task)
+        ax.set_title(task[:-1] + str(int(task[-1]) + 1))
         ax.set_ylabel("")
-
-    def get_alpha(idx_success_type: int) -> float:
-        if idx_success_type == 0:
-            a = 0.8
-        elif idx_success_type == 1:
-            a = 0.0
-        else:
-            a = 0.5
-        return a
 
     patches = [
         matplotlib.patches.Patch(
@@ -282,17 +314,25 @@ def plot_planning_results(
             label="Sub-goal completion",
         ),
     ]
-    # axes[0, -1].legend(handles=patches, loc="upper right")
+    axes[0, -1].legend(handles=patches, loc="upper right")
 
     path = pathlib.Path(path)
 
     fig.tight_layout()
     fig.savefig(
-        f"figures/paper/{name}-planning.pdf",
+        f"figures/paper/{name}-results.pdf",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,
     )
+
+
+def aggregate_metric(
+    df_plans: pd.DataFrame, method_name: str, success_type: str
+) -> float:
+    method_df = df_plans[df_plans["Method"] == method_name]
+    method_res = method_df[method_df["Success Type"] == success_type]
+    return method_res["Task Success"].mean()
 
 
 if __name__ == "__main__":
@@ -306,3 +346,8 @@ if __name__ == "__main__":
     results = load_results(args.path, args.envs, args.methods)
     df_plans = create_dataframe(results)
     plot_planning_results(df_plans, args.path, args.name)
+    for method_name in df_plans["Method"].unique():
+        print(f"--- Method: {method_name} ---")
+        print(
+            f"Ground truth success: {aggregate_metric(df_plans, method_name, 'Ground truth success')}"
+        )
