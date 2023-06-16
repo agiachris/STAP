@@ -37,7 +37,7 @@ function train_value {
         args="${args} --path ${VALUE_OUTPUT_PATH}"
     fi
 
-    CMD="python scripts/train/train_policy.py ${args}"
+    CMD="python scripts/train/train_agent.py ${args}"
     run_cmd
 }
 

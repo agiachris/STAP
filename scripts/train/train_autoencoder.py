@@ -50,7 +50,7 @@ def train(
         pprint(trainer_factory.config)
         print("\n[scripts.train.train_autoencoder] Encoder config:")
         pprint(encoder_factory.config)
-        print("\n[scripts.train.train_policy] Env config:")
+        print("\n[scripts.train.train_agent] Env config:")
         pprint(env_factory.config)
         print("\n[scripts.train.train_autoencoder] Policy checkpoints:")
         pprint(policy_checkpoints)

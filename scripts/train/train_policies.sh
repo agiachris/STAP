@@ -38,7 +38,7 @@ function train_policy {
         args="${args} --eval-recording-path ${EVAL_RECORDING_PATH}"
     fi
 
-    CMD="python scripts/train/train_policy.py ${args}"
+    CMD="python scripts/train/train_agent.py ${args}"
     run_cmd
 }
 

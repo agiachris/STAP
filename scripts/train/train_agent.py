@@ -40,7 +40,7 @@ def train(
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
 
-        print("[scripts.train.train_policy] Resuming trainer config:")
+        print("[scripts.train.train_agent] Resuming trainer config:")
         pprint(trainer_factory.config)
 
         trainer = trainer_factory()
@@ -103,14 +103,14 @@ def train(
         if name is not None:
             trainer_kwargs["name"] = name
 
-        print("[scripts.train.train_policy] Trainer config:")
+        print("[scripts.train.train_agent] Trainer config:")
         pprint(trainer_factory.config)
-        print("\n[scripts.train.train_policy] Agent config:")
+        print("\n[scripts.train.train_agent] Agent config:")
         pprint(agent_factory.config)
-        print("\n[scripts.train.train_policy] Env config:")
+        print("\n[scripts.train.train_agent] Env config:")
         pprint(env_factory.config)
         if eval_env_factory is not None:
-            print("\n[scripts.train.train_policy] Eval env config:")
+            print("\n[scripts.train.train_agent] Eval env config:")
             pprint(eval_env_factory.config)
         print("")
 

@@ -35,7 +35,7 @@ def train(
     if resume:
         trainer_factory = trainers.TrainerFactory(checkpoint=path, device=device)
 
-        print("[scripts.train.train_policy] Resuming trainer config:")
+        print("[scripts.train.train_agent] Resuming trainer config:")
         pprint(trainer_factory.config)
 
         trainer = trainer_factory()

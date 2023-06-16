@@ -1,15 +1,14 @@
-# temporal-policies outputs
-archive/
-models/
+# STAP outputs
 juno
+models/
 plots/
-plots_debug/
 scripts/train/train_juno.sh
 scripts/train/train_juno_cpu.sh
 scripts/eval/eval_planners_juno.sh
 scripts/data/generate_data_juno.sh
 logs/
 figures/paper/
+configs/pybullet/envs/official/primitives/datasets/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
