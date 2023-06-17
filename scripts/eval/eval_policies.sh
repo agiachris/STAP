@@ -57,7 +57,7 @@ if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
 fi
 
 ENV_CONFIG_PATH="configs/pybullet/envs/official/primitives/light"
-POLICY_INPUT_PATH="${input_path}/primitives_light_mse"
+POLICY_INPUT_PATH="${input_path}/agents_rl"
 
 # Evaluate skills.
 NUM_EPISODES=100

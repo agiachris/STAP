@@ -67,9 +67,9 @@ DEBUG=0
 
 input_path="models"
 output_path="plots"
-exp_name="value"
+exp_name="value_fns_irl"
 
-VALUE_INPUT_PATH="${input_path}/value"
+VALUE_INPUT_PATH="${input_path}/value_fns_irl"
 DATA_CHECKPOINT_PATH="${input_path}/datasets"
 VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 DATA_CONFIG="configs/pybullet/datasets/replay_buffer.yaml"
