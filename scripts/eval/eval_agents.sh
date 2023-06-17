@@ -33,7 +33,7 @@ function eval_policy {
     if [[ -n "${ENV_CONFIG}" ]]; then
         args="${args} --env-config ${ENV_CONFIG}"
     fi
-    CMD="python scripts/eval/eval_policies.py ${args}"
+    CMD="python scripts/eval/eval_agents.py ${args}"
     run_cmd
 }
 

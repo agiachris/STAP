@@ -89,7 +89,7 @@ TASKS=(
 PLANNER_CONFIG_PATH="configs/pybullet/planners"
 PLANNERS=(
     "ablation/policy_cem"
-    # "ablation/scod_policy_cem"
+    "ablation/scod_policy_cem"
     "ablation/policy_shooting"
     "ablation/random_cem"
     "ablation/random_shooting"
