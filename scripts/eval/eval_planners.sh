@@ -69,18 +69,6 @@ function run_planners {
     done
 }
 
-function visualize_results {
-    args=""
-    args="${args} --path ${PLANNER_OUTPUT_ROOT}"
-    args="${args} --envs ${TASKS[@]}"
-    args="${args} --methods ${PLANNERS[@]}"
-    if [ ! -z "${FIGURE_NAME}" ]; then
-        args="${args} --name ${FIGURE_NAME}"
-    fi
-    CMD="python scripts/visualize/generate_planning_figure.py ${args}"
-    run_cmd
-}
-
 # Evaluation tasks: Uncomment tasks to evaluate.
 TASK_ROOT="configs/pybullet/envs/official/sim_domains"
 TASKS=(
@@ -153,14 +141,18 @@ ENV_KWARGS="${ENV_KWARGS} --closed-loop 1"
 # Evaluate planners.
 exp_name="planning"
 PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
+PRIMITIVES=("pick" "place" "pull" "push")
 
-PRIMITIVES=(
-    "pick"
-    "place"
-    "pull"
-    "push"
-)
+# Uncomment to evaluate planners with RL agents (scripts/train/train_agents.sh)
 CHECKPOINT="official_model"
-POLICY_INPUT_PATH="${input_path}/primitives_light_mse"
-DYNAMICS_INPUT_PATH="${input_path}/dynamics/pick_place_pull_push_dynamics"
+POLICY_INPUT_PATH="${input_path}/agents_rl"
+DYNAMICS_INPUT_PATH="${input_path}/dynamics_rl/pick_place_pull_push_dynamics"
 run_planners
+
+# Uncomment to evaluate planners with inverse RL agents (scripts/train/train_policies.sh)
+# PLANNER_CONFIG_PATH="configs/pybullet/planners"
+# PLANNERS=("irl_policy_cem")
+# CHECKPOINT="final_model"
+# POLICY_INPUT_PATH="${input_path}/policies_irl"
+# DYNAMICS_INPUT_PATH="${input_path}/dynamics_irl/pick_place_pull_push_dynamics"
+# run_planners

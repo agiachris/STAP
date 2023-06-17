@@ -67,17 +67,20 @@ if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
 fi
 
 # Train dynamics.
-exp_name="dynamics"
-DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}"
 DYNAMICS_CONFIG="configs/pybullet/dynamics/table_env.yaml"
 TRAINER_CONFIG="configs/pybullet/trainers/dynamics/dynamics_iter-0.75M.yaml"
+PRIMITIVES=("pick" "place" "pull" "push")
 
-PRIMITIVES=(
-    "pick"
-    "place"
-    "pull"
-    "push"
-)
-POLICY_INPUT_PATH="${input_path}/primitives_light_mse"
+# Uncomment to train dynamics for RL agents (scripts/train/train_agents.sh).
+exp_name="dynamics_rl"
+DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}"
+POLICY_INPUT_PATH="${input_path}/agents_rl"
 POLICY_CHECKPOINT="final_model"
 run_dynamics
+
+# Uncomment to train dynamics for inverse RL policies (scripts/train/train_policies.sh).
+# exp_name="dynamics_irl"
+# DYNAMICS_OUTPUT_PATH="${output_path}/${exp_name}"
+# POLICY_INPUT_PATH="${input_path}/policies_irl"
+# POLICY_CHECKPOINT="final_model"
+# run_dynamics

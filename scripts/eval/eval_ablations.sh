@@ -69,18 +69,6 @@ function run_planners {
     done
 }
 
-function visualize_results {
-    args=""
-    args="${args} --path ${PLANNER_OUTPUT_ROOT}"
-    args="${args} --envs ${TASKS[@]}"
-    args="${args} --methods ${PLANNERS[@]}"
-    if [ ! -z "${FIGURE_NAME}" ]; then
-        args="${args} --name ${FIGURE_NAME}"
-    fi
-    CMD="python scripts/visualize/generate_planning_figure.py ${args}"
-    run_cmd
-}
-
 # Evaluation tasks: Uncomment tasks to evaluate.
 TASK_ROOT="configs/pybullet/envs/official/sim_domains"
 TASKS=(
@@ -161,11 +149,6 @@ PRIMITIVES=(
     "push"
 )
 CHECKPOINT="official_model"
-POLICY_INPUT_PATH="${input_path}/primitives_light_mse"
-DYNAMICS_INPUT_PATH="${input_path}/dynamics/pick_place_pull_push_dynamics"
+POLICY_INPUT_PATH="${input_path}/agents_rl"
+DYNAMICS_INPUT_PATH="${input_path}/dynamics_rl/pick_place_pull_push_dynamics"
 run_planners
-
-# Visualize results.
-if [[ `hostname` == "sc.stanford.edu" ]] || [[ `hostname` == juno* ]] || [ $DEBUG -ne 0 ]; then
-    exit
-fi

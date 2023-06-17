@@ -114,8 +114,8 @@ def create_dataframe(
             policy = "Rand."
         elif policy == "policy":
             policy = "Policy"
-        elif policy == "bc":
-            policy = "BC"
+        elif policy == "irl":
+            policy = "IRL"
             tokens = tokens[1:]
 
         planner = tokens[1]
@@ -320,7 +320,7 @@ def plot_planning_results(
 
     fig.tight_layout()
     fig.savefig(
-        f"figures/paper/{name}-results.pdf",
+        f"plots/{name}.pdf",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,

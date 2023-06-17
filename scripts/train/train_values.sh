@@ -42,7 +42,7 @@ function train_value {
 }
 
 function run_value {
-    ENV_CONFIG="configs/pybullet/envs/official/primitives/primitives_rl/${PRIMITIVE}.yaml"
+    ENV_CONFIG="configs/pybullet/envs/official/primitives/datasets/${PRIMITIVE}.yaml"
 
     TRAIN_DATA_CHECKPOINTS=""
     for seed in "${TRAIN_SEEDS[@]}"; do
@@ -65,8 +65,6 @@ DEBUG=0
 
 input_path="models"
 output_path="models"
-exp_name="value"
-VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
 
 # Pybullet experiments.
 if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
@@ -74,6 +72,9 @@ if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
 fi
 
 # Train critic library.
+exp_name="value_fns_irl"
+VALUE_OUTPUT_PATH="${output_path}/${exp_name}"
+
 SYMBOLIC_ACTION_TYPE="valid"
 TRAIN_SEEDS=($(seq 0 15))
 VALIDATION_SEEDS=($(seq 16 19))

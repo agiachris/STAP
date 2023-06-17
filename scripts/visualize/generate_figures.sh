@@ -18,19 +18,19 @@ function visualize_results {
     run_cmd
 }
 
-#### Setup.
-output_path="plots"
+# Setup.
+input_path="plots"
 
-### Pybullet.
-exp_name="20230306/select_model"
-PLANNER_OUTPUT_ROOT="${output_path}/${exp_name}"
+# Pybullet experiments.
+exp_name="planning"
+PLANNER_OUTPUT_ROOT="${input_path}/${exp_name}"
 
 METHODS=(
-    # "bc_policy_cem"
+    # "irl_policy_cem"
     "policy_cem"
-    "train0/daf_random_cem"
-    "train1/daf_random_cem"
-    "train2/daf_random_cem"
+    "train0/daf_random_cem_light"
+    "train1/daf_random_cem_light"
+    "train2/daf_random_cem_light"
     "random_cem"
     "policy_shooting"
     "random_shooting"
@@ -52,5 +52,5 @@ TASKS=(
     "rearrangement_push/task2"
 )
 
-FIGURE_NAME="5-planning"
+FIGURE_NAME="planning-result"
 visualize_results

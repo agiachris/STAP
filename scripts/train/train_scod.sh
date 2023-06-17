@@ -50,12 +50,12 @@ if [[ `hostname` == *stanford.edu ]] || [[ `hostname` == juno* ]]; then
 fi
 
 # Train SCOD.
-exp_name="scod"
+exp_name="scod_rl"
 TRAINER_CONFIG="configs/pybullet/trainers/uncertainty/scod.yaml"
 SCOD_CONFIG="configs/pybullet/uncertainty/scod.yaml"
 
 SCOD_OUTPUT_DIR="${output_path}/${exp_name}"
-POLICY_CHECKPOINT_PATH="${input_path}/primitives_light_mse"
+POLICY_CHECKPOINT_PATH="${input_path}/agents_rl"
 SELECTED_POLICY_CHECKPOINT="official_model"
 
 PRIMITIVE="pick"

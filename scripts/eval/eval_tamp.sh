@@ -77,14 +77,6 @@ function run_tamp {
     done
 }
 
-function visualize_tamp {
-    args=""
-    args="${args} --path ${PLANNER_OUTPUT_PATH}"
-    args="${args} --methods ${PLANNERS[@]}"
-    CMD="python scripts/visualize/visualize_planners.py ${args}"
-    run_cmd
-}
-
 # Evaluation tasks: Uncomment tasks to evaluate.
 TASK_ROOT="configs/pybullet/envs/official/sim_domains"
 TASKS=(
@@ -128,7 +120,7 @@ PRIMITIVES=(
     "push"
 )
 CHECKPOINT="official_model"
-POLICY_INPUT_PATH="${input_path}/primitives_light_mse"
-DYNAMICS_INPUT_PATH="${input_path}/dynamics/pick_place_pull_push_dynamics"
-SCOD_INPUT_PATH="${input_path}/scod"
+POLICY_INPUT_PATH="${input_path}/agents_rl"
+DYNAMICS_INPUT_PATH="${input_path}/dynamics_rl/pick_place_pull_push_dynamics"
+SCOD_INPUT_PATH="${input_path}/scod_rl"
 run_tamp

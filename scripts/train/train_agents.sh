@@ -59,7 +59,7 @@ fi
 
 # Train skill library.
 # Details: light=200K episodes, MSE loss for Q-networks.
-exp_name="primitives_light_mse"
+exp_name="agents_rl"
 AGENT_CONFIG="configs/pybullet/agents/single_stage/sac_mse.yaml"
 TRAINER_CONFIG="configs/pybullet/trainers/agent/agent_light.yaml"
 POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
@@ -76,23 +76,3 @@ train_agent
 
 ENV_CONFIG="${env_path}/light/push.yaml"
 train_agent
-
-# Train skill library.
-# Details: light=200K episodes, Logistic Regression loss for Q-networks.
-# exp_name="primitives_light_logreg"
-# AGENT_CONFIG="configs/pybullet/agents/single_stage/sac_mse.yaml"
-# TRAINER_CONFIG="configs/pybullet/trainers/agent/agent_light.yaml"
-# POLICY_OUTPUT_PATH="${output_path}/${exp_name}"
-# EVAL_RECORDING_PATH="${plots_path}/${exp_name}"
-
-# ENV_CONFIG="${env_path}/light/pick.yaml"
-# train_agent
-
-# ENV_CONFIG="${env_path}/light/place.yaml"
-# train_agent
-
-# ENV_CONFIG="${env_path}/light/pull.yaml"
-# train_agent
-
-# ENV_CONFIG="${env_path}/light/push.yaml"
-# train_agent
