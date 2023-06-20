@@ -42,7 +42,7 @@ function train_value {
 }
 
 function run_value {
-    ENV_CONFIG="configs/pybullet/envs/official/primitives/datasets/${PRIMITIVE}.yaml"
+    ENV_CONFIG="configs/pybullet/envs/official/primitives/heavy/${PRIMITIVE}.yaml"
 
     TRAIN_DATA_CHECKPOINTS=""
     for seed in "${TRAIN_SEEDS[@]}"; do

@@ -43,7 +43,7 @@ function train_policy {
 }
 
 function run_policy {
-    ENV_CONFIG="configs/pybullet/envs/official/primitives/datasets/${PRIMITIVE}_eval.yaml"
+    ENV_CONFIG="configs/pybullet/envs/official/primitives/heavy/${PRIMITIVE}_eval.yaml"
 
     TRAIN_DATA_CHECKPOINTS=""
     for seed in "${TRAIN_SEEDS[@]}"; do
