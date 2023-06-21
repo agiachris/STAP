@@ -57,7 +57,7 @@ function run_policy {
         EVAL_DATA_CHECKPOINTS="${EVAL_DATA_CHECKPOINTS} ${data_path}"
     done    
 
-    CRITIC_CHECKPOINT="${CRITIC_CHECKPOINT_PATH}/${PRIMITIVE}/${CRITIC_CHECKPOINT}.pt"
+    CRITIC_CHECKPOINT="${CRITIC_CHECKPOINT_PATH}/${PRIMITIVE}/${CHECKPOINT}.pt"
 
     train_policy
 }
@@ -89,7 +89,7 @@ AGENT_CONFIG="configs/pybullet/agents/multi_stage/policy/sac_policy.yaml"
 TRAINER_CONFIG="configs/pybullet/trainers/policy/policy.yaml"
 
 CRITIC_CHECKPOINT_PATH="${input_path}/value_fns_irl"
-CRITIC_CHECKPOINT="final_model"
+CHECKPOINT="final_model"
 
 # Details: 1M episodes, Logistic Regression loss for Q-networks, ensemble of 8 Q-networks.
 PRIMITIVE="pick"
