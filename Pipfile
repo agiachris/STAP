@@ -18,6 +18,7 @@ tyro = "*"
 opencv-python = "*"
 atomicwrites = "*"
 pexpect = "*"
+gdown = "*"
 
 [dev-packages]
 black = "*"
