@@ -64,11 +64,26 @@ STAP supports [training skills](#training-skills), [dynamics models](#training-d
 We provide launch scripts for training STAP's required models below.
 The launch scripts also support parallelization on a cluster managed by SLURM, and will otherwise default to sequentially processing jobs.
 
-### Model Checkpoints (coming soon!)
-As an alternative to training skills and dynamics models, we will soon provide checkpoints that can be downloaded and directly used to [evaluate planners](#evaluating-planning).
-<!-- - Skills trained through RL: path/to/drive
-- Skills trained through inverse RL: path/to/drive
-- Dynamics models: path/to/drive -->
+
+### Model Checkpoints
+As an alternative to training skills and dynamics models from scratch, we provide checkpoints that can be downloaded and directly used to [evaluate STAP planners](#evaluating-planning).
+Run the following commands to download the model checkpoints to the default `./models` directory (this requires ~10GBs of disk space):
+```bash
+pipenv shell  # script requires gdown
+bash scripts/download/download_checkpoints.sh
+```
+The `./models/datasets` subdirectory contains the per-skill demonstration data used to train skills with [inverse RL](#inverse-reinforcement-learning).
+
+#### Results
+The planning results that correspond to [evaluating STAP](#stap-for-motion-planning) with the provided [model checkpoints](#model-checkpoints) can be downloaded to the default `./plots` directory with:
+```bash
+bash scripts/download/download_results.sh
+```
+
+Running `bash scripts/visualize/generate_figures.sh` will parse these planning results and produce the following figure:
+
+<img src="readme/planning-result.jpg" alt="STAP Motion Planning Result"/>
+
 
 ### Training Skills
 Skills in STAP are trained independently in custom environments.
@@ -101,6 +116,7 @@ bash scripts/data/generate_primitive_datasets.sh    # generate skill data
 bash scripts/train/train_values.sh                  # train skill critics
 bash scripts/train/train_policies.sh                # train skill actors
 ```
+
 
 ### Training Dynamics
 Once the skills have been learned, we can train a dynamics model with:
