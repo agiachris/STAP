@@ -26,7 +26,7 @@ exp_name="planning"
 PLANNER_OUTPUT_ROOT="${input_path}/${exp_name}"
 
 METHODS=(
-    # "irl_policy_cem"
+    "irl_policy_cem"
     "policy_cem"
     "train0/daf_random_cem_light"
     "train1/daf_random_cem_light"

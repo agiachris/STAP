@@ -18,7 +18,7 @@ plt.rcParams["ps.fonttype"] = 42
 
 
 METHOD_IDX = {
-    "bc_policy_cem": 0,
+    "irl_policy_cem": 0,
     "policy_cem": 1,
     "policy_shooting": 2,
     "daf_gen": 3,
@@ -115,7 +115,7 @@ def create_dataframe(
         elif policy == "policy":
             policy = "Policy"
         elif policy == "irl":
-            policy = "IRL"
+            policy = "IRL Policy"
             tokens = tokens[1:]
 
         planner = tokens[1]
@@ -140,16 +140,10 @@ def create_dataframe(
 
         tokens = task.split("/")
         task_name = f"Task {tokens[-1][-1]}"
-        if len(tokens) == 1:
-            # T2M results.
-            return f"Text2Motion: {task_name}"
-        elif len(tokens) == 2:
-            # TAPS results.
-            domain_name = " ".join([w.capitalize() for w in tokens[0].split("_")])
-            return f"{domain_name}: {task_name}"
-        else:
-            raise ValueError("No support for tasks outside of TAPS or T2M.")
-
+        assert len(tokens) == 2
+        domain_name = " ".join([w.capitalize() for w in tokens[0].split("_")])
+        return f"{domain_name}: {task_name}"
+        
     df_plans: Dict[str, List[Any]] = {
         "Task": [],
         "Method": [],
@@ -254,12 +248,7 @@ def plot_planning_results(
                 dx = -2
             else:
                 dx = 0
-            # if idx_success_type == idx_na_success_type:
-            #     dx = -0.5 * (num_success_type - 1)
-            # elif idx_na_success_type is None or num_success_type == 1:
-            #     dx = 0
-            # else:
-            #     dx = 0.5
+
             dx *= bar.get_width()
 
             # Modify plot.
@@ -271,7 +260,6 @@ def plot_planning_results(
 
             if idx_success_type == 2 and idx_class != num_classes - 2:
                 bar.set_fill(False)
-                # bar.set_color(line.get_color())
                 bar.set_linewidth(2.7)
                 bar.set_linestyle(":")
                 bar.set_y(bar.get_height())
