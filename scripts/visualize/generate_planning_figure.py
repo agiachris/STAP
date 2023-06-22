@@ -308,7 +308,7 @@ def plot_planning_results(
 
     fig.tight_layout()
     fig.savefig(
-        f"plots/{name}.pdf",
+        f"plots/{name}.jpg",
         bbox_inches="tight",
         pad_inches=0.03,
         transparent=True,
