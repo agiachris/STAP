@@ -58,7 +58,7 @@ Use `pipenv shell` The load the virtual environment in the current shell.
 STAP supports [training skills](#training-skills), [dynamics models](#training-dynamics), and composing these components at test-time for [planning](#evaluating-planning).
 - **STAP module:** The majority of the project code is located in the package `stap/`. 
 - **Scripts:** Code for launching experiments, debugging, plotting, and visualization is under `scripts/`.
-- **Configs:** Training and evaluation functionality is determined by `.yaml` configuration files located in `config/`.
+- **Configs:** Training and evaluation functionality is determined by `.yaml` configuration files located in `configs/`.
 
 #### Launch Scripts
 We provide launch scripts for training STAP's required models below.
@@ -67,12 +67,12 @@ The launch scripts also support parallelization on a cluster managed by SLURM, a
 
 ### Model Checkpoints
 As an alternative to training skills and dynamics models from scratch, we provide checkpoints that can be downloaded and directly used to [evaluate STAP planners](#evaluating-planning).
-Run the following commands to download the model checkpoints to the default `./models` directory (this requires ~10GBs of disk space):
+Run the following commands to download the model checkpoints to the default `models/` directory (this requires ~10GBs of disk space):
 ```bash
 pipenv shell  # script requires gdown
 bash scripts/download/download_checkpoints.sh
 ```
-Once the download has finished, the `./models` directory will contain: 
+Once the download has finished, the `models/` directory will contain: 
 - Skills trained with [RL](#reinforcement-learning) (`agents_rl`) and their dynamics models (`dynamics_rl`)
 - Skills trained with [inverse RL](#inverse-reinforcement-learning) (`policies_irl`) and their dynamics models (`dynamics_irl`)
 - Demonstration data used to train inverse RL skills (`datasets`)
@@ -81,13 +81,13 @@ Once the download has finished, the `./models` directory will contain:
 
 #### Checkpoint Results
 We also provide the planning results that correspond to [evaluating STAP](#stap-for-motion-planning) on [these checkpoints](#model-checkpoints).
-To download the results to the default `./plots` directory, run the command (this requires ~3.5GBs of disk space):
+To download the results to the default `plots/` directory, run the following command (this requires ~3.5GBs of disk space):
 ```bash
 pipenv shell  # script requires gdown
 bash scripts/download/download_results.sh
 ```
 
-The planning results can be visualized by running `bash scripts/visualize/generate_figures.sh` which will save the following plot to `./plots/planning-result.jpg`:
+The planning results can be visualized by running `bash scripts/visualize/generate_figures.sh` which will save the figure shown below to `plots/planning-result.jpg`.
 
 <img src="readme/planning-result.jpg" alt="STAP Motion Planning Result"/>
 
