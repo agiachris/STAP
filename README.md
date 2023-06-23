@@ -76,18 +76,18 @@ Once the download has finished, the `./models` directory will contain:
 - Skills trained with [RL](#reinforcement-learning) (`agents_rl`) and their dynamics models (`dynamics_rl`)
 - Skills trained with [inverse RL](#inverse-reinforcement-learning) (`policies_irl`) and their dynamics models (`dynamics_irl`)
 - Demonstration data used to train inverse RL skills (`datasets`)
-- Deep Affordance Foresight baseline checkpoints (`baselines`)
+- Checkpoints for the [Deep Affordance Foresight](#baseline-deep-affordance-foresight) baseline (`baselines`)
 
 
 #### Checkpoint Results
-We also provide the planning results that correspond to [evaluating STAP](#stap-for-motion-planning) with the provided [model checkpoints](#model-checkpoints).
-To download the results to the default `./plots` directory, run the following command (this requires ~3.5GBs of disk space):
+We also provide the planning results that correspond to [evaluating STAP](#stap-for-motion-planning) on [these checkpoints](#model-checkpoints).
+To download the results to the default `./plots` directory, run the command (this requires ~3.5GBs of disk space):
 ```bash
 pipenv shell  # script requires gdown
 bash scripts/download/download_results.sh
 ```
 
-The planning results can be visualized with `bash scripts/visualize/generate_figures.sh`, which will save the following plot to `./plots/planning-result.jpg`:
+The planning results can be visualized by running `bash scripts/visualize/generate_figures.sh` which will save the following plot to `./plots/planning-result.jpg`:
 
 <img src="readme/planning-result.jpg" alt="STAP Motion Planning Result"/>
 
