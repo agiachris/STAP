@@ -1,4 +1,14 @@
 # STAP: Sequencing Task-Agnostic Policies
+
+[Christopher Agia*](https://www.chrisagia.com/), 
+[Toki Migimatsu*](https://cs.stanford.edu/~takatoki/), 
+[Jiajun Wu](https://jiajunwu.com/), 
+[Jeannette Bohg](https://web.stanford.edu/~bohg/)
+| Stanford University
+
+
+<a href='https://sites.google.com/stanford.edu/stap'><img src='https://img.shields.io/badge/Project-Page-Green'></a> <a href='https://arxiv.org/abs/2210.12250'><img src='https://img.shields.io/badge/Paper-Arxiv-red'></a> [![YouTube](https://badges.aleen42.com/src/youtube.svg)](https://youtu.be/78HiaQ6oF4s)
+
 The official code repository for *"STAP: Sequencing Task-Agnostic Policies,"* presented at ICRA 2023. 
 For a brief overview of our work, please refer to our [project page](https://sites.google.com/stanford.edu/stap).
 Further details can be found in our paper available on [arXiv](https://arxiv.org/abs/2210.12250).
@@ -166,10 +176,12 @@ bash scripts/eval/eval_daf.sh
 Sequencing Task-Agnostic Policies is offered under the [MIT License](https://github.com/agiachris/STAP/blob/main/LICENSE) agreement. 
 If you find STAP useful, please consider citing our work:
 ```
-@article{agia2022taps,
-  title={STAP: Sequencing Task-Agnostic Policies},
-  author={Agia, Christopher and Migimatsu, Toki and Wu, Jiajun and Bohg, Jeannette},
-  journal={arXiv preprint arXiv:2210.12250},
-  year={2022}
+@inproceedings{AgiaMigimatsuEtAl2023,
+  title     = {STAP: Sequencing Task-Agnostic Policies}, 
+  author    = {Agia, Christopher and Migimatsu, Toki and Wu, Jiajun and Bohg, Jeannette},
+  booktitle = {2023 IEEE International Conference on Robotics and Automation (ICRA)}, 
+  year      = {2023},
+  pages     = {7951-7958},
+  doi       = {10.1109/ICRA48891.2023.10160220}
 }
 ```
